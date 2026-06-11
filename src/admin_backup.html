@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de Obra - Admin Platform</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%23dc2626'/%3E%3Cpath d='M30 70V40l20-15 20 15v30H30z' fill='%23fff'/%3E%3Crect x='42' y='50' width='16' height='20' fill='%23dc2626'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#dc2626">
+<script src="https://cdn.tailwindcss.com/3.4.1"></script>
+<script>tailwind.config={theme:{extend:{colors:{admin:{50:'#fef2f2',100:'#fee2e2',500:'#ef4444',600:'#dc2626',700:'#b91c1c'}}}}}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{background:#0f172a;min-height:100vh}
+.g{background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid rgba(255,255,255,0.1)}
+.inp{width:100%;padding:0.625rem 0.875rem;border-radius:0.5rem;background:#1e293b;border:1px solid rgba(255,255,255,0.1);color:#f1f5f9;font-size:0.875rem;transition:all 0.2s}
+.inp:focus{outline:none;border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,0.2)}
+.inp::placeholder{color:#64748b}
+.btn{padding:0.625rem 1.25rem;border-radius:0.5rem;font-weight:500;font-size:0.875rem;transition:all 0.2s;cursor:pointer;border:none}
+.btn-p{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(239,68,68,0.4)}
+.btn-s{background:#1e293b;color:#f1f5f9;border:1px solid rgba(255,255,255,0.1)}
+.btn-s:hover{background:#334155}
+.sidebar{width:240px;background:#1e293b;border-right:1px solid rgba(255,255,255,0.1);height:100vh;position:fixed;left:0;top:0;display:flex;flex-direction:column}
+.sidebar a{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;color:#94a3b8;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+.sidebar a:hover,.sidebar a.active{background:rgba(239,68,68,0.1);color:#f1f5f9;border-left-color:#ef4444}
+.sidebar a i{font-size:1.25rem}
+.main{margin-left:240px;padding:1.5rem;min-height:100vh}
+.card{background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.25rem}
+.card-header{font-weight:600;font-size:0.875rem;color:#f1f5f9;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between}
+.stat-card{text-align:center}
+.stat-value{font-size:2rem;font-weight:700;color:#f1f5f9}
+.stat-label{font-size:0.75rem;color:#64748b;margin-top:0.25rem}
+.stat-change{font-size:0.75rem;margin-top:0.5rem}
+.stat-up{color:#22c55e}
+.stat-down{color:#ef4444}
+.table{width:100%;border-collapse:collapse;font-size:0.875rem}
+.table th{text-align:left;padding:0.75rem;color:#64748b;font-weight:500;border-bottom:1px solid rgba(255,255,255,0.1)}
+.table td{padding:0.75rem;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.05)}
+.table tr:hover td{background:rgba(255,255,255,0.02)}
+.badge{display:inline-flex;align-items:center;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:500}
+.badge-success{background:rgba(34,197,94,0.2);color:#22c55e}
+.badge-warning{background:rgba(234,179,8,0.2);color:#eab308}
+.badge-danger{background:rgba(239,68,68,0.2);color:#ef4444}
+.badge-info{background:rgba(59,130,246,0.2);color:#3b82f6}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;opacity:0;visibility:hidden;transition:all 0.3s}
+.modal.show{opacity:1;visibility:visible}
+.modal-content{background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.5rem;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;transform:scale(0.9);transition:transform 0.3s}
+.modal.show .modal-content{transform:scale(1)}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:1rem 1.5rem;border-radius:0.75rem;color:#fff;font-size:0.875rem;z-index:99999;animation:slideIn 0.3s ease}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.error-row{border-left:3px solid #ef4444}
+.error-row.resolved{border-left-color:#22c55e;opacity:0.6}
+</style>
+</head>
+<body class="text-slate-300">
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+<div class="w-full max-w-md">
+<div class="text-center mb-8">
+<div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center mb-4 shadow-lg shadow-red-500/20">
+<i class="ri-shield-keyhole-fill text-3xl text-white"></i>
+</div>
+<h1 class="text-2xl font-bold text-white">Platform Admin</h1>
+<p class="text-slate-400 text-sm">Control de Obra - Panel de Administracion</p>
+</div>
+
+<div class="g rounded-2xl p-6">
+<form id="loginForm" onsubmit="doAdminLogin(event)">
+<div class="space-y-4">
+<div>
+<label class="text-xs text-slate-400 mb-1 block">Correo Electronico</label>
+<div class="relative">
+<i class="ri-mail-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+<input type="email" id="loginEmail" class="inp pl-10" required placeholder="admin@controldeobra.com" autocomplete="email">
+</div>
+</div>
+<div>
+<label class="text-xs text-slate-400 mb-1 block">Contrasena</label>
+<div class="relative">
+<i class="ri-lock-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+<input type="password" id="loginPassword" class="inp pl-10 pr-10" required placeholder="••••••••" autocomplete="current-password">
+<button type="button" onclick="togglePwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"><i id="pwdIcon" class="ri-eye-line"></i></button>
+</div>
+</div>
+<div id="loginError" class="hidden text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2"></div>
+<button type="submit" id="loginBtn" class="btn btn-p w-full flex items-center justify-center gap-2">
+<span id="loginBtnText">Acceder al Panel</span>
+<i id="loginSpinner" class="ri-loader-4-line animate-spin hidden"></i>
+</button>
+</div>
+</form>
+<div class="mt-4 text-center">
+<a href="index.html" class="text-sm text-slate-400 hover:text-red-400"><i class="ri-arrow-left-line"></i> Volver a Control de Obra</a>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ========== MAIN APP ========== -->
+<div id="mainApp" class="hidden">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+<div class="p-4 border-b border-white/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
+<i class="ri-shield-keyhole-fill text-white"></i>
+</div>
+<div>
+<p class="font-bold text-white text-sm">Platform Admin</p>
+<p class="text-xs text-slate-400">Control de Obra</p>
+</div>
+</div>
+</div>
+
+<nav class="py-4 flex-1 overflow-y-auto">
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Principal</p>
+<a href="#" onclick="showSection('overview')" data-section="overview" class="active">
+<i class="ri-dashboard-3-line"></i> Overview
+</a>
+<a href="#" onclick="showSection('empresas')" data-section="empresas">
+<i class="ri-building-2-line"></i> Empresas
+</a>
+<a href="#" onclick="showSection('usuarios')" data-section="usuarios">
+<i class="ri-team-line"></i> Usuarios
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Monetizacion</p>
+<a href="#" onclick="showSection('subscriptions')" data-section="subscriptions">
+<i class="ri-vip-crown-2-line"></i> Suscripciones
+</a>
+<a href="#" onclick="showSection('billing')" data-section="billing">
+<i class="ri-money-dollar-circle-line"></i> Facturacion
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Operaciones</p>
+<a href="#" onclick="showSection('errors')" data-section="errors">
+<i class="ri-bug-line"></i> Errores
+<span id="errorBadge" class="ml-auto px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full hidden">0</span>
+</a>
+<a href="#" onclick="showSection('analytics')" data-section="analytics">
+<i class="ri-line-chart-line"></i> Analytics
+</a>
+<a href="#" onclick="showSection('health')" data-section="health">
+<i class="ri-heart-pulse-line"></i> System Health
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Configuracion</p>
+<a href="#" onclick="showSection('settings')" data-section="settings">
+<i class="ri-settings-3-line"></i> Ajustes
+</a>
+</nav>
+
+<div class="p-4 border-t border-white/10 flex-shrink-0">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+<i class="ri-admin-line"></i>
+</div>
+<div class="flex-1 min-w-0">
+<p id="adminName" class="text-sm font-medium text-white truncate">Admin</p>
+<p id="adminEmail" class="text-xs text-slate-400 truncate">admin@example.com</p>
+</div>
+<button onclick="doAdminLogout()" class="text-slate-400 hover:text-red-400" title="Cerrar sesion">
+<i class="ri-logout-box-r-line"></i>
+</button>
+</div>
+</div>
+</aside>
+
+<!-- Main Content -->
+<main class="main">
+<!-- Header -->
+<header class="flex items-center justify-between mb-6">
+<div>
+<h1 id="sectionTitle" class="text-2xl font-bold text-white">Overview</h1>
+<p id="sectionSubtitle" class="text-sm text-slate-400">Resumen de la plataforma</p>
+</div>
+<div class="flex items-center gap-3">
+<button onclick="refreshData()" class="btn btn-s">
+<i class="ri-refresh-line"></i> Actualizar
+</button>
+<span id="lastUpdate" class="text-xs text-slate-500"></span>
+</div>
+</header>
+
+<!-- Content Container -->
+<div id="content">
+<!-- Dynamic content will be loaded here -->
+</div>
+</main>
+</div>
+
+<!-- ========== MODALS ========== -->
+<div id="modalContainer"></div>
+
+<script>
+// ========== CONFIGURACION ==========
+const SB_URL = 'https://cpjdlaiarmxojiyhhpxt.supabase.co';
+const SB_KEY = 'sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+let currentAdmin = null;
+let platformData = {
+  empresas: [],
+  usuarios: [],
+  errors: [],
+  subscriptions: [],
+  plans: []
+};
+
+// ========== UTILIDADES ==========
+const $ = id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat('es-MX', {style:'currency', currency:'MXN'}).format(n || 0);
+const fmtNum = n => new Intl.NumberFormat('es-MX').format(n || 0);
+const fmtDate = d => d ? new Date(d).toLocaleDateString('es-MX') : '-';
+const fmtDateTime = d => d ? new Date(d).toLocaleString('es-MX') : '-';
+const fmtRelative = d => {
+  if (!d) return '-';
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Ahora';
+  if (mins < 60) return `Hace ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `Hace ${days}d`;
+};
+
+function togglePwd() {
+  const inp = $('loginPassword');
+  const icon = $('pwdIcon');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.className = 'ri-eye-off-line';
+  } else {
+    inp.type = 'password';
+    icon.className = 'ri-eye-line';
+  }
+}
+
+function showToast(msg, type = 'info') {
+  const colors = {
+    success: 'bg-green-600',
+    error: 'bg-red-600',
+    warning: 'bg-amber-600',
+    info: 'bg-blue-600'
+  };
+  const toast = document.createElement('div');
+  toast.className = `toast ${colors[type]}`;
+  toast.innerHTML = `<i class="ri-${type === 'success' ? 'check' : type === 'error' ? 'close' : type === 'warning' ? 'alert' : 'information'}-line mr-2"></i>${msg}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ========== AUTENTICACION ==========
+async function doAdminLogin(e) {
+  e.preventDefault();
+  const email = $('loginEmail').value.trim();
+  const password = $('loginPassword').value;
+
+  $('loginBtn').disabled = true;
+  $('loginBtnText').textContent = 'Verificando...';
+  $('loginSpinner').classList.remove('hidden');
+  $('loginError').classList.add('hidden');
+
+  try {
+    const { data, error } = await sb.rpc('platform_admin_login', {
+      p_email: email,
+      p_password: password
+    });
+
+    if (error) throw error;
+    if (!data.success) throw new Error(data.error || 'Error de autenticacion');
+
+    currentAdmin = data.admin;
+    localStorage.setItem('platform_admin_session', JSON.stringify({
+      token: data.token,
+      admin: data.admin,
+      expires_at: data.expires_at
+    }));
+
+    showApp();
+    showToast('Bienvenido, ' + currentAdmin.nombre, 'success');
+  } catch (err) {
+    $('loginError').textContent = err.message || 'Error de conexion';
+    $('loginError').classList.remove('hidden');
+  } finally {
+    $('loginBtn').disabled = false;
+    $('loginBtnText').textContent = 'Acceder al Panel';
+    $('loginSpinner').classList.add('hidden');
+  }
+}
+
+async function checkSession() {
+  const session = localStorage.getItem('platform_admin_session');
+  if (!session) return;
+
+  try {
+    const { token, admin, expires_at } = JSON.parse(session);
+
+    // Check if expired
+    if (new Date(expires_at) < new Date()) {
+      localStorage.removeItem('platform_admin_session');
+      return;
+    }
+
+    // Validate with server
+    const { data, error } = await sb.rpc('validate_platform_session', { p_token: token });
+
+    if (error || !data.valid) {
+      localStorage.removeItem('platform_admin_session');
+      return;
+    }
+
+    currentAdmin = data.admin;
+    showApp();
+  } catch (err) {
+    console.error('Session check failed:', err);
+    localStorage.removeItem('platform_admin_session');
+  }
+}
+
+async function doAdminLogout() {
+  const session = localStorage.getItem('platform_admin_session');
+  if (session) {
+    try {
+      const { token } = JSON.parse(session);
+      await sb.rpc('platform_admin_logout', { p_token: token });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  }
+  localStorage.removeItem('platform_admin_session');
+  currentAdmin = null;
+  $('loginScreen').classList.remove('hidden');
+  $('mainApp').classList.add('hidden');
+}
+
+function showApp() {
+  $('loginScreen').classList.add('hidden');
+  $('mainApp').classList.remove('hidden');
+
+  if (currentAdmin) {
+    $('adminName').textContent = currentAdmin.nombre;
+    $('adminEmail').textContent = currentAdmin.email;
+  }
+
+  loadPlatformData();
+  showSection('overview');
+}
+
+// ========== CARGA DE DATOS ==========
+async function loadPlatformData() {
+  try {
+    // Load empresas
+    const { data: empresas } = await sb.from('empresas').select('*').order('created_at', { ascending: false });
+    platformData.empresas = empresas || [];
+
+    // Load usuarios
+    const { data: usuarios } = await sb.from('obra_usuarios').select('*, obra_roles(nombre)').order('created_at', { ascending: false });
+    platformData.usuarios = usuarios || [];
+
+    // Load errors (last 24h)
+    const { data: errors } = await sb.from('platform_errors').select('*').gte('created_at', new Date(Date.now() - 86400000).toISOString()).order('created_at', { ascending: false });
+    platformData.errors = errors || [];
+
+    // Load subscription plans
+    const { data: plans } = await sb.from('subscription_plans').select('*').order('orden');
+    platformData.plans = plans || [];
+
+    // Load subscriptions
+    const { data: subs } = await sb.from('empresa_subscriptions').select('*, subscription_plans(*)');
+    platformData.subscriptions = subs || [];
+
+    // Update error badge
+    const newErrors = platformData.errors.filter(e => e.status === 'new').length;
+    if (newErrors > 0) {
+      $('errorBadge').textContent = newErrors;
+      $('errorBadge').classList.remove('hidden');
+    } else {
+      $('errorBadge').classList.add('hidden');
+    }
+
+    $('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+
+  } catch (err) {
+    console.error('Error loading data:', err);
+    showToast('Error al cargar datos', 'error');
+  }
+}
+
+async function refreshData() {
+  showToast('Actualizando datos...', 'info');
+  await loadPlatformData();
+  showSection(document.querySelector('.sidebar a.active')?.dataset.section || 'overview');
+  showToast('Datos actualizados', 'success');
+}
+
+// ========== NAVEGACION ==========
+function showSection(section) {
+  // Update sidebar
+  document.querySelectorAll('.sidebar a').forEach(a => {
+    a.classList.toggle('active', a.dataset.section === section);
+  });
+
+  // Update title
+  const titles = {
+    overview: ['Overview', 'Resumen de la plataforma'],
+    empresas: ['Empresas', 'Gestion de empresas registradas'],
+    usuarios: ['Usuarios', 'Todos los usuarios de la plataforma'],
+    subscriptions: ['Suscripciones', 'Planes y suscripciones activas'],
+    billing: ['Facturacion', 'Ingresos y facturas'],
+    errors: ['Errores', 'Monitoreo de errores en tiempo real'],
+    analytics: ['Analytics', 'Metricas de uso de la plataforma'],
+    health: ['System Health', 'Estado de los servicios'],
+    settings: ['Ajustes', 'Configuracion del panel']
+  };
+
+  $('sectionTitle').textContent = titles[section]?.[0] || section;
+  $('sectionSubtitle').textContent = titles[section]?.[1] || '';
+
+  // Render content
+  switch (section) {
+    case 'overview': renderOverview(); break;
+    case 'empresas': renderEmpresas(); break;
+    case 'usuarios': renderUsuarios(); break;
+    case 'subscriptions': renderSubscriptions(); break;
+    case 'billing': renderBilling(); break;
+    case 'errors': renderErrors(); break;
+    case 'analytics': renderAnalytics(); break;
+    case 'health': renderHealth(); break;
+    case 'settings': renderSettings(); break;
+  }
+}
+
+// ========== OVERVIEW ==========
+function renderOverview() {
+  const empresasActivas = platformData.empresas.filter(e => e.activo !== false).length;
+  const usuariosActivos = platformData.usuarios.filter(u => u.activo).length;
+  const errores24h = platformData.errors.length;
+  const mrr = platformData.subscriptions.reduce((sum, s) => sum + (s.subscription_plans?.precio_mensual || 0), 0);
+
+  $('content').innerHTML = `
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-red-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr)}</div>
+        <div class="stat-label">MRR (Ingresos Mensuales)</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +12% vs mes anterior</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-building-2-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(empresasActivas)}</div>
+        <div class="stat-label">Empresas Activas</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +${platformData.empresas.filter(e => new Date(e.created_at) > new Date(Date.now() - 2592000000)).length} este mes</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-team-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(usuariosActivos)}</div>
+        <div class="stat-label">Usuarios Activos</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +${platformData.usuarios.filter(u => new Date(u.created_at) > new Date(Date.now() - 604800000)).length} esta semana</div>
+      </div>
+      <div class="card stat-card">
+        <div class="${errores24h > 10 ? 'text-red-400' : 'text-amber-400'} mb-2"><i class="ri-bug-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(errores24h)}</div>
+        <div class="stat-label">Errores (24h)</div>
+        <div class="stat-change ${errores24h > 10 ? 'stat-down' : 'stat-up'}">
+          <i class="ri-${errores24h > 10 ? 'arrow-up' : 'arrow-down'}-line"></i>
+          ${errores24h > 10 ? 'Requiere atencion' : 'Normal'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="card">
+        <div class="card-header">Tendencia de Ingresos</div>
+        <div style="position:relative;height:200px;width:100%">
+          <canvas id="revenueChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Nuevos Registros</div>
+        <div style="position:relative;height:200px;width:100%">
+          <canvas id="signupsChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card">
+        <div class="card-header">
+          Empresas Recientes
+          <a href="#" onclick="showSection('empresas')" class="text-xs text-red-400 hover:text-red-300">Ver todas</a>
+        </div>
+        <table class="table">
+          <thead><tr><th>Empresa</th><th>Plan</th><th>Fecha</th></tr></thead>
+          <tbody>
+            ${platformData.empresas.slice(0, 5).map(e => `
+              <tr>
+                <td class="font-medium">${e.nombre || 'Sin nombre'}</td>
+                <td><span class="badge badge-info">Free</span></td>
+                <td class="text-slate-400">${fmtRelative(e.created_at)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="3" class="text-center text-slate-400">Sin empresas</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          Errores Recientes
+          <a href="#" onclick="showSection('errors')" class="text-xs text-red-400 hover:text-red-300">Ver todos</a>
+        </div>
+        <div class="space-y-2 max-h-[300px] overflow-y-auto">
+          ${platformData.errors.slice(0, 5).map(e => `
+            <div class="p-3 rounded-lg bg-black/20 border-l-2 ${e.status === 'new' ? 'border-red-500' : 'border-slate-600'}">
+              <p class="text-sm font-medium truncate">${e.message || 'Error desconocido'}</p>
+              <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
+                <span><i class="ri-code-line"></i> ${e.error_type || 'unknown'}</span>
+              </div>
+            </div>
+          `).join('') || '<p class="text-center text-slate-400 py-4">Sin errores recientes</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render charts
+  setTimeout(() => {
+    renderRevenueChart();
+    renderSignupsChart();
+  }, 100);
+}
+
+function renderRevenueChart() {
+  const ctx = document.getElementById('revenueChart')?.getContext('2d');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
+      datasets: [{
+        label: 'MRR',
+        data: [0, 0, 0, 799, 1598, 2397],
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
+}
+
+function renderSignupsChart() {
+  const ctx = document.getElementById('signupsChart')?.getContext('2d');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'],
+      datasets: [{
+        label: 'Empresas',
+        data: [1, 0, 2, 1, 0, 0, 0],
+        backgroundColor: '#3b82f6'
+      }, {
+        label: 'Usuarios',
+        data: [3, 2, 5, 2, 1, 0, 1],
+        backgroundColor: '#22c55e'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
+}
+
+// ========== EMPRESAS ==========
+function renderEmpresas() {
+  $('content').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <input type="text" id="searchEmpresas" class="inp w-64" placeholder="Buscar empresa..." onkeyup="filterEmpresas()">
+        <select id="filterPlan" class="inp w-40" onchange="filterEmpresas()">
+          <option value="">Todos los planes</option>
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+      <div class="text-sm text-slate-400">
+        ${platformData.empresas.length} empresas registradas
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="table" id="empresasTable">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Usuarios</th>
+            <th>Obras</th>
+            <th>Plan</th>
+            <th>Estado</th>
+            <th>Registro</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${platformData.empresas.map(e => {
+            const usuarios = platformData.usuarios.filter(u => u.empresa_id === e.id).length;
+            return `
+              <tr data-id="${e.id}">
+                <td>
+                  <div class="font-medium text-white">${e.nombre || 'Sin nombre'}</div>
+                  <div class="text-xs text-slate-400">${e.rfc || 'Sin RFC'}</div>
+                </td>
+                <td>${usuarios}</td>
+                <td>-</td>
+                <td><span class="badge badge-info">Free</span></td>
+                <td><span class="badge ${e.activo !== false ? 'badge-success' : 'badge-danger'}">${e.activo !== false ? 'Activa' : 'Suspendida'}</span></td>
+                <td class="text-slate-400">${fmtDate(e.created_at)}</td>
+                <td class="text-right">
+                  <button onclick="showEmpresaDetail('${e.id}')" class="text-slate-400 hover:text-white mr-2" title="Ver detalle">
+                    <i class="ri-eye-line"></i>
+                  </button>
+                  <button onclick="toggleEmpresaStatus('${e.id}')" class="text-slate-400 hover:text-amber-400 mr-2" title="${e.activo !== false ? 'Suspender' : 'Activar'}">
+                    <i class="ri-${e.activo !== false ? 'pause' : 'play'}-circle-line"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          }).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-8">No hay empresas registradas</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function filterEmpresas() {
+  const search = $('searchEmpresas').value.toLowerCase();
+  const plan = $('filterPlan').value;
+
+  document.querySelectorAll('#empresasTable tbody tr').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    const matchSearch = text.includes(search);
+    // TODO: filter by plan when subscriptions are linked
+    tr.style.display = matchSearch ? '' : 'none';
+  });
+}
+
+async function showEmpresaDetail(empresaId) {
+  const empresa = platformData.empresas.find(e => e.id == empresaId);
+  if (!empresa) return;
+
+  const usuarios = platformData.usuarios.filter(u => u.empresa_id == empresaId);
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">${empresa.nombre || 'Empresa'}</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <p class="text-xs text-slate-400">RFC</p>
+            <p class="text-white">${empresa.rfc || '-'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Registro</p>
+            <p class="text-white">${fmtDateTime(empresa.created_at)}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Estado</p>
+            <span class="badge ${empresa.activo !== false ? 'badge-success' : 'badge-danger'}">${empresa.activo !== false ? 'Activa' : 'Suspendida'}</span>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Plan</p>
+            <span class="badge badge-info">Free</span>
+          </div>
+        </div>
+
+        <div class="border-t border-white/10 pt-4">
+          <h4 class="font-medium text-white mb-3">Usuarios (${usuarios.length})</h4>
+          <div class="space-y-2 max-h-[200px] overflow-y-auto">
+            ${usuarios.map(u => `
+              <div class="flex items-center justify-between p-2 rounded bg-black/20">
+                <div>
+                  <p class="text-sm font-medium text-white">${u.nombre}</p>
+                  <p class="text-xs text-slate-400">${u.email}</p>
+                </div>
+                <span class="badge badge-info">${u.obra_roles?.nombre || 'Sin rol'}</span>
+              </div>
+            `).join('') || '<p class="text-slate-400 text-sm">Sin usuarios</p>'}
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cerrar</button>
+          <button onclick="changePlan('${empresaId}')" class="btn btn-p flex-1">Cambiar Plan</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ========== USUARIOS ==========
+function renderUsuarios() {
+  $('content').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <input type="text" id="searchUsuarios" class="inp w-64" placeholder="Buscar usuario..." onkeyup="filterUsuarios()">
+      <div class="text-sm text-slate-400">
+        ${platformData.usuarios.length} usuarios totales
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Empresa</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Ultimo Acceso</th>
+            <th>Registro</th>
+          </tr>
+        </thead>
+        <tbody id="usuariosTableBody">
+          ${platformData.usuarios.map(u => {
+            const empresa = platformData.empresas.find(e => e.id === u.empresa_id);
+            return `
+              <tr>
+                <td>
+                  <div class="font-medium text-white">${u.nombre}</div>
+                  <div class="text-xs text-slate-400">${u.email}</div>
+                </td>
+                <td>${empresa?.nombre || 'Sin empresa'}</td>
+                <td><span class="badge badge-info">${u.obra_roles?.nombre || '-'}</span></td>
+                <td><span class="badge ${u.activo ? 'badge-success' : 'badge-danger'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+                <td class="text-slate-400">${fmtRelative(u.ultimo_acceso)}</td>
+                <td class="text-slate-400">${fmtDate(u.created_at)}</td>
+              </tr>
+            `;
+          }).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">No hay usuarios</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function filterUsuarios() {
+  const search = $('searchUsuarios').value.toLowerCase();
+  document.querySelectorAll('#usuariosTableBody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(search) ? '' : 'none';
+  });
+}
+
+// ========== SUSCRIPCIONES ==========
+function renderSubscriptions() {
+  const plans = [
+    { nombre: 'Free', precio: 0, usuarios: 3, obras: 2, color: 'slate' },
+    { nombre: 'Pro', precio: 799, usuarios: 15, obras: 10, color: 'blue' },
+    { nombre: 'Enterprise', precio: 1999, usuarios: -1, obras: -1, color: 'amber' }
+  ];
+
+  $('content').innerHTML = `
+    <!-- Plans Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      ${plans.map(p => `
+        <div class="card text-center">
+          <div class="text-${p.color}-400 mb-2"><i class="ri-vip-crown-2-line text-2xl"></i></div>
+          <h3 class="text-lg font-bold text-white">${p.nombre}</h3>
+          <p class="text-3xl font-bold text-white my-3">${p.precio === 0 ? 'Gratis' : fmt(p.precio)}<span class="text-sm font-normal text-slate-400">/mes</span></p>
+          <div class="text-sm text-slate-400 space-y-1">
+            <p><i class="ri-team-line mr-1"></i> ${p.usuarios === -1 ? 'Ilimitados' : p.usuarios} usuarios</p>
+            <p><i class="ri-building-line mr-1"></i> ${p.obras === -1 ? 'Ilimitadas' : p.obras} obras</p>
+          </div>
+          <div class="mt-4 text-2xl font-bold text-${p.color}-400">
+            ${platformData.empresas.length} <span class="text-sm font-normal">empresas</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Subscription List -->
+    <div class="card">
+      <div class="card-header">Todas las Suscripciones</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Plan</th>
+            <th>Estado</th>
+            <th>Periodo</th>
+            <th>Proxima Facturacion</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${platformData.empresas.map(e => `
+            <tr>
+              <td class="font-medium text-white">${e.nombre || 'Sin nombre'}</td>
+              <td><span class="badge badge-info">Free</span></td>
+              <td><span class="badge badge-success">Activo</span></td>
+              <td>Mensual</td>
+              <td class="text-slate-400">-</td>
+              <td class="text-right">
+                <button onclick="changePlan('${e.id}')" class="btn btn-s btn-sm text-xs">Cambiar Plan</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Sin suscripciones</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function changePlan(empresaId) {
+  showToast('Funcion de cambio de plan en desarrollo', 'info');
+}
+
+// ========== BILLING ==========
+function renderBilling() {
+  const mrr = platformData.subscriptions.reduce((sum, s) => sum + (s.subscription_plans?.precio_mensual || 0), 0);
+
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr)}</div>
+        <div class="stat-label">MRR Actual</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-calendar-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr * 12)}</div>
+        <div class="stat-label">ARR Proyectado</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-amber-400 mb-2"><i class="ri-file-list-3-line text-2xl"></i></div>
+        <div class="stat-value">0</div>
+        <div class="stat-label">Facturas Pendientes</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Facturas Recientes</div>
+      <div class="text-center py-12 text-slate-400">
+        <i class="ri-file-list-3-line text-4xl mb-2"></i>
+        <p>Sistema de facturacion pendiente de configurar</p>
+        <p class="text-sm mt-2">Las empresas estan actualmente en plan gratuito</p>
+      </div>
+    </div>
+  `;
+}
+
+// ========== ERRORES ==========
+function renderErrors() {
+  const newErrors = platformData.errors.filter(e => e.status === 'new').length;
+  const resolvedErrors = platformData.errors.filter(e => e.status === 'resolved').length;
+
+  // Group errors by fingerprint
+  const grouped = {};
+  platformData.errors.forEach(e => {
+    const fp = e.fingerprint || e.message?.substring(0, 50) || 'unknown';
+    if (!grouped[fp]) {
+      grouped[fp] = { ...e, count: 0 };
+    }
+    grouped[fp].count++;
+    if (new Date(e.created_at) > new Date(grouped[fp].created_at)) {
+      grouped[fp].created_at = e.created_at;
+    }
+  });
+
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-red-400 mb-2"><i class="ri-bug-line text-2xl"></i></div>
+        <div class="stat-value">${platformData.errors.length}</div>
+        <div class="stat-label">Total (24h)</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-amber-400 mb-2"><i class="ri-error-warning-line text-2xl"></i></div>
+        <div class="stat-value">${newErrors}</div>
+        <div class="stat-label">Nuevos</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-checkbox-circle-line text-2xl"></i></div>
+        <div class="stat-value">${resolvedErrors}</div>
+        <div class="stat-label">Resueltos</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-stack-line text-2xl"></i></div>
+        <div class="stat-value">${Object.keys(grouped).length}</div>
+        <div class="stat-label">Tipos Unicos</div>
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">Tendencia de Errores (24h)</div>
+      <div style="position:relative;height:150px;width:100%">
+        <canvas id="errorTrendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        Errores Agrupados
+        <div class="flex items-center gap-2">
+          <select id="errorFilter" class="inp text-sm" onchange="filterErrors()">
+            <option value="">Todos</option>
+            <option value="new">Nuevos</option>
+            <option value="resolved">Resueltos</option>
+          </select>
+        </div>
+      </div>
+      <div id="errorsList" class="divide-y divide-white/5">
+        ${Object.values(grouped).map(e => `
+          <div class="p-4 hover:bg-white/5 cursor-pointer error-row ${e.status}" onclick="showErrorDetail('${e.id}')">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="badge ${e.status === 'new' ? 'badge-danger' : 'badge-success'}">${e.status === 'new' ? 'Nuevo' : 'Resuelto'}</span>
+                  <span class="badge badge-info">${e.error_type || 'unknown'}</span>
+                  <span class="text-xs text-slate-400">${e.count}x</span>
+                </div>
+                <p class="text-white font-medium truncate">${e.message || 'Error sin mensaje'}</p>
+                <div class="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                  <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
+                  ${e.url ? `<span><i class="ri-link"></i> ${e.url.split('/').pop()}</span>` : ''}
+                </div>
+              </div>
+              <button onclick="event.stopPropagation();resolveError('${e.fingerprint}')" class="btn btn-s text-xs ${e.status === 'new' ? '' : 'hidden'}">
+                Resolver
+              </button>
+            </div>
+          </div>
+        `).join('') || '<div class="p-8 text-center text-slate-400">Sin errores en las ultimas 24 horas</div>'}
+      </div>
+    </div>
+  `;
+
+  setTimeout(renderErrorTrendChart, 100);
+}
+
+function renderErrorTrendChart() {
+  const ctx = document.getElementById('errorTrendChart')?.getContext('2d');
+  if (!ctx) return;
+
+  // Group by hour
+  const hours = Array(24).fill(0);
+  platformData.errors.forEach(e => {
+    const hour = new Date(e.created_at).getHours();
+    hours[hour]++;
+  });
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: hours.map((_, i) => `${i}:00`),
+      datasets: [{
+        label: 'Errores',
+        data: hours,
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b', maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+async function showErrorDetail(errorId) {
+  const error = platformData.errors.find(e => e.id === errorId);
+  if (!error) return;
+
+  const empresa = platformData.empresas.find(e => e.id === error.empresa_id);
+  const usuario = platformData.usuarios.find(u => u.id === error.user_id);
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="badge ${error.status === 'new' ? 'badge-danger' : 'badge-success'} mb-2">${error.status}</span>
+            <h3 class="text-lg font-bold text-white">${error.error_type || 'Error'}</h3>
+          </div>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <div class="bg-black/30 rounded-lg p-4 mb-4">
+          <p class="text-red-400 font-mono text-sm">${error.message}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <p class="text-xs text-slate-400">Empresa</p>
+            <p class="text-white">${empresa?.nombre || 'Desconocida'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Usuario</p>
+            <p class="text-white">${usuario?.nombre || 'Anonimo'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">URL</p>
+            <p class="text-white text-sm truncate">${error.url || '-'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Fecha</p>
+            <p class="text-white">${fmtDateTime(error.created_at)}</p>
+          </div>
+        </div>
+
+        ${error.stack_trace ? `
+          <div class="mb-4">
+            <p class="text-xs text-slate-400 mb-2">Stack Trace</p>
+            <pre class="bg-black/30 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto max-h-[200px]">${error.stack_trace}</pre>
+          </div>
+        ` : ''}
+
+        <div class="flex gap-2">
+          <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cerrar</button>
+          ${error.status === 'new' ? `<button onclick="resolveError('${error.fingerprint}');this.closest('.modal').remove()" class="btn btn-p flex-1">Marcar Resuelto</button>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function resolveError(fingerprint) {
+  try {
+    await sb.from('platform_errors').update({ status: 'resolved' }).eq('fingerprint', fingerprint);
+    showToast('Error marcado como resuelto', 'success');
+    await loadPlatformData();
+    renderErrors();
+  } catch (err) {
+    showToast('Error al actualizar', 'error');
+  }
+}
+
+// ========== ANALYTICS ==========
+function renderAnalytics() {
+  $('content').innerHTML = `
+    <div class="card mb-6">
+      <div class="card-header">Uso de Funcionalidades</div>
+      <div class="text-center py-12 text-slate-400">
+        <i class="ri-bar-chart-box-line text-4xl mb-2"></i>
+        <p>Analytics en desarrollo</p>
+        <p class="text-sm mt-2">Proximamente: metricas de uso, retention, y mas</p>
+      </div>
+    </div>
+  `;
+}
+
+// ========== HEALTH ==========
+function renderHealth() {
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-database-2-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">Base de Datos</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-server-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">API</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-cloud-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">Storage</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Uptime (Ultimos 30 dias)</div>
+      <div class="flex items-center gap-1 mt-4">
+        ${Array(30).fill(0).map(() => `<div class="flex-1 h-8 bg-green-500 rounded" title="100%"></div>`).join('')}
+      </div>
+      <div class="flex justify-between mt-2 text-xs text-slate-400">
+        <span>Hace 30 dias</span>
+        <span>99.9% uptime</span>
+        <span>Hoy</span>
+      </div>
+    </div>
+  `;
+}
+
+// ========== SETTINGS ==========
+function renderSettings() {
+  $('content').innerHTML = `
+    <div class="card mb-6">
+      <div class="card-header">Perfil de Administrador</div>
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Nombre</label>
+          <input type="text" class="inp" value="${currentAdmin?.nombre || ''}" disabled>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Email</label>
+          <input type="email" class="inp" value="${currentAdmin?.email || ''}" disabled>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Rol</label>
+          <input type="text" class="inp" value="${currentAdmin?.rol || ''}" disabled>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">Notificaciones</div>
+      <div class="space-y-4">
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Alertas de errores criticos por email</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600" checked>
+        </label>
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Resumen diario</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600">
+        </label>
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Nuevas empresas registradas</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600" checked>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header text-red-400">Zona de Peligro</div>
+      <p class="text-sm text-slate-400 mb-4">Acciones que requieren confirmacion adicional</p>
+      <button onclick="showToast('Funcion no disponible', 'warning')" class="btn bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30">
+        <i class="ri-refresh-line mr-2"></i> Reiniciar Cache Global
+      </button>
+    </div>
+  `;
+}
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', () => {
+  checkSession();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,854 @@
+{
+  "name": "SUPERNOVA - WORDPRESS AUTO MEJORADO V2",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "8451cf3f-1b37-4103-a203-c44d978d1781",
+      "name": "Schedule Trigger1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [-2096, 4416],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "chatId": "6074722648",
+        "message": "Toca crear publicacion en wordpress SUPERNOVA ARQUITECTOS!!!!",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "resumeAmount": 2.9,
+              "resumeUnit": "days"
+            }
+          },
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-1920, 4416],
+      "id": "c0f16704-ad5f-48aa-97b1-27735b38f707",
+      "name": "Consultar crear contenido",
+      "webhookId": "e9d3c06b-ece3-4939-be60-75bd7899fb90"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ffbb885c-fc1e-44f1-8647-2ec71bbd7704",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-1696, 4416],
+      "id": "5eb12537-6f10-466b-a307-7f214c02c4d2",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "chatId": "6074722648",
+        "text": "Ni pedo no creo nada pues.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-1392, 4736],
+      "id": "7f3ff945-d06a-4c1c-ab67-3434217b7208",
+      "name": "Cancelar creacion de contenido",
+      "webhookId": "12547fba-f0fa-40be-8f49-956c0720828f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// VERSIÓN 2.0 MEJORADA: 25 temas con categorías dinámicas\nconst topics = [\n  // TECNOLOGÍA Y DIGITALIZACIÓN (cat 916)\n  { tema: \"BIM y gemelos digitales\", enfoque: \"Explica cómo la tecnología BIM y los gemelos digitales están transformando la gestión de proyectos arquitectónicos\", formato: \"guía práctica\", palabras_clave: \"BIM, gemelos digitales, gestión de proyectos, modelado 3D\", categoria: 916 },\n  { tema: \"IA en el diseño arquitectónico\", enfoque: \"Descubre cómo la inteligencia artificial está revolucionando el proceso de diseño\", formato: \"caso de estudio\", palabras_clave: \"inteligencia artificial, diseño generativo, automatización, machine learning\", categoria: 916 },\n  { tema: \"Realidad virtual y aumentada en arquitectura\", enfoque: \"Descubre cómo VR y AR están mejorando la presentación de proyectos\", formato: \"artículo educativo\", palabras_clave: \"realidad virtual, realidad aumentada, visualización arquitectónica\", categoria: 916 },\n  { tema: \"Impresión 3D en construcción\", enfoque: \"Explora las posibilidades de la impresión 3D para construir viviendas\", formato: \"reporte de innovación\", palabras_clave: \"impresión 3D, construcción aditiva, fabricación digital\", categoria: 916 },\n  { tema: \"Drones en topografía y construcción\", enfoque: \"Analiza cómo los drones optimizan el levantamiento topográfico\", formato: \"artículo técnico\", palabras_clave: \"drones, topografía, fotogrametría, supervisión de obra\", categoria: 916 },\n  { tema: \"Software de renderizado en tiempo real\", enfoque: \"Compara Enscape, Twinmotion y Lumion\", formato: \"análisis comparativo\", palabras_clave: \"renderizado, tiempo real, Enscape, Twinmotion\", categoria: 916 },\n  { tema: \"Automatización de planos con IA\", enfoque: \"Explora herramientas que automatizan la generación de planos\", formato: \"guía de herramientas\", palabras_clave: \"automatización, planos, IA arquitectura\", categoria: 916 },\n\n  // SUSTENTABILIDAD (cat 917)\n  { tema: \"Materiales sustentables\", enfoque: \"Analiza los materiales de construcción más innovadores y ecológicos\", formato: \"análisis comparativo\", palabras_clave: \"materiales sustentables, construcción ecológica, economía circular\", categoria: 917 },\n  { tema: \"Energías renovables en edificios\", enfoque: \"Analiza la integración de paneles solares y otras tecnologías\", formato: \"guía de implementación\", palabras_clave: \"energía solar, eficiencia energética, net zero\", categoria: 917 },\n  { tema: \"Certificaciones verdes (LEED, BREEAM)\", enfoque: \"Explica los beneficios y proceso de certificación\", formato: \"guía paso a paso\", palabras_clave: \"LEED, BREEAM, certificación verde\", categoria: 917 },\n  { tema: \"Diseño bioclimático\", enfoque: \"Investiga estrategias que aprovechan condiciones climáticas locales\", formato: \"guía de diseño\", palabras_clave: \"diseño bioclimático, arquitectura pasiva, confort térmico\", categoria: 917 },\n  { tema: \"Arquitectura regenerativa\", enfoque: \"Explora edificios que generan más recursos de los que consumen\", formato: \"artículo conceptual\", palabras_clave: \"arquitectura regenerativa, impacto positivo, sostenibilidad\", categoria: 917 },\n  { tema: \"Techos y muros verdes\", enfoque: \"Analiza beneficios y técnicas de vegetación en edificios\", formato: \"guía técnica\", palabras_clave: \"techos verdes, muros vegetales, jardines verticales\", categoria: 917 },\n  { tema: \"Captación de agua pluvial\", enfoque: \"Diseña sistemas de recolección de agua de lluvia\", formato: \"manual técnico\", palabras_clave: \"captación pluvial, sustentabilidad hídrica\", categoria: 917 },\n\n  // CONSTRUCCIÓN E INGENIERÍA (cat 918)\n  { tema: \"Construcción modular y prefabricada\", enfoque: \"Investiga cómo reduce tiempos y costos\", formato: \"análisis técnico\", palabras_clave: \"construcción modular, prefabricación, industrialización\", categoria: 918 },\n  { tema: \"Domótica y edificios inteligentes\", enfoque: \"Explora tendencias en automatización residencial\", formato: \"artículo de tendencias\", palabras_clave: \"domótica, smart buildings, IoT\", categoria: 918 },\n  { tema: \"Estructuras de madera de gran altura\", enfoque: \"Analiza el auge de edificios de madera y CLT\", formato: \"caso de estudio\", palabras_clave: \"madera laminada, CLT, edificios de madera\", categoria: 918 },\n  { tema: \"Concreto de ultra alto rendimiento\", enfoque: \"Explora propiedades y aplicaciones del UHPC\", formato: \"artículo técnico\", palabras_clave: \"UHPC, concreto avanzado, resistencia estructural\", categoria: 918 },\n  { tema: \"Retrofitting y renovación energética\", enfoque: \"Estrategias para actualizar edificios existentes\", formato: \"guía de implementación\", palabras_clave: \"retrofitting, renovación, eficiencia energética\", categoria: 918 },\n\n  // GESTIÓN Y METODOLOGÍAS (cat 919)\n  { tema: \"Gestión de proyectos con metodologías ágiles\", enfoque: \"Explora cómo Scrum se aplica en construcción\", formato: \"caso práctico\", palabras_clave: \"metodologías ágiles, Scrum, gestión de proyectos\", categoria: 919 },\n  { tema: \"Lean Construction\", enfoque: \"Implementa principios Lean para reducir desperdicios\", formato: \"guía de implementación\", palabras_clave: \"lean construction, eficiencia, mejora continua\", categoria: 919 },\n  { tema: \"Contratos colaborativos IPD\", enfoque: \"Explora Integrated Project Delivery\", formato: \"artículo educativo\", palabras_clave: \"IPD, contratos colaborativos, gestión integrada\", categoria: 919 },\n\n  // DISEÑO Y TENDENCIAS (cat 920)\n  { tema: \"Arquitectura paramétrica\", enfoque: \"Descubre cómo el diseño paramétrico crea formas únicas\", formato: \"análisis de tendencias\", palabras_clave: \"diseño paramétrico, Grasshopper, geometría compleja\", categoria: 920 },\n  { tema: \"Neuroarquitectura\", enfoque: \"Explora cómo el diseño afecta bienestar y productividad\", formato: \"artículo científico\", palabras_clave: \"neuroarquitectura, bienestar, espacios saludables\", categoria: 920 },\n  { tema: \"Diseño biofílico\", enfoque: \"Integra elementos naturales para mejorar calidad de vida\", formato: \"guía de diseño\", palabras_clave: \"diseño biofílico, naturaleza, bienestar\", categoria: 920 }\n];\n\nconst temporalContext = [\n  \"considerando las tendencias más recientes del mercado\",\n  \"tomando en cuenta las innovaciones de este año\",\n  \"con enfoque en soluciones aplicables en México\",\n  \"destacando casos de éxito recientes\",\n  \"con proyección hacia el futuro cercano\",\n  \"analizando el impacto post-pandemia\",\n  \"considerando la inflación y optimización de costos\",\n  \"con énfasis en soluciones para clima cálido\",\n  \"destacando proyectos latinoamericanos\",\n  \"con visión de implementación inmediata\"\n];\n\nconst randomTopic = topics[Math.floor(Math.random() * topics.length)];\nconst randomContext = temporalContext[Math.floor(Math.random() * temporalContext.length)];\n\nreturn {\n  json: {\n    tema: randomTopic.tema,\n    enfoque: randomTopic.enfoque,\n    formato: randomTopic.formato,\n    palabras_clave: randomTopic.palabras_clave,\n    categoria: randomTopic.categoria,\n    contexto_temporal: randomContext\n  }\n};"
+      },
+      "id": "50f26f9d-1bae-4c1c-a669-2d5f5b02cf17",
+      "name": "Seleccionar Tema Aleatorio",
+      "type": "n8n-nodes-base.code",
+      "position": [-1392, 4400],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://supernovarquitectos.com/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "search",
+              "value": "={{ $json.tema }}"
+            },
+            {
+              "name": "per_page",
+              "value": "5"
+            },
+            {
+              "name": "status",
+              "value": "publish"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "buscar-posts-existentes",
+      "name": "Buscar Posts Existentes",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1200, 4400],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verificar si ya existe un post similar sobre el tema\nconst temaActual = $('Seleccionar Tema Aleatorio').item.json.tema.toLowerCase();\nconst postsExistentes = $input.first().json;\n\nfunction calcularSimilitud(str1, str2) {\n  const p1 = str1.toLowerCase().split(/\\s+/);\n  const p2 = str2.toLowerCase().split(/\\s+/);\n  let coincidencias = 0;\n  p1.forEach(palabra => {\n    if (p2.some(p => p.includes(palabra) || palabra.includes(p))) coincidencias++;\n  });\n  return coincidencias / Math.max(p1.length, p2.length);\n}\n\nlet esDuplicado = false;\nlet postSimilar = null;\n\nif (Array.isArray(postsExistentes) && postsExistentes.length > 0) {\n  for (const post of postsExistentes) {\n    const titulo = post.title?.rendered || '';\n    const similitud = calcularSimilitud(temaActual, titulo);\n    if (similitud > 0.6) {\n      esDuplicado = true;\n      postSimilar = {\n        id: post.id,\n        titulo: titulo,\n        fecha: post.date,\n        similitud: Math.round(similitud * 100) + '%'\n      };\n      break;\n    }\n  }\n}\n\nconst temaData = $('Seleccionar Tema Aleatorio').item.json;\n\nreturn [{\n  json: {\n    ...temaData,\n    verificacion: {\n      es_duplicado: esDuplicado,\n      post_similar: postSimilar,\n      posts_revisados: Array.isArray(postsExistentes) ? postsExistentes.length : 0\n    }\n  }\n}];"
+      },
+      "id": "verificar-similitud",
+      "name": "Verificar Similitud",
+      "type": "n8n-nodes-base.code",
+      "position": [-1008, 4400],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-duplicado",
+              "leftValue": "={{ $json.verificacion.es_duplicado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "es-duplicado",
+      "name": "Es Duplicado",
+      "type": "n8n-nodes-base.if",
+      "position": [-816, 4400],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "chatId": "6074722648",
+        "text": "=⚠️ TEMA DUPLICADO DETECTADO\n\nEl tema \"{{ $json.tema }}\" ya tiene un post similar:\n\n📝 Título: {{ $json.verificacion.post_similar.titulo }}\n📅 Fecha: {{ $json.verificacion.post_similar.fecha }}\n📊 Similitud: {{ $json.verificacion.post_similar.similitud }}\n\nWorkflow detenido para evitar contenido duplicado.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "notificar-duplicado",
+      "name": "Notificar Duplicado",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [-624, 4600]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "perplexityApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"sonar-pro\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres un asistente experto en generar artículos SEO en español neutro para el blog de Supernova Arquitectos. Tu especialidad es investigar y redactar sobre tecnología aplicada en la construcción, innovación arquitectónica, sostenibilidad, diseño contemporáneo, materiales inteligentes, automatización, IA en arquitectura, gestión de proyectos, y tendencias relevantes del sector AEC.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Investiga y redacta un artículo sobre: {{ $json.tema }}. {{ $json.enfoque }}, {{ $json.contexto_temporal }}.\\n\\nFormato: {{ $json.formato }}.\\n\\nDevuelve ÚNICAMENTE un objeto JSON con esta estructura:\\n{\\n  \\\"title\\\": \\\"[título atractivo]\\\",\\n  \\\"meta_description\\\": \\\"[150-160 caracteres SEO con keyword principal]\\\",\\n  \\\"excerpt\\\": \\\"[2-3 oraciones para redes sociales]\\\",\\n  \\\"content\\\": \\\"[HTML limpio con <p>, <h2>, <ul>, <li>, <strong>, <em>]\\\"\\n}\\n\\nRequisitos del artículo:\\n- 1000-1500 palabras\\n- Gancho atractivo inicial\\n- Subtítulos <h2>\\n- 2+ datos estadísticos con fuente\\n- 3+ consejos prácticos en lista\\n- Reflexión final motivadora\\n- Palabras clave: {{ $json.palabras_clave }}\\n\\nNO incluyas texto fuera del JSON.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "a788dfb5-470a-4797-875e-05cc3765f337",
+      "name": "Research Topic- Perplexity1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-624, 4288],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// CÓDIGO MEJORADO V2: Parsing JSON robusto con 3 niveles de intento\nconst rawContent = $input.first().json.choices[0].message.content;\n\nfunction extractJSON(text) {\n  let cleaned = text.replace(/```json\\n?/gi, '').replace(/```\\n?/gi, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) cleaned = jsonMatch[0];\n  return cleaned;\n}\n\nfunction toSlug(text) {\n  return text.toLowerCase().normalize(\"NFD\")\n    .replace(/[\\u0300-\\u036f]/g, \"\")\n    .replace(/[^a-z0-9\\s-]/g, \"\")\n    .replace(/\\s+/g, \"-\")\n    .replace(/-+/g, \"-\")\n    .replace(/^-|-$/g, \"\");\n}\n\nlet data;\n\n// Intento 1: Parse directo\ntry {\n  data = JSON.parse(rawContent);\n} catch (e1) {\n  // Intento 2: Limpiar y parsear\n  try {\n    data = JSON.parse(extractJSON(rawContent));\n  } catch (e2) {\n    // Intento 3: Reparación básica\n    try {\n      let repaired = rawContent\n        .replace(/,\\s*}/g, '}')\n        .replace(/,\\s*]/g, ']')\n        .replace(/([{,]\\s*)(\\w+)\\s*:/g, '$1\"$2\":');\n      data = JSON.parse(extractJSON(repaired));\n    } catch (e3) {\n      throw new Error(`ERROR PARSING: ${rawContent.substring(0, 500)}...`);\n    }\n  }\n}\n\nif (!data.title || !data.content) {\n  throw new Error(`Faltan campos: title=${!!data.title}, content=${!!data.content}`);\n}\n\nconst imageName = toSlug(data.title) + \".jpg\";\n\nlet metaDescription = data.meta_description;\nif (!metaDescription) {\n  const plainText = data.content.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n  metaDescription = plainText.substring(0, 155) + '...';\n}\n\nlet excerpt = data.excerpt;\nif (!excerpt) {\n  const plainText = data.content.replace(/<[^>]*>/g, '').replace(/\\s+/g, ' ').trim();\n  const sentences = plainText.match(/[^.!?]+[.!?]+/g) || [plainText];\n  excerpt = sentences.slice(0, 2).join(' ').trim();\n}\n\nreturn [{\n  json: {\n    title: data.title,\n    content: data.content,\n    image_filename: imageName,\n    meta_description: metaDescription,\n    excerpt: excerpt\n  }\n}];"
+      },
+      "id": "4abb491d-5449-4387-8eef-f52245cab3bf",
+      "name": "Get Title, Content, and Image FileName1",
+      "type": "n8n-nodes-base.code",
+      "position": [-432, 4288],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://supernovarquitectos.com/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "categories",
+              "value": "={{ $('Seleccionar Tema Aleatorio').item.json.categoria }}"
+            },
+            {
+              "name": "per_page",
+              "value": "10"
+            },
+            {
+              "name": "status",
+              "value": "publish"
+            },
+            {
+              "name": "orderby",
+              "value": "date"
+            },
+            {
+              "name": "order",
+              "value": "desc"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "buscar-posts-relacionados",
+      "name": "Buscar Posts Relacionados",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-240, 4288],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inyectar links internos a posts relacionados\nconst contentData = $('Get Title, Content, and Image FileName1').item.json;\n\n// Manejo defensivo: verificar si hay input disponible\nconst inputItem = $input.first();\nconst postsRelacionados = inputItem?.json || [];\nconst tituloActual = (contentData.title || '').toLowerCase();\n\nlet postsValidos = [];\nif (Array.isArray(postsRelacionados)) {"\n  postsValidos = postsRelacionados.filter(post => {\n    const titulo = (post.title?.rendered || '').toLowerCase();\n    return !titulo.includes(tituloActual.substring(0, 20)) && titulo !== tituloActual;\n  }).slice(0, 5);\n}\n\nif (postsValidos.length === 0) {\n  return [{ json: { ...contentData, links_agregados: 0, links_info: [] } }];\n}\n\nconst numLinks = Math.min(3, postsValidos.length);\nconst postsSeleccionados = [];\nconst indicesUsados = new Set();\n\nwhile (postsSeleccionados.length < numLinks && indicesUsados.size < postsValidos.length) {\n  const idx = Math.floor(Math.random() * postsValidos.length);\n  if (!indicesUsados.has(idx)) {\n    indicesUsados.add(idx);\n    postsSeleccionados.push(postsValidos[idx]);\n  }\n}\n\nfunction limpiarTitulo(html) {\n  return html.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n    .replace(/&quot;/g, '\"').replace(/&#039;/g, \"'\").replace(/<[^>]*>/g, '');\n}\n\nlet seccion = `<h2>Artículos Relacionados</h2><p>Si te interesó este tema, te recomendamos:</p><ul>`;\nconst linksInfo = [];\n\npostsSeleccionados.forEach(post => {\n  const titulo = limpiarTitulo(post.title?.rendered || 'Artículo');\n  const url = post.link || '#';\n  seccion += `<li><a href=\"${url}\" title=\"${titulo}\">${titulo}</a></li>`;\n  linksInfo.push({ titulo, url });\n});\nseccion += `</ul>`;\n\nlet contenido = contentData.content;\nconst ultimoP = contenido.lastIndexOf('</p>');\nif (ultimoP > contenido.length * 0.7) {\n  contenido = contenido.substring(0, ultimoP) + '</p>' + seccion + '<p>' + contenido.substring(ultimoP + 4);\n} else {\n  contenido += seccion;\n}\n\nreturn [{\n  json: {\n    title: contentData.title,\n    content: contenido,\n    image_filename: contentData.image_filename,\n    meta_description: contentData.meta_description,\n    excerpt: contentData.excerpt,\n    links_agregados: postsSeleccionados.length,\n    links_info: linksInfo\n  }\n}];"
+      },
+      "id": "inyectar-links-internos",
+      "name": "Inyectar Links Internos",
+      "type": "n8n-nodes-base.code",
+      "position": [-48, 4288],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Generate a single-line English description of an editorial-style image to visually represent the following article.\n\nThe image must follow these rules:\n- Cinematic, editorial look (not cartoonish or abstract).\n- No visible text or logos.\n- Must work for a blog post featured image in Google News and Discover (ideal size: 1200x628 px).\n- The article title is: \"{{ $json.title }}\"\n- Article content: {{ $json.content }}.\n\nOutput just the English prompt, without quotes or formatting."
+            },
+            {
+              "content": "You are an expert in crafting AI image generation prompts for editorial and news images. You help generate cinematic, editorial-style prompts for blog images that perform well in Google News and Google Discover. Avoid any text or logos in the result.",
+              "role": "system"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6dc2a81a-07b4-425b-a949-2f856401404e",
+      "name": "Message a model",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "position": [144, 4288],
+      "typeVersion": 1.8
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://cloud.leonardo.ai/api/rest/v1/generations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": \"{{ $json.message.content }}\",\n  \"modelId\": \"6bef9f1b-29cb-40c7-b9df-32b51c1f67d3\",\n  \"width\": 1472,\n  \"height\": 832,\n  \"num_images\": 1,\n  \"promptMagic\": true,\n  \"promptMagicStrength\": 0.5,\n  \"public\": false,\n  \"scheduler\": \"LEONARDO\",\n  \"guidance_scale\": 7\n}",
+        "options": {}
+      },
+      "id": "5eec023e-15c7-49e5-9796-b834f48d2168",
+      "name": "Leonardo: Create Post Image1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [336, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Inicializar contador de polling inteligente\nconst leonardoResponse = $input.first().json;\n\nreturn [{\n  json: {\n    generationId: leonardoResponse.sdGenerationJob.generationId,\n    intentos: 0,\n    maxIntentos: 8,\n    intervaloSegundos: 15,\n    status: 'PENDING'\n  }\n}];"
+      },
+      "id": "inicializar-polling",
+      "name": "Inicializar Contador Polling",
+      "type": "n8n-nodes-base.code",
+      "position": [528, 4288],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "c8a67e53-a5b7-4d2a-bc78-80fa59aebdef",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "position": [720, 4288],
+      "webhookId": "68f57225-25ec-44ee-ba70-289d6765dbf7",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "url": "=https://cloud.leonardo.ai/api/rest/v1/generations/{{ $json.generationId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b77970ea-e3c4-48fd-a925-16f205e500b9",
+      "name": "Get Leonardo Image Status1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [912, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Evaluar status de Leonardo y determinar siguiente acción\nconst statusResponse = $input.first().json;\nconst pollingData = $('Inicializar Contador Polling').item.json;\n\nconst currentStatus = statusResponse.generations_by_pk?.status || 'UNKNOWN';\nconst intentosActuales = pollingData.intentos + 1;\n\nlet accion = 'REINTENTAR';\nlet imageUrl = null;\n\nif (currentStatus === 'COMPLETE') {\n  accion = 'COMPLETADO';\n  imageUrl = statusResponse.generations_by_pk.generated_images[0]?.url;\n} else if (currentStatus === 'FAILED') {\n  accion = 'FALLIDO';\n} else if (intentosActuales >= pollingData.maxIntentos) {\n  accion = 'TIMEOUT';\n}\n\nreturn [{\n  json: {\n    ...pollingData,\n    intentos: intentosActuales,\n    status: currentStatus,\n    accion: accion,\n    imageUrl: imageUrl,\n    tiempoTranscurrido: intentosActuales * pollingData.intervaloSegundos + ' segundos',\n    statusResponse: statusResponse\n  }\n}];"
+      },
+      "id": "evaluar-status-leonardo",
+      "name": "Evaluar Status Leonardo",
+      "type": "n8n-nodes-base.code",
+      "position": [1104, 4288],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "COMPLETADO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "COMPLETADO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "REINTENTAR",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "REINTENTAR"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "FALLIDO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FALLIDO"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accion }}",
+                    "rightValue": "TIMEOUT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TIMEOUT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "switch-accion-leonardo",
+      "name": "Switch Accion Leonardo",
+      "type": "n8n-nodes-base.switch",
+      "position": [1296, 4288],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "chatId": "6074722648",
+        "text": "=⚠️ ERROR en generación de imagen Leonardo AI\n\nStatus: {{ $json.status }}\nGeneration ID: {{ $json.generationId }}\nTema: {{ $('Seleccionar Tema Aleatorio').item.json.tema }}\n\nOpciones:\n1. Revisar créditos en Leonardo AI\n2. Reintentar workflow manualmente\n3. Verificar prompt de imagen",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "error-leonardo",
+      "name": "Error Leonardo AI",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1488, 4500]
+    },
+    {
+      "parameters": {
+        "chatId": "6074722648",
+        "text": "=⏱️ TIMEOUT en generación de imagen Leonardo AI\n\nLa imagen no se generó después de {{ $json.tiempoTranscurrido }}.\n\nGeneration ID: {{ $json.generationId }}\nÚltimo status: {{ $json.status }}\nIntentos: {{ $json.intentos }}/{{ $json.maxIntentos }}\nTema: {{ $('Seleccionar Tema Aleatorio').item.json.tema }}\n\nRecomendación: Reintentar en 5-10 minutos.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "timeout-leonardo",
+      "name": "Timeout Leonardo AI",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1488, 4700]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.imageUrl }}",
+        "options": {}
+      },
+      "id": "b5171be0-df5c-4b8c-9392-d14e2059a4ce",
+      "name": "Get Leonardo Image1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1488, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://supernovarquitectos.com/wp-json/wp/v2/media",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Disposition",
+              "value": "=attachment; filename=\"{{ $('Inyectar Links Internos').item.json.image_filename }}\""
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/jpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "56f3ae13-45e3-4f58-b681-3b38c9334923",
+      "name": "Upload Image to Wordpress1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1680, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://supernovarquitectos.com/wp-json/wp/v2/media/{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "alt_text",
+              "value": "={{ $('Message a model').item.json.message.content }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a742bbbd-7a6d-4182-a86a-d95168c6bafe",
+      "name": "Agregar ALT a la Imagen1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1872, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://supernovarquitectos.com/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $('Inyectar Links Internos').item.json.title, content: $('Inyectar Links Internos').item.json.content, excerpt: $('Inyectar Links Internos').item.json.excerpt, status: 'publish', categories: [$('Seleccionar Tema Aleatorio').item.json.categoria], featured_media: $('Upload Image to Wordpress1').item.json.id }) }}",
+        "options": {}
+      },
+      "id": "00cf3615-040e-42e0-958a-16c8f4cfc43e",
+      "name": "Crear Post en Wordpress1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2064, 4288],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1wYEydPj2KnNw6UPL0d4MayNSdgYHJJ4g8lJFj3gMbdE",
+          "mode": "list",
+          "cachedResultName": "Publicaciones Wordpress SUPERNOVA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wYEydPj2KnNw6UPL0d4MayNSdgYHJJ4g8lJFj3gMbdE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Hoja 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wYEydPj2KnNw6UPL0d4MayNSdgYHJJ4g8lJFj3gMbdE/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $json.id }}",
+            "DATE": "={{ $json.date }}",
+            "LINK": "={{ $json.guid.rendered }}",
+            "HEADER": "={{ $json.slug }}",
+            "TEXTO": "={{ $json.content.rendered }}",
+            "STATUS": "={{ $json.status }}",
+            "URL IMAGEN": "={{ $json.jetpack_featured_media_url }}",
+            "TEMA": "={{ $('Seleccionar Tema Aleatorio').item.json.tema }}",
+            "CATEGORIA": "={{ $('Seleccionar Tema Aleatorio').item.json.categoria }}",
+            "META_DESC": "={{ $('Inyectar Links Internos').item.json.meta_description }}",
+            "LINKS_INT": "={{ $('Inyectar Links Internos').item.json.links_agregados }}"
+          },
+          "matchingColumns": ["ID"],
+          "schema": [
+            {"id": "ID", "displayName": "ID", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "DATE", "displayName": "DATE", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "LINK", "displayName": "LINK", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "HEADER", "displayName": "HEADER", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "TEXTO", "displayName": "TEXTO", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "URL IMAGEN", "displayName": "URL IMAGEN", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "STATUS", "displayName": "STATUS", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "TEMA", "displayName": "TEMA", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "CATEGORIA", "displayName": "CATEGORIA", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "META_DESC", "displayName": "META_DESC", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "LINKS_INT", "displayName": "LINKS_INT", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true}
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "97f720ac-8fa6-4505-942a-119d0cb62df7",
+      "name": "Publicaciones Wordpress SUPERNOVA1",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2256, 4288],
+      "typeVersion": 4.5
+    },
+    {
+      "parameters": {
+        "chatId": "6074722648",
+        "text": "=✅ Post creado exitosamente!\n\n📝 {{ $json.HEADER }}\n🔗 {{ $json.LINK }}\n📂 Categoría: {{ $('Seleccionar Tema Aleatorio').item.json.categoria }}\n🔗 Links internos: {{ $('Inyectar Links Internos').item.json.links_agregados }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2448, 4288],
+      "id": "429ec550-9afd-4f12-90c8-581fc2bcf4c0",
+      "name": "Que se creo",
+      "webhookId": "12547fba-f0fa-40be-8f49-956c0720828f"
+    },
+    {
+      "parameters": {
+        "content": "## 🚀 SUPERNOVA V2.0 - MEJORAS IMPLEMENTADAS\n\n✅ 25 temas con categorías dinámicas\n✅ Verificación de duplicados\n✅ Meta description SEO\n✅ Links internos automáticos (2-3)\n✅ Polling inteligente Leonardo (15s×8)\n✅ Notificaciones de error completas\n✅ Tracking expandido en Sheets\n\n📊 250+ combinaciones únicas\n📂 5 categorías: 916-920",
+        "height": 400,
+        "width": 350
+      },
+      "id": "sticky-mejoras-v2",
+      "name": "Sticky Note - Mejoras V2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2096, 4000],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 📂 MAPEO DE CATEGORÍAS\n\nID    | Categoría\n------|---------------------------\n916   | Tecnología y Digitalización\n917   | Sustentabilidad\n918   | Construcción e Ingeniería\n919   | Gestión y Metodologías\n920   | Diseño y Tendencias\n\n⚠️ Crear estas categorías en WordPress si no existen.",
+        "height": 300,
+        "width": 320
+      },
+      "id": "sticky-categorias",
+      "name": "Sticky Note - Categorias",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1504, 4000],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## ⚡ POLLING INTELIGENTE\n\nSistema de verificación dinámica:\n- Intervalo: 15 segundos\n- Máx intentos: 8 (2 min total)\n- Acciones: COMPLETADO, REINTENTAR, FALLIDO, TIMEOUT\n\nBeneficios:\n✅ No espera innecesariamente\n✅ Notifica errores específicos\n✅ Registra tiempo de generación",
+        "height": 300,
+        "width": 320
+      },
+      "id": "sticky-polling",
+      "name": "Sticky Note - Polling",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [720, 4000],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 🔗 LINKS INTERNOS SEO\n\nAgrega automáticamente 2-3 enlaces a posts de la misma categoría.\n\nBeneficios:\n✅ Mejora SEO (link juice interno)\n✅ Aumenta tiempo en sitio\n✅ Reduce bounce rate\n✅ Mejora indexación",
+        "height": 260,
+        "width": 320
+      },
+      "id": "sticky-links",
+      "name": "Sticky Note - Links",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-48, 4000],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule Trigger1": {
+      "main": [
+        [{"node": "Consultar crear contenido", "type": "main", "index": 0}]
+      ]
+    },
+    "Consultar crear contenido": {
+      "main": [
+        [{"node": "If3", "type": "main", "index": 0}]
+      ]
+    },
+    "If3": {
+      "main": [
+        [{"node": "Seleccionar Tema Aleatorio", "type": "main", "index": 0}],
+        [{"node": "Cancelar creacion de contenido", "type": "main", "index": 0}]
+      ]
+    },
+    "Seleccionar Tema Aleatorio": {
+      "main": [
+        [{"node": "Buscar Posts Existentes", "type": "main", "index": 0}]
+      ]
+    },
+    "Buscar Posts Existentes": {
+      "main": [
+        [{"node": "Verificar Similitud", "type": "main", "index": 0}]
+      ]
+    },
+    "Verificar Similitud": {
+      "main": [
+        [{"node": "Es Duplicado", "type": "main", "index": 0}]
+      ]
+    },
+    "Es Duplicado": {
+      "main": [
+        [{"node": "Notificar Duplicado", "type": "main", "index": 0}],
+        [{"node": "Research Topic- Perplexity1", "type": "main", "index": 0}]
+      ]
+    },
+    "Research Topic- Perplexity1": {
+      "main": [
+        [{"node": "Get Title, Content, and Image FileName1", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Title, Content, and Image FileName1": {
+      "main": [
+        [{"node": "Buscar Posts Relacionados", "type": "main", "index": 0}]
+      ]
+    },
+    "Buscar Posts Relacionados": {
+      "main": [
+        [{"node": "Inyectar Links Internos", "type": "main", "index": 0}]
+      ]
+    },
+    "Inyectar Links Internos": {
+      "main": [
+        [{"node": "Message a model", "type": "main", "index": 0}]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [{"node": "Leonardo: Create Post Image1", "type": "main", "index": 0}]
+      ]
+    },
+    "Leonardo: Create Post Image1": {
+      "main": [
+        [{"node": "Inicializar Contador Polling", "type": "main", "index": 0}]
+      ]
+    },
+    "Inicializar Contador Polling": {
+      "main": [
+        [{"node": "Wait", "type": "main", "index": 0}]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [{"node": "Get Leonardo Image Status1", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Leonardo Image Status1": {
+      "main": [
+        [{"node": "Evaluar Status Leonardo", "type": "main", "index": 0}]
+      ]
+    },
+    "Evaluar Status Leonardo": {
+      "main": [
+        [{"node": "Switch Accion Leonardo", "type": "main", "index": 0}]
+      ]
+    },
+    "Switch Accion Leonardo": {
+      "main": [
+        [{"node": "Get Leonardo Image1", "type": "main", "index": 0}],
+        [{"node": "Wait", "type": "main", "index": 0}],
+        [{"node": "Error Leonardo AI", "type": "main", "index": 0}],
+        [{"node": "Timeout Leonardo AI", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Leonardo Image1": {
+      "main": [
+        [{"node": "Upload Image to Wordpress1", "type": "main", "index": 0}]
+      ]
+    },
+    "Upload Image to Wordpress1": {
+      "main": [
+        [{"node": "Agregar ALT a la Imagen1", "type": "main", "index": 0}]
+      ]
+    },
+    "Agregar ALT a la Imagen1": {
+      "main": [
+        [{"node": "Crear Post en Wordpress1", "type": "main", "index": 0}]
+      ]
+    },
+    "Crear Post en Wordpress1": {
+      "main": [
+        [{"node": "Publicaciones Wordpress SUPERNOVA1", "type": "main", "index": 0}]
+      ]
+    },
+    "Publicaciones Wordpress SUPERNOVA1": {
+      "main": [
+        [{"node": "Que se creo", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Ciudad_Juarez",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timeSavedPerExecution": 25
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

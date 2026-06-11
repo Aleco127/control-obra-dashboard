@@ -1,0 +1,2553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de Obra - Admin Platform</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%23dc2626'/%3E%3Cpath d='M30 70V40l20-15 20 15v30H30z' fill='%23fff'/%3E%3Crect x='42' y='50' width='16' height='20' fill='%23dc2626'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#dc2626">
+<script src="https://cdn.tailwindcss.com/3.4.1"></script>
+<script>tailwind.config={theme:{extend:{colors:{admin:{50:'#fef2f2',100:'#fee2e2',500:'#ef4444',600:'#dc2626',700:'#b91c1c'}}}}}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{background:#0f172a;min-height:100vh}
+.g{background:linear-gradient(145deg,#1e293b,#0f172a);border:1px solid rgba(255,255,255,0.1)}
+.inp{width:100%;padding:0.625rem 0.875rem;border-radius:0.5rem;background:#1e293b;border:1px solid rgba(255,255,255,0.1);color:#f1f5f9;font-size:0.875rem;transition:all 0.2s}
+.inp:focus{outline:none;border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,0.2)}
+.inp::placeholder{color:#64748b}
+.btn{padding:0.625rem 1.25rem;border-radius:0.5rem;font-weight:500;font-size:0.875rem;transition:all 0.2s;cursor:pointer;border:none}
+.btn-p{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(239,68,68,0.4)}
+.btn-s{background:#1e293b;color:#f1f5f9;border:1px solid rgba(255,255,255,0.1)}
+.btn-s:hover{background:#334155}
+.sidebar{width:240px;background:#1e293b;border-right:1px solid rgba(255,255,255,0.1);height:100vh;position:fixed;left:0;top:0;display:flex;flex-direction:column}
+.sidebar a{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;color:#94a3b8;font-size:0.875rem;transition:all 0.2s;border-left:3px solid transparent}
+.sidebar a:hover,.sidebar a.active{background:rgba(239,68,68,0.1);color:#f1f5f9;border-left-color:#ef4444}
+.sidebar a i{font-size:1.25rem}
+.main{margin-left:240px;padding:1.5rem;min-height:100vh}
+.card{background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.25rem}
+.card-header{font-weight:600;font-size:0.875rem;color:#f1f5f9;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between}
+.stat-card{text-align:center}
+.stat-value{font-size:2rem;font-weight:700;color:#f1f5f9}
+.stat-label{font-size:0.75rem;color:#64748b;margin-top:0.25rem}
+.stat-change{font-size:0.75rem;margin-top:0.5rem}
+.stat-up{color:#22c55e}
+.stat-down{color:#ef4444}
+.table{width:100%;border-collapse:collapse;font-size:0.875rem}
+.table th{text-align:left;padding:0.75rem;color:#64748b;font-weight:500;border-bottom:1px solid rgba(255,255,255,0.1)}
+.table td{padding:0.75rem;color:#f1f5f9;border-bottom:1px solid rgba(255,255,255,0.05)}
+.table tr:hover td{background:rgba(255,255,255,0.02)}
+.badge{display:inline-flex;align-items:center;padding:0.25rem 0.75rem;border-radius:9999px;font-size:0.75rem;font-weight:500}
+.badge-success{background:rgba(34,197,94,0.2);color:#22c55e}
+.badge-warning{background:rgba(234,179,8,0.2);color:#eab308}
+.badge-danger{background:rgba(239,68,68,0.2);color:#ef4444}
+.badge-info{background:rgba(59,130,246,0.2);color:#3b82f6}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;opacity:0;visibility:hidden;transition:all 0.3s}
+.modal.show{opacity:1;visibility:visible}
+.modal-content{background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.5rem;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;transform:scale(0.9);transition:transform 0.3s}
+.modal.show .modal-content{transform:scale(1)}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;padding:1rem 1.5rem;border-radius:0.75rem;color:#fff;font-size:0.875rem;z-index:99999;animation:slideIn 0.3s ease}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.error-row{border-left:3px solid #ef4444}
+.error-row.resolved{border-left-color:#22c55e;opacity:0.6}
+</style>
+</head>
+<body class="text-slate-300">
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+<div class="w-full max-w-md">
+<div class="text-center mb-8">
+<div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center mb-4 shadow-lg shadow-red-500/20">
+<i class="ri-shield-keyhole-fill text-3xl text-white"></i>
+</div>
+<h1 class="text-2xl font-bold text-white">Platform Admin</h1>
+<p class="text-slate-400 text-sm">Control de Obra - Panel de Administracion</p>
+</div>
+
+<div class="g rounded-2xl p-6">
+<form id="loginForm" onsubmit="doAdminLogin(event)">
+<div class="space-y-4">
+<div>
+<label class="text-xs text-slate-400 mb-1 block">Correo Electronico</label>
+<div class="relative">
+<i class="ri-mail-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+<input type="email" id="loginEmail" class="inp pl-10" required placeholder="admin@controldeobra.com" autocomplete="email">
+</div>
+</div>
+<div>
+<label class="text-xs text-slate-400 mb-1 block">Contrasena</label>
+<div class="relative">
+<i class="ri-lock-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+<input type="password" id="loginPassword" class="inp pl-10 pr-10" required placeholder="••••••••" autocomplete="current-password">
+<button type="button" onclick="togglePwd()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"><i id="pwdIcon" class="ri-eye-line"></i></button>
+</div>
+</div>
+<div id="loginError" class="hidden text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2"></div>
+<button type="submit" id="loginBtn" class="btn btn-p w-full flex items-center justify-center gap-2">
+<span id="loginBtnText">Acceder al Panel</span>
+<i id="loginSpinner" class="ri-loader-4-line animate-spin hidden"></i>
+</button>
+</div>
+</form>
+<div class="mt-4 text-center">
+<a href="index.html" class="text-sm text-slate-400 hover:text-red-400"><i class="ri-arrow-left-line"></i> Volver a Control de Obra</a>
+</div>
+</div>
+</div>
+</div>
+
+<!-- ========== MAIN APP ========== -->
+<div id="mainApp" class="hidden">
+
+<!-- Sidebar -->
+<aside class="sidebar">
+<div class="p-4 border-b border-white/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
+<i class="ri-shield-keyhole-fill text-white"></i>
+</div>
+<div>
+<p class="font-bold text-white text-sm">Platform Admin</p>
+<p class="text-xs text-slate-400">Control de Obra</p>
+</div>
+</div>
+</div>
+
+<nav class="py-4 flex-1 overflow-y-auto">
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Principal</p>
+<a href="#" onclick="showSection('overview')" data-section="overview" class="active">
+<i class="ri-dashboard-3-line"></i> Overview
+</a>
+<a href="#" onclick="showSection('empresas')" data-section="empresas">
+<i class="ri-building-2-line"></i> Empresas
+</a>
+<a href="#" onclick="showSection('usuarios')" data-section="usuarios">
+<i class="ri-team-line"></i> Usuarios
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Monetizacion</p>
+<a href="#" onclick="showSection('subscriptions')" data-section="subscriptions">
+<i class="ri-vip-crown-2-line"></i> Suscripciones
+</a>
+<a href="#" onclick="showSection('billing')" data-section="billing">
+<i class="ri-money-dollar-circle-line"></i> Facturacion
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Operaciones</p>
+<a href="#" onclick="showSection('errors')" data-section="errors">
+<i class="ri-bug-line"></i> Errores
+<span id="errorBadge" class="ml-auto px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full hidden">0</span>
+</a>
+<a href="#" onclick="showSection('analytics')" data-section="analytics">
+<i class="ri-line-chart-line"></i> Analytics
+</a>
+<a href="#" onclick="showSection('health')" data-section="health">
+<i class="ri-heart-pulse-line"></i> System Health
+</a>
+
+<p class="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4">Configuracion</p>
+<a href="#" onclick="showSection('modulos')" data-section="modulos">
+<i class="ri-layout-grid-line"></i> Config Modulos
+</a>
+<a href="#" onclick="showSection('templates')" data-section="templates">
+<i class="ri-file-copy-2-line"></i> Plantillas
+</a>
+<a href="#" onclick="showSection('settings')" data-section="settings">
+<i class="ri-settings-3-line"></i> Ajustes
+</a>
+</nav>
+
+<div class="p-4 border-t border-white/10 flex-shrink-0">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
+<i class="ri-admin-line"></i>
+</div>
+<div class="flex-1 min-w-0">
+<p id="adminName" class="text-sm font-medium text-white truncate">Admin</p>
+<p id="adminEmail" class="text-xs text-slate-400 truncate">admin@example.com</p>
+</div>
+<button onclick="doAdminLogout()" class="text-slate-400 hover:text-red-400" title="Cerrar sesion">
+<i class="ri-logout-box-r-line"></i>
+</button>
+</div>
+</div>
+</aside>
+
+<!-- Main Content -->
+<main class="main">
+<!-- Header -->
+<header class="flex items-center justify-between mb-6">
+<div>
+<h1 id="sectionTitle" class="text-2xl font-bold text-white">Overview</h1>
+<p id="sectionSubtitle" class="text-sm text-slate-400">Resumen de la plataforma</p>
+</div>
+<div class="flex items-center gap-3">
+<button onclick="refreshData()" class="btn btn-s">
+<i class="ri-refresh-line"></i> Actualizar
+</button>
+<span id="lastUpdate" class="text-xs text-slate-500"></span>
+</div>
+</header>
+
+<!-- Content Container -->
+<div id="content">
+<!-- Dynamic content will be loaded here -->
+</div>
+</main>
+</div>
+
+<!-- ========== MODALS ========== -->
+<div id="modalContainer"></div>
+
+<script>
+// ========== CONFIGURACION ==========
+const SB_URL = 'https://cpjdlaiarmxojiyhhpxt.supabase.co';
+const SB_KEY = 'sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
+// Cliente para schema public (platform_admins, platform_sessions, etc)
+const sb = supabase.createClient(SB_URL, SB_KEY);
+// Cliente para schema control_obra (empresas, obra_usuarios, etc)
+const sbObra = supabase.createClient(SB_URL, SB_KEY, { db: { schema: 'control_obra' } });
+
+let currentAdmin = null;
+let platformData = {
+  empresas: [],
+  usuarios: [],
+  errors: [],
+  subscriptions: [],
+  plans: [],
+  templates: [],
+  empresaConfigs: []
+};
+
+// ========== UTILIDADES ==========
+const $ = id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat('es-MX', {style:'currency', currency:'MXN'}).format(n || 0);
+const fmtNum = n => new Intl.NumberFormat('es-MX').format(n || 0);
+const fmtDate = d => d ? new Date(d).toLocaleDateString('es-MX') : '-';
+const fmtDateTime = d => d ? new Date(d).toLocaleString('es-MX') : '-';
+const fmtRelative = d => {
+  if (!d) return '-';
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Ahora';
+  if (mins < 60) return `Hace ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `Hace ${days}d`;
+};
+
+function togglePwd() {
+  const inp = $('loginPassword');
+  const icon = $('pwdIcon');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.className = 'ri-eye-off-line';
+  } else {
+    inp.type = 'password';
+    icon.className = 'ri-eye-line';
+  }
+}
+
+function showToast(msg, type = 'info') {
+  const colors = {
+    success: 'bg-green-600',
+    error: 'bg-red-600',
+    warning: 'bg-amber-600',
+    info: 'bg-blue-600'
+  };
+  const toast = document.createElement('div');
+  toast.className = `toast ${colors[type]}`;
+  toast.innerHTML = `<i class="ri-${type === 'success' ? 'check' : type === 'error' ? 'close' : type === 'warning' ? 'alert' : 'information'}-line mr-2"></i>${msg}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+// ========== AUTENTICACION ==========
+async function doAdminLogin(e) {
+  e.preventDefault();
+  const email = $('loginEmail').value.trim();
+  const password = $('loginPassword').value;
+
+  $('loginBtn').disabled = true;
+  $('loginBtnText').textContent = 'Verificando...';
+  $('loginSpinner').classList.remove('hidden');
+  $('loginError').classList.add('hidden');
+
+  try {
+    const { data, error } = await sb.rpc('platform_admin_login', {
+      p_email: email,
+      p_password: password
+    });
+
+    if (error) throw error;
+    if (!data.success) throw new Error(data.error || 'Error de autenticacion');
+
+    currentAdmin = data.admin;
+    localStorage.setItem('platform_admin_session', JSON.stringify({
+      token: data.token,
+      admin: data.admin,
+      expires_at: data.expires_at
+    }));
+
+    showApp();
+    showToast('Bienvenido, ' + currentAdmin.nombre, 'success');
+  } catch (err) {
+    $('loginError').textContent = err.message || 'Error de conexion';
+    $('loginError').classList.remove('hidden');
+  } finally {
+    $('loginBtn').disabled = false;
+    $('loginBtnText').textContent = 'Acceder al Panel';
+    $('loginSpinner').classList.add('hidden');
+  }
+}
+
+async function checkSession() {
+  const session = localStorage.getItem('platform_admin_session');
+  if (!session) return;
+
+  try {
+    const { token, admin, expires_at } = JSON.parse(session);
+
+    // Check if expired
+    if (new Date(expires_at) < new Date()) {
+      localStorage.removeItem('platform_admin_session');
+      return;
+    }
+
+    // Validate with server
+    const { data, error } = await sb.rpc('validate_platform_session', { p_token: token });
+
+    if (error || !data.valid) {
+      localStorage.removeItem('platform_admin_session');
+      return;
+    }
+
+    currentAdmin = data.admin;
+    showApp();
+  } catch (err) {
+    console.error('Session check failed:', err);
+    localStorage.removeItem('platform_admin_session');
+  }
+}
+
+async function doAdminLogout() {
+  const session = localStorage.getItem('platform_admin_session');
+  if (session) {
+    try {
+      const { token } = JSON.parse(session);
+      await sb.rpc('platform_admin_logout', { p_token: token });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  }
+  localStorage.removeItem('platform_admin_session');
+  currentAdmin = null;
+  $('loginScreen').classList.remove('hidden');
+  $('mainApp').classList.add('hidden');
+}
+
+function showApp() {
+  $('loginScreen').classList.add('hidden');
+  $('mainApp').classList.remove('hidden');
+
+  if (currentAdmin) {
+    $('adminName').textContent = currentAdmin.nombre;
+    $('adminEmail').textContent = currentAdmin.email;
+  }
+
+  loadPlatformData();
+  showSection('overview');
+}
+
+// ========== CARGA DE DATOS ==========
+async function loadPlatformData() {
+  try {
+    // Load empresas (schema: control_obra)
+    const { data: empresas } = await sbObra.from('empresas').select('*').order('created_at', { ascending: false });
+    platformData.empresas = empresas || [];
+
+    // Load usuarios (schema: control_obra)
+    const { data: usuarios } = await sbObra.from('obra_usuarios').select('*, obra_roles(nombre)').order('created_at', { ascending: false });
+    platformData.usuarios = usuarios || [];
+
+    // Load errors (last 7 days for better visibility)
+    const { data: errors } = await sb.from('platform_errors')
+      .select('*')
+      .gte('created_at', new Date(Date.now() - 604800000).toISOString())
+      .order('created_at', { ascending: false });
+    platformData.errors = errors || [];
+
+    // Load subscription plans
+    const { data: plans } = await sb.from('subscription_plans').select('*').order('orden');
+    platformData.plans = plans || [];
+
+    // Load subscriptions
+    const { data: subs } = await sb.from('empresa_subscriptions').select('*, subscription_plans(*)');
+    platformData.subscriptions = subs || [];
+
+    // Load config templates
+    const { data: templates } = await sb.from('config_templates').select('*').order('nombre');
+    platformData.templates = templates || [];
+
+    // Load empresa configs (schema: control_obra)
+    const { data: empresaConfigs } = await sbObra.from('empresa_config').select('*, empresa_modulos(*)');
+    platformData.empresaConfigs = empresaConfigs || [];
+
+    // Update error badge
+    const newErrors = platformData.errors.filter(e => e.status === 'new').length;
+    if (newErrors > 0) {
+      $('errorBadge').textContent = newErrors;
+      $('errorBadge').classList.remove('hidden');
+    } else {
+      $('errorBadge').classList.add('hidden');
+    }
+
+    $('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+
+  } catch (err) {
+    console.error('Error loading data:', err);
+    showToast('Error al cargar datos', 'error');
+  }
+}
+
+async function refreshData() {
+  showToast('Actualizando datos...', 'info');
+  await loadPlatformData();
+  showSection(document.querySelector('.sidebar a.active')?.dataset.section || 'overview');
+  showToast('Datos actualizados', 'success');
+}
+
+// ========== NAVEGACION ==========
+function showSection(section) {
+  // Update sidebar
+  document.querySelectorAll('.sidebar a').forEach(a => {
+    a.classList.toggle('active', a.dataset.section === section);
+  });
+
+  // Update title
+  const titles = {
+    overview: ['Overview', 'Resumen de la plataforma'],
+    empresas: ['Empresas', 'Gestion de empresas registradas'],
+    usuarios: ['Usuarios', 'Todos los usuarios de la plataforma'],
+    subscriptions: ['Suscripciones', 'Planes y suscripciones activas'],
+    billing: ['Facturacion', 'Ingresos y facturas'],
+    errors: ['Errores', 'Monitoreo de errores en tiempo real'],
+    analytics: ['Analytics', 'Metricas de uso de la plataforma'],
+    health: ['System Health', 'Estado de los servicios'],
+    modulos: ['Configuracion de Modulos', 'Personaliza modulos por empresa'],
+    templates: ['Plantillas', 'Plantillas de configuracion predefinidas'],
+    settings: ['Ajustes', 'Configuracion del panel']
+  };
+
+  $('sectionTitle').textContent = titles[section]?.[0] || section;
+  $('sectionSubtitle').textContent = titles[section]?.[1] || '';
+
+  // Render content
+  switch (section) {
+    case 'overview': renderOverview(); break;
+    case 'empresas': renderEmpresas(); break;
+    case 'usuarios': renderUsuarios(); break;
+    case 'subscriptions': renderSubscriptions(); break;
+    case 'billing': renderBilling(); break;
+    case 'errors': renderErrors(); break;
+    case 'analytics': renderAnalytics(); break;
+    case 'health': renderHealth(); break;
+    case 'modulos': renderModulos(); break;
+    case 'templates': renderTemplates(); break;
+    case 'settings': renderSettings(); break;
+  }
+}
+
+// ========== OVERVIEW ==========
+function renderOverview() {
+  const empresasActivas = platformData.empresas.filter(e => e.activo !== false).length;
+  const usuariosActivos = platformData.usuarios.filter(u => u.activo).length;
+  const errores24h = platformData.errors.length;
+  const mrr = platformData.subscriptions.reduce((sum, s) => sum + (s.subscription_plans?.precio_mensual || 0), 0);
+
+  $('content').innerHTML = `
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-red-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr)}</div>
+        <div class="stat-label">MRR (Ingresos Mensuales)</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +12% vs mes anterior</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-building-2-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(empresasActivas)}</div>
+        <div class="stat-label">Empresas Activas</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +${platformData.empresas.filter(e => new Date(e.created_at) > new Date(Date.now() - 2592000000)).length} este mes</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-team-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(usuariosActivos)}</div>
+        <div class="stat-label">Usuarios Activos</div>
+        <div class="stat-change stat-up"><i class="ri-arrow-up-line"></i> +${platformData.usuarios.filter(u => new Date(u.created_at) > new Date(Date.now() - 604800000)).length} esta semana</div>
+      </div>
+      <div class="card stat-card">
+        <div class="${errores24h > 10 ? 'text-red-400' : 'text-amber-400'} mb-2"><i class="ri-bug-line text-2xl"></i></div>
+        <div class="stat-value">${fmtNum(errores24h)}</div>
+        <div class="stat-label">Errores (24h)</div>
+        <div class="stat-change ${errores24h > 10 ? 'stat-down' : 'stat-up'}">
+          <i class="ri-${errores24h > 10 ? 'arrow-up' : 'arrow-down'}-line"></i>
+          ${errores24h > 10 ? 'Requiere atencion' : 'Normal'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div class="card">
+        <div class="card-header">Tendencia de Ingresos</div>
+        <div style="position:relative;height:200px;width:100%">
+          <canvas id="revenueChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Nuevos Registros</div>
+        <div style="position:relative;height:200px;width:100%">
+          <canvas id="signupsChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="card">
+        <div class="card-header">
+          Empresas Recientes
+          <a href="#" onclick="showSection('empresas')" class="text-xs text-red-400 hover:text-red-300">Ver todas</a>
+        </div>
+        <table class="table">
+          <thead><tr><th>Empresa</th><th>Plan</th><th>Fecha</th></tr></thead>
+          <tbody>
+            ${platformData.empresas.slice(0, 5).map(e => `
+              <tr>
+                <td class="font-medium">${e.nombre || 'Sin nombre'}</td>
+                <td><span class="badge badge-info">Free</span></td>
+                <td class="text-slate-400">${fmtRelative(e.created_at)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="3" class="text-center text-slate-400">Sin empresas</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          Errores Recientes
+          <a href="#" onclick="showSection('errors')" class="text-xs text-red-400 hover:text-red-300">Ver todos</a>
+        </div>
+        <div class="space-y-2 max-h-[300px] overflow-y-auto">
+          ${platformData.errors.slice(0, 5).map(e => `
+            <div class="p-3 rounded-lg bg-black/20 border-l-2 ${e.status === 'new' ? 'border-red-500' : 'border-slate-600'}">
+              <p class="text-sm font-medium truncate">${e.message || 'Error desconocido'}</p>
+              <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
+                <span><i class="ri-code-line"></i> ${e.error_type || 'unknown'}</span>
+              </div>
+            </div>
+          `).join('') || '<p class="text-center text-slate-400 py-4">Sin errores recientes</p>'}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Render charts
+  setTimeout(() => {
+    renderRevenueChart();
+    renderSignupsChart();
+  }, 100);
+}
+
+function renderRevenueChart() {
+  const ctx = document.getElementById('revenueChart')?.getContext('2d');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
+      datasets: [{
+        label: 'MRR',
+        data: [0, 0, 0, 799, 1598, 2397],
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
+}
+
+function renderSignupsChart() {
+  const ctx = document.getElementById('signupsChart')?.getContext('2d');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'],
+      datasets: [{
+        label: 'Empresas',
+        data: [1, 0, 2, 1, 0, 0, 0],
+        backgroundColor: '#3b82f6'
+      }, {
+        label: 'Usuarios',
+        data: [3, 2, 5, 2, 1, 0, 1],
+        backgroundColor: '#22c55e'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+      }
+    }
+  });
+}
+
+// ========== EMPRESAS ==========
+function renderEmpresas() {
+  $('content').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <input type="text" id="searchEmpresas" class="inp w-64" placeholder="Buscar empresa..." onkeyup="filterEmpresas()">
+        <select id="filterPlan" class="inp w-40" onchange="filterEmpresas()">
+          <option value="">Todos los planes</option>
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-slate-400">${platformData.empresas.length} empresas</span>
+        <button onclick="showNewEmpresaModal()" class="btn btn-p">
+          <i class="ri-add-line mr-1"></i> Nueva Empresa
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="table" id="empresasTable">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Usuarios</th>
+            <th>Obras</th>
+            <th>Plan</th>
+            <th>Estado</th>
+            <th>Registro</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${platformData.empresas.map(e => {
+            const usuarios = platformData.usuarios.filter(u => u.empresa_id === e.id).length;
+            return `
+              <tr data-id="${e.id}">
+                <td>
+                  <div class="font-medium text-white">${e.nombre || 'Sin nombre'}</div>
+                  <div class="text-xs text-slate-400">${e.rfc || 'Sin RFC'}</div>
+                </td>
+                <td>${usuarios}</td>
+                <td>-</td>
+                <td><span class="badge badge-info">Free</span></td>
+                <td><span class="badge ${e.activo !== false ? 'badge-success' : 'badge-danger'}">${e.activo !== false ? 'Activa' : 'Suspendida'}</span></td>
+                <td class="text-slate-400">${fmtDate(e.created_at)}</td>
+                <td class="text-right">
+                  <button onclick="showEmpresaDetail('${e.id}')" class="text-slate-400 hover:text-white mr-2" title="Ver detalle">
+                    <i class="ri-eye-line"></i>
+                  </button>
+                  <button onclick="showEditEmpresaModal(${e.id})" class="text-slate-400 hover:text-blue-400 mr-2" title="Editar">
+                    <i class="ri-edit-line"></i>
+                  </button>
+                  <button onclick="toggleEmpresaStatus(${e.id})" class="text-slate-400 hover:text-amber-400 mr-2" title="${e.activo !== false ? 'Suspender' : 'Activar'}">
+                    <i class="ri-${e.activo !== false ? 'pause' : 'play'}-circle-line"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          }).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-8">No hay empresas registradas</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function filterEmpresas() {
+  const search = $('searchEmpresas').value.toLowerCase();
+  const plan = $('filterPlan').value;
+
+  document.querySelectorAll('#empresasTable tbody tr').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    const matchSearch = text.includes(search);
+    // TODO: filter by plan when subscriptions are linked
+    tr.style.display = matchSearch ? '' : 'none';
+  });
+}
+
+async function showEmpresaDetail(empresaId) {
+  const empresa = platformData.empresas.find(e => e.id == empresaId);
+  if (!empresa) return;
+
+  const usuarios = platformData.usuarios.filter(u => u.empresa_id == empresaId);
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">${empresa.nombre || 'Empresa'}</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <p class="text-xs text-slate-400">RFC</p>
+            <p class="text-white">${empresa.rfc || '-'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Registro</p>
+            <p class="text-white">${fmtDateTime(empresa.created_at)}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Estado</p>
+            <span class="badge ${empresa.activo !== false ? 'badge-success' : 'badge-danger'}">${empresa.activo !== false ? 'Activa' : 'Suspendida'}</span>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Plan</p>
+            <span class="badge badge-info">Free</span>
+          </div>
+        </div>
+
+        <div class="border-t border-white/10 pt-4">
+          <h4 class="font-medium text-white mb-3">Usuarios (${usuarios.length})</h4>
+          <div class="space-y-2 max-h-[200px] overflow-y-auto">
+            ${usuarios.map(u => `
+              <div class="flex items-center justify-between p-2 rounded bg-black/20">
+                <div>
+                  <p class="text-sm font-medium text-white">${u.nombre}</p>
+                  <p class="text-xs text-slate-400">${u.email}</p>
+                </div>
+                <span class="badge badge-info">${u.obra_roles?.nombre || 'Sin rol'}</span>
+              </div>
+            `).join('') || '<p class="text-slate-400 text-sm">Sin usuarios</p>'}
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cerrar</button>
+          <button onclick="changePlan('${empresaId}')" class="btn btn-p flex-1">Cambiar Plan</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ========== USUARIOS ==========
+function renderUsuarios() {
+  $('content').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <input type="text" id="searchUsuarios" class="inp w-64" placeholder="Buscar usuario..." onkeyup="filterUsuarios()">
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-slate-400">${platformData.usuarios.length} usuarios</span>
+        <button onclick="showNewUsuarioModal()" class="btn btn-p">
+          <i class="ri-add-line mr-1"></i> Nuevo Usuario
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Empresa</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Ultimo Acceso</th>
+            <th>Registro</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="usuariosTableBody">
+          ${platformData.usuarios.map(u => {
+            const empresa = platformData.empresas.find(e => e.id === u.empresa_id);
+            return `
+              <tr>
+                <td>
+                  <div class="font-medium text-white">${u.nombre}</div>
+                  <div class="text-xs text-slate-400">${u.email}</div>
+                </td>
+                <td>${empresa?.nombre || 'Sin empresa'}</td>
+                <td><span class="badge badge-info">${u.obra_roles?.nombre || '-'}</span></td>
+                <td><span class="badge ${u.activo ? 'badge-success' : 'badge-danger'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+                <td class="text-slate-400">${u.ultimo_acceso ? fmtRelative(u.ultimo_acceso) : '<span class="text-slate-500">Nunca</span>'}</td>
+                <td class="text-slate-400">${fmtDate(u.created_at)}</td>
+                <td class="text-right">
+                  <button onclick="showEditUsuarioModal('${u.id}')" class="text-slate-400 hover:text-blue-400 mr-2" title="Editar">
+                    <i class="ri-edit-line"></i>
+                  </button>
+                  <button onclick="toggleUsuarioStatus('${u.id}', ${u.activo})" class="text-slate-400 hover:text-yellow-400 mr-2" title="${u.activo ? 'Desactivar' : 'Activar'}">
+                    <i class="ri-${u.activo ? 'user-unfollow' : 'user-follow'}-line"></i>
+                  </button>
+                  <button onclick="confirmDeleteUsuario('${u.id}', '${u.nombre.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-red-400" title="Eliminar">
+                    <i class="ri-delete-bin-line"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          }).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-8">No hay usuarios</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function filterUsuarios() {
+  const search = $('searchUsuarios').value.toLowerCase();
+  document.querySelectorAll('#usuariosTableBody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(search) ? '' : 'none';
+  });
+}
+
+// ========== CREAR EMPRESA ==========
+function showNewEmpresaModal() {
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">Nueva Empresa</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <form onsubmit="createEmpresa(event)">
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Nombre de la Empresa *</label>
+              <input type="text" id="newEmpresaNombre" class="inp" required placeholder="Constructora ABC S.A. de C.V.">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">RFC (Opcional)</label>
+              <input type="text" id="newEmpresaRFC" class="inp" placeholder="XAXX010101000" maxlength="13" style="text-transform:uppercase">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Direccion (Opcional)</label>
+              <input type="text" id="newEmpresaDireccion" class="inp" placeholder="Av. Principal #123, Col. Centro">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Telefono (Opcional)</label>
+              <input type="tel" id="newEmpresaTelefono" class="inp" placeholder="555-123-4567">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Plantilla de Modulos</label>
+              <select id="newEmpresaTemplate" class="inp">
+                <option value="">-- Sin plantilla (todos los modulos) --</option>
+                ${platformData.templates.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('')}
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="newEmpresaActivo" class="w-4 h-4" checked>
+              <label for="newEmpresaActivo" class="text-sm text-slate-300">Empresa activa</label>
+            </div>
+          </div>
+
+          <div id="newEmpresaError" class="hidden mt-4 p-3 bg-red-500/20 text-red-400 rounded-lg text-sm"></div>
+
+          <div class="flex gap-2 mt-6">
+            <button type="button" onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cancelar</button>
+            <button type="submit" id="btnCreateEmpresa" class="btn btn-p flex-1">
+              <span id="btnCreateEmpresaText">Crear Empresa</span>
+              <i id="btnCreateEmpresaSpinner" class="ri-loader-4-line animate-spin ml-2 hidden"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function createEmpresa(e) {
+  e.preventDefault();
+  const nombre = $('newEmpresaNombre').value.trim();
+  const rfc = $('newEmpresaRFC').value.trim().toUpperCase();
+  const direccion = $('newEmpresaDireccion').value.trim();
+  const telefono = $('newEmpresaTelefono').value.trim();
+  const templateId = $('newEmpresaTemplate').value;
+  const activo = $('newEmpresaActivo').checked;
+
+  const errorDiv = $('newEmpresaError');
+  const btn = $('btnCreateEmpresa');
+  const btnText = $('btnCreateEmpresaText');
+  const spinner = $('btnCreateEmpresaSpinner');
+
+  if (!nombre) {
+    errorDiv.textContent = 'El nombre es requerido';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.textContent = 'Creando...';
+  spinner.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  try {
+    // Crear empresa (schema: control_obra)
+    const { data: empresa, error } = await sbObra.from('empresas').insert({
+      nombre,
+      rfc: rfc || null,
+      direccion: direccion || null,
+      telefono: telefono || null,
+      activo
+    }).select().single();
+
+    if (error) throw error;
+
+    // Si se selecciono plantilla, aplicarla
+    if (templateId && empresa) {
+      try {
+        await sb.rpc('apply_template_to_empresa', {
+          p_empresa_id: empresa.id,
+          p_template_id: parseInt(templateId)
+        });
+      } catch (tplErr) {
+        console.warn('Error aplicando plantilla:', tplErr);
+      }
+    }
+
+    document.querySelector('.modal').remove();
+    showToast('Empresa creada correctamente', 'success');
+    await loadPlatformData();
+    renderEmpresas();
+  } catch (err) {
+    console.error('Error creating empresa:', err);
+    errorDiv.textContent = err.message || 'Error al crear empresa';
+    errorDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Crear Empresa';
+    spinner.classList.add('hidden');
+  }
+}
+
+// ========== EDITAR EMPRESA ==========
+function showEditEmpresaModal(empresaId) {
+  const empresa = platformData.empresas.find(e => e.id === empresaId);
+  if (!empresa) return;
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">Editar Empresa</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <form onsubmit="updateEmpresa(event, ${empresaId})">
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Nombre de la Empresa *</label>
+              <input type="text" id="editEmpresaNombre" class="inp" required value="${empresa.nombre || ''}">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">RFC</label>
+              <input type="text" id="editEmpresaRFC" class="inp" maxlength="13" style="text-transform:uppercase" value="${empresa.rfc || ''}">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Direccion</label>
+              <input type="text" id="editEmpresaDireccion" class="inp" value="${empresa.direccion || ''}">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Telefono</label>
+              <input type="tel" id="editEmpresaTelefono" class="inp" value="${empresa.telefono || ''}">
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Email</label>
+              <input type="email" id="editEmpresaEmail" class="inp" value="${empresa.email || ''}">
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="editEmpresaActivo" class="w-4 h-4" ${empresa.activo !== false ? 'checked' : ''}>
+              <label for="editEmpresaActivo" class="text-sm text-slate-300">Empresa activa</label>
+            </div>
+          </div>
+
+          <div id="editEmpresaError" class="hidden mt-4 p-3 bg-red-500/20 text-red-400 rounded-lg text-sm"></div>
+
+          <div class="flex gap-2 mt-6">
+            <button type="button" onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cancelar</button>
+            <button type="submit" id="btnEditEmpresa" class="btn btn-p flex-1">
+              <span id="btnEditEmpresaText">Guardar Cambios</span>
+              <i id="btnEditEmpresaSpinner" class="ri-loader-4-line animate-spin ml-2 hidden"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function updateEmpresa(e, empresaId) {
+  e.preventDefault();
+  const nombre = $('editEmpresaNombre').value.trim();
+  const rfc = $('editEmpresaRFC').value.trim().toUpperCase();
+  const direccion = $('editEmpresaDireccion').value.trim();
+  const telefono = $('editEmpresaTelefono').value.trim();
+  const email = $('editEmpresaEmail').value.trim();
+  const activo = $('editEmpresaActivo').checked;
+
+  const errorDiv = $('editEmpresaError');
+  const btn = $('btnEditEmpresa');
+  const btnText = $('btnEditEmpresaText');
+  const spinner = $('btnEditEmpresaSpinner');
+
+  if (!nombre) {
+    errorDiv.textContent = 'El nombre es requerido';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.textContent = 'Guardando...';
+  spinner.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  try {
+    const { error } = await sbObra.from('empresas').update({
+      nombre,
+      rfc: rfc || null,
+      direccion: direccion || null,
+      telefono: telefono || null,
+      email: email || null,
+      activo
+    }).eq('id', empresaId);
+
+    if (error) throw error;
+
+    document.querySelector('.modal').remove();
+    showToast('Empresa actualizada correctamente', 'success');
+    await loadPlatformData();
+    renderEmpresas();
+  } catch (err) {
+    console.error('Error updating empresa:', err);
+    errorDiv.textContent = err.message || 'Error al actualizar empresa';
+    errorDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Guardar Cambios';
+    spinner.classList.add('hidden');
+  }
+}
+
+async function toggleEmpresaStatus(empresaId) {
+  const empresa = platformData.empresas.find(e => e.id === empresaId);
+  if (!empresa) return;
+
+  const newStatus = empresa.activo === false;
+  const action = newStatus ? 'activar' : 'suspender';
+
+  if (!confirm(`¿Deseas ${action} la empresa "${empresa.nombre}"?`)) return;
+
+  try {
+    const { error } = await sbObra.from('empresas').update({ activo: newStatus }).eq('id', empresaId);
+    if (error) throw error;
+
+    showToast(`Empresa ${newStatus ? 'activada' : 'suspendida'} correctamente`, 'success');
+    await loadPlatformData();
+    renderEmpresas();
+  } catch (err) {
+    showToast('Error al cambiar estado: ' + err.message, 'error');
+  }
+}
+
+// ========== CREAR USUARIO ==========
+function showNewUsuarioModal() {
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">Nuevo Usuario</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <form onsubmit="createUsuario(event)">
+          <div class="space-y-4">
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Empresa *</label>
+              <select id="newUsuarioEmpresa" class="inp" required>
+                <option value="">-- Selecciona empresa --</option>
+                ${platformData.empresas.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('')}
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs text-slate-400 mb-1 block">Nombre *</label>
+                <input type="text" id="newUsuarioNombre" class="inp" required placeholder="Juan Perez">
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 mb-1 block">Email *</label>
+                <input type="email" id="newUsuarioEmail" class="inp" required placeholder="juan@empresa.com">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs text-slate-400 mb-1 block">Contrasena *</label>
+                <input type="password" id="newUsuarioPassword" class="inp" required placeholder="Min. 6 caracteres" minlength="6">
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 mb-1 block">Rol *</label>
+                <select id="newUsuarioRol" class="inp" required>
+                  <option value="">-- Selecciona rol --</option>
+                  <option value="1">Admin General</option>
+                  <option value="2">Gerente de Obra</option>
+                  <option value="3">Supervisor General</option>
+                  <option value="4">Contador</option>
+                  <option value="5">Residente de Obra</option>
+                  <option value="6">Inspector de Calidad</option>
+                  <option value="7">Trabajador</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-400 mb-1 block">Telefono (Opcional)</label>
+              <input type="tel" id="newUsuarioTelefono" class="inp" placeholder="555-123-4567">
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="checkbox" id="newUsuarioActivo" class="w-4 h-4" checked>
+              <label for="newUsuarioActivo" class="text-sm text-slate-300">Usuario activo</label>
+            </div>
+          </div>
+
+          <div id="newUsuarioError" class="hidden mt-4 p-3 bg-red-500/20 text-red-400 rounded-lg text-sm"></div>
+
+          <div class="flex gap-2 mt-6">
+            <button type="button" onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cancelar</button>
+            <button type="submit" id="btnCreateUsuario" class="btn btn-p flex-1">
+              <span id="btnCreateUsuarioText">Crear Usuario</span>
+              <i id="btnCreateUsuarioSpinner" class="ri-loader-4-line animate-spin ml-2 hidden"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function createUsuario(e) {
+  e.preventDefault();
+  const empresa_id = parseInt($('newUsuarioEmpresa').value);
+  const nombre = $('newUsuarioNombre').value.trim();
+  const email = $('newUsuarioEmail').value.trim().toLowerCase();
+  const password = $('newUsuarioPassword').value;
+  const rol_id = parseInt($('newUsuarioRol').value);
+  const telefono = $('newUsuarioTelefono').value.trim();
+  const activo = $('newUsuarioActivo').checked;
+
+  const errorDiv = $('newUsuarioError');
+  const btn = $('btnCreateUsuario');
+  const btnText = $('btnCreateUsuarioText');
+  const spinner = $('btnCreateUsuarioSpinner');
+
+  if (!empresa_id || !nombre || !email || !password || !rol_id) {
+    errorDiv.textContent = 'Todos los campos marcados son requeridos';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  if (password.length < 6) {
+    errorDiv.textContent = 'La contrasena debe tener al menos 6 caracteres';
+    errorDiv.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.textContent = 'Creando...';
+  spinner.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  try {
+    // Verificar si el email ya existe (schema: control_obra)
+    const { data: existing } = await sbObra.from('obra_usuarios').select('id').eq('email', email).limit(1);
+    if (existing && existing.length > 0) {
+      throw new Error('Ya existe un usuario con este email');
+    }
+
+    // Crear usuario usando RPC que maneja el hash de password.
+    // Pasa el token de sesión de plataforma para que el servidor valide permisos.
+    const _sess = JSON.parse(localStorage.getItem('platform_admin_session') || '{}');
+    const { data, error } = await sb.rpc('admin_create_user', {
+      p_token: _sess.token || '',
+      p_empresa_id: empresa_id,
+      p_nombre: nombre,
+      p_email: email,
+      p_password: password,
+      p_rol_id: rol_id,
+      p_telefono: telefono || null,
+      p_activo: activo
+    });
+
+    if (error) throw error;
+
+    // Verificar respuesta de la funcion RPC
+    if (data && !data.success) {
+      throw new Error(data.error || 'Error al crear usuario');
+    }
+
+    document.querySelector('.modal').remove();
+    showToast('Usuario creado correctamente', 'success');
+    await loadPlatformData();
+    renderUsuarios();
+  } catch (err) {
+    console.error('Error creating usuario:', err);
+    errorDiv.textContent = err.message || 'Error al crear usuario';
+    errorDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Crear Usuario';
+    spinner.classList.add('hidden');
+  }
+}
+
+// ========== EDITAR USUARIO ==========
+function showEditUsuarioModal(userId) {
+  const usuario = platformData.usuarios.find(u => u.id === userId);
+  if (!usuario) return;
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Editar Usuario</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+        <form onsubmit="updateUsuario(event, '${userId}')">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Empresa *</label>
+              <select id="editUsuarioEmpresa" class="inp w-full" required>
+                ${platformData.empresas.map(e => `<option value="${e.id}" ${e.id === usuario.empresa_id ? 'selected' : ''}>${e.nombre}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Nombre *</label>
+              <input type="text" id="editUsuarioNombre" class="inp w-full" value="${usuario.nombre}" required>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Email *</label>
+              <input type="email" id="editUsuarioEmail" class="inp w-full" value="${usuario.email}" required>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Nueva Contrasena (dejar vacio para no cambiar)</label>
+              <input type="password" id="editUsuarioPassword" class="inp w-full" placeholder="••••••••">
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Rol *</label>
+              <select id="editUsuarioRol" class="inp w-full" required>
+                <option value="1" ${usuario.rol_id === 1 ? 'selected' : ''}>Admin</option>
+                <option value="2" ${usuario.rol_id === 2 ? 'selected' : ''}>Residente</option>
+                <option value="3" ${usuario.rol_id === 3 ? 'selected' : ''}>Supervisor</option>
+                <option value="4" ${usuario.rol_id === 4 ? 'selected' : ''}>Contabilidad</option>
+                <option value="5" ${usuario.rol_id === 5 ? 'selected' : ''}>Consulta</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Telefono</label>
+              <input type="tel" id="editUsuarioTelefono" class="inp w-full" value="${usuario.telefono || ''}">
+            </div>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="editUsuarioActivo" ${usuario.activo ? 'checked' : ''}>
+              <span class="text-sm">Usuario activo</span>
+            </label>
+          </div>
+          <div id="editUsuarioError" class="text-red-400 text-sm mt-3 hidden"></div>
+          <div class="flex justify-end gap-2 mt-6">
+            <button type="button" onclick="this.closest('.modal').remove()" class="btn">Cancelar</button>
+            <button type="submit" id="btnUpdateUsuario" class="btn btn-p">
+              <span id="btnUpdateUsuarioText">Guardar Cambios</span>
+              <i id="btnUpdateUsuarioSpinner" class="ri-loader-4-line animate-spin ml-2 hidden"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function updateUsuario(e, userId) {
+  e.preventDefault();
+  const empresa_id = parseInt($('editUsuarioEmpresa').value);
+  const nombre = $('editUsuarioNombre').value.trim();
+  const email = $('editUsuarioEmail').value.trim().toLowerCase();
+  const password = $('editUsuarioPassword').value;
+  const rol_id = parseInt($('editUsuarioRol').value);
+  const telefono = $('editUsuarioTelefono').value.trim();
+  const activo = $('editUsuarioActivo').checked;
+
+  const errorDiv = $('editUsuarioError');
+  const btn = $('btnUpdateUsuario');
+  const btnText = $('btnUpdateUsuarioText');
+  const spinner = $('btnUpdateUsuarioSpinner');
+
+  btn.disabled = true;
+  btnText.textContent = 'Guardando...';
+  spinner.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  try {
+    // Check if email changed and already exists
+    const usuario = platformData.usuarios.find(u => u.id === userId);
+    if (email !== usuario.email) {
+      const { data: existing } = await sbObra.from('obra_usuarios').select('id').eq('email', email).neq('id', userId).limit(1);
+      if (existing && existing.length > 0) {
+        throw new Error('Ya existe otro usuario con este email');
+      }
+    }
+
+    // Update user data
+    const updateData = { empresa_id, nombre, email, rol_id, telefono: telefono || null, activo };
+
+    // If password provided, hash it
+    if (password) {
+      if (password.length < 6) {
+        throw new Error('La contrasena debe tener al menos 6 caracteres');
+      }
+      // Use RPC to hash password
+      const { data: hashResult, error: hashErr } = await sb.rpc('hash_password', { p_password: password });
+      if (hashErr) {
+        // Fallback: store as plain (not recommended)
+        updateData.password_hash = password;
+      } else {
+        updateData.password_hash = hashResult;
+      }
+    }
+
+    const { error } = await sbObra.from('obra_usuarios').update(updateData).eq('id', userId);
+    if (error) throw error;
+
+    document.querySelector('.modal').remove();
+    showToast('Usuario actualizado correctamente', 'success');
+    await loadPlatformData();
+    renderUsuarios();
+  } catch (err) {
+    console.error('Error updating usuario:', err);
+    errorDiv.textContent = err.message || 'Error al actualizar usuario';
+    errorDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = 'Guardar Cambios';
+    spinner.classList.add('hidden');
+  }
+}
+
+async function toggleUsuarioStatus(userId, currentStatus) {
+  const action = currentStatus ? 'desactivar' : 'activar';
+  if (!confirm(`¿Seguro que deseas ${action} este usuario?`)) return;
+
+  try {
+    const { error } = await sbObra.from('obra_usuarios').update({ activo: !currentStatus }).eq('id', userId);
+    if (error) throw error;
+
+    showToast(`Usuario ${currentStatus ? 'desactivado' : 'activado'} correctamente`, 'success');
+    await loadPlatformData();
+    renderUsuarios();
+  } catch (err) {
+    console.error('Error toggling usuario status:', err);
+    showToast('Error al cambiar estado del usuario', 'error');
+  }
+}
+
+function confirmDeleteUsuario(userId, userName) {
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-md">
+        <div class="text-center">
+          <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i class="ri-error-warning-line text-3xl text-red-400"></i>
+          </div>
+          <h3 class="text-lg font-semibold mb-2">Eliminar Usuario</h3>
+          <p class="text-slate-400 mb-6">¿Estas seguro que deseas eliminar al usuario <strong class="text-white">${userName}</strong>? Esta accion no se puede deshacer.</p>
+          <div class="flex justify-center gap-3">
+            <button onclick="this.closest('.modal').remove()" class="btn">Cancelar</button>
+            <button onclick="deleteUsuario('${userId}')" class="btn bg-red-600 hover:bg-red-700">
+              <i class="ri-delete-bin-line mr-1"></i> Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function deleteUsuario(userId) {
+  try {
+    // First delete user sessions (schema: control_obra)
+    await sbObra.from('obra_sesiones').delete().eq('usuario_id', userId);
+
+    // Then delete user (schema: control_obra)
+    const { error } = await sbObra.from('obra_usuarios').delete().eq('id', userId);
+    if (error) throw error;
+
+    document.querySelector('.modal').remove();
+    showToast('Usuario eliminado correctamente', 'success');
+    await loadPlatformData();
+    renderUsuarios();
+  } catch (err) {
+    console.error('Error deleting usuario:', err);
+    showToast('Error al eliminar usuario: ' + (err.message || 'Error desconocido'), 'error');
+  }
+}
+
+// ========== SUSCRIPCIONES ==========
+function renderSubscriptions() {
+  const plans = [
+    { nombre: 'Free', precio: 0, usuarios: 3, obras: 2, color: 'slate' },
+    { nombre: 'Pro', precio: 799, usuarios: 15, obras: 10, color: 'blue' },
+    { nombre: 'Enterprise', precio: 1999, usuarios: -1, obras: -1, color: 'amber' }
+  ];
+
+  $('content').innerHTML = `
+    <!-- Plans Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      ${plans.map(p => `
+        <div class="card text-center">
+          <div class="text-${p.color}-400 mb-2"><i class="ri-vip-crown-2-line text-2xl"></i></div>
+          <h3 class="text-lg font-bold text-white">${p.nombre}</h3>
+          <p class="text-3xl font-bold text-white my-3">${p.precio === 0 ? 'Gratis' : fmt(p.precio)}<span class="text-sm font-normal text-slate-400">/mes</span></p>
+          <div class="text-sm text-slate-400 space-y-1">
+            <p><i class="ri-team-line mr-1"></i> ${p.usuarios === -1 ? 'Ilimitados' : p.usuarios} usuarios</p>
+            <p><i class="ri-building-line mr-1"></i> ${p.obras === -1 ? 'Ilimitadas' : p.obras} obras</p>
+          </div>
+          <div class="mt-4 text-2xl font-bold text-${p.color}-400">
+            ${platformData.empresas.length} <span class="text-sm font-normal">empresas</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Subscription List -->
+    <div class="card">
+      <div class="card-header">Todas las Suscripciones</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th>Plan</th>
+            <th>Estado</th>
+            <th>Periodo</th>
+            <th>Proxima Facturacion</th>
+            <th class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${platformData.empresas.map(e => `
+            <tr>
+              <td class="font-medium text-white">${e.nombre || 'Sin nombre'}</td>
+              <td><span class="badge badge-info">Free</span></td>
+              <td><span class="badge badge-success">Activo</span></td>
+              <td>Mensual</td>
+              <td class="text-slate-400">-</td>
+              <td class="text-right">
+                <button onclick="changePlan('${e.id}')" class="btn btn-s btn-sm text-xs">Cambiar Plan</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Sin suscripciones</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function changePlan(empresaId) {
+  showToast('Funcion de cambio de plan en desarrollo', 'info');
+}
+
+// ========== BILLING ==========
+function renderBilling() {
+  const mrr = platformData.subscriptions.reduce((sum, s) => sum + (s.subscription_plans?.precio_mensual || 0), 0);
+
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr)}</div>
+        <div class="stat-label">MRR Actual</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-calendar-line text-2xl"></i></div>
+        <div class="stat-value">${fmt(mrr * 12)}</div>
+        <div class="stat-label">ARR Proyectado</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-amber-400 mb-2"><i class="ri-file-list-3-line text-2xl"></i></div>
+        <div class="stat-value">0</div>
+        <div class="stat-label">Facturas Pendientes</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Facturas Recientes</div>
+      <div class="text-center py-12 text-slate-400">
+        <i class="ri-file-list-3-line text-4xl mb-2"></i>
+        <p>Sistema de facturacion pendiente de configurar</p>
+        <p class="text-sm mt-2">Las empresas estan actualmente en plan gratuito</p>
+      </div>
+    </div>
+  `;
+}
+
+// ========== ERRORES ==========
+function renderErrors() {
+  const newErrors = platformData.errors.filter(e => e.status === 'new').length;
+  const resolvedErrors = platformData.errors.filter(e => e.status === 'resolved').length;
+
+  // Group errors by fingerprint
+  const grouped = {};
+  platformData.errors.forEach(e => {
+    const fp = e.fingerprint || e.message?.substring(0, 50) || 'unknown';
+    if (!grouped[fp]) {
+      grouped[fp] = { ...e, count: 0 };
+    }
+    grouped[fp].count++;
+    if (new Date(e.created_at) > new Date(grouped[fp].created_at)) {
+      grouped[fp].created_at = e.created_at;
+    }
+  });
+
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="card stat-card">
+        <div class="text-red-400 mb-2"><i class="ri-bug-line text-2xl"></i></div>
+        <div class="stat-value">${platformData.errors.length}</div>
+        <div class="stat-label">Total (7 dias)</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-amber-400 mb-2"><i class="ri-error-warning-line text-2xl"></i></div>
+        <div class="stat-value">${newErrors}</div>
+        <div class="stat-label">Nuevos</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-green-400 mb-2"><i class="ri-checkbox-circle-line text-2xl"></i></div>
+        <div class="stat-value">${resolvedErrors}</div>
+        <div class="stat-label">Resueltos</div>
+      </div>
+      <div class="card stat-card">
+        <div class="text-blue-400 mb-2"><i class="ri-stack-line text-2xl"></i></div>
+        <div class="stat-value">${Object.keys(grouped).length}</div>
+        <div class="stat-label">Tipos Unicos</div>
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">Tendencia de Errores (24h)</div>
+      <div style="position:relative;height:150px;width:100%">
+        <canvas id="errorTrendChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        Errores Agrupados
+        <div class="flex items-center gap-2">
+          <select id="errorFilter" class="inp text-sm" onchange="filterErrors()">
+            <option value="">Todos</option>
+            <option value="new">Nuevos</option>
+            <option value="resolved">Resueltos</option>
+          </select>
+        </div>
+      </div>
+      <div id="errorsList" class="divide-y divide-white/5">
+        ${Object.values(grouped).map(e => {
+          const empresa = platformData.empresas.find(emp => emp.id === e.empresa_id);
+          const usuario = platformData.usuarios.find(u => u.id === e.user_id);
+          return `
+          <div class="p-4 hover:bg-white/5 cursor-pointer error-row ${e.status}" onclick="showErrorDetail('${e.id}')">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="badge ${e.status === 'new' ? 'badge-danger' : 'badge-success'}">${e.status === 'new' ? 'Nuevo' : 'Resuelto'}</span>
+                  <span class="badge badge-info">${e.error_type || 'unknown'}</span>
+                  <span class="text-xs text-slate-400">${e.count}x</span>
+                </div>
+                <p class="text-white font-medium truncate">${e.message || 'Error sin mensaje'}</p>
+                <div class="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                  <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
+                  ${empresa ? `<span><i class="ri-building-line"></i> ${empresa.nombre}</span>` : ''}
+                  ${usuario ? `<span><i class="ri-user-line"></i> ${usuario.nombre}</span>` : '<span><i class="ri-user-line"></i> Anonimo</span>'}
+                  ${e.url ? `<span><i class="ri-link"></i> ${e.url.split('/').pop()}</span>` : ''}
+                </div>
+              </div>
+              <button onclick="event.stopPropagation();resolveError('${e.fingerprint}')" class="btn btn-s text-xs ${e.status === 'new' ? '' : 'hidden'}">
+                Resolver
+              </button>
+            </div>
+          </div>
+        `;}).join('') || '<div class="p-8 text-center text-slate-400">Sin errores en los ultimos 7 dias</div>'}
+      </div>
+    </div>
+  `;
+
+  setTimeout(renderErrorTrendChart, 100);
+}
+
+function renderErrorTrendChart() {
+  const ctx = document.getElementById('errorTrendChart')?.getContext('2d');
+  if (!ctx) return;
+
+  // Group by hour
+  const hours = Array(24).fill(0);
+  platformData.errors.forEach(e => {
+    const hour = new Date(e.created_at).getHours();
+    hours[hour]++;
+  });
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: hours.map((_, i) => `${i}:00`),
+      datasets: [{
+        label: 'Errores',
+        data: hours,
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#64748b', maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+async function showErrorDetail(errorId) {
+  const error = platformData.errors.find(e => e.id === errorId);
+  if (!error) return;
+
+  const empresa = platformData.empresas.find(e => e.id === error.empresa_id);
+  const usuario = platformData.usuarios.find(u => u.id === error.user_id);
+
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <span class="badge ${error.status === 'new' ? 'badge-danger' : 'badge-success'} mb-2">${error.status}</span>
+            <h3 class="text-lg font-bold text-white">${error.error_type || 'Error'}</h3>
+          </div>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <div class="bg-black/30 rounded-lg p-4 mb-4">
+          <p class="text-red-400 font-mono text-sm">${error.message}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <p class="text-xs text-slate-400">Empresa</p>
+            <p class="text-white">${empresa?.nombre || 'Desconocida'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Usuario</p>
+            <p class="text-white">${usuario?.nombre || 'Anonimo'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">URL</p>
+            <p class="text-white text-sm truncate">${error.url || '-'}</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-400">Fecha</p>
+            <p class="text-white">${fmtDateTime(error.created_at)}</p>
+          </div>
+        </div>
+
+        ${error.stack_trace ? `
+          <div class="mb-4">
+            <p class="text-xs text-slate-400 mb-2">Stack Trace</p>
+            <pre class="bg-black/30 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto max-h-[200px]">${error.stack_trace}</pre>
+          </div>
+        ` : ''}
+
+        <div class="flex gap-2">
+          <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cerrar</button>
+          ${error.status === 'new' ? `<button onclick="resolveError('${error.fingerprint}');this.closest('.modal').remove()" class="btn btn-p flex-1">Marcar Resuelto</button>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function resolveError(fingerprint) {
+  try {
+    await sb.from('platform_errors').update({ status: 'resolved' }).eq('fingerprint', fingerprint);
+    showToast('Error marcado como resuelto', 'success');
+    await loadPlatformData();
+    renderErrors();
+  } catch (err) {
+    showToast('Error al actualizar', 'error');
+  }
+}
+
+// ========== ANALYTICS ==========
+async function renderAnalytics() {
+  $('content').innerHTML = `<div class="text-center py-12"><i class="ri-loader-4-line animate-spin text-3xl text-blue-400"></i><p class="mt-2 text-slate-400">Cargando analytics...</p></div>`;
+
+  try {
+    // Fetch analytics data
+    const { data: stats } = await sb.rpc('get_platform_analytics');
+    const analytics = stats || {};
+
+    // Calculate growth
+    const empresasActivas = platformData.empresas.filter(e => e.activo).length;
+    const usuariosActivos = platformData.usuarios.filter(u => u.activo).length;
+    const usuariosNuevos7d = platformData.usuarios.filter(u => new Date(u.created_at) > new Date(Date.now() - 604800000)).length;
+
+    // Group usuarios by empresa
+    const usuariosPorEmpresa = {};
+    platformData.usuarios.forEach(u => {
+      const empresa = platformData.empresas.find(e => e.id === u.empresa_id);
+      const nombre = empresa?.nombre || 'Sin empresa';
+      usuariosPorEmpresa[nombre] = (usuariosPorEmpresa[nombre] || 0) + 1;
+    });
+
+    // Count obras per empresa (from empresas data if available)
+    const obrasPorEmpresa = {};
+    platformData.empresas.forEach(e => {
+      obrasPorEmpresa[e.nombre] = analytics.obras_por_empresa?.find(o => o.empresa_id === e.id)?.count || 0;
+    });
+
+    $('content').innerHTML = `
+      <!-- KPIs -->
+      <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+        <div class="card stat-card">
+          <div class="text-blue-400 mb-2"><i class="ri-building-4-line text-2xl"></i></div>
+          <div class="stat-value">${empresasActivas}</div>
+          <div class="stat-label">Empresas Activas</div>
+        </div>
+        <div class="card stat-card">
+          <div class="text-green-400 mb-2"><i class="ri-user-line text-2xl"></i></div>
+          <div class="stat-value">${usuariosActivos}</div>
+          <div class="stat-label">Usuarios Activos</div>
+        </div>
+        <div class="card stat-card">
+          <div class="text-amber-400 mb-2"><i class="ri-hammer-line text-2xl"></i></div>
+          <div class="stat-value">${analytics.total_obras || 0}</div>
+          <div class="stat-label">Obras Totales</div>
+        </div>
+        <div class="card stat-card">
+          <div class="text-purple-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
+          <div class="stat-value">${analytics.total_gastos || 0}</div>
+          <div class="stat-label">Gastos Registrados</div>
+        </div>
+        <div class="card stat-card">
+          <div class="text-cyan-400 mb-2"><i class="ri-shopping-cart-line text-2xl"></i></div>
+          <div class="stat-value">${analytics.total_ordenes || 0}</div>
+          <div class="stat-label">Ordenes Compra</div>
+        </div>
+        <div class="card stat-card">
+          <div class="text-pink-400 mb-2"><i class="ri-login-circle-line text-2xl"></i></div>
+          <div class="stat-value">${analytics.sesiones_activas || 0}</div>
+          <div class="stat-label">Sesiones Activas</div>
+        </div>
+      </div>
+
+      <!-- Growth Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-400 text-sm">Usuarios Nuevos (7d)</p>
+              <p class="text-2xl font-bold text-white">${usuariosNuevos7d}</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+              <i class="ri-user-add-line text-2xl text-green-400"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs ${usuariosNuevos7d > 0 ? 'text-green-400' : 'text-slate-400'}">
+            <i class="ri-arrow-${usuariosNuevos7d > 0 ? 'up' : 'right'}-line"></i>
+            ${usuariosNuevos7d > 0 ? '+' + usuariosNuevos7d + ' esta semana' : 'Sin cambios'}
+          </div>
+        </div>
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-400 text-sm">Logins (7d)</p>
+              <p class="text-2xl font-bold text-white">${analytics.logins_7d || 0}</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+              <i class="ri-login-box-line text-2xl text-blue-400"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-400">
+            <i class="ri-time-line"></i> Ultimos 7 dias
+          </div>
+        </div>
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-slate-400 text-sm">Tasa de Actividad</p>
+              <p class="text-2xl font-bold text-white">${platformData.usuarios.length > 0 ? Math.round((usuariosActivos / platformData.usuarios.length) * 100) : 0}%</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+              <i class="ri-pulse-line text-2xl text-amber-400"></i>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-slate-400">
+            <i class="ri-user-line"></i> ${usuariosActivos}/${platformData.usuarios.length} usuarios activos
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="card">
+          <div class="card-header">Usuarios por Empresa</div>
+          <div style="position:relative;height:250px;width:100%">
+            <canvas id="usuariosEmpresaChart"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Distribucion de Actividad</div>
+          <div style="position:relative;height:250px;width:100%">
+            <canvas id="actividadChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Table -->
+      <div class="card">
+        <div class="card-header">Actividad Reciente por Empresa</div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Usuarios</th>
+              <th>Obras</th>
+              <th>Estado</th>
+              <th>Ultimo Usuario</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${platformData.empresas.map(e => {
+              const usuarios = platformData.usuarios.filter(u => u.empresa_id === e.id);
+              const ultimoUsuario = usuarios.sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
+              return `
+                <tr>
+                  <td class="font-medium text-white">${e.nombre}</td>
+                  <td>${usuarios.length}</td>
+                  <td>${analytics.obras_por_empresa?.find(o => o.empresa_id === e.id)?.count || 0}</td>
+                  <td><span class="badge ${e.activo ? 'badge-success' : 'badge-danger'}">${e.activo ? 'Activa' : 'Inactiva'}</span></td>
+                  <td class="text-slate-400">${ultimoUsuario ? ultimoUsuario.nombre + ' (' + fmtRelative(ultimoUsuario.created_at) + ')' : '-'}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Render charts
+    setTimeout(() => {
+      renderUsuariosEmpresaChart(usuariosPorEmpresa);
+      renderActividadChart(analytics);
+    }, 100);
+
+  } catch (err) {
+    console.error('Error loading analytics:', err);
+    $('content').innerHTML = `
+      <div class="card text-center py-12">
+        <i class="ri-error-warning-line text-4xl text-red-400 mb-2"></i>
+        <p class="text-white">Error al cargar analytics</p>
+        <p class="text-sm text-slate-400 mt-2">${err.message}</p>
+        <button onclick="renderAnalytics()" class="btn btn-p mt-4">Reintentar</button>
+      </div>
+    `;
+  }
+}
+
+function renderUsuariosEmpresaChart(data) {
+  const ctx = document.getElementById('usuariosEmpresaChart')?.getContext('2d');
+  if (!ctx) return;
+
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.slice(0, labels.length),
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: '#94a3b8', padding: 15 }
+        }
+      }
+    }
+  });
+}
+
+function renderActividadChart(analytics) {
+  const ctx = document.getElementById('actividadChart')?.getContext('2d');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Obras', 'Gastos', 'Ordenes', 'Estimaciones'],
+      datasets: [{
+        label: 'Total',
+        data: [
+          analytics.total_obras || 0,
+          analytics.total_gastos || 0,
+          analytics.total_ordenes || 0,
+          analytics.total_estimaciones || 0
+        ],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#94a3b8' }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#94a3b8' }
+        }
+      }
+    }
+  });
+}
+
+// ========== HEALTH ==========
+function renderHealth() {
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-database-2-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">Base de Datos</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-server-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">API</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+            <i class="ri-cloud-line text-2xl text-green-400"></i>
+          </div>
+          <div>
+            <p class="text-white font-medium">Storage</p>
+            <p class="text-sm text-green-400">Operacional</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Uptime (Ultimos 30 dias)</div>
+      <div class="flex items-center gap-1 mt-4">
+        ${Array(30).fill(0).map(() => `<div class="flex-1 h-8 bg-green-500 rounded" title="100%"></div>`).join('')}
+      </div>
+      <div class="flex justify-between mt-2 text-xs text-slate-400">
+        <span>Hace 30 dias</span>
+        <span>99.9% uptime</span>
+        <span>Hoy</span>
+      </div>
+    </div>
+  `;
+}
+
+// ========== MODULOS CONFIG ==========
+// Definicion de todos los modulos disponibles
+const ALL_MODULES = [
+  { key: 'd', nombre: 'Dashboard', categoria: 'Principal', icono: 'ri-dashboard-3-line' },
+  { key: 'o', nombre: 'Obras', categoria: 'Proyectos', icono: 'ri-building-2-line' },
+  { key: 'p', nombre: 'Presupuesto', categoria: 'Proyectos', icono: 'ri-money-dollar-circle-line' },
+  { key: 'w', nombre: 'Programa', categoria: 'Proyectos', icono: 'ri-bar-chart-horizontal-line' },
+  { key: 'g', nombre: 'Gastos', categoria: 'Proyectos', icono: 'ri-wallet-3-line' },
+  { key: 'pc', nombre: 'Pagos', categoria: 'Proyectos', icono: 'ri-bank-card-line' },
+  { key: 'x', nombre: 'Ordenes', categoria: 'Proyectos', icono: 'ri-exchange-line' },
+  { key: 'ct', nombre: 'Cotizaciones', categoria: 'Proyectos', icono: 'ri-file-list-2-line' },
+  { key: 'es', nombre: 'Estimaciones', categoria: 'Proyectos', icono: 'ri-calculator-line' },
+  { key: 'fp', nombre: 'Panel Fiscal', categoria: 'Contabilidad', icono: 'ri-pie-chart-2-line' },
+  { key: 'fc', nombre: 'Facturas CFDI', categoria: 'Contabilidad', icono: 'ri-file-text-line' },
+  { key: 'fe', nombre: 'CFDIs Emitidos', categoria: 'Contabilidad', icono: 'ri-file-check-line' },
+  { key: 'rt', nombre: 'Retenciones', categoria: 'Contabilidad', icono: 'ri-percent-line' },
+  { key: 'dec', nombre: 'Declaraciones', categoria: 'Contabilidad', icono: 'ri-file-list-3-line' },
+  { key: 'sc', nombre: 'Subcontratos', categoria: 'Operacion', icono: 'ri-handshake-line' },
+  { key: 'm', nombre: 'Materiales', categoria: 'Operacion', icono: 'ri-stack-line' },
+  { key: 'b', nombre: 'Bitacora', categoria: 'Operacion', icono: 'ri-book-2-line' },
+  { key: 'cal', nombre: 'Calendario', categoria: 'Operacion', icono: 'ri-calendar-line' },
+  { key: 'rfi', nombre: 'RFIs', categoria: 'Calidad', icono: 'ri-question-answer-line' },
+  { key: 'pl', nombre: 'Punch List', categoria: 'Calidad', icono: 'ri-list-check-2' },
+  { key: 'seg', nombre: 'Seguridad', categoria: 'Calidad', icono: 'ri-shield-check-line' },
+  { key: 'doc', nombre: 'Documentos', categoria: 'Archivos', icono: 'ri-folder-2-line' },
+  { key: 'f', nombre: 'Fotos', categoria: 'Archivos', icono: 'ri-camera-line' },
+  { key: 'emp', nombre: 'Empleados', categoria: 'Personal', icono: 'ri-user-line' },
+  { key: 'nom', nombre: 'Nomina', categoria: 'Personal', icono: 'ri-money-dollar-box-line' },
+  { key: 'a', nombre: 'Asistencia', categoria: 'Personal', icono: 'ri-time-line' },
+  { key: 'pv', nombre: 'Proveedores', categoria: 'Externos', icono: 'ri-truck-line' },
+  { key: 'cl', nombre: 'Clientes', categoria: 'Externos', icono: 'ri-user-star-line' },
+  { key: 'rp', nombre: 'Reportes', categoria: 'Sistema', icono: 'ri-bar-chart-box-line' },
+  { key: 'cfg', nombre: 'Config', categoria: 'Sistema', icono: 'ri-settings-3-line' },
+  { key: 'u', nombre: 'Usuarios', categoria: 'Sistema', icono: 'ri-team-line' }
+];
+
+let selectedEmpresaForConfig = null;
+let currentModulosConfig = {};
+
+function renderModulos() {
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Panel izquierdo: Selector de empresa -->
+      <div class="lg:col-span-1">
+        <div class="card">
+          <div class="card-header">
+            <span>Seleccionar Empresa</span>
+            <span class="text-xs text-slate-400">${platformData.empresas.length} empresas</span>
+          </div>
+          <input type="text" id="searchEmpresaConfig" class="inp mb-3" placeholder="Buscar empresa..." onkeyup="filterEmpresasConfig()">
+          <div id="empresaConfigList" class="space-y-2 max-h-[400px] overflow-y-auto">
+            ${platformData.empresas.map(e => {
+              const hasConfig = platformData.empresaConfigs.find(c => c.empresa_id === e.id);
+              return `
+                <div onclick="selectEmpresaForConfig(${e.id})"
+                     class="p-3 rounded-lg cursor-pointer transition-all empresa-config-item ${selectedEmpresaForConfig === e.id ? 'bg-red-500/20 border border-red-500/50' : 'bg-black/20 hover:bg-white/5'}"
+                     data-id="${e.id}" data-name="${(e.nombre || '').toLowerCase()}">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="font-medium text-white">${e.nombre || 'Sin nombre'}</p>
+                      <p class="text-xs text-slate-400">${e.rfc || 'Sin RFC'}</p>
+                    </div>
+                    ${hasConfig ? '<span class="badge badge-success text-xs">Configurado</span>' : '<span class="badge badge-warning text-xs">Default</span>'}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Aplicar plantilla -->
+        <div class="card mt-4">
+          <div class="card-header">Aplicar Plantilla</div>
+          <select id="templateSelect" class="inp mb-3" ${!selectedEmpresaForConfig ? 'disabled' : ''}>
+            <option value="">-- Selecciona plantilla --</option>
+            ${platformData.templates.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('')}
+          </select>
+          <button onclick="applyTemplate()" class="btn btn-p w-full" ${!selectedEmpresaForConfig ? 'disabled' : ''}>
+            <i class="ri-file-copy-2-line mr-2"></i> Aplicar Plantilla
+          </button>
+        </div>
+      </div>
+
+      <!-- Panel derecho: Configuracion de modulos -->
+      <div class="lg:col-span-2">
+        <div class="card">
+          <div class="card-header">
+            <span>Configuracion de Modulos</span>
+            ${selectedEmpresaForConfig ? `
+              <button onclick="saveModulosConfig()" class="btn btn-p text-sm">
+                <i class="ri-save-line mr-1"></i> Guardar Cambios
+              </button>
+            ` : ''}
+          </div>
+
+          ${selectedEmpresaForConfig ? renderModulosEditor() : `
+            <div class="text-center py-12 text-slate-400">
+              <i class="ri-cursor-line text-4xl mb-3"></i>
+              <p>Selecciona una empresa para configurar sus modulos</p>
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderModulosEditor() {
+  const categorias = [...new Set(ALL_MODULES.map(m => m.categoria))];
+
+  return `
+    <div class="space-y-6">
+      ${categorias.map(cat => `
+        <div class="border border-white/10 rounded-lg p-4">
+          <h4 class="font-medium text-white mb-3 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+            ${cat}
+          </h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            ${ALL_MODULES.filter(m => m.categoria === cat).map(mod => {
+              const config = currentModulosConfig[mod.key] || { habilitado: true, label_custom: '' };
+              return `
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-black/20">
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer"
+                           id="mod_${mod.key}"
+                           ${config.habilitado ? 'checked' : ''}
+                           onchange="toggleModulo('${mod.key}')">
+                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+                  </label>
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                      <i class="${mod.icono} text-slate-400"></i>
+                      <span class="text-sm text-white">${mod.nombre}</span>
+                    </div>
+                    <input type="text"
+                           class="inp text-xs py-1"
+                           placeholder="Nombre personalizado (opcional)"
+                           value="${config.label_custom || ''}"
+                           onchange="setCustomLabel('${mod.key}', this.value)"
+                           ${!config.habilitado ? 'disabled' : ''}>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function filterEmpresasConfig() {
+  const search = $('searchEmpresaConfig').value.toLowerCase();
+  document.querySelectorAll('.empresa-config-item').forEach(el => {
+    el.style.display = el.dataset.name.includes(search) ? '' : 'none';
+  });
+}
+
+async function selectEmpresaForConfig(empresaId) {
+  selectedEmpresaForConfig = empresaId;
+
+  // Cargar configuracion existente
+  const existingConfig = platformData.empresaConfigs.find(c => c.empresa_id === empresaId);
+
+  if (existingConfig && existingConfig.empresa_modulos) {
+    currentModulosConfig = {};
+    existingConfig.empresa_modulos.forEach(m => {
+      currentModulosConfig[m.modulo_key] = {
+        habilitado: m.habilitado,
+        label_custom: m.label_custom || ''
+      };
+    });
+  } else {
+    // Config por defecto: todos habilitados
+    currentModulosConfig = {};
+    ALL_MODULES.forEach(m => {
+      currentModulosConfig[m.key] = { habilitado: true, label_custom: '' };
+    });
+  }
+
+  renderModulos();
+}
+
+function toggleModulo(key) {
+  if (!currentModulosConfig[key]) {
+    currentModulosConfig[key] = { habilitado: true, label_custom: '' };
+  }
+  currentModulosConfig[key].habilitado = !currentModulosConfig[key].habilitado;
+
+  // Actualizar UI
+  const input = document.querySelector(`input[onchange="setCustomLabel('${key}', this.value)"]`);
+  if (input) input.disabled = !currentModulosConfig[key].habilitado;
+}
+
+function setCustomLabel(key, value) {
+  if (!currentModulosConfig[key]) {
+    currentModulosConfig[key] = { habilitado: true, label_custom: '' };
+  }
+  currentModulosConfig[key].label_custom = value;
+}
+
+async function saveModulosConfig() {
+  if (!selectedEmpresaForConfig) return;
+
+  try {
+    // Preparar datos para guardar
+    const modulosArray = Object.entries(currentModulosConfig).map(([key, config]) => ({
+      modulo_key: key,
+      habilitado: config.habilitado,
+      label_custom: config.label_custom || null
+    }));
+
+    const { data, error } = await sb.rpc('save_empresa_modulos_config', {
+      p_empresa_id: selectedEmpresaForConfig,
+      p_modulos: modulosArray
+    });
+
+    if (error) throw error;
+
+    showToast('Configuracion guardada correctamente', 'success');
+    await loadPlatformData();
+    renderModulos();
+  } catch (err) {
+    console.error('Error saving config:', err);
+    showToast('Error al guardar configuracion: ' + err.message, 'error');
+  }
+}
+
+async function applyTemplate() {
+  const templateId = $('templateSelect').value;
+  if (!templateId || !selectedEmpresaForConfig) {
+    showToast('Selecciona una plantilla', 'warning');
+    return;
+  }
+
+  try {
+    const { data, error } = await sb.rpc('apply_template_to_empresa', {
+      p_empresa_id: selectedEmpresaForConfig,
+      p_template_id: parseInt(templateId)
+    });
+
+    if (error) throw error;
+
+    showToast('Plantilla aplicada correctamente', 'success');
+    await loadPlatformData();
+    await selectEmpresaForConfig(selectedEmpresaForConfig);
+  } catch (err) {
+    console.error('Error applying template:', err);
+    showToast('Error al aplicar plantilla: ' + err.message, 'error');
+  }
+}
+
+// ========== TEMPLATES ==========
+function renderTemplates() {
+  $('content').innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Lista de plantillas -->
+      <div>
+        <div class="card">
+          <div class="card-header">
+            <span>Plantillas Disponibles</span>
+            <button onclick="showNewTemplateModal()" class="btn btn-p text-sm">
+              <i class="ri-add-line mr-1"></i> Nueva
+            </button>
+          </div>
+          <div class="space-y-3">
+            ${platformData.templates.map(t => `
+              <div class="p-4 rounded-lg bg-black/20 border border-white/5 hover:border-red-500/30 transition-all cursor-pointer" onclick="showTemplateDetail(${t.id})">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <h4 class="font-medium text-white">${t.nombre}</h4>
+                    <p class="text-sm text-slate-400 mt-1">${t.descripcion || 'Sin descripcion'}</p>
+                  </div>
+                  <span class="badge ${t.activo ? 'badge-success' : 'badge-danger'}">${t.activo ? 'Activa' : 'Inactiva'}</span>
+                </div>
+                <div class="flex items-center gap-4 mt-3 text-xs text-slate-500">
+                  <span><i class="ri-checkbox-circle-line"></i> ${countEnabledModules(t.modulos_config)} modulos</span>
+                  <span><i class="ri-calendar-line"></i> ${fmtDate(t.created_at)}</span>
+                </div>
+              </div>
+            `).join('') || '<p class="text-center text-slate-400 py-8">No hay plantillas creadas</p>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalle de plantilla -->
+      <div id="templateDetailContainer">
+        <div class="card">
+          <div class="text-center py-12 text-slate-400">
+            <i class="ri-file-copy-2-line text-4xl mb-3"></i>
+            <p>Selecciona una plantilla para ver su detalle</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function countEnabledModules(config) {
+  if (!config) return 0;
+  return Object.values(config).filter(v => v.habilitado !== false).length;
+}
+
+function showTemplateDetail(templateId) {
+  const template = platformData.templates.find(t => t.id === templateId);
+  if (!template) return;
+
+  const config = template.modulos_config || {};
+  const categorias = [...new Set(ALL_MODULES.map(m => m.categoria))];
+
+  $('templateDetailContainer').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <span>${template.nombre}</span>
+        <div class="flex gap-2">
+          <button onclick="editTemplate(${template.id})" class="btn btn-s text-sm">
+            <i class="ri-edit-line"></i>
+          </button>
+          <button onclick="deleteTemplate(${template.id})" class="btn btn-s text-sm text-red-400 hover:text-red-300">
+            <i class="ri-delete-bin-line"></i>
+          </button>
+        </div>
+      </div>
+
+      <p class="text-slate-400 text-sm mb-4">${template.descripcion || 'Sin descripcion'}</p>
+
+      <div class="space-y-4">
+        ${categorias.map(cat => {
+          const modsCat = ALL_MODULES.filter(m => m.categoria === cat);
+          const enabledInCat = modsCat.filter(m => config[m.key]?.habilitado !== false).length;
+
+          return `
+            <div class="border border-white/10 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <h5 class="text-sm font-medium text-white">${cat}</h5>
+                <span class="text-xs text-slate-400">${enabledInCat}/${modsCat.length}</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                ${modsCat.map(m => {
+                  const modConfig = config[m.key] || { habilitado: true };
+                  const isEnabled = modConfig.habilitado !== false;
+                  const customLabel = modConfig.label_custom;
+                  return `
+                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${isEnabled ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-500 line-through'}">
+                      <i class="${m.icono}"></i>
+                      ${customLabel || m.nombre}
+                    </span>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-white/10">
+        <p class="text-xs text-slate-500 mb-3">Empresas usando esta plantilla:</p>
+        <div class="flex flex-wrap gap-2">
+          ${platformData.empresaConfigs.filter(c => c.template_id === templateId).map(c => {
+            const emp = platformData.empresas.find(e => e.id === c.empresa_id);
+            return `<span class="badge badge-info">${emp?.nombre || 'Empresa ' + c.empresa_id}</span>`;
+          }).join('') || '<span class="text-slate-400 text-sm">Ninguna empresa usa esta plantilla</span>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showNewTemplateModal() {
+  $('modalContainer').innerHTML = `
+    <div class="modal show" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-white">Nueva Plantilla</h3>
+          <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
+            <i class="ri-close-line text-xl"></i>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="text-xs text-slate-400 mb-1 block">Nombre</label>
+            <input type="text" id="newTemplateName" class="inp" placeholder="Ej: Administracion de Condominios">
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 mb-1 block">Descripcion</label>
+            <textarea id="newTemplateDesc" class="inp" rows="3" placeholder="Descripcion de la plantilla..."></textarea>
+          </div>
+          <div>
+            <label class="text-xs text-slate-400 mb-1 block">Copiar configuracion de</label>
+            <select id="copyFromTemplate" class="inp">
+              <option value="">-- Todos los modulos habilitados --</option>
+              ${platformData.templates.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-6">
+          <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cancelar</button>
+          <button onclick="createTemplate()" class="btn btn-p flex-1">Crear Plantilla</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function createTemplate() {
+  const nombre = $('newTemplateName').value.trim();
+  const descripcion = $('newTemplateDesc').value.trim();
+  const copyFrom = $('copyFromTemplate').value;
+
+  if (!nombre) {
+    showToast('El nombre es requerido', 'warning');
+    return;
+  }
+
+  try {
+    let modulosConfig = {};
+
+    if (copyFrom) {
+      const sourceTemplate = platformData.templates.find(t => t.id == copyFrom);
+      if (sourceTemplate) {
+        modulosConfig = sourceTemplate.modulos_config || {};
+      }
+    } else {
+      // Todos habilitados por defecto
+      ALL_MODULES.forEach(m => {
+        modulosConfig[m.key] = { habilitado: true, label_custom: null };
+      });
+    }
+
+    const { error } = await sb.from('config_templates').insert({
+      nombre,
+      descripcion,
+      modulos_config: modulosConfig,
+      activo: true
+    });
+
+    if (error) throw error;
+
+    document.querySelector('.modal').remove();
+    showToast('Plantilla creada correctamente', 'success');
+    await loadPlatformData();
+    renderTemplates();
+  } catch (err) {
+    console.error('Error creating template:', err);
+    showToast('Error al crear plantilla: ' + err.message, 'error');
+  }
+}
+
+async function deleteTemplate(templateId) {
+  if (!confirm('¿Eliminar esta plantilla? Las empresas que la usen mantendran su configuracion actual.')) return;
+
+  try {
+    const { error } = await sb.from('config_templates').delete().eq('id', templateId);
+    if (error) throw error;
+
+    showToast('Plantilla eliminada', 'success');
+    await loadPlatformData();
+    renderTemplates();
+  } catch (err) {
+    showToast('Error al eliminar: ' + err.message, 'error');
+  }
+}
+
+function editTemplate(templateId) {
+  showToast('Editor de plantillas en desarrollo', 'info');
+}
+
+// ========== SETTINGS ==========
+function renderSettings() {
+  $('content').innerHTML = `
+    <div class="card mb-6">
+      <div class="card-header">Perfil de Administrador</div>
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Nombre</label>
+          <input type="text" class="inp" value="${currentAdmin?.nombre || ''}" disabled>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Email</label>
+          <input type="email" class="inp" value="${currentAdmin?.email || ''}" disabled>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 mb-1 block">Rol</label>
+          <input type="text" class="inp" value="${currentAdmin?.rol || ''}" disabled>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-header">Notificaciones</div>
+      <div class="space-y-4">
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Alertas de errores criticos por email</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600" checked>
+        </label>
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Resumen diario</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600">
+        </label>
+        <label class="flex items-center justify-between">
+          <span class="text-slate-300">Nuevas empresas registradas</span>
+          <input type="checkbox" class="w-5 h-5 rounded bg-slate-700 border-slate-600" checked>
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header text-red-400">Zona de Peligro</div>
+      <p class="text-sm text-slate-400 mb-4">Acciones que requieren confirmacion adicional</p>
+      <button onclick="showToast('Funcion no disponible', 'warning')" class="btn bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30">
+        <i class="ri-refresh-line mr-2"></i> Reiniciar Cache Global
+      </button>
+    </div>
+  `;
+}
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', () => {
+  checkSession();
+});
+</script>
+</body>
+</html>

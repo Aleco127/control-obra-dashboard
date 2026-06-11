@@ -1,0 +1,32 @@
+{
+  "name": "SUPERNOVA - WORDPRESS AUTO MEJORADO V2 - FIX",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://supernovarquitectos.com/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{}]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: $('Inyectar Links Internos').item.json.title, content: $('Inyectar Links Internos').item.json.content, excerpt: $('Inyectar Links Internos').item.json.excerpt, status: 'publish', categories: [$('Seleccionar Tema Aleatorio1').item.json.categoria], featured_media: $('Upload Image to Wordpress').item.json.id }) }}",
+        "options": {}
+      },
+      "id": "crear-post-fix",
+      "name": "Crear Post en Wordpress",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [976, 5872],
+      "retryOnFail": true,
+      "typeVersion": 4.2
+    }
+  ],
+  "connections": {},
+  "settings": {},
+  "meta": {
+    "description": "SOLO el nodo corregido - Copiar manualmente el jsonBody al nodo existente"
+  }
+}
