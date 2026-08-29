@@ -84,7 +84,7 @@ const Outbox = (() => {
         try { await send(it); await remove(it.id); ok++; }
         catch (err) { if (isOffline(err)) { fail++; break; } else { console.warn('Outbox: item inválido, se descarta', it, err); await remove(it.id); fail++; } }
       }
-      if (ok) { Toast.success(`${ok} registro${ok > 1 ? 's' : ''} pendiente${ok > 1 ? 's' : ''} enviado${ok > 1 ? 's' : ''}.`); try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e) { } if (typeof R === 'function' && ['b', 'f', 'g', 'd'].includes(window.M)) R(); }
+      if (ok) { Toast.success(`${ok} registro${ok > 1 ? 's' : ''} pendiente${ok > 1 ? 's' : ''} enviado${ok > 1 ? 's' : ''}.`); try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e) { } if (typeof R === 'function' && ['b', 'f', 'g', 'd'].includes(typeof M!=='undefined'?M:window.M)) R(); }
       await updatePill();
     } finally { flushing = false; }
   }

@@ -7,6 +7,9 @@
  */
 const Telemetry = (() => {
   const queue = [];
+  // currentUser / M / selectedObra son `let` globales del index.html: no cuelgan de window
+  const g = (n) => { try { return (0, eval)(`typeof ${n}!=='undefined'?${n}:undefined`); } catch (e) { return undefined; } };
+  const cu = () => g('currentUser') || window.currentUser;
   let timer = null, sending = false;
   const PII = /correo|email|telefono|tel|rfc|password|contrase|nombre|direccion|calle|notas|descripcion|referencia|banco/i;
 
@@ -24,14 +27,15 @@ const Telemetry = (() => {
   function track(evento, meta = {}) {
     try {
       if (localStorage.getItem('telemetryOff') === '1') return;
-      if (!window.currentUser?.empresa_id) return;
+      const u = cu();
+      if (!u?.empresa_id) return;
       const m = cleanMeta(meta);
       queue.push({
-        empresa_id: currentUser.empresa_id,
-        user_id: currentUser.id || null,
+        empresa_id: u.empresa_id,
+        user_id: u.id || null,
         evento: String(evento).slice(0, 60),
-        modulo: (m.modulo || window.M || null),
-        obra_id: m.obra_id ? parseInt(m.obra_id) : (window.selectedObra ? parseInt(window.selectedObra) || null : null),
+        modulo: (m.modulo || g('M') || null),
+        obra_id: m.obra_id ? parseInt(m.obra_id) : (g('selectedObra') ? parseInt(g('selectedObra')) || null : null),
         viewport_w: window.innerWidth,
         meta: m,
         created_at: new Date().toISOString()
