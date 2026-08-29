@@ -93,7 +93,7 @@ Configuradas en el archivo HTML:
 
 ## Acceso
 
-- **URL**: https://obra.srv1090924.hstgr.cloud
+- **URL**: https://app.supernovarquitectos.com (alias: https://obra.srv1090924.hstgr.cloud)
 - **VPS**: srv1090924.hstgr.cloud (213.210.13.36)
 
 ## Licencia

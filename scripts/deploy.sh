@@ -28,7 +28,7 @@ scp "$LOCAL_FILE" "$VPS_HOST:$VPS_PATH/index.html"
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}Desplegado exitosamente!${NC}"
-    echo "URL: https://obra.srv1090924.hstgr.cloud"
+    echo "URL: https://app.supernovarquitectos.com (alias obra.srv1090924.hstgr.cloud)"
 else
     echo -e "${RED}Error en el despliegue${NC}"
     exit 1
