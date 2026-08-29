@@ -1,0 +1,54 @@
+{
+ "d": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "n": 1,
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "ex": "<p class=\"text-xs text-cyan-600 font-medium\" id=\"userEmpresaHdr\">Supernova Arquitectos</p>"
+  }
+ ],
+ "o": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "n": 1,
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "ex": "<p class=\"text-xs text-cyan-600 font-medium\" id=\"userEmpresaHdr\">Supernova Arquitectos</p>"
+  }
+ ],
+ "pc": [
+  {
+   "id": "aria-required-children",
+   "impact": "critical",
+   "n": 1,
+   "help": "Certain ARIA roles must contain particular children",
+   "ex": "<div class=\"flex gap-1 mb-4 border-b border-gray-700/50 overflow-x-auto\" role=\"tablist\">"
+  },
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "n": 6,
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "ex": "<p class=\"text-xs text-cyan-600 font-medium\" id=\"userEmpresaHdr\">Supernova Arquitectos</p>"
+  }
+ ],
+ "l": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "n": 4,
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "ex": "<p class=\"text-xs text-cyan-600 font-medium\" id=\"userEmpresaHdr\">Supernova Arquitectos</p>"
+  }
+ ],
+ "b": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "n": 2,
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "ex": "<p class=\"text-xs text-cyan-600 font-medium\" id=\"userEmpresaHdr\">Supernova Arquitectos</p>"
+  }
+ ]
+}

@@ -1,7 +1,11 @@
 /**
  * Utilidades de UI para Control de Obra
- * - Skeleton loaders
  * - Toast notifications
+ * - Dialog (confirmaciones accesibles, sustituye confirm())
+ * - EmptyState
+ * - humanizeError (errores de Supabase/Postgres en español accionable)
+ * - numeroALetras (importes con letra para recibos)
+ * - Skeleton loaders
  * - Validaciones
  * - Atajos de teclado
  */
@@ -14,7 +18,8 @@ const Toast = {
     if (this.container) return;
     this.container = document.createElement('div');
     this.container.id = 'toastContainer';
-    this.container.className = 'fixed bottom-4 right-4 z-[9999] flex flex-col gap-2';
+    this.container.setAttribute('role', 'status');
+    this.container.setAttribute('aria-live', 'polite');
     document.body.appendChild(this.container);
   },
 
@@ -29,19 +34,19 @@ const Toast = {
     };
 
     const colors = {
-      success: 'bg-green-500',
-      error: 'bg-red-500',
-      warning: 'bg-amber-500',
-      info: 'bg-blue-500'
+      success: 'bg-green-700',
+      error: 'bg-red-700',
+      warning: 'bg-amber-700',
+      info: 'bg-blue-700'
     };
 
     const toast = document.createElement('div');
     toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white transform translate-x-full transition-transform duration-300 ${colors[type]}`;
     toast.innerHTML = `
-      <i class="${icons[type]} text-lg"></i>
+      <i class="${icons[type]} text-lg" aria-hidden="true"></i>
       <span class="text-sm font-medium">${message}</span>
-      <button onclick="this.parentElement.remove()" class="ml-2 hover:opacity-70">
-        <i class="ri-close-line"></i>
+      <button onclick="this.parentElement.remove()" class="ml-2 hover:opacity-70 min-w-[32px] min-h-[32px]" aria-label="Cerrar aviso">
+        <i class="ri-close-line" aria-hidden="true"></i>
       </button>
     `;
 
@@ -64,10 +69,223 @@ const Toast = {
   },
 
   success(message, duration) { return this.show(message, 'success', duration); },
-  error(message, duration) { return this.show(message, 'error', duration); },
+  error(message, duration) { return this.show(message, 'error', duration === undefined ? 5000 : duration); },
   warning(message, duration) { return this.show(message, 'warning', duration); },
   info(message, duration) { return this.show(message, 'info', duration); }
 };
+
+// ========== DIALOG (sustituye confirm()) ==========
+// Uso: if(!await Dialog.confirm({title:'Eliminar obra', body:'Se borrarán...', confirmText:'Eliminar obra', tone:'danger'})) return;
+const Dialog = {
+  _el: null,
+  _resolve: null,
+
+  _ensure() {
+    if (this._el) return this._el;
+    const d = document.createElement('dialog');
+    d.className = 'dlg';
+    d.setAttribute('aria-labelledby', 'dlgTitle');
+    d.setAttribute('aria-describedby', 'dlgText');
+    d.innerHTML = `
+      <div class="dlg-body">
+        <div id="dlgIcon" class="dlg-icon default"><i class="ri-question-line" aria-hidden="true"></i></div>
+        <h2 id="dlgTitle" class="dlg-title"></h2>
+        <p id="dlgText" class="dlg-text"></p>
+      </div>
+      <div class="dlg-actions">
+        <button type="button" id="dlgCancel" class="btn btn-s">Cancelar</button>
+        <button type="button" id="dlgOk" class="btn btn-p">Confirmar</button>
+      </div>`;
+    document.body.appendChild(d);
+    d.querySelector('#dlgCancel').addEventListener('click', () => this._close(false));
+    d.querySelector('#dlgOk').addEventListener('click', () => this._close(true));
+    // Clic fuera (en el backdrop)
+    d.addEventListener('click', (e) => { if (e.target === d) this._close(false); });
+    // Esc
+    d.addEventListener('cancel', (e) => { e.preventDefault(); this._close(false); });
+    this._el = d;
+    return d;
+  },
+
+  _close(value) {
+    const d = this._el;
+    if (!d || !d.open) return;
+    d.close();
+    const r = this._resolve; this._resolve = null;
+    if (r) r(value);
+  },
+
+  /**
+   * @param {object|string} opts  {title, body, confirmText, cancelText, tone:'danger'|'default', icon}
+   *                              o un string (se usa como body y se infiere el resto)
+   * @returns {Promise<boolean>}
+   */
+  confirm(opts) {
+    if (typeof opts === 'string') opts = Dialog.fromMessage(opts);
+    const d = this._ensure();
+    const tone = opts.tone === 'danger' ? 'danger' : 'default';
+    d.querySelector('#dlgTitle').textContent = opts.title || 'Confirmar';
+    d.querySelector('#dlgText').textContent = opts.body || '';
+    const icon = d.querySelector('#dlgIcon');
+    icon.className = 'dlg-icon ' + tone;
+    icon.innerHTML = `<i class="${opts.icon || (tone === 'danger' ? 'ri-delete-bin-line' : 'ri-question-line')}" aria-hidden="true"></i>`;
+    const ok = d.querySelector('#dlgOk');
+    ok.textContent = opts.confirmText || 'Confirmar';
+    ok.className = 'btn ' + (tone === 'danger' ? 'btn-danger' : 'btn-p');
+    d.querySelector('#dlgCancel').textContent = opts.cancelText || 'Cancelar';
+    return new Promise((resolve) => {
+      this._resolve = resolve;
+      if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+      // El foco inicial cae en Cancelar (la acción segura)
+      d.querySelector('#dlgCancel').focus();
+    });
+  },
+
+  /**
+   * Convierte el texto de un confirm() clásico en {title, body, confirmText, tone}
+   * "¿Eliminar este gasto?\n\nEsta acción no se puede deshacer." → título "Eliminar gasto", botón "Eliminar gasto"
+   */
+  fromMessage(msg) {
+    const clean = String(msg || '').replace(/\r/g, '');
+    const parts = clean.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    let first = (parts[0] || clean).trim();
+    let rest = parts.slice(1).join('\n');
+    // Si la primera línea trae contexto + pregunta ("El monto excede... ¿Continuar?"), la pregunta es el título
+    const q = first.match(/^(.*?)(¿[^?]*\?)\s*$/);
+    if (q && q[1].trim()) { rest = [q[1].trim(), rest].filter(Boolean).join('\n'); first = q[2]; }
+    first = first.replace(/^¿/, '').replace(/\?$/, '').trim();
+    const lower = first.toLowerCase();
+    const danger = /elimin|borrar|cancelar|limpiar|desactivar|deshacer/.test(lower);
+    // Título: la primera oración sin signos, acotada
+    let title = first;
+    if (title.length > 60) title = title.slice(0, 57) + '...';
+    // Botón: verbo + objeto (primeras 3 palabras significativas)
+    const verbMatch = first.match(/^(eliminar|archivar|aprobar|cambiar|crear|timbrar|marcar|continuar|limpiar|cerrar|desactivar|activar|está seguro de cancelar|cancelar)\b/i);
+    let confirmText = 'Confirmar';
+    if (verbMatch) {
+      const verb = verbMatch[1].toLowerCase().startsWith('está') ? 'Cancelar' : verbMatch[1];
+      // Objeto: sin comillas ni determinantes; hasta 2 palabras y se detiene en preposiciones
+      const afterVerb = first.slice(verbMatch[0].length).replace(/"[^"]*"|'[^']*'/g, '').trim();
+      const obj = afterVerb.replace(/^(a |el |la |los |las |este |esta |estos |estas |de |del |todos los |el estatus de )/i, '').split(/[\s,?]+/).filter(Boolean);
+      let objWords = [];
+      for (const w of obj) {
+        if (objWords.length >= 2) break;
+        if (/^(de|del|y|a|la|el|los|las|ante|en|con|como|seleccionad[oa]s?|registros?)$/i.test(w) && objWords.length) break;
+        if (/^\d/.test(w)) continue;
+        objWords.push(w);
+      }
+      confirmText = (verb.charAt(0).toUpperCase() + verb.slice(1).toLowerCase() + ' ' + objWords.join(' ')).trim();
+      if (/^cerrar sesi/i.test(first)) confirmText = 'Cerrar sesión';
+      if (/^continuar/i.test(first)) confirmText = 'Continuar';
+    } else if (/¿continuar|continuar de todos modos/i.test(clean)) {
+      confirmText = 'Continuar';
+    }
+    return { title, body: rest || (parts.length === 1 ? '' : clean), confirmText, tone: danger ? 'danger' : 'default' };
+  }
+};
+
+// ========== EMPTY STATE ==========
+// EmptyState({icon:'ri-building-2-line', title:'Aún no hay obras', body:'Crea la primera con el asistente.', action:{label:'Crear obra', onClick:'WizardObra.open()'}, secondary:{label:'Quitar filtro', onClick:'clearObraFilter()'}})
+function EmptyState(o = {}) {
+  const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const action = o.action ? `<button type="button" class="btn btn-p" onclick="${esc(o.action.onClick)}"><i class="${esc(o.action.icon || 'ri-add-line')}" aria-hidden="true"></i> ${esc(o.action.label)}</button>` : '';
+  const secondary = o.secondary ? `<button type="button" class="btn btn-s" onclick="${esc(o.secondary.onClick)}">${esc(o.secondary.label)}</button>` : '';
+  return `<div class="empty g rounded-xl" role="status">
+    <i class="${esc(o.icon || 'ri-inbox-line')}" aria-hidden="true"></i>
+    <p class="empty-title">${esc(o.title || 'Nada por aquí todavía')}</p>
+    ${o.body ? `<p class="empty-body">${esc(o.body)}</p>` : ''}
+    <div class="flex flex-wrap gap-2 justify-center">${action}${secondary}</div>
+  </div>`;
+}
+
+// ========== ERRORES EN ESPAÑOL ==========
+// Convierte errores de Supabase/PostgREST/red en un texto que dice qué falló y cómo corregirlo
+function humanizeError(err, contexto) {
+  if (!err) return 'Ocurrió un error desconocido. Intenta de nuevo.';
+  const code = err.code || err.status || '';
+  const msg = String(err.message || err.error_description || err.details || err || '');
+  const ctx = contexto ? contexto + ': ' : '';
+  const map = {
+    '23505': 'Ya existe un registro con esos datos (clave o folio duplicado). Cambia el valor y vuelve a guardar.',
+    '23503': 'El registro está vinculado a otros datos (por ejemplo cobros o actividades). Elimina primero lo relacionado o desvincúlalo.',
+    '23502': 'Falta un dato obligatorio. Revisa los campos marcados con asterisco.',
+    '23514': 'Un valor no cumple las reglas del sistema (por ejemplo un porcentaje fuera de 0 a 100). Corrígelo e intenta de nuevo.',
+    '22P02': 'Un campo tiene un formato inválido (texto donde va número o fecha). Revisa los valores capturados.',
+    '22003': 'Un importe es demasiado grande para el campo. Revisa las cantidades.',
+    '42501': 'Tu usuario no tiene permiso para esta acción. Pide al administrador que lo habilite.',
+    '42703': 'La base de datos no reconoce uno de los campos. Reporta este error al soporte técnico.',
+    '428C9': 'Se intentó guardar una columna calculada (importe, subtotal o pendiente). Reporta este error al soporte técnico.',
+    'PGRST116': 'No se encontró el registro. Puede que otra persona lo haya eliminado; actualiza la página.',
+    'PGRST301': 'Tu sesión expiró. Vuelve a iniciar sesión.',
+    '401': 'Tu sesión expiró. Vuelve a iniciar sesión.',
+    '403': 'No tienes permiso para esta acción.',
+    '404': 'No se encontró el recurso solicitado.',
+    '409': 'Conflicto con datos existentes. Actualiza la página e intenta de nuevo.',
+    '500': 'El servidor tuvo un problema. Espera unos segundos e intenta de nuevo.',
+    '503': 'El servicio no está disponible en este momento. Intenta más tarde.'
+  };
+  if (map[String(code)]) return ctx + map[String(code)];
+  const low = msg.toLowerCase();
+  if (/failed to fetch|networkerror|network request failed|load failed|err_internet/.test(low)) return ctx + 'Sin conexión a internet. Tus datos no se enviaron; revisa la señal e intenta de nuevo.';
+  if (/timeout|timed out/.test(low)) return ctx + 'El servidor tardó demasiado en responder. Intenta de nuevo.';
+  if (/jwt|token|sesi[oó]n/.test(low)) return ctx + 'Tu sesión expiró. Vuelve a iniciar sesión.';
+  if (/duplicate key|already exists/.test(low)) return ctx + map['23505'];
+  if (/violates foreign key/.test(low)) return ctx + map['23503'];
+  if (/null value in column/.test(low)) return ctx + map['23502'];
+  if (/generated column/.test(low)) return ctx + map['428C9'];
+  if (/permission denied|row-level security/.test(low)) return ctx + map['42501'];
+  if (/invalid input syntax/.test(low)) return ctx + map['22P02'];
+  // Fallback: mensaje original acotado, en tono claro
+  const short = msg.length > 140 ? msg.slice(0, 137) + '...' : msg;
+  return ctx + 'No se pudo completar la acción. Detalle: ' + short;
+}
+
+// ========== NÚMERO A LETRAS (MXN) ==========
+// numeroALetras(85320.95) → "OCHENTA Y CINCO MIL TRESCIENTOS VEINTE PESOS 95/100 M.N."
+function numeroALetras(num, moneda = 'PESOS', fraccion = 'M.N.') {
+  const n = Math.round((Number(num) || 0) * 100) / 100;
+  const entero = Math.floor(Math.abs(n));
+  const centavos = Math.round((Math.abs(n) - entero) * 100);
+  const UNIDADES = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE', 'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE', 'VEINTE', 'VEINTIÚN', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE'];
+  const DECENAS = ['', '', '', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+  const CENTENAS = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+
+  function tresCifras(x) {
+    if (x === 0) return '';
+    if (x === 100) return 'CIEN';
+    const c = Math.floor(x / 100), r = x % 100;
+    let s = CENTENAS[c];
+    if (r > 0) {
+      if (r < 30) s += (s ? ' ' : '') + UNIDADES[r];
+      else {
+        const d = Math.floor(r / 10), u = r % 10;
+        s += (s ? ' ' : '') + DECENAS[d] + (u ? ' Y ' + UNIDADES[u] : '');
+      }
+    }
+    return s;
+  }
+  function seccion(x, singular, plural) {
+    if (x === 0) return '';
+    if (x === 1) return singular;
+    return tresCifras(x) + ' ' + plural;
+  }
+  function convertir(x) {
+    if (x === 0) return 'CERO';
+    const millones = Math.floor(x / 1000000);
+    const miles = Math.floor((x % 1000000) / 1000);
+    const resto = x % 1000;
+    const partes = [];
+    if (millones) partes.push(millones === 1 ? 'UN MILLÓN' : tresCifras(millones) + ' MILLONES');
+    if (miles) partes.push(miles === 1 ? 'MIL' : tresCifras(miles) + ' MIL');
+    if (resto) partes.push(tresCifras(resto));
+    return partes.join(' ').replace(/\s+/g, ' ').trim();
+  }
+  let letras = convertir(entero);
+  // "UN" → "UNO" al final de la cantidad (UNO PESOS no se usa; en pesos mexicanos se escribe "UN PESO")
+  const monedaTxt = entero === 1 ? moneda.replace(/S$/, '') : moneda;
+  if (entero >= 1000000 && entero % 1000000 === 0) letras += ' DE';
+  return `${n < 0 ? 'MENOS ' : ''}${letras} ${monedaTxt} ${String(centavos).padStart(2, '0')}/100 ${fraccion}`.replace(/\s+/g, ' ').trim();
+}
 
 // ========== SKELETON LOADERS ==========
 const Skeleton = {
@@ -201,6 +419,7 @@ const Validate = {
     if (!input) return;
 
     input.classList.add('border-red-500');
+    input.setAttribute('aria-invalid', 'true');
 
     // Remover error previo
     const prevError = input.parentElement.querySelector('.field-error');
@@ -209,6 +428,7 @@ const Validate = {
     // Agregar nuevo error
     const errorEl = document.createElement('p');
     errorEl.className = 'field-error text-xs text-red-500 mt-1';
+    errorEl.setAttribute('role', 'alert');
     errorEl.textContent = message;
     input.parentElement.appendChild(errorEl);
   },
@@ -219,6 +439,7 @@ const Validate = {
     if (!input) return;
 
     input.classList.remove('border-red-500');
+    input.removeAttribute('aria-invalid');
     const error = input.parentElement.querySelector('.field-error');
     if (error) error.remove();
   },
@@ -240,22 +461,22 @@ const Validate = {
 
         if (rule.type === 'required' && !this.required(value)) {
           valid = false;
-          message = rule.message || 'Este campo es requerido';
+          message = rule.message || 'Este campo es obligatorio';
         } else if (rule.type === 'email' && value && !this.email(value)) {
           valid = false;
-          message = rule.message || 'Email inválido';
+          message = rule.message || 'Escribe un correo válido, por ejemplo nombre@empresa.com';
         } else if (rule.type === 'rfc' && value && !this.rfc(value)) {
           valid = false;
-          message = rule.message || 'RFC inválido';
+          message = rule.message || 'El RFC debe tener 12 o 13 caracteres, por ejemplo XAXX010101000';
         } else if (rule.type === 'phone' && value && !this.phone(value)) {
           valid = false;
-          message = rule.message || 'Teléfono inválido (10 dígitos)';
+          message = rule.message || 'El teléfono debe tener 10 dígitos';
         } else if (rule.type === 'minLength' && !this.minLength(value, rule.min)) {
           valid = false;
-          message = rule.message || `Mínimo ${rule.min} caracteres`;
+          message = rule.message || `Escribe al menos ${rule.min} caracteres`;
         } else if (rule.type === 'positiveNumber' && value && !this.positiveNumber(value)) {
           valid = false;
-          message = rule.message || 'Debe ser un número positivo';
+          message = rule.message || 'Debe ser un número mayor o igual a cero';
         }
 
         if (!valid) {
@@ -276,10 +497,9 @@ const Shortcuts = {
 
   init() {
     document.addEventListener('keydown', (e) => {
-      // Ignorar si está escribiendo en un input
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-
       const key = this.getKeyCombo(e);
+      // Ctrl+K siempre disponible (paleta de comandos), incluso dentro de un input
+      if (key !== 'ctrl+k' && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
       const handler = this.registered[key];
 
       if (handler) {
@@ -318,16 +538,19 @@ const Shortcuts = {
       .join('');
 
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]';
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center';
+    modal.style.zIndex = 'var(--z-modal)';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-label', 'Atajos de teclado');
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     modal.innerHTML = `
       <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold text-slate-800"><i class="ri-keyboard-line mr-2"></i>Atajos de Teclado</h3>
-          <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-slate-600"><i class="ri-close-line text-xl"></i></button>
+          <h3 class="text-lg font-bold text-slate-800"><i class="ri-keyboard-line mr-2" aria-hidden="true"></i>Atajos de teclado</h3>
+          <button onclick="this.closest('.fixed').remove()" class="btn-icon" aria-label="Cerrar"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
         </div>
         <table class="w-full">${shortcuts}</table>
-        <p class="text-xs text-slate-400 mt-4 text-center">Presiona <kbd class="px-1 bg-slate-100 rounded">?</kbd> para ver esta ayuda</p>
+        <p class="text-xs text-slate-500 mt-4 text-center">Presiona <kbd class="px-1 bg-slate-100 rounded">?</kbd> para ver esta ayuda</p>
       </div>
     `;
     document.body.appendChild(modal);
@@ -401,41 +624,14 @@ const UIUtils = {
       Toast.success('Copiado al portapapeles');
       return true;
     } catch (e) {
-      Toast.error('Error al copiar');
+      Toast.error('No se pudo copiar. Selecciona el texto y usa Ctrl+C.');
       return false;
     }
   },
 
-  // Confirmar acción
+  // Confirmar acción (compatibilidad: delega en Dialog)
   confirm(message, onConfirm, onCancel) {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]';
-    modal.innerHTML = `
-      <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-        <div class="text-center mb-4">
-          <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-100 flex items-center justify-center">
-            <i class="ri-alert-line text-2xl text-amber-600"></i>
-          </div>
-          <p class="text-slate-700">${message}</p>
-        </div>
-        <div class="flex gap-3">
-          <button id="confirmCancel" class="flex-1 py-2 px-4 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">Cancelar</button>
-          <button id="confirmOk" class="flex-1 py-2 px-4 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors">Confirmar</button>
-        </div>
-      </div>
-    `;
-
-    modal.querySelector('#confirmCancel').onclick = () => {
-      modal.remove();
-      onCancel && onCancel();
-    };
-
-    modal.querySelector('#confirmOk').onclick = () => {
-      modal.remove();
-      onConfirm && onConfirm();
-    };
-
-    document.body.appendChild(modal);
+    Dialog.confirm(message).then(ok => { if (ok) onConfirm && onConfirm(); else onCancel && onCancel(); });
   }
 };
 

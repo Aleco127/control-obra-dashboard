@@ -30,6 +30,10 @@ Version 1.0 | Febrero 2026
   - [3.5 Contabilidad Fiscal](#35-contabilidad-fiscal)
   - [3.6 Control de Calidad](#36-control-de-calidad)
   - [3.7 Operacion Diaria](#37-operacion-diaria)
+  - [3.8 Crear un proyecto con el asistente](#38-crear-un-proyecto-con-el-asistente)
+  - [3.9 Plan de pagos y cobros](#39-plan-de-pagos-y-cobros)
+  - [3.10 Programa por semanas](#310-programa-por-semanas)
+  - [3.11 Captura desde el celular](#311-captura-desde-el-celular)
 - [PARTE 4: Referencia de Modulos](#parte-4-referencia-de-modulos)
   - [Proyectos](#categoria-proyectos)
   - [Contabilidad](#categoria-contabilidad)
@@ -1288,6 +1292,74 @@ Cada movimiento registra: tipo, cantidad, fecha, referencia y notas.
 - Usa las **fechas reales** vs **estimadas** para medir desempeño
 
 ---
+
+## 3.8 Crear un proyecto con el asistente
+
+Desde agosto de 2026 el boton **Nueva obra** abre un asistente de cinco pasos que sustituye al formulario plano. En una sola sesion quedan creados la obra, el cliente, el catalogo, el programa por semanas y el plan de pagos.
+
+![Asistente paso 1](img/asistente-paso1.png)
+
+**Paso 1, Datos y monto.** Nombre, codigo (se sugiere solo), cliente (elige uno del catalogo o crea uno con el boton *Nuevo*), tipo de proyecto, fechas de inicio y entrega, responsable y el monto **tal como viene en la cotizacion**: marca si es *sin IVA* (se agrega 16 %), *con IVA incluido* o *exento* (tipico en honorarios). La vista previa muestra subtotal, IVA y total antes de guardar. *Guardar y continuar* crea la obra; *Guardar y salir* la deja para despues.
+
+**Paso 2, Catalogo.** Tres opciones:
+
+- *Importar archivo*: arrastra el XLSX o CSV exportado de OPUS o Excel. Se reconocen las columnas Clave, Descripcion, Unidad, Cantidad y P.U. sin importar mayusculas ni acentos; las filas sin cantidad se toman como partidas. Puedes corregir cualquier celda en la vista previa.
+- *Etapas de honorarios*: para proyectos arquitectonicos, de 2 a 4 etapas con porcentaje; se generan los conceptos ETAPA-A, ETAPA-B, etc.
+- *Omitir por ahora*.
+
+Si el catalogo no cuadra con el subtotal del contrato, agrega la fila *Descuento contractual* para que cierre.
+
+![Asistente paso 2](img/asistente-paso2-catalogo.png)
+
+**Paso 3, Programa por semanas.** Ver 3.10.
+
+**Paso 4, Plan de pagos.** Ver 3.9.
+
+**Paso 5, Resumen.** Muestra que quedo creado y lo que falta; *Ir a la obra* abre la ficha.
+
+Puedes volver al asistente en cualquier momento desde la ficha de la obra (por ejemplo, *Definir plan de pagos*) para completar lo que dejaste pendiente.
+
+## 3.9 Plan de pagos y cobros
+
+**Plan de pagos (paso 4 del asistente).** Elige una plantilla (*50-25-25*, *30-30-20-20*, *Pago unico*) o captura exhibiciones a mano: nombre, porcentaje o monto, fecha limite y condicion. La suma debe cerrar al total del contrato; el ultimo renglon absorbe los centavos. Marca *Ya recibi el anticipo* para registrar el primer cobro en el mismo paso. Cada exhibicion se convierte en una cuenta por cobrar y en un hito del programa.
+
+![Asistente paso 4](img/asistente-paso4-pagos.png)
+
+**Registrar un cobro.** Desde Pagos, la ficha de la obra, la ficha del cliente o el boton **+** del celular: elige la obra, el sistema muestra sus exhibiciones pendientes y preselecciona la mas antigua; captura monto, fecha, metodo y referencia. Si el monto excede el saldo de la exhibicion, puedes repartir el excedente en la siguiente. Al guardar aparece el folio (PR-000xx) y el saldo actualizado de la obra. Ya no es posible registrar un cobro sin cuenta por cobrar: si la obra no tiene plan, el sistema ofrece crear la cuenta por el total del contrato.
+
+![Registrar cobro](img/registrar-cobro.png)
+
+**Cobranza por obra.** En Pagos, la pestana *Por obra* muestra cada obra como una linea de tiempo con sus exhibiciones: verde pagada, ambar parcial, azul en ventana, rojo vencida. Filtros *Vencidas* y *Proximos 7 dias*. Un clic en un marcador abre el cobro preseleccionado.
+
+![Cobranza por obra](img/cobranza-por-obra.png)
+
+**Recibo en PDF.** En la lista de cobros, el icono PDF genera el recibo con membrete de la empresa, folio, cliente, obra, exhibicion, monto en numero y letra, metodo y linea de firma (archivo Recibo_PR-000xx_CODIGO.pdf).
+
+## 3.10 Programa por semanas
+
+**Definirlo (paso 3 del asistente).** Las columnas son las semanas entre la fecha de inicio y la de entrega; puedes elegir en que dia empieza la semana (por ejemplo viernes, como en los contratos de Supernova). Haz clic o arrastra sobre las semanas en que se ejecuta cada concepto; el porcentaje se reparte de forma uniforme y con *Editar porcentajes* lo ajustas a mano. *Agregar hito* crea entregas, aprobaciones o pagos con fecha y responsable (Nosotros, Cliente o Terceros). Al guardar se crea el programa contractual con una actividad por concepto (peso = importe / total) y los hitos.
+
+![Asistente paso 3](img/asistente-paso3-semanas.png)
+
+**Seguirlo (modulo Programa).** La pestana *Semanas* muestra la misma matriz en modo lectura, con la semana actual resaltada y una columna **Real %** por concepto: escribe el avance y se guarda solo (sin boton). Arriba se comparan el avance programado a la fecha, el real ponderado y la desviacion en puntos. Los hitos que dependen del cliente o de terceros se pintan en ambar con borde discontinuo; se marcan como cumplidos con su casilla. Las pestanas *Gantt* y *Curva S* siguen disponibles; el formulario completo de cada actividad se abre al hacer clic en su nombre.
+
+![Programa por semanas](img/programa-semanas.png)
+
+**Ficha de obra.** Al hacer clic en el nombre de una obra se abre su ficha: contrato (monto con o sin IVA), curva S con desviacion, hitos proximos, cobranza, gastos contra presupuesto, ultimas bitacoras y documentos, y acciones rapidas (Registrar cobro, Nuevo gasto, Nueva bitacora, Subir documento).
+
+![Ficha de obra](img/ficha-obra.png)
+
+## 3.11 Captura desde el celular
+
+En pantallas menores a 768 px el menu lateral se oculta y aparece la barra inferior con los cuatro modulos de tu rol (Residente: Bitacora, Fotos, Gastos, Programa; Gerente: Dashboard, Obras, Pagos, Programa; Contador: Pagos, Gastos, Nomina, Reportes) y un boton central **+** con la captura rapida.
+
+**Bitacora rapida.** Toca **+** y *Nueva bitacora*: obra (se recuerda la ultima), fecha, que se hizo hoy, fotos desde la camara o la galeria (se comprimen a 1600 px antes de subir), clima, trabajadores y el avance real de hasta tres conceptos programados esta semana. Todo se guarda con un solo boton.
+
+![Bitacora rapida](img/bitacora-rapida-movil.png)
+
+**Sin senal.** Si se cae la conexion, la bitacora, los gastos y las fotos se guardan en el telefono y en el encabezado aparece *N pendientes de enviar*. Se envian solos al volver la senal (o al tocar el indicador). Los datos no se pierden aunque cierres la aplicacion.
+
+**Dashboard por rol.** La primera pantalla cambia segun quien entra: el gerente ve por cobrar, hitos en 7 dias, obras con retraso, gastos por aprobar y flujo del mes; el residente ve si falta la bitacora de hoy, fotos, gastos por comprobar y el avance de la semana; el contador ve cuentas vencidas, cobros de la semana, facturas sin pagar y nomina del periodo. Con **Ctrl+K** se busca cualquier modulo, obra o cliente.
 
 # PARTE 4: Referencia de Modulos
 

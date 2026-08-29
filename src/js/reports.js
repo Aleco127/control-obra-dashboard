@@ -503,7 +503,7 @@ const Reports = {
 
     const modal = document.createElement('div');
     modal.id = 'reportModal';
-    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]';
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-modal';
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
     modal.innerHTML = `
