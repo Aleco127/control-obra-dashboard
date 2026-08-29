@@ -229,7 +229,14 @@ const Finanzas = (() => {
     let utilidad;
     if (obraId) { const r = resultadoObra(obraId, { data: d, hasta }); utilidad = r ? r.utilidadCaja : 0; }
     else { const er = estadoResultados({ desde, hasta, base, data: d }); utilidad = er.utilidadNeta; }
-    const resImp = r2(Math.max(0, utilidad) * num(reservas.impuestos) / 100);
+    // Regla de Supernova (29-ago-2026): lo cobrado en efectivo va exento de impuestos; la reserva para impuestos
+    // se aplica sólo a la parte de la utilidad que corresponde a cobros no efectivo. El capital de trabajo (10 %) siempre.
+    const cobros = (d.prc || []).filter(p => (obraId ? p.obra_id == obraId : enRango(p.fecha_pago, desde, hasta)) && (!hasta || f10(p.fecha_pago) <= hasta));
+    const cobrado = r2(cobros.reduce((s, p) => s + num(p.monto), 0));
+    const efectivo = r2(cobros.filter(p => /efectivo|cash/i.test(String(p.metodo_pago || ''))).reduce((s, p) => s + num(p.monto), 0));
+    const exento = reservas.efectivo_exento !== false;
+    const pctGravable = exento && cobrado > 0 ? r2((cobrado - efectivo) / cobrado * 10000) / 10000 : 1;
+    const resImp = r2(Math.max(0, utilidad) * num(reservas.impuestos) / 100 * pctGravable);
     const resCap = r2(Math.max(0, utilidad) * num(reservas.capital) / 100);
     const distribuible = r2(utilidad - resImp - resCap);
     const socios = (d.soc || []).filter(s => s.activo !== false);
@@ -242,7 +249,7 @@ const Finanzas = (() => {
       const asignado = r2(distribuible * pct / 100);
       return { socio: s, porcentaje: r2(pct), asignado, aCuenta, aportado, aPagar: r2(asignado - aCuenta + aportado) };
     });
-    return { utilidad: r2(utilidad), reservas: { impuestos: resImp, capital: resCap, pctImpuestos: num(reservas.impuestos), pctCapital: num(reservas.capital) }, distribuible, filas, pctTotal: r2(pctTot), sinPorcentajes: pctTot <= 0 };
+    return { utilidad: r2(utilidad), reservas: { impuestos: resImp, capital: resCap, pctImpuestos: num(reservas.impuestos), pctCapital: num(reservas.capital), cobrado, efectivo, pctGravable: r2(pctGravable * 100), efectivoExento: exento }, distribuible, filas, pctTotal: r2(pctTot), sinPorcentajes: pctTot <= 0 };
   }
 
   return { rango, enRango, naturalezaDe, cuentasPorPagar, agingPagar, calcularFlujo, serieSemanal, resultadoObra, estadoResultados, prorratear, baseReparto, num, r2, sumaDias };

@@ -145,3 +145,24 @@ test('baseReparto: reservas y a pagar por socio con retiros y aportaciones a cue
   assert.equal(ric.aPagar, F.r2(ric.asignado - 10000 + 800));
   assert.equal(dan.aCuenta, 5033);
 });
+
+test('baseReparto: lo cobrado en efectivo va exento de la reserva para impuestos; capital de trabajo siempre', () => {
+  const d2 = JSON.parse(JSON.stringify(data));
+  // agosto: cobro 3 (85,320.95) en efectivo → 100 % exento
+  d2.prc[2].metodo_pago = 'Efectivo';
+  const b = F.baseReparto({ desde: '2026-08-01', hasta: '2026-08-31', reservas: { impuestos: 30, capital: 10 }, data: d2 });
+  assert.equal(b.reservas.cobrado, 85320.95);
+  assert.equal(b.reservas.efectivo, 85320.95);
+  assert.equal(b.reservas.pctGravable, 0);
+  assert.equal(b.reservas.impuestos, 0);
+  assert.equal(b.reservas.capital, F.r2(b.utilidad * 0.10));
+  assert.equal(b.distribuible, F.r2(b.utilidad - b.reservas.capital));
+  // mitad efectivo → 50 % gravable
+  d2.prc.push({ id: 9, obra_id: 2, fecha_pago: '2026-08-29', monto: 85320.95, metodo_pago: 'Transferencia' });
+  const b2 = F.baseReparto({ desde: '2026-08-01', hasta: '2026-08-31', reservas: { impuestos: 30, capital: 10 }, data: d2 });
+  assert.equal(b2.reservas.pctGravable, 50);
+  assert.equal(b2.reservas.impuestos, F.r2(b2.utilidad * 0.30 * 0.5));
+  // regla desactivada → todo gravable
+  const b3 = F.baseReparto({ desde: '2026-08-01', hasta: '2026-08-31', reservas: { impuestos: 30, capital: 10, efectivo_exento: false }, data: d2 });
+  assert.equal(b3.reservas.pctGravable, 100);
+});
