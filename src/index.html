@@ -96,16 +96,18 @@ async function massDeleteNomina(){
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-<link href="css/styles.css?v=20260828c" rel="stylesheet">
-<script src="js/cache.js?v=20260828c"></script>
-<script src="js/data-loader.js?v=20260828c"></script>
-<script src="js/ui-utils.js?v=20260828c"></script>
-<script src="js/reports.js?v=20260828c"></script>
-<script src="js/security.js?v=20260828c"></script>
-<script src="js/import-catalogo.js?v=20260828c"></script>
-<script src="js/wizard-obra.js?v=20260828c"></script>
-<script src="js/outbox.js?v=20260828c"></script>
-<script src="js/telemetry.js?v=20260828c"></script>
+<link href="css/styles.css?v=20260829a" rel="stylesheet">
+<script src="js/cache.js?v=20260829a"></script>
+<script src="js/data-loader.js?v=20260829a"></script>
+<script src="js/ui-utils.js?v=20260829a"></script>
+<script src="js/reports.js?v=20260829a"></script>
+<script src="js/security.js?v=20260829a"></script>
+<script src="js/import-catalogo.js?v=20260829a"></script>
+<script src="js/wizard-obra.js?v=20260829a"></script>
+<script src="js/outbox.js?v=20260829a"></script>
+<script src="js/telemetry.js?v=20260829a"></script>
+<script src="js/gastos-rules.js?v=20260829a"></script>
+<script src="js/compras.js?v=20260829a"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -954,7 +956,7 @@ window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h
 
 const sec=[
 {t:'Principal',k:'principal',ic:'ri-home-5-line',i:[['d','ri-dashboard-3-line','Dashboard']]},
-{t:'Proyectos',k:'proyectos',ic:'ri-building-line',i:[['o','ri-building-2-line','Obras'],['p','ri-money-dollar-circle-line','Presupuesto'],['w','ri-bar-chart-horizontal-line','Programa'],['g','ri-wallet-3-line','Gastos'],['pc','ri-bank-card-line','Pagos'],['x','ri-exchange-line','Órdenes'],['ct','ri-file-list-2-line','Cotizaciones'],['es','ri-calculator-line','Estimaciones']]},
+{t:'Proyectos',k:'proyectos',ic:'ri-building-line',i:[['o','ri-building-2-line','Obras'],['p','ri-money-dollar-circle-line','Presupuesto'],['w','ri-bar-chart-horizontal-line','Programa'],['g','ri-wallet-3-line','Compras y gastos'],['pc','ri-bank-card-line','Pagos'],['ct','ri-file-list-2-line','Cotizaciones'],['es','ri-calculator-line','Estimaciones']]},
 {t:'Contabilidad',k:'contabilidad',ic:'ri-money-dollar-box-line',i:[['cb','ri-pie-chart-2-line','Panel Fiscal'],['fc','ri-bill-line','Facturas CFDI'],['ce','ri-file-mark-line','CFDIs Emitidos'],['rt','ri-percent-line','Retenciones'],['dc','ri-file-chart-line','Declaraciones'],['rp','ri-government-line','REPSE'],['su','ri-bank-card-line','SUA']]},
 {t:'Operación',k:'operacion',ic:'ri-tools-line',i:[['s','ri-team-line','Subcontratos'],['m','ri-archive-line','Materiales'],['b','ri-book-2-line','Bitácora'],['c','ri-calendar-line','Calendario']]},
 {t:'Calidad',k:'calidad',ic:'ri-shield-check-line',i:[['r','ri-questionnaire-line','RFIs'],['u','ri-checkbox-circle-line','Punch List'],['y','ri-verified-badge-line','Seguridad']]},
@@ -1742,13 +1744,13 @@ sb.classList.add('hidden');
 }
 if(ov)ov.classList.remove('ac');
 }
-const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],_:['d','o','g','x']};
+const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],_:['d','o','g','pc']};
 function updateMobileBottomNav(){
 const nav=$('mobileBottomNav');if(!nav)return;
 const rol=String(currentUser?.rol||'').toLowerCase();
 const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>isModuloEnabled(k));
 const all=sec.flatMap(x=>x.i);
-const gPend=(D.g||[]).filter(g=>g.estatus_pago==='Pendiente').length;
+const gPend=(D.g||[]).filter(g=>!g.aprobado_at&&g.estatus_pago!=='Rechazado').length;
 const ocPend=(D.oc||[]).filter(o=>o.estatus==='Pendiente').length;
 const hitosHoy=(typeof hitosPendientes==='function')?hitosPendientes(0).length:0;
 const badges={g:gPend,x:ocPend,w:hitosHoy};
@@ -1763,7 +1765,8 @@ const nivel=currentUser?.nivel||0;
 const acts=[];
 if(nivel>=30)acts.push({i:'ri-book-2-line',l:'Nueva bitácora (con fotos y avance)',a:'abrirBitacoraRapida()'});
 if(nivel>=30)acts.push({i:'ri-camera-line',l:'Foto de obra',a:'abrirBitacoraRapida(null,true)'});
-if(nivel>=30&&isModuloEnabled('g'))acts.push({i:'ri-wallet-3-line',l:'Gasto',a:"M='g';R();setTimeout(()=>{try{newGasto('obra');}catch(e){}},80)"});
+if(nivel>=30&&isModuloEnabled('g'))acts.push({i:'ri-camera-line',l:'Gasto con ticket (foto)',a:"Compras.rapido()"});
+if(nivel>=30&&isModuloEnabled('g'))acts.push({i:'ri-wallet-3-line',l:'Gasto',a:"Compras.nuevo({origen:'sheet'})"});
 if(nivel>=60&&isModuloEnabled('pc'))acts.push({i:'ri-arrow-down-circle-line',l:'Cobro recibido',a:'newPagoRecibido()'});
 if(nivel>=60)acts.push({i:'ri-building-2-line',l:'Nueva obra (asistente)',a:'WizardObra.open()'});
 $('sheetItems').innerHTML=acts.map(x=>`<button type="button" class="sheet-item" onclick="cerrarSheet();${x.a}"><i class="${x.i}" aria-hidden="true"></i><span>${x.l}</span></button>`).join('')+'<button type="button" class="sheet-item text-ink-subtle" onclick="cerrarSheet()"><i class="ri-close-line" aria-hidden="true"></i><span>Cancelar</span></button>';
@@ -1772,6 +1775,8 @@ setTimeout(()=>$('sheetItems').querySelector('button')?.focus(),60);
 }
 function cerrarSheet(){$('sheetBack')?.classList.remove('ac');$('sheetAcciones')?.classList.remove('ac');$('sheetAcciones')?.setAttribute('aria-hidden','true');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarSheet();});
+// US-109: refresco al volver a la pestaña (máximo una vez por minuto), sin intervalos
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||!currentUser)return;const t=Date.now();if(t-(window._visRef||0)<60000)return;window._visRef=t;if(typeof refreshLiveData==='function'){refreshLiveData().catch(()=>{});}});
 function openMdl(id){$(id).classList.add('ac');}
 function closeMdl(id){$(id).classList.remove('ac');}
 
@@ -1993,6 +1998,9 @@ D.mm=mainData.materiales_movimientos||[];
 D.sp=mainData.subcontratos_pagos||[];
 D.asi=mainData.asistencia||[];
 D.plt=mainData.plantillas_cotizacion||[];
+D.catg=mainData.categorias_gasto||[];
+D.soc=mainData.socios||[];
+D.msoc=mainData.movimientos_socio||[];
 
 // Asignar datos secundarios
 if(secData?.success){
@@ -2394,15 +2402,11 @@ if(location.hash.slice(1)!==M)history.replaceState(null,null,'#'+M);
 if(selectedObra)localStorage.setItem('selectedObra',selectedObra);
 else localStorage.removeItem('selectedObra');
 // Gestionar auto-refresh segun modulo (d=Dashboard, g=Gastos, x=Ordenes)
-const modulosAutoRefresh=['d','g','x'];
-if(modulosAutoRefresh.includes(M)){
+if(M==='x'){M='g';localStorage.setItem('currentTab','g');if(!localStorage.getItem('avisoOrdenes')){localStorage.setItem('avisoOrdenes','1');setTimeout(()=>Toast.info('Las órdenes de compra viven ahora en Compras y gastos (pestaña Por aprobar).',6000),300);}R();Compras.setTab('aprobar');return;}
+{
 if(M==='d')Ds(c);
 else if(M==='g')Gs(c);
-else if(M==='x')Oc(c);
-if(typeof startAutoRefresh==='function')startAutoRefresh();
-}else{
-if(typeof stopAutoRefresh==='function')stopAutoRefresh();
-if(M==='o')Ob(c);
+else if(M==='o')Ob(c);
 else if(M==='p')Pr(c);
 else if(M==='e')Em(c);
 else if(M==='v')Pv(c);
@@ -2494,7 +2498,7 @@ const proximas=pend.filter(x=>!vencidas.includes(x)).sort((a,b)=>String(a.fecha_
 const hitos=hitosPendientes(7).filter(h=>ids.includes(h.obra_id));
 const desviadas=obras.filter(o=>o.estatus!=='Completada'&&o.estatus!=='Cancelada').map(o=>({o,d:curvaSData(o.id)})).filter(x=>x.d&&!x.d.sinPrograma&&x.d.desv<=-5).sort((a,b)=>a.d.desv-b.d.desv);
 const gastos=getFilteredGastos();
-const gPend=gastos.filter(g=>g.estatus_pago==='Pendiente');
+const gPend=gastos.filter(g=>!g.aprobado_at&&g.estatus_pago!=='Rechazado');
 const ocPend=filterByEmpresa(D.oc||[]).filter(x=>x.estatus==='Pendiente'&&(!selectedObra||x.obra_id==selectedObra));
 const[m0,m1]=mesActualRango();
 const cobMes=(D.prc||[]).filter(p=>ids.includes(p.obra_id)&&p.fecha_pago>=m0&&p.fecha_pago<=m1).reduce((s,p)=>s+(parseFloat(p.monto)||0),0);
@@ -2510,7 +2514,7 @@ ${proximas.length?`<ul class="divide-y divide-slate-100">${proximas.map(x=>`<li 
 ${vencidas.length?`<ul class="divide-y divide-slate-100 mt-1">${vencidas.slice(0,3).map(x=>`<li class="flex items-center gap-2 py-1.5"><span class="text-xs text-danger w-14 shrink-0">${fechaCortaDs(x.fecha_vencimiento)}</span><span class="flex-1 min-w-0 truncate">${S(nombreObra(x.obra_id))} · ${S(x.concepto||'exhibición')}</span><button type="button" class="text-xs text-accent hover:underline whitespace-nowrap" onclick="newPagoRecibido({obraId:${x.obra_id},cxcId:${x.id}})">Cobrar ${fmt(x.monto_pendiente)}</button></li>`).join('')}</ul>`:''}`,{label:'Cobranza por obra',onClick:"pcTab='porobra';M='pc';R()"})}
 ${dsBlock('dsHitos','Hitos en 7 días','ri-flag-line',hitos.length?`<ul class="divide-y divide-slate-100">${hitos.slice(0,6).map(h=>`<li class="flex items-center gap-2 py-1.5"><span class="text-xs w-14 shrink-0 font-medium ${h.tipo==='vencido'?'text-danger':'text-amber-700'}">${h.tipo==='vencido'?'Vencido':fechaCortaDs(h.fecha_inicio)}</span><span class="flex-1 min-w-0"><a href="#o" class="hover:underline block truncate" onclick="event.preventDefault();abrirFichaObra(${h.obra_id})">${S(h.nombre)}</a><span class="text-xs text-ink-subtle">${S(nombreObra(h.obra_id))}${esHitoExterno(h)?' · depende de '+S(h.responsable):''}</span></span><button type="button" class="btn btn-s py-1 px-2 text-xs min-h-0" onclick="marcarHitoCumplido(${h.id})" aria-label="Marcar ${S(h.nombre)} como cumplido">Cumplido</button></li>`).join('')}</ul>`:'<p class="text-ink-subtle">Ningún hito vence esta semana.</p>',{label:'Programa',onClick:"M='w';R()"})}
 ${dsBlock('dsDesv','Obras con retraso','ri-line-chart-line',desviadas.length?`<ul class="divide-y divide-slate-100">${desviadas.map(({o,d})=>`<li class="flex items-center gap-2 py-1.5"><span class="${d.desv<=-10?'text-danger':'text-amber-700'} font-bold w-16 shrink-0">${d.desv} pts</span><a href="#o" class="flex-1 min-w-0 truncate hover:underline" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><span class="text-xs text-ink-subtle">${d.realHoy}% / ${d.progHoy}%</span></li>`).join('')}</ul>`:`<p class="text-ok"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Ninguna obra con desviación mayor a 5 puntos.</p><p class="text-xs text-ink-subtle mt-1">${obras.filter(o=>(D.pg||[]).some(p=>p.obra_id===o.id)).length} de ${obras.length} obras tienen programa.</p>`,{label:'Ver obras',onClick:"fichaObraId=null;M='o';R()"})}
-${dsBlock('dsGas','Por aprobar','ri-wallet-3-line',`<div class="flex gap-6"><div><p class="text-2xl font-bold">${gPend.length}</p><p class="text-xs text-ink-subtle">gastos pendientes · ${fmt(gPend.reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0))}</p></div><div><p class="text-2xl font-bold">${ocPend.length}</p><p class="text-xs text-ink-subtle">órdenes de compra</p></div></div>${gPend.length?`<ul class="divide-y divide-slate-100 mt-2">${gPend.slice(0,3).map(g=>`<li class="flex justify-between gap-2 py-1"><span class="truncate">${S(g.descripcion||g.categoria||'Gasto')}</span><span class="shrink-0 font-medium">${fmt(g.monto_neto)}</span></li>`).join('')}</ul>`:''}`,{label:gPend.length?'Revisar gastos':'Ver órdenes',onClick:gPend.length?"M='g';R()":"M='x';R()"})}
+${dsBlock('dsGas','Por aprobar','ri-wallet-3-line',`<div class="flex gap-6"><div><p class="text-2xl font-bold">${gPend.length}</p><p class="text-xs text-ink-subtle">compras por aprobar · ${fmt(gPend.reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0))}</p></div><div><p class="text-2xl font-bold">${ocPend.length}</p><p class="text-xs text-ink-subtle">órdenes de compra</p></div></div>${gPend.length?`<ul class="divide-y divide-slate-100 mt-2">${gPend.slice(0,3).map(g=>`<li class="flex justify-between gap-2 py-1"><span class="truncate">${S(g.descripcion||g.categoria||'Gasto')}</span><span class="shrink-0 font-medium">${fmt(g.monto_neto)}</span></li>`).join('')}</ul>`:''}`,{label:gPend.length?'Revisar gastos':'Ver órdenes',onClick:gPend.length?"M='g';R()":"M='x';R()"})}
 ${dsBlock('dsFlujo','Flujo de '+mesNombre,'ri-exchange-funds-line',`<div class="space-y-2"><div><div class="flex justify-between text-xs mb-0.5"><span>Cobrado</span><span class="font-medium text-ok">${fmt(cobMes)}</span></div><div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-600 rounded-full" style="width:${cobMes/maxFlujo*100}%"></div></div></div><div><div class="flex justify-between text-xs mb-0.5"><span>Gastado</span><span class="font-medium ${gasMes>cobMes?'text-danger':''}">${fmt(gasMes)}</span></div><div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${gasMes>cobMes?'bg-red-600':'bg-slate-500'} rounded-full" style="width:${gasMes/maxFlujo*100}%"></div></div></div><p class="text-xs text-ink-subtle">Neto del mes: <b class="${cobMes-gasMes>=0?'text-ok':'text-danger'}">${fmt(cobMes-gasMes)}</b></p></div>`,{label:'Registrar cobro',onClick:'newPagoRecibido()'})}
 ${dsBlock('dsObras','Obras activas','ri-building-2-line',obras.length?`<ul class="divide-y divide-slate-100">${obras.filter(o=>o.estatus!=='Completada').slice(0,6).map(o=>{const cx=(D.cxc||[]).filter(x=>x.obra_id===o.id);const pd=cx.reduce((s,x)=>s+(parseFloat(x.monto_pendiente)||0),0);return`<li class="py-1.5"><div class="flex items-center gap-2"><a href="#o" class="flex-1 min-w-0 truncate hover:underline font-medium" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><span class="text-xs n">${o.avance_porcentaje||0}%</span></div><div class="flex items-center gap-2 mt-1"><div class="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden"><div class="bar h-full rounded-full" style="width:${o.avance_porcentaje||0}%"></div></div><span class="text-xs text-ink-subtle w-28 text-right">${cx.length?`${fmt(pd)} por cobrar`:'sin plan de pagos'}</span></div></li>`;}).join('')}</ul>`:EmptyState({icon:'ri-building-2-line',title:'Aún no hay obras',body:'Crea la primera con el asistente: datos, catálogo, programa y plan de pagos en cinco pasos.',action:{label:'Crear obra',onClick:'WizardObra.open()'}}),{label:'Nueva obra',onClick:'WizardObra.open()'})}
 </div>
@@ -2541,7 +2545,8 @@ const hoy=hoyISO();
 const btHoy=(D.bt||[]).filter(b=>ids.includes(b.obra_id)&&b.fecha===hoy);
 const sinBt=obras.filter(o=>!btHoy.some(b=>b.obra_id===o.id));
 const fotosHoy=(D.fot||[]).filter(f=>ids.includes(f.obra_id)&&f.fecha_foto===hoy);
-const gPend=getFilteredGastos().filter(g=>g.estatus_pago==='Pendiente');
+const gPend=getFilteredGastos().filter(g=>g.estatus_pago==='Pendiente'&&g.estatus_pago!=='Rechazado');
+const gRech=getFilteredGastos().filter(g=>g.estatus_pago==='Rechazado'&&(!g.solicitante||g.solicitante===currentUser?.nombre));
 // Actividades programadas para esta semana
 const progs=(D.pg||[]).filter(p=>ids.includes(p.obra_id));
 const semana=[];
@@ -2549,6 +2554,7 @@ progs.forEach(p=>{const weeks=semanasPrograma(p);const w=weeks.find(x=>hoy>=x.ws
 const nombreObra=id=>{const o=D.o.find(x=>x.id==id);return o?(o.codigo_obra||o.nombre_obra):'';};
 c.innerHTML=dsHeader('Tu día en obra','Bitácora, fotos, gastos y avance de la semana')+`
 ${sinBt.length?`<div class="g rounded-xl p-5 mb-4 flex flex-col sm:flex-row sm:items-center gap-4"><div class="flex-1"><p class="font-bold text-lg">Falta la bitácora de hoy${sinBt.length>1?` en ${sinBt.length} obras`:''}</p><p class="text-sm text-ink-muted">${sinBt.map(o=>S(o.codigo_obra||o.nombre_obra)).join(', ')}</p></div><button type="button" class="btn btn-p" onclick="abrirBitacoraRapida(${sinBt[0].id})"><i class="ri-book-2-line" aria-hidden="true"></i> Registrar bitácora de hoy</button></div>`:`<div class="g rounded-xl p-4 mb-4 flex items-center gap-3 text-ok"><i class="ri-checkbox-circle-line text-2xl" aria-hidden="true"></i><p class="font-medium">Bitácora de hoy registrada${btHoy.length>1?` (${btHoy.length})`:''}.</p><button type="button" class="ml-auto btn btn-s text-sm" onclick="abrirBitacoraRapida()">Agregar otra</button></div>`}
+${gRech.length?`<div class="g rounded-xl p-4 mb-4 border border-danger/30"><p class="font-bold text-danger"><i class="ri-close-circle-line" aria-hidden="true"></i> ${gRech.length} compra${gRech.length>1?'s':''} rechazada${gRech.length>1?'s':''}</p><ul class="text-sm mt-1 divide-y divide-slate-100">${gRech.slice(0,3).map(g=>`<li class="py-1"><span class="font-medium">${S(g.descripcion||g.categoria)}</span> · ${fmt(g.monto_neto)}<div class="text-xs text-ink-subtle">${S((g.comentarios||'').split('|').pop().trim())}</div></li>`).join('')}</ul></div>`:''}
 <div class="grid md:grid-cols-2 gap-4 mb-4">
 ${dsBlock('dsFot','Fotos de hoy','ri-camera-line',`<p class="text-2xl font-bold">${fotosHoy.length}</p><p class="text-xs text-ink-subtle mb-2">fotos subidas hoy</p><button type="button" class="btn btn-s text-sm" onclick="abrirBitacoraRapida()"><i class="ri-camera-line" aria-hidden="true"></i> Tomar foto con bitácora</button>`,{label:'Galería',onClick:"M='f';R()"})}
 ${dsBlock('dsGasR','Gastos por comprobar','ri-receipt-line',gPend.length?`<p class="text-2xl font-bold">${gPend.length}</p><p class="text-xs text-ink-subtle mb-2">${fmt(gPend.reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0))} pendientes</p><ul class="divide-y divide-slate-100">${gPend.slice(0,3).map(g=>`<li class="flex justify-between gap-2 py-1"><span class="truncate">${S(g.descripcion||g.categoria||'Gasto')}</span><span class="shrink-0">${fmt(g.monto_neto)}</span></li>`).join('')}</ul>`:'<p class="text-ink-subtle">Sin gastos pendientes de comprobar.</p>',{label:'Nuevo gasto',onClick:"M='g';R();setTimeout(()=>{try{newGasto('obra');}catch(e){}},80)"})}
@@ -3825,295 +3831,7 @@ async function deleteModificacion(id) {
 }
 // ========== FIN FUNCIONES DE MODIFICACIONES ==========
 
-function Gs(c){
-const fg=getFilteredGastos();
-const obraTitle=selectedObra?` - ${getSelectedObraName()}`:'';
-const nivel=currentUser?.nivel||0;
-const perms=currentUser?.permisos||{};
-// Solo admin o usuarios con permiso específico pueden crear gastos
-const canCreate=nivel>=100||perms.gastos?.crear===true;
-const canEdit=nivel>=60;
-
-// Separar gastos por tipo
-const gastosObra=fg.filter(x=>x.obra_id);
-const gastosAdmin=fg.filter(x=>!x.obra_id);
-const gastosNoFiscales=fg.filter(x=>x.tipo_comprobante==='No Fiscal');
-const totalObra=gastosObra.reduce((s,x)=>s+(x.monto_neto||0),0);
-const totalAdmin=gastosAdmin.reduce((s,x)=>s+(x.monto_neto||0),0);
-const totalGeneral=totalObra+totalAdmin;
-const pagados=fg.filter(x=>x.estatus_pago==='Pagado').length;
-const pendientes=fg.filter(x=>x.estatus_pago==='Pendiente').length;
-
-// Agrupar por categoria
-const porCategoria=fg.reduce((a,x)=>{const cat=x.categoria||'Sin categoria';a[cat]=(a[cat]||0)+(x.monto_neto||0);return a;},{});
-
-c.innerHTML=`
-<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-<div>
-<div class="flex items-center gap-3">
-<h1 class="text-xl font-bold text-pink-400"><i class="ri-wallet-3-line"></i> Gestión de Gastos${obraTitle}</h1>
-<span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px]">
-<span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-Auto-sync 3s
-</span>
-</div>
-<p class="text-sm text-gray-400 mt-1">Control de gastos por obra y administrativos</p>
-</div>
-<div class="flex gap-2">
-${canCreate?`<button onclick="newGasto('obra')" class="btn btn-p text-sm"><i class="ri-add-line"></i> Gasto de Obra</button>
-<button onclick="newGasto('admin')" class="btn btn-s text-sm"><i class="ri-add-line"></i> Gasto Administrativo</button>`:''}
-</div>
-</div>
-
-<!-- Resumen -->
-<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center"><i class="ri-money-dollar-box-line text-2xl text-pink-400"></i></div>
-<div><p class="text-lg font-bold text-pink-400">${F(totalGeneral)}</p><p class="text-xs text-gray-400">Total Gastos</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center"><i class="ri-building-2-line text-2xl text-purple-400"></i></div>
-<div><p class="text-lg font-bold text-purple-400">${F(totalObra)}</p><p class="text-xs text-gray-400">Gastos Obra</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center"><i class="ri-briefcase-line text-2xl text-amber-400"></i></div>
-<div><p class="text-lg font-bold text-amber-400">${F(totalAdmin)}</p><p class="text-xs text-gray-400">Administrativos</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center"><i class="ri-checkbox-circle-line text-2xl text-green-400"></i></div>
-<div><p class="text-2xl font-bold text-green-400">${pagados}</p><p class="text-xs text-gray-400">Pagados</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center"><i class="ri-time-line text-2xl text-red-400"></i></div>
-<div><p class="text-2xl font-bold text-red-400">${pendientes}</p><p class="text-xs text-gray-400">Pendientes</p></div>
-</div>
-</div>
-</div>
-
-<!-- Filtros y Busqueda -->
-<div class="g rounded-xl p-4 mb-4">
-<div class="flex flex-col gap-3">
-<!-- Fila 1: Tipo y Búsqueda -->
-<div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-<div class="flex flex-wrap gap-2">
-<button onclick="filterGastosTipo('todos')" class="px-3 py-1.5 rounded-lg text-xs font-medium ${gastoFilterTipo==='todos'?'bg-cyan-500/20 text-cyan-400 border border-slate-300':'bg-slate-50 text-gray-400 hover:bg-slate-100'}" id="btnGastoTodos">Todos (${fg.length})</button>
-<button onclick="filterGastosTipo('obra')" class="px-3 py-1.5 rounded-lg text-xs font-medium ${gastoFilterTipo==='obra'?'bg-cyan-500/20 text-cyan-400 border border-slate-300':'bg-slate-50 text-gray-400 hover:bg-slate-100'}" id="btnGastoObra">Obra (${gastosObra.length})</button>
-<button onclick="filterGastosTipo('admin')" class="px-3 py-1.5 rounded-lg text-xs font-medium ${gastoFilterTipo==='admin'?'bg-cyan-500/20 text-cyan-400 border border-slate-300':'bg-slate-50 text-gray-400 hover:bg-slate-100'}" id="btnGastoAdmin">Administrativos (${gastosAdmin.length})</button>
-<button onclick="filterGastosTipo('nofiscal')" class="px-3 py-1.5 rounded-lg text-xs font-medium ${gastoFilterTipo==='nofiscal'?'bg-orange-500/20 text-orange-400 border border-orange-500/30':'bg-slate-50 text-gray-400 hover:bg-slate-100'}" id="btnGastoNoFiscal"><i class="ri-file-forbid-line"></i> No Fiscales (${gastosNoFiscales.length})</button>
-<button onclick="filterGastosEstatus('Pendiente')" class="px-3 py-1.5 rounded-lg text-xs font-medium ${gastoFilterEstatus==='Pendiente'?'bg-amber-500/20 text-amber-400 border border-amber-500/30':'bg-slate-50 text-gray-400 hover:bg-slate-100'}"><i class="ri-time-line"></i> Pendientes (${pendientes})</button>
-</div>
-<div class="flex-1"></div>
-<input type="text" id="searchGasto" placeholder="Buscar..." class="inp w-full sm:w-48 text-xs" value="${gastoFilterSearch}" onkeyup="filterGastosSearch(this.value)">
-</div>
-<!-- Fila 2: Filtros Avanzados -->
-<div class="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-<span class="text-xs text-gray-500"><i class="ri-filter-3-line"></i> Filtros:</span>
-<select onchange="filterGastosProveedor(this.value)" class="inp text-xs py-1.5 w-40">
-<option value="">Todos los proveedores</option>
-${filterByEmpresa(D.pv).filter(p=>p.estatus!=='Inactivo').map(p=>`<option value="${p.id}" ${gastoFilterProveedor==p.id?'selected':''}>${S(p.nombre_proveedor)}</option>`).join('')}
-</select>
-<select onchange="filterGastosSolicitante(this.value)" class="inp text-xs py-1.5 w-36">
-<option value="">Todos solicitantes</option>
-${[...new Set((D.g||[]).map(g=>g.solicitante).filter(Boolean))].map(s=>`<option value="${s}" ${gastoFilterSolicitante===s?'selected':''}>${s}</option>`).join('')}
-</select>
-<select onchange="filterGastosEstatus(this.value)" class="inp text-xs py-1.5 w-32">
-<option value="">Todos estatus</option>
-<option value="Pendiente" ${gastoFilterEstatus==='Pendiente'?'selected':''}>Pendiente</option>
-<option value="Pagado" ${gastoFilterEstatus==='Pagado'?'selected':''}>Pagado</option>
-<option value="Cancelado" ${gastoFilterEstatus==='Cancelado'?'selected':''}>Cancelado</option>
-</select>
-<div class="flex items-center gap-1">
-<input type="date" onchange="filterGastosFecha('desde',this.value)" class="inp text-xs py-1.5 w-32" value="${gastoFilterFechaDesde}" title="Fecha desde">
-<span class="text-gray-500 text-xs">a</span>
-<input type="date" onchange="filterGastosFecha('hasta',this.value)" class="inp text-xs py-1.5 w-32" value="${gastoFilterFechaHasta}" title="Fecha hasta">
-</div>
-<button onclick="limpiarFiltrosGastos()" class="px-2 py-1.5 rounded text-xs text-slate-400 hover:text-slate-600 hover:bg-slate-100" title="Limpiar filtros" aria-label="Limpiar filtros"><i class="ri-refresh-line" aria-hidden="true"></i></button>
-<button onclick="exportarGastosExcel()" class="px-3 py-1.5 rounded text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center gap-1" title="Descargar Excel"><i class="ri-file-excel-2-line"></i> Excel</button>
-</div>
-</div>
-</div>
-
-<!-- Barra de Acciones Bulk para Gastos -->
-${canEdit?`<div id="bulkBarGastos" class="${selectedGastos.length?'':'hidden'} g rounded-xl p-3 mb-4 border-2 border-cyan-500/50 bg-cyan-500/10">
-<div class="flex flex-wrap items-center justify-between gap-3">
-<div class="flex items-center gap-2">
-<i class="ri-checkbox-multiple-line text-cyan-400 text-xl"></i>
-<span class="text-sm font-medium n"><span id="selectedGastosCount">${selectedGastos.length}</span> gastos seleccionados</span>
-</div>
-<div class="flex flex-wrap gap-2">
-<button onclick="bulkEditGastos('estatus')" class="px-3 py-1.5 rounded-lg text-xs bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 flex items-center gap-1"><i class="ri-exchange-line"></i> Cambiar Estatus</button>
-<button onclick="bulkEditGastos('categoria')" class="px-3 py-1.5 rounded-lg text-xs bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 flex items-center gap-1"><i class="ri-price-tag-3-line"></i> Cambiar Categoría</button>
-<button onclick="bulkEditGastos('proveedor')" class="px-3 py-1.5 rounded-lg text-xs bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 flex items-center gap-1"><i class="ri-user-line"></i> Cambiar Proveedor</button>
-<button onclick="bulkEditGastos('fecha')" class="px-3 py-1.5 rounded-lg text-xs bg-green-500/20 text-green-400 hover:bg-green-500/30 flex items-center gap-1"><i class="ri-calendar-line"></i> Cambiar Fecha</button>
-<button onclick="bulkDeleteGastos()" class="px-3 py-1.5 rounded-lg text-xs bg-red-500/20 text-red-400 hover:bg-red-500/30 flex items-center gap-1"><i class="ri-delete-bin-line"></i> Eliminar</button>
-<button onclick="clearGastosSelection()" class="px-3 py-1.5 rounded-lg text-xs bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"><i class="ri-close-line"></i> Cancelar</button>
-</div>
-</div>
-</div>`:''}
-
-<!-- Lista de Gastos -->
-<div class="g rounded-xl overflow-hidden">
-<div class="overflow-x-auto">
-<table class="w-full text-sm">
-<thead class="bg-slate-50"><tr class="text-xs text-slate-400">
-${canEdit?'<th class="p-3 text-center w-10"><input type="checkbox" id="selectAllGastos" aria-label="Seleccionar todos los gastos" onchange="toggleAllGastos(this.checked)" class="w-4 h-4 rounded"></th>':''}
-<th class="p-3 text-left">Fecha</th>
-<th class="p-3 text-left">O.C.</th>
-<th class="p-3 text-left">Categoría</th>
-<th class="p-3 text-left">Descripción</th>
-<th class="p-3 text-left hidden lg:table-cell">Proveedor</th>
-<th class="p-3 text-left hidden md:table-cell">Obra/Admin</th>
-<th class="p-3 text-left hidden sm:table-cell">Solicitante</th>
-<th class="p-3 text-right">Monto</th>
-<th class="p-3 text-center">Estatus</th>
-${canEdit?'<th class="p-3 text-center">Acciones</th>':''}
-</tr></thead>
-<tbody id="gastosList">${renderGastosTable(fg,canEdit)}</tbody>
-</table>
-</div>
-</div>
-
-<!-- Modal Gasto -->
-<div id="mdlGasto" class="modal">
-<div class="g rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-<div class="flex justify-between items-center mb-4">
-<h3 class="text-lg font-bold text-pink-400" id="mdlGastoTitle">Nuevo Gasto</h3>
-<button onclick="closeMdl('mdlGasto')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
-</div>
-<form id="frmGasto" onsubmit="saveGasto(event)">
-<input type="hidden" id="gastoId">
-<input type="hidden" id="gastoTipo" value="obra">
-<div class="grid grid-cols-2 gap-4">
-<div class="col-span-2" id="gastoObraContainer">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoObraId">Obra*</label>
-<select id="gastoObraId" class="inp">
-<option value="">Seleccionar obra...</option>
-${D.o.map(o=>`<option value="${o.id}">${o.nombre_obra}</option>`).join('')}
-</select>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoFecha">Fecha*</label>
-<input type="date" id="gastoFecha" class="inp" required>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoOC">Orden de Compra</label>
-<select id="gastoOC" class="inp" onchange="onOCChange()">
-<option value="">Sin orden de compra</option>
-${filterByEmpresa(D.oc).map(oc=>`<option value="${oc.id}" data-codigo="${oc.codigo_orden}" data-monto="${oc.monto_estimado||0}" data-proveedor="${oc.proveedor_id||''}">${oc.codigo_orden} - ${oc.descripcion?.substring(0,30)||'Sin descripción'}${oc.descripcion?.length>30?'...':''} (${oc.estatus})</option>`).join('')}
-</select>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoCategoria">Categoría*</label>
-<select id="gastoCategoria" class="inp" required>
-<option value="">Seleccionar...</option>
-<option value="Materiales">Materiales</option>
-<option value="Mano de Obra">Mano de Obra</option>
-<option value="Herramientas">Herramientas</option>
-<option value="Transporte">Transporte</option>
-<option value="Servicios">Servicios</option>
-<option value="Renta de Equipo">Renta de Equipo</option>
-<option value="Combustible">Combustible</option>
-<option value="Oficina">Oficina</option>
-<option value="Seguridad">Seguridad</option>
-<option value="Otros">Otros</option>
-</select>
-</div>
-<div class="col-span-2">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoDescripcion">Descripción*</label>
-<input type="text" id="gastoDescripcion" class="inp" required placeholder="Breve descripción del gasto...">
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoMonto">Monto Neto*</label>
-<input type="number" id="gastoMonto" class="inp" required placeholder="0.00" step="0.01" min="0">
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoComprobante">Tipo Comprobante</label>
-<select id="gastoComprobante" class="inp" onchange="onComprobanteChange()">
-<option value="Fiscal">Fiscal (con factura)</option>
-<option value="No Fiscal">No Fiscal (sin factura)</option>
-</select>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoEstatus">Estatus Pago</label>
-<select id="gastoEstatus" class="inp" onchange="onEstatusPagoChange()">
-<option value="Pendiente">Pendiente</option>
-<option value="Pagado">Pagado</option>
-<option value="Cancelado">Cancelado</option>
-</select>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="gastoSolicitante">Solicitante</label>
-<select id="gastoSolicitante" class="inp">
-<option value="">Seleccionar...</option>
-${D.u.filter(u=>u.activo).map(u=>`<option value="${u.nombre}">${u.nombre}</option>`).join('')}
-</select>
-</div>
-<div class="col-span-2">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoProveedorSearch">Proveedor</label>
-<input type="text" id="gastoProveedorSearch" class="inp mb-2" placeholder="Buscar proveedor..." oninput="filterGastoProveedores(this.value)">
-<select id="gastoProveedorList" class="inp" size="4" onclick="selectGastoProveedor(this.value)">
-<option value="">Seleccionar proveedor...</option>
-${filterByEmpresa(D.pv).filter(p=>p.estatus!=='Inactivo').map(p=>`<option value="${p.id}">${S(p.nombre_proveedor)}${p.rfc?' - '+S(p.rfc):''}</option>`).join('')}
-</select>
-<input type="hidden" id="gastoProveedor" value="">
-<p id="gastoProveedorSelected" class="text-xs text-cyan-400 mt-1 hidden"><i class="ri-check-line"></i> <span></span></p>
-<p id="gastoProveedorCount" class="text-[10px] text-gray-500 mt-1">${filterByEmpresa(D.pv).filter(p=>p.estatus!=='Inactivo').length} proveedores disponibles</p>
-</div>
-<div id="gastoFacturaContainer">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoFactura">No. Factura</label>
-<input type="text" id="gastoFactura" class="inp" placeholder="Serie y folio (ej: A-12345)">
-</div>
-<div id="gastoFolioContainer">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoFolioFiscal">Folio Fiscal (UUID) <span id="folioRequerido" class="text-red-400 hidden">*Requerido para pago</span></label>
-<input type="text" id="gastoFolioFiscal" class="inp font-mono text-xs" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" maxlength="36" style="text-transform:uppercase">
-<p class="text-xs text-gray-500 mt-1">UUID de 36 caracteres del CFDI</p>
-</div>
-<div class="col-span-2">
-<label class="text-xs text-gray-400 mb-1 block" for="gastoComentarios">Comentarios</label>
-<textarea id="gastoComentarios" class="inp" rows="2" placeholder="Descripción del gasto..."></textarea>
-</div>
-<!-- Distribución a Obras (solo para gastos administrativos) -->
-<div class="col-span-2 hidden" id="gastoDistribucionContainer">
-<div class="border border-amber-500/30 rounded-lg p-3 bg-amber-500/5">
-<div class="flex justify-between items-center mb-2">
-<label class="text-xs text-amber-400 font-medium"><i class="ri-pie-chart-line"></i> Distribuir a Obras</label>
-<span class="text-xs text-gray-500" id="gastoPorcentajeTotal">Total: 0%</span>
-</div>
-<p class="text-xs text-gray-500 mb-3">Asigna porcentajes del gasto a diferentes obras (opcional)</p>
-<div id="gastoDistribucionObras" class="space-y-2 max-h-40 overflow-y-auto">
-${D.o.filter(o=>o.estatus!=='Finalizada').map(o=>`
-<div class="flex items-center gap-2">
-<input type="checkbox" id="gadCheck_${o.id}" class="w-4 h-4 rounded" onchange="toggleDistribucionObra(${o.id})">
-<label for="gadCheck_${o.id}" class="text-sm text-gray-300 flex-1">${S(o.nombre_obra)}</label>
-<input type="number" id="gadPct_${o.id}" class="inp w-20 text-center text-sm" placeholder="%" min="0" max="100" step="1" disabled onchange="updateDistribucionTotal()">
-<span class="text-gray-500 text-xs">%</span>
-</div>
-`).join('')}
-</div>
-<p class="text-xs text-amber-400 mt-2 hidden" id="gastoPorcentajeError"><i class="ri-error-warning-line"></i> La suma debe ser 100% o 0%</p>
-</div>
-</div>
-</div>
-<div class="flex gap-3 mt-6">
-<button type="button" onclick="closeMdl('mdlGasto')" class="btn btn-s flex-1">Cancelar</button>
-<button type="submit" class="btn btn-p flex-1">Guardar</button>
-</div>
-</form>
-</div>
-</div>
-`;
-// Actualizar barra bulk después de re-render
-setTimeout(()=>updateBulkBarGastos(),0);
-}
+function Gs(c){Compras.render(c);}
 
 let selectedGastos=[];
 let bulkGastoField='';
@@ -4125,53 +3843,7 @@ let gastoFilterEstatus='';
 let gastoFilterFechaDesde='';
 let gastoFilterFechaHasta='';
 
-function renderGastosTable(gastos,canEdit){
-let filtered=gastos;
-if(gastoFilterTipo==='obra')filtered=filtered.filter(x=>x.obra_id);
-else if(gastoFilterTipo==='admin')filtered=filtered.filter(x=>!x.obra_id);
-else if(gastoFilterTipo==='nofiscal')filtered=filtered.filter(x=>x.tipo_comprobante==='No Fiscal');
-if(gastoFilterProveedor)filtered=filtered.filter(x=>x.proveedor_id==gastoFilterProveedor);
-if(gastoFilterSolicitante)filtered=filtered.filter(x=>x.solicitante===gastoFilterSolicitante);
-if(gastoFilterEstatus)filtered=filtered.filter(x=>x.estatus_pago===gastoFilterEstatus);
-if(gastoFilterFechaDesde)filtered=filtered.filter(x=>x.fecha_solicitud>=gastoFilterFechaDesde);
-if(gastoFilterFechaHasta)filtered=filtered.filter(x=>x.fecha_solicitud<=gastoFilterFechaHasta);
-if(gastoFilterSearch){
-const q=gastoFilterSearch.toLowerCase();
-filtered=filtered.filter(x=>
-x.categoria?.toLowerCase().includes(q)||
-x.orden_compra?.toLowerCase().includes(q)||
-x.solicitante?.toLowerCase().includes(q)||
-x.comentarios?.toLowerCase().includes(q)||
-D.pv.find(p=>p.id===x.proveedor_id)?.nombre_proveedor?.toLowerCase().includes(q)
-);
-}
-if(!filtered.length)return `<tr><td colspan="11" class="p-4">${vacio('gastos',{icon:'ri-wallet-3-line',body:'Registra compras, pagos a proveedores y gastos de campo; si el gasto es de una orden de compra se genera solo al aprobarla.',action:{label:'Nuevo gasto',onClick:"newGasto('obra')"}})}</td></tr>`;
-return filtered.map(x=>{
-const obra=D.o.find(o=>o.id===x.obra_id);
-const proveedor=D.pv.find(p=>p.id===x.proveedor_id);
-const tipoClass=x.obra_id?'bg-purple-500/20 text-purple-400':'bg-amber-500/20 text-amber-400';
-const tieneDistribucion=!x.obra_id&&(D.gad||[]).some(d=>d.gasto_id===x.id);
-const tipoText=x.obra_id?(obra?.nombre_obra||'Obra'):(tieneDistribucion?'Admin <i class="ri-pie-chart-line" title="Distribuido a obras"></i>':'Administrativo');
-const estatusClass=x.estatus_pago==='Pagado'?'bg-green-500/20 text-green-400':x.estatus_pago==='Pendiente'?'bg-amber-500/20 text-amber-400':'bg-red-500/20 text-red-400';
-const isSelected=(selectedGastos||[]).includes(x.id);
-return `<tr class="border-t border-white/5 hover:bg-slate-50 ${isSelected?'bg-cyan-500/10':''}">
-${canEdit?`<td class="p-3 text-center"><input type="checkbox" class="gastoCheckbox w-4 h-4 rounded" data-id="${x.id}" ${isSelected?'checked':''} aria-label="Seleccionar gasto ${S(x.descripcion||x.categoria||x.id)}" onchange="toggleGastoSelection(${x.id},this.checked)"></td>`:''}
-<td class="p-3 text-sm">${x.fecha_solicitud?.slice(0,10)||'-'}</td>
-<td class="p-3 font-mono n text-sm">${S(x.orden_compra)||'-'}</td>
-<td class="p-3"><span class="text-sm">${S(x.categoria)||'-'}</span></td>
-<td class="p-3"><span class="text-sm text-gray-300 truncate max-w-[200px] block" title="${S(x.descripción)||''}">${S(x.descripcion)||'-'}</span></td>
-<td class="p-3 hidden lg:table-cell"><span class="text-xs ${proveedor?'text-cyan-400':'text-gray-500'}">${S(proveedor?.nombre_proveedor)||'-'}</span></td>
-<td class="p-3 hidden md:table-cell"><span class="px-2 py-1 rounded-full text-xs ${tipoClass}">${tipoText}</span></td>
-<td class="p-3 hidden sm:table-cell text-xs text-gray-400">${S(x.solicitante)||'-'}</td>
-<td class="p-3 text-right font-bold text-pink-400">${F(x.monto_neto)}</td>
-<td class="p-3 text-center"><span class="px-2 py-1 rounded-full text-xs ${estatusClass}">${S(x.estatus_pago)}</span></td>
-${canEdit?`<td class="p-3 text-center">
-<button onclick="editGasto(${x.id})" class="p-1.5 rounded hover:bg-slate-100 text-cyan-400" title="Editar" aria-label="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button>
-<button onclick="deleteGasto(${x.id})" class="p-1.5 rounded hover:bg-red-500/20 text-red-400" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
-</td>`:''}
-</tr>`;
-}).join('');
-}
+function renderGastosTable(gastos,canEdit){return Compras.filas(Compras.lista());}
 
 function filterGastosTipo(tipo){
 gastoFilterTipo=tipo;
@@ -4303,19 +3975,10 @@ content=`<label class="text-xs text-gray-400 mb-2 block" for="bulkGastoValue">Nu
 </select>`;
 break;
 case'categoria':
-$('mdlBulkGastoTitle').textContent='Cambiar Categoria';
-content=`<label class="text-xs text-gray-400 mb-2 block" for="bulkGastoValue">Nueva Categoría</label>
+$('mdlBulkGastoTitle').textContent='Cambiar categoría';
+content=`<label class="text-xs text-gray-400 mb-2 block" for="bulkGastoValue">Nueva categoría</label>
 <select id="bulkGastoValue" class="inp">
-<option value="Materiales">Materiales</option>
-<option value="Mano de Obra">Mano de Obra</option>
-<option value="Herramientas">Herramientas</option>
-<option value="Transporte">Transporte</option>
-<option value="Servicios">Servicios</option>
-<option value="Renta de Equipo">Renta de Equipo</option>
-<option value="Combustible">Combustible</option>
-<option value="Oficina">Oficina</option>
-<option value="Seguridad">Seguridad</option>
-<option value="Otros">Otros</option>
+${(D.catg||[]).filter(c=>c.activa!==false).sort((a,b)=>(a.orden||100)-(b.orden||100)).map(c=>`<option value="${S(c.nombre)}">${S(c.nombre)}</option>`).join('')}
 </select>`;
 break;
 case'proveedor':
@@ -4530,183 +4193,9 @@ selEl.classList.add('hidden');
 }
 }
 
-function newGasto(tipo){
-$('mdlGastoTitle').textContent=tipo==='admin'?'Nuevo Gasto Administrativo':'Nuevo Gasto de Obra';
-$('gastoTipo').value=tipo;
-$('gastoId').value='';
-$('gastoObraId').value=selectedObra||'';
-$('gastoFecha').value=hoyISO();
-$('gastoOC').value='';
-$('gastoCategoria').value='';
-$('gastoDescripcion').value='';
-$('gastoMonto').value='';
-$('gastoComprobante').value='Fiscal';
-$('gastoEstatus').value='Pendiente';
-$('gastoSolicitante').value='';
-$('gastoProveedorSearch').value='';
-filterGastoProveedores('');
-$('gastoProveedor').value='';
-$('gastoProveedorSelected').classList.add('hidden');
-$('gastoFactura').value='';
-$('gastoFolioFiscal').value='';
-$('gastoComentarios').value='';
-$('gastoObraContainer').style.display=tipo==='admin'?'none':'block';
-$('gastoDistribucionContainer').classList.toggle('hidden',tipo!=='admin');
-resetDistribucionForm();
-$('gastoFolioContainer').style.display='block';
-$('gastoFacturaContainer').style.display='block';
-$('folioRequerido').classList.add('hidden');
-openMdl('mdlGasto');
-}
-
-function editGasto(id){
-const gasto=D.g.find(x=>x.id==id);
-if(!gasto)return;
-const tipo=gasto.obra_id?'obra':'admin';
-$('mdlGastoTitle').textContent='Editar Gasto';
-$('gastoTipo').value=tipo;
-$('gastoId').value=gasto.id;
-$('gastoObraId').value=gasto.obra_id||'';
-$('gastoFecha').value=gasto.fecha_solicitud?.slice(0,10)||'';
-$('gastoOC').value=gasto.orden_compra_id||'';
-$('gastoCategoria').value=gasto.categoria||'';
-$('gastoDescripcion').value=gasto.descripcion||'';
-$('gastoMonto').value=gasto.monto_neto||'';
-$('gastoComprobante').value=gasto.tipo_comprobante||'Fiscal';
-$('gastoEstatus').value=gasto.estatus_pago||'Pendiente';
-$('gastoSolicitante').value=gasto.solicitante||'';
-$('gastoProveedorSearch').value='';
-filterGastoProveedores('');
-$('gastoProveedor').value=gasto.proveedor_id||'';
-if(gasto.proveedor_id){
-const prov=(D.pv||[]).find(p=>p.id==gasto.proveedor_id);
-if(prov){
-$('gastoProveedorSelected').querySelector('span').textContent=prov.nombre_proveedor;
-$('gastoProveedorSelected').classList.remove('hidden');
-$('gastoProveedorList').value=gasto.proveedor_id;
-}
-}else{
-$('gastoProveedorSelected').classList.add('hidden');
-}
-$('gastoFactura').value=gasto.factura_numero||'';
-$('gastoFolioFiscal').value=gasto.folio_fiscal||'';
-$('gastoComentarios').value=gasto.comentarios||'';
-$('gastoObraContainer').style.display=tipo==='admin'?'none':'block';
-$('gastoDistribucionContainer').classList.toggle('hidden',tipo!=='admin');
-if(tipo==='admin')loadDistribucionExistente(gasto.id);else resetDistribucionForm();
-// Configurar visibilidad de campos fiscales
-const esFiscal=(gasto.tipo_comprobante||'Fiscal')==='Fiscal';
-$('gastoFolioContainer').style.display=esFiscal?'block':'none';
-$('gastoFacturaContainer').style.display=esFiscal?'block':'none';
-updateFolioRequirement();
-openMdl('mdlGasto');
-}
-
-async function saveGasto(e){
-e.preventDefault();
-const id=$('gastoId').value;
-const tipo=$('gastoTipo').value;
-const tipoComprobante=$('gastoComprobante').value;
-const estatusPago=$('gastoEstatus').value;
-const folioFiscal=$('gastoFolioFiscal').value.trim().toUpperCase();
-
-// Validar folio fiscal si es Pagado y Fiscal
-if(estatusPago==='Pagado'&&tipoComprobante==='Fiscal'){
-if(!folioFiscal){
-Toast.warning('Para marcar como Pagado un gasto Fiscal, debe ingresar el Folio Fiscal (UUID).');
-$('gastoFolioFiscal').focus();
-return;
-}
-if(!validarFolioFiscal(folioFiscal)){
-Toast.error('El Folio Fiscal debe ser un UUID válido de 36 caracteres.');
-$('gastoFolioFiscal').focus();
-return;
-}
-}
-
-const ocSelect=$('gastoOC');
-let ocId=parseInt(ocSelect.value)||null;
-const ocOption=ocSelect.selectedOptions[0];
-let ocCodigo=ocOption?.dataset?.codigo||null;
-
-// Auto-generar OC para gastos administrativos nuevos sin OC seleccionada
-if(tipo==='admin'&&!id&&!ocId){
-const ocAdmin=await crearOCAdministrativa({
-fecha_solicitud:$('gastoFecha').value,
-descripcion:$('gastoDescripcion').value||null,
-categoria:$('gastoCategoria').value,
-proveedor_id:parseInt($('gastoProveedor').value)||null,
-monto_neto:parseFloat($('gastoMonto').value)||0,
-solicitante:$('gastoSolicitante').value||null
-});
-if(ocAdmin){
-ocId=ocAdmin.id;
-ocCodigo=ocAdmin.codigo_orden;
-Toast.success('OC '+ocCodigo+' generada automáticamente');
-}
-}
-
-const data={
-obra_id:tipo==='admin'?null:(parseInt($('gastoObraId').value)||null),
-fecha_solicitud:$('gastoFecha').value,
-orden_compra:ocCodigo,
-orden_compra_id:ocId,
-categoria:$('gastoCategoria').value,
-descripcion:$('gastoDescripcion').value||null,
-monto_neto:parseFloat($('gastoMonto').value)||0,
-tipo_comprobante:tipoComprobante,
-estatus_pago:estatusPago,
-solicitante:$('gastoSolicitante').value||null,
-proveedor_id:parseInt($('gastoProveedor').value)||null,
-factura_numero:$('gastoFactura').value||null,
-folio_fiscal:tipoComprobante==='Fiscal'?folioFiscal||null:null,
-comentarios:$('gastoComentarios').value||null,
-updated_at:new Date().toISOString()
-};
-let error;
-if(id){
-const res=await sb.from('gastos').update(data).eq('id',id);
-error=res.error;
-}else{
-// Usar función RPC segura para crear gastos
-const{data:result,error:rpcErr}=await sb.rpc('crear_gasto',{
-p_user_id:currentUser?.id,
-p_obra_id:data.obra_id,
-p_fecha_solicitud:data.fecha_solicitud,
-p_orden_compra:data.orden_compra,
-p_estatus_pago:data.estatus_pago,
-p_tipo_comprobante:data.tipo_comprobante,
-p_categoria:data.categoria,
-p_monto_neto:data.monto_neto,
-p_proveedor_id:data.proveedor_id,
-p_solicitante:data.solicitante,
-p_comentarios:data.comentarios,
-p_factura_numero:data.factura_numero,
-p_orden_compra_id:data.orden_compra_id,
-p_folio_fiscal:data.folio_fiscal,
-p_descripcion:data.descripcion
-});
-if(rpcErr){error=rpcErr;}
-else if(result&&!result.success){error={message:result.error};}
-else if(result&&result.gasto_id&&tipo==='admin'){
-// Guardar distribución para nuevo gasto administrativo
-const distTotal=updateDistribucionTotal();
-if(distTotal>0&&distTotal!==100){Toast.warning('La distribución debe sumar 100%');return;}
-await saveDistribucion(result.gasto_id,data.monto_neto);
-}
-}
-// Para gastos existentes tipo admin, guardar distribución
-if(!error&&id&&tipo==='admin'){
-const distTotal=updateDistribucionTotal();
-if(distTotal>0&&distTotal!==100){Toast.warning('La distribución debe sumar 100%');return;}
-await saveDistribucion(parseInt(id),data.monto_neto);
-}
-if(error){Toast.error(humanizeError(error));return;}
-closeMdl('mdlGasto');
-Cache.clear();
-await L();
-Gs($('c'));
-}
+function newGasto(tipo,opts){return Compras.nuevo(typeof tipo==='object'&&tipo?tipo:Object.assign({destino:tipo==='admin'?'indirecto':'obra'},opts||{}));}
+function editGasto(id){return Compras.editar(id);}
+async function saveGasto(e){return Compras.guardar(e);}
 
 async function deleteGasto(id){
 if(!await Dialog.confirm('¿Eliminar este gasto?'))return;
@@ -13082,8 +12571,7 @@ console.error('Auto-refresh error:',e);
 
 function startAutoRefresh(){
 if(autoRefreshInterval)clearInterval(autoRefreshInterval);
-autoRefreshInterval=setInterval(refreshLiveData,3000);
-console.log('Auto-refresh iniciado (cada 3s) - Modulo:',M);
+// US-109: sin polling. El refresco ocurre al volver a la pestaña (visibilitychange), tras cada mutación y con el botón Actualizar.
 }
 
 function stopAutoRefresh(){

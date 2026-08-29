@@ -50,6 +50,28 @@ const Outbox = (() => {
       if (Array.isArray(D.fot)) D.fot.unshift(data);
       return data;
     }
+    if (item.tipo === 'gasto') {
+      // payload: {rpc:{...params de crear_gasto}, foto:{dataUrl,mime,ext}|null, pagado_por_socio_id}
+      const p = { ...item.payload.rpc };
+      if (item.payload.foto?.dataUrl) {
+        const f = item.payload.foto;
+        const path = `empresa/${currentUser?.empresa_id}/gastos/${(crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36))}.${f.ext || 'jpg'}`;
+        const blob = await (await fetch(f.dataUrl)).blob();
+        const { error: e1 } = await sb.storage.from('comprobantes').upload(path, blob, { contentType: f.mime || 'image/jpeg', upsert: false });
+        if (e1) throw e1;
+        p.p_comprobante_url = path; p.p_comprobacion = p.p_folio_fiscal ? 'facturado' : 'ticket';
+      }
+      const { data: result, error } = await sb.rpc('crear_gasto', p);
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'No se pudo crear el gasto');
+      const upd = {};
+      if (item.payload.pagado_por_socio_id) upd.pagado_por_socio_id = item.payload.pagado_por_socio_id;
+      let row = null;
+      if (Object.keys(upd).length) { const r = await sb.from('gastos').update(upd).eq('id', result.gasto_id).select().single(); row = r.data; }
+      if (!row) { const r = await sb.from('gastos').select('*').eq('id', result.gasto_id).single(); row = r.data; }
+      if (row && Array.isArray(D.g)) D.g.unshift(row);
+      return row;
+    }
     const { data, error } = await sb.from(item.tabla).insert(item.payload).select().single();
     if (error) throw error;
     const key = { bitacora_obra: 'bt', gastos: 'g', fotos_obra: 'fot' }[item.tabla];
