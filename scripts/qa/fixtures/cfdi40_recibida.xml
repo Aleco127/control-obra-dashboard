@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sat.gob.mx/cfd/4 http://www.sat.gob.mx/sitio_internet/cfd/4/cfdv40.xsd" Version="4.0" Serie="A" Folio="1234" Fecha="2026-08-14T10:22:31" FormaPago="04" NoCertificado="00001000000500000000" Certificado="" SubTotal="538.79" Descuento="0.00" Moneda="MXN" Total="625.00" TipoDeComprobante="I" Exportacion="01" MetodoPago="PUE" LugarExpedicion="31000" Sello="">
+  <cfdi:Emisor Rfc="HDM001017AS1" Nombre="HOME DEPOT MEXICO" RegimenFiscal="601"/>
+  <cfdi:Receptor Rfc="SAR190101ABC" Nombre="SUPERNOVA ARQUITECTOS" DomicilioFiscalReceptor="31000" RegimenFiscalReceptor="601" UsoCFDI="G03"/>
+  <cfdi:Conceptos>
+    <cfdi:Concepto ClaveProdServ="30111601" NoIdentificacion="123" Cantidad="4" ClaveUnidad="H87" Unidad="Pieza" Descripcion="Garrafon de agua 20 L" ValorUnitario="134.6975" Importe="538.79" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="538.79" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="86.21"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="86.21">
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="538.79" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="86.21"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <cfdi:Complemento>
+    <tfd:TimbreFiscalDigital xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" xsi:schemaLocation="http://www.sat.gob.mx/TimbreFiscalDigital http://www.sat.gob.mx/sitio_internet/cfd/TimbreFiscalDigital/TimbreFiscalDigitalv11.xsd" Version="1.1" UUID="AB12CD34-1111-2222-3333-444455556666" FechaTimbrado="2026-08-14T10:22:40" RfcProvCertif="SAT970701NN3" SelloCFD="" NoCertificadoSAT="00001000000400000000" SelloSAT=""/>
+  </cfdi:Complemento>
+</cfdi:Comprobante>

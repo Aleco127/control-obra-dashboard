@@ -96,18 +96,24 @@ async function massDeleteNomina(){
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-<link href="css/styles.css?v=20260829a" rel="stylesheet">
-<script src="js/cache.js?v=20260829a"></script>
-<script src="js/data-loader.js?v=20260829a"></script>
-<script src="js/ui-utils.js?v=20260829a"></script>
-<script src="js/reports.js?v=20260829a"></script>
-<script src="js/security.js?v=20260829a"></script>
-<script src="js/import-catalogo.js?v=20260829a"></script>
-<script src="js/wizard-obra.js?v=20260829a"></script>
-<script src="js/outbox.js?v=20260829a"></script>
-<script src="js/telemetry.js?v=20260829a"></script>
-<script src="js/gastos-rules.js?v=20260829a"></script>
-<script src="js/compras.js?v=20260829a"></script>
+<link href="css/styles.css?v=20260829c" rel="stylesheet">
+<script src="js/cache.js?v=20260829c"></script>
+<script src="js/data-loader.js?v=20260829c"></script>
+<script src="js/ui-utils.js?v=20260829c"></script>
+<script src="js/reports.js?v=20260829c"></script>
+<script src="js/security.js?v=20260829c"></script>
+<script src="js/import-catalogo.js?v=20260829c"></script>
+<script src="js/wizard-obra.js?v=20260829c"></script>
+<script src="js/outbox.js?v=20260829c"></script>
+<script src="js/telemetry.js?v=20260829c"></script>
+<script src="js/gastos-rules.js?v=20260829c"></script>
+<script src="js/finanzas.js?v=20260829c"></script>
+<script src="js/compras.js?v=20260829c"></script>
+<script src="js/pagos.js?v=20260829c"></script>
+<script src="js/cfdi.js?v=20260829c"></script>
+<script src="js/socios.js?v=20260829c"></script>
+<script src="js/cierre-mensual.js?v=20260829c"></script>
+<script src="js/conciliacion.js?v=20260829c"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -957,7 +963,7 @@ window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h
 const sec=[
 {t:'Principal',k:'principal',ic:'ri-home-5-line',i:[['d','ri-dashboard-3-line','Dashboard']]},
 {t:'Proyectos',k:'proyectos',ic:'ri-building-line',i:[['o','ri-building-2-line','Obras'],['p','ri-money-dollar-circle-line','Presupuesto'],['w','ri-bar-chart-horizontal-line','Programa'],['g','ri-wallet-3-line','Compras y gastos'],['pc','ri-bank-card-line','Pagos'],['ct','ri-file-list-2-line','Cotizaciones'],['es','ri-calculator-line','Estimaciones']]},
-{t:'Contabilidad',k:'contabilidad',ic:'ri-money-dollar-box-line',i:[['cb','ri-pie-chart-2-line','Panel Fiscal'],['fc','ri-bill-line','Facturas CFDI'],['ce','ri-file-mark-line','CFDIs Emitidos'],['rt','ri-percent-line','Retenciones'],['dc','ri-file-chart-line','Declaraciones'],['rp','ri-government-line','REPSE'],['su','ri-bank-card-line','SUA']]},
+{t:'Contabilidad',k:'contabilidad',ic:'ri-money-dollar-box-line',i:[['cb','ri-pie-chart-2-line','Panel Fiscal'],['fc','ri-bill-line','Facturas CFDI'],['ce','ri-file-mark-line','CFDIs Emitidos'],['rt','ri-percent-line','Retenciones'],['dc','ri-file-chart-line','Declaraciones'],['rp','ri-government-line','REPSE'],['su','ri-bank-card-line','SUA'],['ci','ri-archive-drawer-line','Cierres'],['so','ri-user-star-line','Socios']]},
 {t:'Operación',k:'operacion',ic:'ri-tools-line',i:[['s','ri-team-line','Subcontratos'],['m','ri-archive-line','Materiales'],['b','ri-book-2-line','Bitácora'],['c','ri-calendar-line','Calendario']]},
 {t:'Calidad',k:'calidad',ic:'ri-shield-check-line',i:[['r','ri-questionnaire-line','RFIs'],['u','ri-checkbox-circle-line','Punch List'],['y','ri-verified-badge-line','Seguridad']]},
 {t:'Archivos',k:'archivos',ic:'ri-folder-line',i:[['k','ri-folder-3-line','Documentos'],['f','ri-image-line','Fotos']]},
@@ -1577,6 +1583,9 @@ console.warn('[ModulosConfig] Error cargando config:',e);
 
 // Verificar si un modulo esta habilitado para la empresa actual
 function isModuloEnabled(key){
+const _nv=currentUser?.nivel||0;
+if(key==='so'&&_nv<100)return false;
+if(key==='ci'&&_nv<45)return false;
 // Si no hay config, todos habilitados por defecto
 if(!empresaModulosConfig||Object.keys(empresaModulosConfig).length===0)return true;
 const config=empresaModulosConfig[key];
@@ -1744,7 +1753,7 @@ sb.classList.add('hidden');
 }
 if(ov)ov.classList.remove('ac');
 }
-const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],_:['d','o','g','pc']};
+const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],contador_externo:['pc','g','cb','q'],_:['d','o','g','pc']};
 function updateMobileBottomNav(){
 const nav=$('mobileBottomNav');if(!nav)return;
 const rol=String(currentUser?.rol||'').toLowerCase();
@@ -1765,8 +1774,9 @@ const nivel=currentUser?.nivel||0;
 const acts=[];
 if(nivel>=30)acts.push({i:'ri-book-2-line',l:'Nueva bitácora (con fotos y avance)',a:'abrirBitacoraRapida()'});
 if(nivel>=30)acts.push({i:'ri-camera-line',l:'Foto de obra',a:'abrirBitacoraRapida(null,true)'});
-if(nivel>=30&&isModuloEnabled('g'))acts.push({i:'ri-camera-line',l:'Gasto con ticket (foto)',a:"Compras.rapido()"});
-if(nivel>=30&&isModuloEnabled('g'))acts.push({i:'ri-wallet-3-line',l:'Gasto',a:"Compras.nuevo({origen:'sheet'})"});
+const _pg=currentUser?.permisos?.gastos?.crear===true||nivel>=100;
+if(_pg&&isModuloEnabled('g'))acts.push({i:'ri-camera-line',l:'Gasto con ticket (foto)',a:"Compras.rapido()"});
+if(_pg&&isModuloEnabled('g'))acts.push({i:'ri-wallet-3-line',l:'Gasto',a:"Compras.nuevo({origen:'sheet'})"});
 if(nivel>=60&&isModuloEnabled('pc'))acts.push({i:'ri-arrow-down-circle-line',l:'Cobro recibido',a:'newPagoRecibido()'});
 if(nivel>=60)acts.push({i:'ri-building-2-line',l:'Nueva obra (asistente)',a:'WizardObra.open()'});
 $('sheetItems').innerHTML=acts.map(x=>`<button type="button" class="sheet-item" onclick="cerrarSheet();${x.a}"><i class="${x.i}" aria-hidden="true"></i><span>${x.l}</span></button>`).join('')+'<button type="button" class="sheet-item text-ink-subtle" onclick="cerrarSheet()"><i class="ri-close-line" aria-hidden="true"></i><span>Cancelar</span></button>';
@@ -2040,7 +2050,9 @@ const globalQueries=[
 {key:'suac',q:sb.from('sua_conceptos').select('*')},
 {key:'suad',q:sb.from('sua_documentos').select('*')},
 {key:'suap',q:sb.from('sua_parametros').select('*')},
-{key:'cat',q:sb.from('catalogo_conceptos_cot').select('*').order('categoria',{ascending:true})}
+{key:'cat',q:sb.from('catalogo_conceptos_cot').select('*').order('categoria',{ascending:true})},
+{key:'nomd',q:sb.from('nomina_distribucion').select('*')},
+{key:'conc',q:sb.from('conciliaciones').select('*').order('created_at',{ascending:false}).limit(20)}
 ];
 const globalResults=await Promise.all(globalQueries.map(async({key,q})=>{
 try{const res=await q;return{key,data:res.data||[]};}
@@ -2436,6 +2448,8 @@ else if(M==='q')Reportes(c);
 else if(M==='pc')Pc(c);
 else if(M==='rp')Repse(c);
 else if(M==='su')Sua(c);
+else if(M==='so')Socios.render(c);
+else if(M==='ci')Cierres.render(c);
 else Ph(c);
 }
 }
@@ -2443,6 +2457,7 @@ else Ph(c);
 // ========== DASHBOARD POR ROL (US-018) + PRIMEROS PASOS (US-026) ==========
 function Ds(c){
 const rol=String(currentUser?.rol||'').toLowerCase();
+if((currentUser?.nivel||0)>=100&&(D.soc||[]).length)return DsSocio(c);
 if(/gerente|admin|supervisor/.test(rol))return DsGerente(c);
 if(/residente|trabajador|inspector/.test(rol))return DsResidente(c);
 if(/contador/.test(rol))return DsContador(c);
@@ -2502,7 +2517,7 @@ const gPend=gastos.filter(g=>!g.aprobado_at&&g.estatus_pago!=='Rechazado');
 const ocPend=filterByEmpresa(D.oc||[]).filter(x=>x.estatus==='Pendiente'&&(!selectedObra||x.obra_id==selectedObra));
 const[m0,m1]=mesActualRango();
 const cobMes=(D.prc||[]).filter(p=>ids.includes(p.obra_id)&&p.fecha_pago>=m0&&p.fecha_pago<=m1).reduce((s,p)=>s+(parseFloat(p.monto)||0),0);
-const gasMes=gastos.filter(g=>String(g.fecha_solicitud||'').slice(0,10)>=m0&&String(g.fecha_solicitud||'').slice(0,10)<=m1).reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0);
+const gasMes=Finanzas.calcularFlujo({desde:m0,hasta:m1,obraIds:ids}).pagado;
 const maxFlujo=Math.max(cobMes,gasMes,1);
 const nombreObra=id=>{const o=D.o.find(x=>x.id==id);return o?(o.codigo_obra||o.nombre_obra):'';};
 const mesNombre=new Date().toLocaleDateString('es-MX',{month:'long'});
@@ -2520,6 +2535,25 @@ ${dsBlock('dsObras','Obras activas','ri-building-2-line',obras.length?`<ul class
 </div>
 ${dsAlertasCumplimiento()}`;
 }
+// ---- Socio (US-128): lo del gerente más la lectura de dueño ----
+function DsSocio(c){
+DsGerente(c);
+try{
+const rg=Finanzas.rango('anio');
+const er=Finanzas.estadoResultados({desde:rg.desde,hasta:rg.hasta,base:D.fcfg?.base_resultados||'caja'});
+const f=Finanzas.calcularFlujo({desde:rg.desde,hasta:rg.hasta});
+const socs=(D.soc||[]).filter(x=>x.activo!==false);
+const tot=socs.reduce((a,x)=>a+(D.msoc||[]).filter(m=>m.socio_id===x.id&&['retiro','gasto_personal','utilidad_pagada'].includes(m.tipo)&&Finanzas.enRango(m.fecha,rg.desde,rg.hasta)).reduce((b,m)=>b+(parseFloat(m.monto)||0),0),0);
+const pctTot=socs.reduce((a,x)=>a+(parseFloat(x.porcentaje)||0),0);
+const filas=socs.map(x=>{const r=(D.msoc||[]).filter(m=>m.socio_id===x.id&&['retiro','gasto_personal','utilidad_pagada'].includes(m.tipo)&&Finanzas.enRango(m.fecha,rg.desde,rg.hasta)).reduce((b,m)=>b+(parseFloat(m.monto)||0),0);const pct=pctTot>0?(parseFloat(x.porcentaje)||0):100/socs.length;return{x,r,pct,dif:Math.round((r-tot*pct/100)*100)/100};});
+const bajas=(D.o||[]).filter(o=>['Activa','En Proceso'].includes(o.estatus)).map(o=>Finanzas.resultadoObra(o.id)).filter(r=>r&&r.semaforo!=='ok'&&r.semaforo!=='na');
+const strip=`<section class="g rounded-xl p-4 mb-4" aria-labelledby="dsSocioT"><div class="flex items-center justify-between mb-2"><h2 id="dsSocioT" class="font-bold text-sm"><i class="ri-user-star-line" aria-hidden="true"></i> Como socios · ${rg.label}</h2><button type="button" class="link text-xs" onclick="M='so';R()">Ver socios y repartos</button></div>
+<div class="kpi-strip" style="margin-bottom:8px"><div class="kpi"><p class="kpi-v ${er.utilidadNeta<0?'text-danger':'text-ok'}">${fmt(er.utilidadNeta)}</p><p class="kpi-l">Utilidad neta (${er.base})</p></div><div class="kpi"><p class="kpi-v">${fmt(f.porCobrar)}</p><p class="kpi-l">Por cobrar${f.vencidoCobrar?' · <span class="text-danger">'+fmt(f.vencidoCobrar)+' vencido</span>':''}</p></div><div class="kpi"><p class="kpi-v ${f.neto<0?'text-danger':''}">${fmt(f.neto)}</p><p class="kpi-l">Caja del año (cobrado − pagado)</p></div><div class="kpi"><p class="kpi-v">${fmt(tot)}</p><p class="kpi-l">Retirado por los socios</p></div></div>
+<div class="grid md:grid-cols-2 gap-3 text-sm"><div>${filas.map(({x,r,pct,dif})=>`<div class="flex justify-between py-1 border-b border-slate-100"><span>${S(x.nombre)} <span class="text-ink-subtle text-xs">${Math.round(pct*100)/100} %</span></span><span>${fmt(r)} <span class="text-xs ${dif>0?'text-warn':'text-ink-subtle'}">${dif>0?'+'+fmt(dif)+' de más':dif<0?fmt(-dif)+' pendientes':'en equilibrio'}</span></span></div>`).join('')}${pctTot<=0?'<p class="text-xs text-warn mt-1">Captura los porcentajes de participación en Socios.</p>':''}</div><div>${bajas.length?`<p class="text-xs text-ink-subtle mb-1">Obras con margen bajo</p><ul class="divide-y divide-slate-100">${bajas.slice(0,4).map(r=>`<li class="flex items-center gap-2 py-1"><span class="px-2 py-0.5 rounded-full text-xs ${r.semaforo==='danger'?'bg-red-100 text-red-800':'bg-amber-100 text-amber-800'}">${r.margenDevengado!=null?r.margenDevengado:r.margenProyectado} %</span><button type="button" class="link flex-1 text-left truncate" onclick="abrirFichaObra(${r.obra.id})">${S(r.obra.codigo_obra||r.obra.nombre_obra)}</button></li>`).join('')}</ul>`:'<p class="text-xs text-ok">Todas las obras activas están dentro del margen cotizado.</p>'}</div></div></section>`;
+const anchor=$('c').querySelector('.grid');if(anchor)anchor.insertAdjacentHTML('beforebegin',strip);else $('c').insertAdjacentHTML('beforeend',strip);
+}catch(e){console.warn('DsSocio',e);}
+}
+
 // Alertas de cumplimiento (REPSE / SUA) que ya existían, en formato compacto
 function dsAlertasCumplimiento(){
 const hoy=new Date();const items=[];
@@ -2578,7 +2612,7 @@ c.innerHTML=dsHeader('Cobranza y cumplimiento','Cuentas vencidas, cobros de la s
 <div class="grid md:grid-cols-2 gap-4 mb-4">
 ${dsBlock('dsVenc','Cuentas por cobrar vencidas','ri-alarm-warning-line',venc.length?`<p class="text-2xl font-bold text-danger mb-1">${fmt(venc.reduce((s,x)=>s+(parseFloat(x.monto_pendiente)||0),0))}</p><ul class="divide-y divide-slate-100">${venc.slice(0,5).map(x=>`<li class="flex items-center gap-2 py-1.5"><span class="text-xs text-danger w-14 shrink-0">${fechaCortaDs(x.fecha_vencimiento)}</span><span class="flex-1 min-w-0 truncate">${S(nombreObra(x.obra_id))} · ${S(x.cliente_nombre||x.concepto||'')}</span><button type="button" class="text-xs text-accent hover:underline whitespace-nowrap" onclick="newPagoRecibido({obraId:${x.obra_id},cxcId:${x.id}})">Cobrar ${fmt(x.monto_pendiente)}</button></li>`).join('')}</ul>`:'<p class="text-ok"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Ninguna cuenta vencida.</p>',{label:'Todas las CxC',onClick:"pcTab='cxc';M='pc';R()"})}
 ${dsBlock('dsCobSem','Cobros de la semana','ri-arrow-down-circle-line',cobSem.length?`<p class="text-2xl font-bold text-ok mb-1">${fmt(cobSem.reduce((s,p)=>s+(parseFloat(p.monto)||0),0))}</p><ul class="divide-y divide-slate-100">${cobSem.slice(0,5).map(p=>`<li class="flex items-center gap-2 py-1.5"><span class="font-mono text-xs text-ok w-20 shrink-0">${S(p.numero_pago)}</span><span class="flex-1 min-w-0 truncate">${S(nombreObra(p.obra_id))} · ${S(p.concepto||'')}</span><span class="font-medium">${fmt(p.monto)}</span><button type="button" class="btn-icon" style="width:32px;height:32px" onclick="reciboCobroPDF(${p.id})" aria-label="Recibo PDF"><i class="ri-file-pdf-line" aria-hidden="true"></i></button></li>`).join('')}</ul>`:'<p class="text-ink-subtle">Sin cobros en los últimos 7 días.</p>',{label:'Registrar cobro',onClick:'newPagoRecibido()'})}
-${dsBlock('dsFr','Facturas recibidas sin pagar','ri-bill-line',fr.length?`<p class="text-2xl font-bold">${fr.length}</p><p class="text-xs text-ink-subtle">${fmt(fr.reduce((s,f)=>s+(parseFloat(f.total||f.monto_total||f.monto)||0),0))} por pagar</p>`:'<p class="text-ink-subtle">Todas las facturas recibidas están pagadas.</p>',{label:'Facturas CFDI',onClick:"M='fc';R()"})}
+${dsBlock('dsFr','Por pagar a proveedores','ri-bank-card-line',(()=>{const cxp=Finanzas.cuentasPorPagar({obraIds:ids});const ag=Finanzas.agingPagar(cxp);return cxp.length?`<p class="text-2xl font-bold">${fmt(ag.total)}</p><p class="text-xs text-ink-subtle mb-2">${ag.vencida.n?`<span class="text-danger font-medium">${fmt(ag.vencida.monto)} vencido</span> · `:''}${ag.semana.n} vence esta semana</p><ul class="divide-y divide-slate-100">${cxp.slice(0,4).map(r=>`<li class="flex items-center gap-2 py-1.5"><span class="text-xs w-14 shrink-0 ${r.bucket==='vencida'?'text-danger':'text-ink-subtle'}">${fechaCortaDs(r.vence)}</span><span class="flex-1 min-w-0 truncate">${S((D.pv||[]).find(p=>p.id==r.gasto.proveedor_id)?.nombre_proveedor||r.gasto.descripcion||'')}</span><span class="font-medium">${fmt(r.saldo)}</span></li>`).join('')}</ul>`:'<p class="text-ink-subtle">No debes nada a proveedores.</p>';})(),{label:'Ver por pagar',onClick:"pcTab='pagar';M='pc';R()"})}
 ${dsBlock('dsNom','Nómina del periodo','ri-money-dollar-box-line',nom.length?`<p class="text-2xl font-bold">${nom.length}</p><p class="text-xs text-ink-subtle">registros este mes · ${fmt(nom.reduce((s,n)=>s+(parseFloat(n.total_neto||n.neto||n.total||n.monto)||0),0))}</p>`:'<p class="text-ink-subtle">Sin nómina capturada este mes.</p>',{label:'Ir a nómina',onClick:"M='n';R()"})}
 </div>
 ${dsAlertasCumplimiento()}`;
@@ -2810,6 +2844,33 @@ if(typeof invalidateFilterCache==='function')invalidateFilterCache();
 fichaObraId=null;localStorage.removeItem('fichaObraId');
 M=mod;R();
 }
+// ---- Resultado por obra en la ficha (US-122) + presupuesto vs real por partida (US-124) ----
+function fichaResultadoHtml(o){
+const r=Finanzas.resultadoObra(o.id);if(!r)return'';
+try{Telemetry.track('ficha_resultado_vista',{obra_id:o.id,semaforo:r.semaforo});}catch(e){}
+const sem={ok:['bg-emerald-100 text-emerald-800','Dentro del margen'],warn:['bg-amber-100 text-amber-800','Margen por debajo de lo cotizado'],danger:['bg-red-100 text-red-800','Pérdida a la fecha'],na:['bg-slate-100 text-slate-600','Sin datos suficientes']}[r.semaforo];
+const fila=(l,v,cls='',t='')=>`<div class="flex justify-between gap-2 py-1 border-b border-slate-100 text-sm" ${t?`title="${S(t)}"`:''}><dt class="text-ink-subtle">${l}</dt><dd class="text-right font-medium ${cls}">${v}</dd></div>`;
+const cats=Object.entries(r.porCategoria).sort((a,b)=>b[1]-a[1]).slice(0,6);
+const partidas=(()=>{const cc=(D.cc||[]).filter(x=>x.obra_id==o.id);if(!cc.length)return'';const pres={};cc.forEach(x=>{const k=x.partida||'Sin partida';pres[k]=(pres[k]||0)+(parseFloat(x.importe)||0);});const gas={};(D.g||[]).filter(g=>g.obra_id==o.id&&g.estatus_pago!=='Rechazado').forEach(g=>{const k=g.partida||'Sin asignar';gas[k]=(gas[k]||0)+(parseFloat(g.monto_neto)||0);});const keys=[...new Set([...Object.keys(pres),...Object.keys(gas)])];const sinAsig=(D.g||[]).filter(g=>g.obra_id==o.id&&!g.partida&&g.estatus_pago!=='Rechazado').length;return`<details class="mt-3"><summary class="text-sm font-medium cursor-pointer">Presupuesto vs real por partida${sinAsig?` <span class="text-xs text-warn">(${sinAsig} gastos sin partida)</span>`:''}</summary><div class="table-wrap mt-2"><table class="w-full text-xs"><thead><tr class="text-left text-ink-subtle"><th class="py-1">Partida</th><th class="text-right">Presupuesto</th><th class="text-right">Gastado</th><th class="text-right">%</th></tr></thead><tbody>${keys.map(k=>{const p=pres[k]||0,g=gas[k]||0;const pct=p?Math.round(g/p*100):null;return`<tr class="border-t border-slate-100"><td class="py-1">${S(k)}</td><td class="text-right">${p?fmt(p):'-'}</td><td class="text-right">${fmt(g)}</td><td class="text-right ${pct>100?'text-danger font-medium':pct>85?'text-warn':''}">${pct!=null?pct+' %':'-'}</td></tr>`;}).join('')}</tbody></table></div>${sinAsig?`<button type="button" class="link text-xs mt-1" onclick="irAModuloConObra('g',${o.id})">Asignar partidas en Compras</button>`:''}</details>`;})();
+return`<section class="g rounded-xl p-4 lg:col-span-2" aria-labelledby="fhRes"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 id="fhRes" class="font-bold text-sm"><i class="ri-funds-line n" aria-hidden="true"></i> Resultado de la obra</h2><span class="px-2 py-0.5 rounded-full text-xs ${sem[0]}">${sem[1]}</span><button type="button" class="btn btn-s text-xs" onclick="fichaResultadoPDF(${o.id})"><i class="ri-file-pdf-line" aria-hidden="true"></i> PDF</button></div>
+<p class="text-sm text-ink-muted mb-3">${S(r.causa)}</p>
+<div class="grid md:grid-cols-3 gap-4"><dl>${fila('Contrato sin IVA',fmt(r.contrato))}${fila('Cobrado',fmt(r.cobrado),'text-ok')}${fila('Por cobrar',fmt(r.porCobrar)+(r.vencido?` <span class="text-danger text-xs">(${fmt(r.vencido)} vencido)</span>`:''))}${fila('Avance',r.avance+' %','',r.avanceFuente==='cobranza'?'Estimado por lo cobrado; registra el avance real en Programa':'Fuente: '+r.avanceFuente)}${fila('Ingreso devengado',fmt(r.ingresoDevengado),'','Contrato × avance')}</dl>
+<dl>${fila('Costo directo',fmt(r.directo))}${cats.map(([k,v])=>fila('<span class="pl-3 text-xs">'+S(k)+'</span>','<span class="text-xs">'+fmt(v)+'</span>')).join('')}${r.manoObraNomina?fila('<span class="pl-3 text-xs">Nómina asignada</span>','<span class="text-xs">'+fmt(r.manoObraNomina)+'</span>'):''}${fila('Indirectos prorrateados',fmt(r.indirectos))}${fila('Costo total',fmt(r.costoTotal),'font-bold')}</dl>
+<dl>${fila('Utilidad a la fecha (devengada)',fmt(r.utilidadDevengada),r.utilidadDevengada<0?'text-danger':'text-ok','Ingreso devengado − costo total')}${fila('Margen a la fecha',r.margenDevengado!=null?r.margenDevengado+' %':'s/d',r.semaforo==='danger'?'text-danger':r.semaforo==='warn'?'text-warn':'text-ok')}${fila('Margen cotizado',r.margenCotizado+' %')}${fila('Utilidad proyectada al cierre',fmt(r.utilidadProyectada),r.utilidadProyectada<0?'text-danger':'','Contrato − costo total a la fecha')}${fila('Caja de la obra',fmt(r.caja),r.caja<0?'text-danger':'text-ok','Cobrado − pagado por la empresa')}</dl></div>
+${partidas}</section>`;
+}
+async function fichaResultadoPDF(id){
+const r=Finanzas.resultadoObra(id);if(!r)return;const o=r.obra;
+let emp={nombre:currentUser?.empresa_nombre||''};try{const{data}=await sb.from('empresas').select('nombre,razon_social,rfc').eq('id',currentUser?.empresa_id).single();if(data)emp={...emp,...data};}catch(e){}
+const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'letter'});
+doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(emp.razon_social||emp.nombre||'Empresa',20,18);doc.setFontSize(12);doc.text(`Resultado de la obra ${o.codigo_obra||''} ${o.nombre_obra}`,20,26);
+doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(`Al ${hoyISO()} · ${r.causa}`,20,31,{maxWidth:175});
+doc.autoTable({startY:40,theme:'plain',styles:{fontSize:9},body:[['Contrato sin IVA',fmt(r.contrato)],['Cobrado',fmt(r.cobrado)],['Por cobrar',fmt(r.porCobrar)+(r.vencido?' (vencido '+fmt(r.vencido)+')':'')],['Avance',r.avance+' % ('+r.avanceFuente+')'],['Ingreso devengado',fmt(r.ingresoDevengado)],['Costo directo',fmt(r.directo)],['Nómina asignada',fmt(r.manoObraNomina)],['Indirectos prorrateados',fmt(r.indirectos)],['Costo total',fmt(r.costoTotal)],['Utilidad devengada',fmt(r.utilidadDevengada)],['Margen a la fecha',(r.margenDevengado!=null?r.margenDevengado:'s/d')+' % (cotizado '+r.margenCotizado+' %)'],['Utilidad proyectada al cierre',fmt(r.utilidadProyectada)],['Caja de la obra',fmt(r.caja)]],columnStyles:{1:{halign:'right'}}});
+const cats=Object.entries(r.porCategoria).sort((a,b)=>b[1]-a[1]);
+if(cats.length)doc.autoTable({startY:doc.lastAutoTable.finalY+4,head:[['Costo por categoría','Monto','% del contrato']],body:cats.map(([k,v])=>[k,fmt(v),r.contrato?(Math.round(v/r.contrato*1000)/10)+' %':'-']),styles:{fontSize:8},headStyles:{fillColor:[30,41,59]},columnStyles:{1:{halign:'right'},2:{halign:'right'}}});
+doc.save(`Resultado_${(o.codigo_obra||o.nombre_obra).replace(/[^\w]+/g,'_')}_${hoyISO()}.pdf`);
+}
+
 function renderFichaObra(c,id){
 const o=D.o.find(x=>x.id==id);
 if(!o){fichaObraId=null;localStorage.removeItem('fichaObraId');Ob(c);return;}
@@ -2867,6 +2928,7 @@ ${o.descripcion?`<p class="text-xs text-ink-muted mt-3">${S(o.descripcion)}</p>`
 </section>
 
 <!-- Avance: curva S + hitos -->
+${fichaResultadoHtml(o)}
 <section class="g rounded-xl p-4 lg:col-span-2" aria-labelledby="fhAvance">
 <div class="flex items-center justify-between mb-2"><h2 id="fhAvance" class="font-bold text-sm"><i class="ri-line-chart-line n" aria-hidden="true"></i> Avance programado vs real</h2>${secLink('w','Programa')}</div>
 <p id="fhDesv" class="text-sm mb-2"></p>
@@ -4373,99 +4435,49 @@ else{aging.dias90.count++;aging.dias90.monto+=monto;}
 return aging;
 }
 
+let pcPeriodo='mes';
 function Pc(c){
 const pr=getFilteredPagosRecibidos();
 const pp=getFilteredPagosProveedores();
 const cxc=getFilteredCuentasCobrar();
-const obraTitle=selectedObra?` - ${getSelectedObraName()}`:'';
-
-// KPIs
-const totalCobrado=pr.reduce((s,x)=>s+(parseFloat(x.monto)||0),0);
-const totalPagado=pp.reduce((s,x)=>s+(parseFloat(x.monto)||0),0);
-const totalPorCobrar=cxc.filter(x=>x.estatus!=='Cobrada').reduce((s,x)=>s+(parseFloat(x.monto_pendiente)||0),0);
-const flujoNeto=totalCobrado-totalPagado;
+const obraTitle=selectedObra?` · ${S(getSelectedObraName())}`:'';
+const ids=selectedObra?[parseInt(selectedObra)]:null;
+const rg=Finanzas.rango(pcPeriodo);
+const f=Finanzas.calcularFlujo({desde:rg.desde,hasta:rg.hasta,obraIds:ids});
 const aging=calcularAging(cxc);
-const vencido=aging.dias30.monto+aging.dias60.monto+aging.dias90.monto;
-
+const cxp=Finanzas.cuentasPorPagar({obraIds:ids});
+const nivel=currentUser?.nivel||0;
+const tabs=[['porobra','Por obra',null],['cobros','Cobros',pr.length],['pagos','Pagos',pp.length],['cxc','Por cobrar',cxc.filter(x=>x.estatus!=='Cobrada').length],['pagar','Por pagar',cxp.length],['flujo','Flujo',null],['conciliar','Conciliar',null]];
+const kpi=(v,l,cls='')=>`<div class="kpi"><p class="kpi-v ${cls}">${v}</p><p class="kpi-l">${l}</p></div>`;
 c.innerHTML=`
-<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-<div>
-<h1 class="text-xl font-bold text-amber-400"><i class="ri-bank-card-line"></i> Pagos y cobranza${obraTitle}</h1>
-<p class="text-sm text-gray-400 mt-1">Control de cobros, pagos a proveedores y cuentas por cobrar</p>
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+<div><h1 class="text-xl font-bold"><i class="ri-bank-card-line" aria-hidden="true"></i> Pagos y cobranza${obraTitle}</h1><p class="text-sm text-ink-muted mt-1">Lo que entra, lo que sale y lo que viene, con una sola fórmula.</p></div>
+<div class="flex flex-wrap items-center gap-2">
+<select class="inp text-sm py-1.5" style="width:auto" aria-label="Periodo" onchange="pcSetPeriodo(this.value)"><option value="mes" ${pcPeriodo==='mes'?'selected':''}>Este mes</option><option value="trim" ${pcPeriodo==='trim'?'selected':''}>Trimestre</option><option value="anio" ${pcPeriodo==='anio'?'selected':''}>Año</option><option value="todo" ${pcPeriodo==='todo'?'selected':''}>Todo</option></select>
+${nivel>=60?`<button type="button" onclick="newPagoRecibido()" class="btn btn-p text-sm"><i class="ri-arrow-down-circle-line" aria-hidden="true"></i> Registrar cobro</button><button type="button" onclick="PagosProv.abrir({})" class="btn btn-s text-sm"><i class="ri-arrow-up-circle-line" aria-hidden="true"></i> Registrar pago</button><button type="button" onclick="newCuentaCobrar()" class="btn btn-s text-sm hidden sm:inline-flex"><i class="ri-file-list-3-line" aria-hidden="true"></i> Cuenta por cobrar</button>`:''}
+</div></div>
+<div class="kpi-strip">
+${kpi(F(f.cobrado),'Cobrado · '+rg.label,'text-ok')}
+${kpi(F(f.pagado),'Pagado · '+rg.label)}
+${kpi(F(f.neto),'Flujo neto',f.neto<0?'text-danger':'')}
+${kpi(F(f.porCobrar),'Por cobrar'+(f.vencidoCobrar?' · <span class="text-danger">'+F(f.vencidoCobrar)+' vencido</span>':''))}
+${kpi(F(f.porPagar),'Por pagar'+(f.vencidoPagar?' · <span class="text-danger">'+F(f.vencidoPagar)+' vencido</span>':''))}
+${kpi(F(f.proximos30.neto),'Próximos 30 días',f.proximos30.neto<0?'text-warn':'')}
 </div>
-<div class="flex gap-2">
-<button onclick="newPagoRecibido()" class="btn btn-p text-sm"><i class="ri-add-line"></i> Cobro</button>
-<button onclick="newPagoProveedor()" class="btn btn-s text-sm"><i class="ri-add-line"></i> Pago</button>
-<button onclick="newCuentaCobrar()" class="btn text-sm bg-slate-600 hover:bg-slate-500"><i class="ri-add-line"></i> CxC</button>
-</div>
-</div>
-
-<!-- Resumen -->
-<div class="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center"><i class="ri-arrow-down-circle-line text-xl text-emerald-400"></i></div>
-<div><p class="text-lg font-bold text-emerald-400">${F(totalCobrado)}</p><p class="text-[10px] text-gray-400">Total Cobrado</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center"><i class="ri-arrow-up-circle-line text-xl text-rose-400"></i></div>
-<div><p class="text-lg font-bold text-rose-400">${F(totalPagado)}</p><p class="text-[10px] text-gray-400">Total Pagado</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl ${flujoNeto>=0?'bg-teal-500/20':'bg-orange-500/20'} flex items-center justify-center"><i class="ri-exchange-funds-line text-xl ${flujoNeto>=0?'text-teal-400':'text-orange-400'}"></i></div>
-<div><p class="text-lg font-bold ${flujoNeto>=0?'text-teal-400':'text-orange-400'}">${F(flujoNeto)}</p><p class="text-[10px] text-gray-400">Flujo Neto</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center"><i class="ri-file-list-3-line text-xl text-amber-400"></i></div>
-<div><p class="text-lg font-bold text-amber-400">${F(totalPorCobrar)}</p><p class="text-[10px] text-gray-400">Por Cobrar</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center"><i class="ri-time-line text-xl text-sky-400"></i></div>
-<div><p class="text-lg font-bold text-sky-400">${F(aging.corriente.monto)}</p><p class="text-[10px] text-gray-400">Corriente</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center"><i class="ri-alarm-warning-line text-xl text-red-400"></i></div>
-<div><p class="text-lg font-bold text-red-400">${F(vencido)}</p><p class="text-[10px] text-gray-400">Vencido</p></div>
-</div>
-</div>
-</div>
-
-<!-- Tabs -->
-<div class="flex gap-1 mb-4 border-b border-gray-700/50 overflow-x-auto" role="tablist">
-<button role="tab" aria-selected="${pcTab==='porobra'}" onclick="pcTab='porobra';Pc($('c'))" class="px-4 py-2 text-xs font-medium whitespace-nowrap ${pcTab==='porobra'?'text-amber-400 border-b-2 border-amber-400':'text-gray-400 hover:text-white'}">
-<i class="ri-road-map-line" aria-hidden="true"></i> Por obra
-</button>
-<button role="tab" aria-selected="${pcTab==='cobros'}" onclick="pcTab='cobros';Pc($('c'))" class="px-4 py-2 text-xs font-medium ${pcTab==='cobros'?'text-amber-400 border-b-2 border-amber-400':'text-gray-400 hover:text-white'}">
-<i class="ri-arrow-down-circle-line"></i> Cobros (${pr.length})
-</button>
-<button role="tab" aria-selected="${pcTab==='pagos'}" onclick="pcTab='pagos';Pc($('c'))" class="px-4 py-2 text-xs font-medium ${pcTab==='pagos'?'text-amber-400 border-b-2 border-amber-400':'text-gray-400 hover:text-white'}">
-<i class="ri-arrow-up-circle-line"></i> Pagos (${pp.length})
-</button>
-<button role="tab" aria-selected="${pcTab==='cxc'}" onclick="pcTab='cxc';Pc($('c'))" class="px-4 py-2 text-xs font-medium ${pcTab==='cxc'?'text-amber-400 border-b-2 border-amber-400':'text-gray-400 hover:text-white'}">
-<i class="ri-file-list-3-line"></i> CxC (${cxc.length})
-</button>
-</div>
-
-<!-- Content -->
-<div id="pcContent"></div>
-`;
-
-// Render tab content
+<div class="tabs mb-3" role="tablist" aria-label="Vistas de pagos">${tabs.map(([k,l,n])=>`<button type="button" role="tab" aria-selected="${pcTab===k}" class="tab ${pcTab===k?'active':''}" onclick="pcSetTab('${k}')">${l}${n!=null?` <span class="tab-n">${n}</span>`:''}</button>`).join('')}</div>
+<div id="pcContent"></div>`;
 if(pcTab==='porobra')renderTabPorObra();
 else if(pcTab==='cobros')renderTabCobros(pr);
-else if(pcTab==='pagos')renderTabPagos(pp);
-else renderTabCxC(cxc,aging);
+else if(pcTab==='pagos')PagosProv.renderPagos(pp);
+else if(pcTab==='cxc')renderTabCxC(cxc,aging);
+else if(pcTab==='pagar')PagosProv.renderPorPagar();
+else if(pcTab==='flujo')PagosProv.renderFlujo();
+else if(pcTab==='conciliar'){if(typeof Conciliacion!=='undefined')Conciliacion.render();else $('pcContent').innerHTML=vacio('conciliaciones',{icon:'ri-bank-line',body:'Sube el estado de cuenta del banco para emparejar cobros y pagos.'});}
+else renderTabPorObra();
+try{Telemetry.track('pagos_tab',{tab:pcTab});}catch(e){}
 }
+function pcSetTab(t){pcTab=t;Pc($('c'));}
+function pcSetPeriodo(v){pcPeriodo=v;Pc($('c'));}
 
 function renderTabCobros(data){
 const container=$('pcContent');
@@ -4507,45 +4519,7 @@ return`<tr class="hover:bg-gray-800/30">
 container.innerHTML=html;
 }
 
-function renderTabPagos(data){
-const container=$('pcContent');
-if(!container)return;
-const html=data.length===0?vacio('pagos a proveedores',{icon:'ri-arrow-up-circle-line',body:'Cuando pagues una orden de compra o factura, regístralo aquí.',action:{label:'Registrar pago',onClick:'newPagoProveedor()'}}):`
-<div class="overflow-x-auto">
-<table class="w-full text-xs">
-<thead class="bg-gray-800/50 text-gray-400 uppercase text-[10px]">
-<tr>
-<th class="p-2 text-left">No. Pago</th>
-<th class="p-2 text-left">Fecha</th>
-<th class="p-2 text-left">Proveedor</th>
-<th class="p-2 text-left">Obra</th>
-<th class="p-2 text-left">Método</th>
-<th class="p-2 text-right">Monto</th>
-<th class="p-2 text-center">Acciones</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-gray-700/30">
-${data.map(p=>{
-const prov=D.pv.find(x=>x.id===p.proveedor_id);
-const obra=D.o.find(o=>o.id===p.obra_id);
-return`<tr class="hover:bg-gray-800/30">
-<td class="p-2 font-mono text-red-400">${S(p.numero_pago)}</td>
-<td class="p-2">${p.fecha_pago?new Date(p.fecha_pago).toLocaleDateString('es-MX'):'-'}</td>
-<td class="p-2">${prov?S(prov.nombre_proveedor):'<span class="text-gray-500">-</span>'}</td>
-<td class="p-2">${obra?S(obra.nombre_obra):'<span class="text-gray-500">Admin</span>'}</td>
-<td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] ${p.metodo_pago==='Transferencia'?'bg-blue-500/20 text-blue-400':p.metodo_pago==='Cheque'?'bg-yellow-500/20 text-yellow-400':'bg-green-500/20 text-green-400'}">${S(p.metodo_pago||'Otro')}</span></td>
-<td class="p-2 text-right font-medium text-red-400">${fmt(p.monto)}</td>
-<td class="p-2 text-center">
-<button onclick="editPagoProveedor(${p.id})" class="p-1 text-gray-400 hover:text-amber-400" aria-label="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button>
-<button onclick="deletePagoProveedor(${p.id})" class="p-1 text-gray-400 hover:text-red-400" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
-</td>
-</tr>`;
-}).join('')}
-</tbody>
-</table>
-</div>`;
-container.innerHTML=html;
-}
+function renderTabPagos(data){PagosProv.renderPagos(data);}
 
 function renderTabCxC(data,aging){
 const container=$('pcContent');
@@ -4989,183 +4963,10 @@ return`<option value="${o.id}">OC-${o.numero_oc} - ${obra?S(obra.nombre_obra):''
 if(currentVal)sel.value=currentVal;
 }
 
-function newPagoProveedor(){
-const fo=getFilteredObras();
-const provs=filterByEmpresa(D.pv||[]);
-openMdl('mdlPagoProveedor');
-$('mdlPagoProveedor').querySelector('.modal-content').innerHTML=`
-<div class="flex justify-between items-center mb-4">
-<h3 class="text-lg font-bold text-amber-400"><i class="ri-arrow-up-circle-line"></i> Nuevo Pago a Proveedor</h3>
-<button onclick="closeMdl('mdlPagoProveedor')" class="text-slate-400 hover:text-white" aria-label="Cerrar"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
-</div>
-<form onsubmit="savePagoProveedor(event)">
-<input type="hidden" id="ppId" value="">
-<div class="grid grid-cols-2 gap-4 mb-4">
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppProveedor">Proveedor*</label>
-<select id="ppProveedor" class="inp" required onchange="updateOCsPagoProveedor()">
-<option value="">Seleccionar...</option>
-${provs.map(p=>`<option value="${p.id}">${S(p.nombre_proveedor)}</option>`).join('')}
-</select>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppObra">Obra</label>
-<select id="ppObra" class="inp" onchange="updateOCsPagoProveedor()">
-<option value="">Gasto administrativo</option>
-${fo.map(o=>`<option value="${o.id}">${S(o.nombre_obra)}</option>`).join('')}
-</select>
-</div>
-</div>
-<div class="mb-4">
-<label class="text-xs text-gray-400 mb-1 block" for="ppOrdenCompra">Orden de Compra (vincular pago)</label>
-<select id="ppOrdenCompra" class="inp">
-<option value="">Sin vincular a OC</option>
-</select>
-<p class="text-xs text-slate-500 mt-1">Seleccione proveedor para ver OCs disponibles</p>
-</div>
-<div class="grid grid-cols-2 gap-4 mb-4">
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppNumero">No. Pago*</label>
-<input type="text" id="ppNumero" class="inp bg-slate-700/50" placeholder="Auto-generado" readonly>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppFecha">Fecha*</label>
-<input type="date" id="ppFecha" class="inp" value="${hoyISO()}" required>
-</div>
-</div>
-<div class="grid grid-cols-2 gap-4 mb-4">
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppMonto">Monto*</label>
-<input type="number" id="ppMonto" step="0.01" min="0" class="inp" required>
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppMetodo">Método de Pago</label>
-<select id="ppMetodo" class="inp">
-<option value="Transferencia">Transferencia</option>
-<option value="Cheque">Cheque</option>
-<option value="Efectivo">Efectivo</option>
-</select>
-</div>
-</div>
-<div class="grid grid-cols-2 gap-4 mb-4">
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppReferencia">Referencia/No. Operación</label>
-<input type="text" id="ppReferencia" class="inp">
-</div>
-<div>
-<label class="text-xs text-gray-400 mb-1 block" for="ppBanco">Banco</label>
-<input type="text" id="ppBanco" class="inp">
-</div>
-</div>
-<div class="mb-4">
-<label class="text-xs text-gray-400 mb-1 block" for="ppConcepto">Concepto</label>
-<input type="text" id="ppConcepto" class="inp" placeholder="Ej: Pago factura #123">
-</div>
-<div class="mb-4">
-<label class="text-xs text-gray-400 mb-1 block" for="ppNotas">Notas</label>
-<textarea id="ppNotas" rows="2" class="inp"></textarea>
-</div>
-<div class="flex justify-end gap-2 pt-2 border-t border-slate-700">
-<button type="button" onclick="closeMdl('mdlPagoProveedor')" class="btn">Cancelar</button>
-<button type="submit" class="btn btn-s"><i class="ri-save-line"></i> Guardar</button>
-</div>
-</form>
-`;
-getNextPagoProveedorNumero();
-}
-
-async function getNextPagoProveedorNumero(){
-try{
-const{data,error}=await sb.rpc('get_next_pago_proveedor_numero');
-if(!error&&data&&$('ppNumero'))$('ppNumero').value=data;
-}catch(e){console.warn('Error obteniendo número:',e);}
-}
-
-async function savePagoProveedor(e){
-e.preventDefault();
-const id=$('ppId')?.value;
-const ocId=parseInt($('ppOrdenCompra')?.value)||null;
-const montoNuevo=parseFloat($('ppMonto').value)||0;
-// Validar que el pago no exceda el saldo de la OC
-if(ocId&&montoNuevo>0){
-const oc=(D.oc||[]).find(o=>o.id===ocId);
-if(oc){
-const pagosExistentes=(D.ppv||[]).filter(p=>p.orden_compra_id===ocId&&(!id||p.id!=id));
-const totalPagado=pagosExistentes.reduce((s,p)=>s+(p.monto||0),0);
-const saldoPendiente=(oc.total||0)-totalPagado;
-if(montoNuevo>saldoPendiente+0.01){
-Toast.warning(`El monto ($${fmt(montoNuevo)}) excede el saldo pendiente de la OC ($${fmt(saldoPendiente)})`);
-if(!await Dialog.confirm(`¿Continuar de todos modos?`))return;
-}
-}
-}
-const data={
-empresa_id:currentUser?.empresa_id,
-proveedor_id:parseInt($('ppProveedor').value)||null,
-obra_id:parseInt($('ppObra').value)||null,
-orden_compra_id:ocId,
-numero_pago:$('ppNumero').value,
-fecha_pago:$('ppFecha').value,
-monto:montoNuevo,
-metodo_pago:$('ppMetodo').value,
-referencia:$('ppReferencia').value||null,
-banco:$('ppBanco').value||null,
-concepto:$('ppConcepto').value||null,
-notas:$('ppNotas').value||null,
-created_by:currentUser?.id||null
-};
-try{
-if(id){
-const{error}=await sb.from('pagos_proveedores').update(data).eq('id',id);
-if(error)throw error;
-}else{
-const{error}=await sb.from('pagos_proveedores').insert(data);
-if(error)throw error;
-}
-Toast.success('Pago guardado');
-closeMdl('mdlPagoProveedor');
-Cache.clear();
-await L();
-Pc($('c'));
-}catch(err){
-Toast.error(humanizeError(err));
-}
-}
-
-function editPagoProveedor(id){
-const p=(D.ppv||[]).find(x=>x.id===id);
-if(!p)return Toast.error('Pago no encontrado');
-newPagoProveedor();
-setTimeout(()=>{
-$('ppId').value=p.id;
-$('ppProveedor').value=p.proveedor_id||'';
-$('ppObra').value=p.obra_id||'';
-updateOCsPagoProveedor();
-if(p.orden_compra_id)$('ppOrdenCompra').value=p.orden_compra_id;
-$('ppNumero').value=p.numero_pago;
-$('ppFecha').value=p.fecha_pago;
-$('ppMonto').value=p.monto;
-$('ppMetodo').value=p.metodo_pago||'Transferencia';
-$('ppReferencia').value=p.referencia||'';
-$('ppBanco').value=p.banco||'';
-$('ppConcepto').value=p.concepto||'';
-$('ppNotas').value=p.notas||'';
-},100);
-}
-
-async function deletePagoProveedor(id){
-if(!await Dialog.confirm('¿Eliminar este pago?'))return;
-try{
-const{error}=await sb.from('pagos_proveedores').delete().eq('id',id);
-if(error)throw error;
-Toast.success('Pago eliminado');
-Cache.clear();
-await L();
-Pc($('c'));
-}catch(err){
-Toast.error(humanizeError(err));
-}
-}
+function newPagoProveedor(opts){PagosProv.abrir(opts||{});}
+function editPagoProveedor(id){PagosProv.editar(id);}
+async function deletePagoProveedor(id){PagosProv.eliminar(id);}
+function abrirProveedor(id){PagosProv.abrirProveedor(id);}
 
 // CRUD Cuentas por Cobrar
 function newCuentaCobrar(){
@@ -7210,7 +7011,7 @@ ${estadosList.map(e=>`<option value="${e}" ${provFilterEstado===e?'selected':''}
 <tbody>${filtered.length===0?'<tr><td colspan="7" class="p-8 text-center text-gray-500">No hay proveedores registrados</td></tr>':filtered.map(p=>`
 <tr class="border-t border-white/5 hover:bg-slate-50">
 <td class="p-3">
-<div class="font-medium text-white">${S(p.nombre_proveedor)||'-'}</div>
+<button type="button" class="link font-medium" onclick="abrirProveedor(${p.id})">${S(p.nombre_proveedor)||'-'}</button>
 <div class="text-xs text-gray-500">${p.email||''}</div>
 </td>
 <td class="p-3 hidden md:table-cell text-gray-400">${p.rfc||'<span class="text-gray-600">Sin RFC</span>'}</td>
@@ -8219,13 +8020,15 @@ ${canEdit?'<button onclick="openEmpresaModal()" class="text-xs text-cyan-400 hov
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">
 <h3 class="font-bold text-sm"><i class="ri-price-tag-3-line text-pink-400"></i> Categorías de Gastos</h3>
-${canEdit?'<button onclick="addCategoria()" class="text-xs text-cyan-400 hover:underline"><i class="ri-add-line"></i> Nueva</button>':''}
+${canEdit?'<button onclick="editCategoriaDB()" class="text-xs text-cyan-400 hover:underline"><i class="ri-add-line"></i> Nueva</button>':''}
 </div>
 <div id="catList" class="space-y-2">
-${renderCategorias()}
+${renderCategoriasDB()}
 </div>
 </div>
 
+<!-- Finanzas (US-121, US-127) -->
+${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><i class="ri-funds-line n"></i> Finanzas</h3><p class="text-xs text-ink-subtle mb-3">Prorrateo de indirectos, reservas antes de repartir utilidades y base del estado de resultados.</p><div id="cfgFinanzas">${typeof Socios!=='undefined'?Socios.configHtml():''}</div></div>`:''}
 <!-- Preferencias -->
 <div class="g rounded-xl p-4">
 <h3 class="font-bold text-sm mb-4"><i class="ri-equalizer-line text-purple-400"></i> Preferencias</h3>
@@ -8322,6 +8125,41 @@ ${canEdit?'<button onclick="clearLocalData()" class="w-full btn btn-s text-xs fl
 loadConfig();
 }
 
+function renderCategoriasDB(){
+const cats=(D.catg||[]).slice().sort((a,b)=>(a.orden||100)-(b.orden||100)||String(a.nombre).localeCompare(b.nombre));
+const NAT={directo:['Costo directo','chip-obra'],indirecto:['Indirecto','chip-ind'],no_deducible:['No deducible','chip-socio'],personal:['Personal','chip-socio']};
+if(!cats.length)return'<p class="text-sm text-ink-subtle">Sin categorías. Se cargan al iniciar sesión.</p>';
+return cats.map(c=>`<div class="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-slate-50 ${c.activa===false?'opacity-50':''}"><span class="w-3 h-3 rounded-full shrink-0" style="background:${S(c.color||'#94a3b8')}"></span><span class="text-sm flex-1 min-w-0 truncate">${S(c.nombre)}</span><span class="chip ${NAT[c.naturaleza]?.[1]||'chip-ind'}">${NAT[c.naturaleza]?.[0]||c.naturaleza}</span>${c.deducible===false?'<span class="text-xs text-ink-subtle">no deducible</span>':''}<label class="zk-switch" title="Activa"><input type="checkbox" ${c.activa!==false?'checked':''} onchange="toggleCategoriaDB(${c.id},this.checked)" aria-label="Activar ${S(c.nombre)}"><span class="zk-slider" aria-hidden="true"></span></label><button type="button" class="btn-icon" onclick="editCategoriaDB(${c.id})" aria-label="Editar ${S(c.nombre)}"><i class="ri-edit-line" aria-hidden="true"></i></button></div>`).join('');
+}
+function editCategoriaDB(id){
+const c=id?(D.catg||[]).find(x=>x.id===id):null;
+let dlg=$('dlgCat');if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgCat';dlg.className='dlg';document.body.appendChild(dlg);}
+dlg.innerHTML=`<form method="dialog" onsubmit="guardarCategoriaDB(event,${id||'null'})"><h2 class="font-bold mb-3">${c?'Editar categoría':'Nueva categoría'}</h2>
+<label class="text-xs mb-1 block" for="catNombre">Nombre *</label><input type="text" id="catNombre" class="inp mb-3" required value="${S(c?.nombre||'')}">
+<label class="text-xs mb-1 block" for="catNat">Naturaleza</label><select id="catNat" class="inp mb-3"><option value="directo" ${c?.naturaleza==='directo'?'selected':''}>Costo directo de obra</option><option value="indirecto" ${c?.naturaleza==='indirecto'?'selected':''}>Indirecto (administración, se prorratea)</option><option value="no_deducible" ${c?.naturaleza==='no_deducible'?'selected':''}>No deducible (multas, recargos)</option><option value="personal" ${c?.naturaleza==='personal'?'selected':''}>Gasto personal de socio</option></select>
+<div class="grid grid-cols-2 gap-3 force-2col"><div><label class="text-xs mb-1 block" for="catOrden">Orden</label><input type="number" id="catOrden" class="inp" value="${c?.orden??100}"></div><div><label class="text-xs mb-1 block" for="catColor">Color</label><input type="color" id="catColor" class="inp" value="${S(c?.color||'#64748b')}"></div></div>
+<label class="zk-switch mt-3"><input type="checkbox" id="catDed" ${c?(c.deducible!==false?'checked':''):'checked'}><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Deducible</span></label>
+<div class="flex gap-2 mt-4"><button type="button" class="btn btn-s flex-1" onclick="this.closest('dialog').close()">Cancelar</button><button type="submit" class="btn btn-p flex-1">Guardar categoría</button></div></form>`;
+dlg.showModal();
+}
+async function guardarCategoriaDB(e,id){
+e.preventDefault();
+const row={nombre:$('catNombre').value.trim(),naturaleza:$('catNat').value,orden:parseInt($('catOrden').value)||100,color:$('catColor').value,deducible:$('catDed').checked};
+if(!row.nombre)return;
+if(!id)row.empresa_id=currentUser.empresa_id;
+const q=id?sb.from('categorias_gasto').update(row).eq('id',id):sb.from('categorias_gasto').insert(row);
+const{data,error}=await q.select().single();
+if(error){Toast.error(humanizeError(error,'No se pudo guardar la categoría'));return;}
+if(id)Object.assign(D.catg.find(x=>x.id===id),data);else(D.catg=D.catg||[]).push(data);
+$('dlgCat').close();Toast.success('Categoría guardada.');if($('catList'))$('catList').innerHTML=renderCategoriasDB();
+}
+async function toggleCategoriaDB(id,activa){
+const c=(D.catg||[]).find(x=>x.id===id);if(!c)return;
+const enUso=(D.g||[]).some(g=>String(g.categoria).toLowerCase()===String(c.nombre).toLowerCase());
+const{error}=await sb.from('categorias_gasto').update({activa}).eq('id',id);
+if(error){Toast.error(humanizeError(error));return;}
+c.activa=activa;Toast.success(activa?'Categoría activada.':(enUso?'Categoría desactivada; los gastos que la usan la conservan.':'Categoría desactivada.'));if($('catList'))$('catList').innerHTML=renderCategoriasDB();
+}
 function renderCategorias(){
 const defaultCats=['Materiales','Mano de Obra','Transporte','Herramientas','Subcontratos','Permisos','Otros'];
 const cats=configData.categorias.length?configData.categorias:defaultCats.map((n,i)=>({nombre:n,color:['cyan','pink','green','amber','purple','blue','red'][i%7],icono:'ri-price-tag-3-line'}));
@@ -15514,195 +15352,54 @@ w.document.close();
 
 // ========== MODULO CONTABILIDAD - PANEL FISCAL ==========
 function ContPanel(c){
-const currentPeriod=new Date().toISOString().slice(0,7);
-const facturas=D.fr||[];
-const retenciones=D.ret||[];
-const declaraciones=D.dm||[];
-const gastos=D.g||[];
-
-// Calcular KPIs del periodo actual
-const facturasPeriodo=facturas.filter(f=>f.fecha_emision?.startsWith(currentPeriod));
-const ivaAcreditable=facturasPeriodo.reduce((s,f)=>s+(f.iva_monto||0),0);
-const ivaTrasladado=gastos.filter(g=>g.fecha_solicitud?.startsWith(currentPeriod)&&g.monto_iva).reduce((s,g)=>s+(g.monto_iva||0),0);
-const isrRetenidoPracticado=retenciones.filter(r=>r.fecha?.startsWith(currentPeriod)&&r.tipo==='ISR').reduce((s,r)=>s+(r.monto||0),0);
-const ivaRetenidoPracticado=retenciones.filter(r=>r.fecha?.startsWith(currentPeriod)&&r.tipo==='IVA').reduce((s,r)=>s+(r.monto||0),0);
-
-// Resumen por categoria de gasto
-const gastosPorCategoria={};
-facturasPeriodo.forEach(f=>{
-const cat=f.categoria||'Sin categoria';
-if(!gastosPorCategoria[cat])gastosPorCategoria[cat]={subtotal:0,iva:0,total:0,count:0};
-gastosPorCategoria[cat].subtotal+=(f.subtotal||0);
-gastosPorCategoria[cat].iva+=(f.iva_monto||0);
-gastosPorCategoria[cat].total+=(f.total||0);
-gastosPorCategoria[cat].count++;
-});
-
-const currentDecl=declaraciones.find(d=>d.periodo===currentPeriod);
+const periodo=window._periodoFiscal||hoyISO().slice(0,7);
+const rg=Finanzas.rango(periodo);
+const nat=g=>Finanzas.naturalezaDe(g.categoria);
+const monto=g=>parseFloat(g.monto_neto)||0;
+const gastos=(D.g||[]).filter(g=>g.estatus_pago!=='Rechazado'&&(g.destino||(g.obra_id?'obra':'indirecto'))!=='socio'&&Finanzas.enRango(g.fecha_solicitud,rg.desde,rg.hasta));
+const deducibles=gastos.filter(g=>!['no_deducible','personal'].includes(nat(g)));
+const facturados=deducibles.filter(g=>g.comprobacion==='facturado');
+const conTicket=deducibles.filter(g=>['ticket','factura_pendiente'].includes(g.comprobacion));
+const sinComp=deducibles.filter(g=>(g.comprobacion||'sin_comprobante')==='sin_comprobante');
+const noDed=gastos.filter(g=>nat(g)==='no_deducible');
+const sum=a=>a.reduce((s,g)=>s+monto(g),0);
+const ivaAcreditable=facturados.reduce((s,g)=>s+(parseFloat(g.iva)||0),0);
+const cobros=(D.prc||[]).filter(p=>Finanzas.enRango(p.fecha_pago,rg.desde,rg.hasta));
+const ivaCobros=cobros.reduce((s,p)=>{const o=(D.o||[]).find(x=>x.id===p.obra_id);const t=parseFloat(o?.porcentaje_iva)||0;const m=parseFloat(p.monto)||0;return s+(t?m-m/(1+t/100):0);},0);
+const cfdiEm=(D.cfdi||[]).filter(f=>Finanzas.enRango(f.fecha_emision,rg.desde,rg.hasta)&&!/cancel/i.test(String(f.estatus||'')));
+const ivaTrasladado=cfdiEm.length?cfdiEm.reduce((s,f)=>s+(parseFloat(f.iva_monto)||0),0):ivaCobros;
+const fuenteTras=cfdiEm.length?`de ${cfdiEm.length} CFDI emitidos`:`estimado de ${cobros.length} cobros (importa los CFDI emitidos para el exacto)`;
+const retenciones=(D.ret||[]).filter(r=>String(r.fecha||'').startsWith(periodo));
+const isrRet=retenciones.filter(r=>r.tipo==='ISR').reduce((s,r)=>s+(parseFloat(r.monto)||0),0);
+const ivaRet=retenciones.filter(r=>r.tipo==='IVA').reduce((s,r)=>s+(parseFloat(r.monto)||0),0);
+const ivaPagar=Math.max(0,ivaTrasladado-ivaAcreditable-ivaRet);
+const porCat={};gastos.forEach(g=>{const k=g.categoria||'Sin categoría';const x=porCat[k]=porCat[k]||{nat:nat(g),subtotal:0,iva:0,total:0,n:0};x.subtotal+=parseFloat(g.subtotal)||0;x.iva+=parseFloat(g.iva)||0;x.total+=monto(g);x.n++;});
+const currentDecl=(D.dm||[]).find(d=>d.periodo===periodo);
 const nivel=currentUser?.nivel||0;
-
+const kpi=(v,l,sub='',cls='')=>`<div class="kpi"><p class="kpi-v ${cls}">${v}</p><p class="kpi-l">${l}</p>${sub?`<p class="text-[11px] text-ink-subtle mt-0.5">${sub}</p>`:''}</div>`;
+const link=(t,tab)=>`<button type="button" class="link" onclick="Compras.setTab('${tab}')">${t}</button>`;
 c.innerHTML=`
-<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
-<div>
-<h1 class="text-xl font-bold text-slate-700"><i class="ri-pie-chart-2-line mr-2"></i>Panel Fiscal</h1>
-<p class="text-sm text-slate-500 mt-1">Control de IVA, ISR y obligaciones fiscales - Periodo: ${currentPeriod}</p>
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4"><div><h1 class="text-xl font-bold"><i class="ri-pie-chart-2-line" aria-hidden="true"></i> Panel fiscal</h1><p class="text-sm text-ink-muted mt-1">IVA, deducibilidad y declaración del periodo, calculados desde los gastos y cobros registrados.</p></div>
+<select id="periodoFiscal" onchange="cambiarPeriodoFiscal()" class="inp text-sm py-1.5" style="width:auto" aria-label="Periodo fiscal">${generarOpcionesPeriodos(periodo)}</select></div>
+<div class="kpi-strip">${kpi(fmt(ivaAcreditable),'IVA acreditable',`de ${facturados.length} gastos facturados`,'text-ok')}${kpi(fmt(ivaTrasladado),'IVA trasladado',fuenteTras)}${kpi(fmt(ivaPagar),'IVA a pagar (estimado)',ivaRet?`menos ${fmt(ivaRet)} retenido`:'trasladado − acreditable',ivaPagar>0?'text-warn':'')}${kpi(fmt(isrRet),'ISR retenido a terceros',`${retenciones.length} retenciones`)}</div>
+<div class="grid lg:grid-cols-2 gap-4 mb-4">
+<section class="g rounded-xl p-4" aria-labelledby="cfDed"><h2 id="cfDed" class="font-bold text-sm mb-2">Deducibilidad del periodo</h2>
+<dl class="text-sm">${[['Facturado (deducible)',facturados,'text-ok','comprobante'],['Con ticket o factura pendiente',conTicket,'text-warn','comprobante'],['Sin comprobante',sinComp,'text-danger','comprobante'],['No deducible por naturaleza',noDed,'text-ink-subtle','todos']].map(([l,a,cls,tab])=>`<div class="flex justify-between py-1.5 border-b border-slate-100"><dt>${link(l,tab)} <span class="text-xs text-ink-subtle">${a.length}</span></dt><dd class="font-medium ${cls}">${fmt(sum(a))}</dd></div>`).join('')}<div class="flex justify-between py-1.5 font-bold"><dt>Total de gastos del periodo</dt><dd>${fmt(sum(gastos))}</dd></div></dl>
+${conTicket.length?`<p class="text-xs text-ink-muted mt-2">Pide la factura de los ${conTicket.length} gastos pendientes desde Compras (selección → Pedir factura) o importa los XML que ya tengas.</p>`:''}</section>
+<section class="g rounded-xl p-4" aria-labelledby="cfDec"><h2 id="cfDec" class="font-bold text-sm mb-2">Declaración mensual</h2>${currentDecl?`<dl class="text-sm"><div class="flex justify-between py-1"><dt class="text-ink-subtle">Estatus</dt><dd>${S(currentDecl.estatus||'')}</dd></div><div class="flex justify-between py-1"><dt class="text-ink-subtle">IVA a pagar declarado</dt><dd>${fmt(currentDecl.iva_a_pagar||0)}</dd></div><div class="flex justify-between py-1"><dt class="text-ink-subtle">ISR a pagar declarado</dt><dd>${fmt(currentDecl.isr_a_pagar||0)}</dd></div></dl><button type="button" class="btn btn-s text-sm mt-2" onclick="M='dc';R()">Ver declaraciones</button>`:`<p class="text-sm text-ink-muted mb-2">No hay declaración capturada para ${S(rg.label)}.</p>${nivel>=70?`<button type="button" class="btn btn-p text-sm" onclick="crearDeclaracion('${periodo}')"><i class="ri-add-line" aria-hidden="true"></i> Crear declaración</button>`:''}`}
+<div class="flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-s text-xs" onclick="M='fc';R()">Facturas CFDI (${(D.fr||[]).length})</button><button type="button" class="btn btn-s text-xs" onclick="M='rt';R()">Retenciones</button><button type="button" class="btn btn-s text-xs" onclick="generarDIOT('${periodo}')">Generar DIOT</button><button type="button" class="btn btn-s text-xs" onclick="M='ci';R()">Cierre del mes</button></div></section>
 </div>
-<div class="flex gap-2">
-<select id="periodoFiscal" onchange="cambiarPeriodoFiscal()" class="inp text-sm py-1.5">
-${generarOpcionesPeriodos()}
-</select>
-</div>
-</div>
-
-<!-- KPIs Fiscales -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center">
-<i class="ri-arrow-down-circle-line text-2xl text-emerald-600"></i>
-</div>
-<div>
-<p class="text-2xl font-bold text-emerald-600">${fmt(ivaAcreditable)}</p>
-<p class="text-xs text-slate-500">IVA Acreditable</p>
-<p class="text-[10px] text-slate-400">De ${facturasPeriodo.length} facturas</p>
-</div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-<i class="ri-arrow-up-circle-line text-2xl text-blue-600"></i>
-</div>
-<div>
-<p class="text-2xl font-bold text-blue-600">${fmt(ivaTrasladado)}</p>
-<p class="text-xs text-slate-500">IVA Trasladado</p>
-<p class="text-[10px] text-slate-400">Por cobrar</p>
-</div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
-<i class="ri-percent-line text-2xl text-amber-600"></i>
-</div>
-<div>
-<p class="text-2xl font-bold text-amber-600">${fmt(isrRetenidoPracticado)}</p>
-<p class="text-xs text-slate-500">ISR Retenido</p>
-<p class="text-[10px] text-slate-400">Practicado a terceros</p>
-</div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
-<i class="ri-calculator-line text-2xl text-purple-600"></i>
-</div>
-<div>
-<p class="text-2xl font-bold ${(ivaTrasladado-ivaAcreditable)>=0?'text-red-600':'text-emerald-600'}">${fmt(Math.abs(ivaTrasladado-ivaAcreditable))}</p>
-<p class="text-xs text-slate-500">IVA ${(ivaTrasladado-ivaAcreditable)>=0?'a Pagar':'a Favor'}</p>
-<p class="text-[10px] text-slate-400">Diferencia del periodo</p>
-</div>
-</div>
-</div>
-</div>
-
-<div class="grid lg:grid-cols-2 gap-6 mb-6">
-<!-- Gastos por Categoria -->
-<div class="g rounded-xl p-4">
-<h3 class="font-bold text-slate-700 mb-4"><i class="ri-folder-chart-line mr-2"></i>Gastos por Categoría</h3>
-<div class="space-y-3 max-h-64 overflow-y-auto">
-${Object.entries(gastosPorCategoria).map(([cat,data])=>`
-<div class="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-<div>
-<p class="font-medium text-sm">${cat}</p>
-<p class="text-xs text-slate-400">${data.count} facturas</p>
-</div>
-<div class="text-right">
-<p class="font-bold text-slate-700">${fmt(data.total)}</p>
-<p class="text-xs text-emerald-600">IVA: ${fmt(data.iva)}</p>
-</div>
-</div>
-`).join('')||'<p class="text-center text-slate-400 py-4">Sin gastos en este periodo</p>'}
-</div>
-</div>
-
-<!-- Estado de Declaracion -->
-<div class="g rounded-xl p-4">
-<h3 class="font-bold text-slate-700 mb-4"><i class="ri-file-chart-line mr-2"></i>Declaración Mensual</h3>
-${currentDecl?`
-<div class="space-y-3">
-<div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-<span class="text-sm">Estatus</span>
-<span class="px-2 py-1 rounded text-xs font-medium ${currentDecl.estatus==='Presentada'?'bg-emerald-100 text-emerald-700':'bg-amber-100 text-amber-700'}">${currentDecl.estatus}</span>
-</div>
-<div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-<span class="text-sm">ISR a Pagar</span>
-<span class="font-bold">${fmt(currentDecl.isr_a_pagar)}</span>
-</div>
-<div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-<span class="text-sm">IVA a Pagar</span>
-<span class="font-bold">${fmt(currentDecl.iva_a_pagar)}</span>
-</div>
-<div class="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-<span class="text-sm">DIOT</span>
-<span class="px-2 py-1 rounded text-xs font-medium ${currentDecl.diot_presentada?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${currentDecl.diot_presentada?'Presentada':'Pendiente'}</span>
-</div>
-</div>
-`:`
-<div class="text-center py-8">
-<i class="ri-file-warning-line text-4xl text-amber-400 mb-2"></i>
-<p class="text-slate-500">No hay declaracion para este periodo</p>
-<button onclick="crearDeclaracion('${currentPeriod}')" class="btn btn-p mt-4 text-sm">
-<i class="ri-add-line mr-1"></i>Crear Declaración
-</button>
-</div>
-`}
-</div>
-</div>
-
-<!-- Accesos Rapidos -->
-<div class="g rounded-xl p-4">
-<h3 class="font-bold text-slate-700 mb-4"><i class="ri-apps-line mr-2"></i>Accesos Rapidos</h3>
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-<button onclick="M='fc';R();" class="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors text-center">
-<i class="ri-bill-line text-2xl text-blue-500 mb-2"></i>
-<p class="text-sm font-medium">Facturas CFDI</p>
-<p class="text-xs text-slate-400">${facturas.length} registradas</p>
-</button>
-<button onclick="M='rt';R();" class="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors text-center">
-<i class="ri-percent-line text-2xl text-amber-500 mb-2"></i>
-<p class="text-sm font-medium">Retenciones</p>
-<p class="text-xs text-slate-400">${retenciones.length} registradas</p>
-</button>
-<button onclick="M='dc';R();" class="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors text-center">
-<i class="ri-file-chart-line text-2xl text-purple-500 mb-2"></i>
-<p class="text-sm font-medium">Declaraciones</p>
-<p class="text-xs text-slate-400">${declaraciones.length} periodos</p>
-</button>
-<button onclick="generarDIOT('${currentPeriod}')" class="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors text-center">
-<i class="ri-file-list-3-line text-2xl text-emerald-500 mb-2"></i>
-<p class="text-sm font-medium">Generar DIOT</p>
-<p class="text-xs text-slate-400">Periodo actual</p>
-</button>
-</div>
-</div>
-`;
+<section class="g rounded-xl p-4" aria-labelledby="cfCat"><h2 id="cfCat" class="font-bold text-sm mb-2">Gastos por categoría · ${S(rg.label)}</h2>${Object.keys(porCat).length?`<div class="table-wrap"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-ink-subtle"><th class="py-1">Categoría</th><th>Naturaleza</th><th class="text-right">Gastos</th><th class="text-right">Subtotal</th><th class="text-right">IVA</th><th class="text-right">Total</th></tr></thead><tbody>${Object.entries(porCat).sort((a,b)=>b[1].total-a[1].total).map(([k,x])=>`<tr class="border-t border-slate-100"><td class="py-1">${S(k)}</td><td><span class="chip ${x.nat==='indirecto'?'chip-ind':x.nat==='directo'?'chip-obra':'chip-socio'}">${x.nat}</span></td><td class="text-right">${x.n}</td><td class="text-right">${fmt(x.subtotal)}</td><td class="text-right">${fmt(x.iva)}</td><td class="text-right font-medium">${fmt(x.total)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="text-sm text-ink-subtle">Sin gastos en este periodo.</p>'}</section>`;
 }
 
-function generarOpcionesPeriodos(){
-const meses=[];
-const hoy=new Date();
-for(let i=0;i<12;i++){
-const d=new Date(hoy.getFullYear(),hoy.getMonth()-i,1);
-const periodo=d.toISOString().slice(0,7);
-const nombre=d.toLocaleDateString('es-MX',{month:'long',year:'numeric'});
-meses.push(`<option value="${periodo}">${nombre}</option>`);
-}
+function generarOpcionesPeriodos(sel){
+const meses=[];const h=hoyISO();
+for(let i=0;i<18;i++){const d=new Date(+h.slice(0,4),+h.slice(5,7)-1-i,1);const periodo=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;meses.push(`<option value="${periodo}" ${periodo===sel?'selected':''}>${d.toLocaleDateString('es-MX',{month:'long',year:'numeric'})}</option>`);}
 return meses.join('');
 }
 
 function cambiarPeriodoFiscal(){
-const periodo=$('periodoFiscal').value;
+window._periodoFiscal=$('periodoFiscal').value;
 ContPanel($('c'));
 }
 
@@ -17104,6 +16801,7 @@ c.innerHTML=`
     <button id="tabRegistros" onclick="switchNominaTab('registros')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700">
       <i class="ri-file-list-3-line mr-1"></i>Registros Individuales
     </button>
+    <button type="button" onclick="nominaDistribucionModal()" class="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700"><i class="ri-building-2-line" aria-hidden="true"></i> Por obra</button>
     <button id="tabReportes" onclick="switchNominaTab('reportes')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700">
       <i class="ri-file-chart-line mr-1"></i>Reportes
     </button>
@@ -18179,6 +17877,34 @@ if(baseGravable<=212821.00)return (baseGravable-70940.33)*0.34+18504.85;
 return (baseGravable-212821.00)*0.35+66744.27;
 }
 
+// ---- Nómina por obra (US-120) ----
+async function nominaDistribuirAuto(n){
+try{
+const emp=(D.e||[]).find(x=>x.id==n.empleado_id);const obraId=emp?.obra_id||null;if(!obraId)return;
+await sb.from('nomina_distribucion').delete().eq('nomina_id',n.id);
+const{data}=await sb.from('nomina_distribucion').insert({empresa_id:currentUser.empresa_id,nomina_id:n.id,obra_id:obraId,porcentaje:100,monto:parseFloat(n.total_pagar)||0,fecha:n.fecha_pago||n.periodo_fin||hoyISO()}).select();
+D.nomd=(D.nomd||[]).filter(x=>x.nomina_id!==n.id).concat(data||[]);
+}catch(e){console.warn('nominaDistribuirAuto',e);}
+}
+function nominaDistribucionModal(){
+const[m0,m1]=mesActualRango();
+const nom=filterByEmpresa(D.nom||[]).slice().sort((a,b)=>String(b.periodo_inicio||'').localeCompare(String(a.periodo_inicio||''))).slice(0,40);
+const obras=getObrasPermitidas().filter(o=>!['Archivada','Completada','Finalizada'].includes(o.estatus));
+let dlg=$('dlgNomDist');if(!dlg){dlg=document.createElement('dialog');dlg.id='dlgNomDist';dlg.className='dlg dlg-wide';document.body.appendChild(dlg);}
+dlg.innerHTML=`<div class="flex justify-between items-center mb-2"><h2 class="font-bold">Nómina por obra</h2><button type="button" class="btn-icon" onclick="this.closest('dialog').close()" aria-label="Cerrar"><i class="ri-close-line" aria-hidden="true"></i></button></div><p class="text-sm text-ink-muted mb-3">Elige a qué obra se carga cada nómina (o reparte en porcentajes escribiendo, por ejemplo, "20:60,21:40" con los ids de obra). Así la mano de obra propia entra al costo real de cada obra.</p>
+<div class="overflow-auto" style="max-height:60vh"><table class="w-full text-sm"><thead class="bg-slate-50 text-xs text-ink-muted"><tr><th class="p-2 text-left">Empleado</th><th class="p-2 text-left">Periodo</th><th class="p-2 text-right">Total</th><th class="p-2 text-left">Obra</th></tr></thead><tbody>${nom.map(n=>{const emp=(D.e||[]).find(x=>x.id==n.empleado_id);const d=(D.nomd||[]).filter(x=>x.nomina_id===n.id);const actual=d.length===1?d[0].obra_id:(d.length>1?'multi':'');return`<tr class="border-t border-line"><td class="p-2">${S(emp?.nombre_completo||n.empleado_id)}</td><td class="p-2 text-xs">${S(n.periodo_inicio||'')} a ${S(n.periodo_fin||'')}</td><td class="p-2 text-right">${fmt(n.total_pagar||0)}</td><td class="p-2"><select class="inp text-xs py-1 nomDistSel" data-id="${n.id}" aria-label="Obra para la nómina de ${S(emp?.nombre_completo||'')}"><option value="">Sin asignar (administración)</option>${obras.map(o=>`<option value="${o.id}" ${actual==o.id?'selected':''}>${S(o.codigo_obra||o.nombre_obra)}</option>`).join('')}${actual==='multi'?`<option value="multi" selected>Repartida (${d.map(x=>(D.o.find(o=>o.id===x.obra_id)?.codigo_obra||x.obra_id)+' '+x.porcentaje+'%').join(', ')})</option>`:''}</select></td></tr>`;}).join('')||'<tr><td colspan="4" class="p-3 text-ink-subtle">Sin nóminas registradas.</td></tr>'}</tbody></table></div>
+<div class="flex justify-end gap-2 mt-3"><button type="button" class="btn btn-s" onclick="this.closest('dialog').close()">Cancelar</button><button type="button" class="btn btn-p" onclick="guardarNominaDistribucion()">Guardar</button></div>`;
+dlg.showModal();
+}
+async function guardarNominaDistribucion(){
+const sels=[...document.querySelectorAll('#dlgNomDist .nomDistSel')];let n=0;
+for(const sel of sels){const id=parseInt(sel.dataset.id);const v=sel.value;if(v==='multi')continue;const nom=(D.nom||[]).find(x=>x.id===id);if(!nom)continue;const actual=(D.nomd||[]).filter(x=>x.nomina_id===id);if((actual.length===1&&String(actual[0].obra_id)===v)||(actual.length===0&&!v))continue;
+await sb.from('nomina_distribucion').delete().eq('nomina_id',id);let rows=[];
+if(v){const{data}=await sb.from('nomina_distribucion').insert({empresa_id:currentUser.empresa_id,nomina_id:id,obra_id:parseInt(v),porcentaje:100,monto:parseFloat(nom.total_pagar)||0,fecha:nom.fecha_pago||nom.periodo_fin||hoyISO()}).select();rows=data||[];}
+D.nomd=(D.nomd||[]).filter(x=>x.nomina_id!==id).concat(rows);n++;}
+$('dlgNomDist').close();Toast.success(`${n} nómina(s) asignadas a obra.`);
+}
+
 async function saveNomina(e){
 e.preventDefault();
 const id=$('nomId').value;
@@ -18207,7 +17933,8 @@ if(id){
 res=await sb.from('nomina').update(data).eq('id',id);
 }else{
 data.empresa_id=currentUser?.empresa_id;
-res=await sb.from('nomina').insert(data);
+res=await sb.from('nomina').insert(data).select().single();
+if(!res.error&&res.data)await nominaDistribuirAuto(res.data);
 }
 
 if(res.error){
@@ -24083,7 +23810,7 @@ c.innerHTML=`
           <i class="ri-money-dollar-circle-line text-2xl text-green-600"></i>
         </div>
         <div>
-          <h3 class="font-bold text-slate-800">Reporte Financiero</h3>
+          <h3 class="font-bold text-slate-800">Resultados y flujo</h3>
           <p class="text-sm text-slate-500">Gastos, presupuestos y variaciones</p>
         </div>
       </div>
@@ -24215,87 +23942,31 @@ $('reporteContainer').classList.add('hidden');
 }
 
 function generarReporteFinanciero(){
-const fechaInicio=$('repFechaInicio')?.value;
-const fechaFin=$('repFechaFin')?.value;
-const obraId=$('repObra')?.value;
-
-let gastos=D.g||[];
-if(obraId)gastos=gastos.filter(g=>g.obra_id===obraId);
-if(fechaInicio)gastos=gastos.filter(g=>g.fecha_solicitud>=fechaInicio);
-if(fechaFin)gastos=gastos.filter(g=>g.fecha_solicitud<=fechaFin);
-
-// Agrupar por categoría
-const porCategoria={};
-gastos.forEach(g=>{
-const cat=g.categoria||'Sin categoría';
-if(!porCategoria[cat])porCategoria[cat]={total:0,count:0,pagado:0,pendiente:0};
-porCategoria[cat].total+=g.monto_neto||0;
-porCategoria[cat].count++;
-if(g.estatus_pago==='Pagado')porCategoria[cat].pagado+=g.monto_neto||0;
-else porCategoria[cat].pendiente+=g.monto_neto||0;
-});
-
-const totalGeneral=gastos.reduce((s,g)=>s+(g.monto_neto||0),0);
-const totalPagado=gastos.filter(g=>g.estatus_pago==='Pagado').reduce((s,g)=>s+(g.monto_neto||0),0);
-const totalPendiente=totalGeneral-totalPagado;
-
-reporteActual={tipo:'financiero',datos:gastos};
-
-$('reporteTitulo').textContent='Reporte Financiero';
+const fi=$('repFechaInicio')?.value||null,ff=$('repFechaFin')?.value||null;const obraId=parseInt($('repObra')?.value)||null;
+const base=window._repBase||(D.fcfg?.base_resultados)||'caja';
+const ids=obraId?[obraId]:null;
+const er=Finanzas.estadoResultados({desde:fi,hasta:ff,base,obraIds:ids});
+const f=Finanzas.calcularFlujo({desde:fi,hasta:ff,obraIds:ids});
+const nombre=o=>o.codigo_obra||o.nombre_obra;
+reporteActual={tipo:'resultados',datos:er.filas.map(x=>({Obra:nombre(x.obra),Contrato:x.contrato,Ingreso:x.ingreso,'Costo directo':x.directo,Indirectos:x.indirectos,Utilidad:x.utilidad,'Margen %':x.ingreso?Math.round(x.utilidad/x.ingreso*1000)/10:0})),er,f};
+$('reporteTitulo').textContent='Resultados y flujo de efectivo';
+const fila=(l,v,cls='')=>`<div class="flex justify-between py-1.5 border-b border-slate-100 text-sm"><span>${l}</span><span class="font-medium ${cls}">${v}</span></div>`;
 $('reporteContenido').innerHTML=`
-<div class="grid grid-cols-3 gap-4 mb-6">
-  <div class="bg-slate-50 rounded-lg p-4 text-center">
-    <p class="text-slate-500 text-sm">Total Gastos</p>
-    <p class="text-2xl font-bold text-slate-800">$${totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2})}</p>
-  </div>
-  <div class="bg-green-50 rounded-lg p-4 text-center">
-    <p class="text-green-600 text-sm">Pagado</p>
-    <p class="text-2xl font-bold text-green-700">$${totalPagado.toLocaleString('es-MX',{minimumFractionDigits:2})}</p>
-  </div>
-  <div class="bg-amber-50 rounded-lg p-4 text-center">
-    <p class="text-amber-600 text-sm">Pendiente</p>
-    <p class="text-2xl font-bold text-amber-700">$${totalPendiente.toLocaleString('es-MX',{minimumFractionDigits:2})}</p>
-  </div>
-</div>
-<h4 class="font-bold text-slate-700 mb-3">Desglose por Categoría</h4>
-<div class="overflow-x-auto">
-  <table class="w-full text-sm">
-    <thead class="bg-slate-100">
-      <tr>
-        <th class="px-4 py-2 text-left">Categoría</th>
-        <th class="px-4 py-2 text-right">Cantidad</th>
-        <th class="px-4 py-2 text-right">Total</th>
-        <th class="px-4 py-2 text-right">Pagado</th>
-        <th class="px-4 py-2 text-right">Pendiente</th>
-        <th class="px-4 py-2 text-right">% del Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${Object.entries(porCategoria).sort((a,b)=>b[1].total-a[1].total).map(([cat,data])=>`
-        <tr class="border-b">
-          <td class="px-4 py-2 font-medium">${cat}</td>
-          <td class="px-4 py-2 text-right">${data.count}</td>
-          <td class="px-4 py-2 text-right">$${data.total.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-          <td class="px-4 py-2 text-right text-green-600">$${data.pagado.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-          <td class="px-4 py-2 text-right text-amber-600">$${data.pendiente.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-          <td class="px-4 py-2 text-right">${totalGeneral>0?((data.total/totalGeneral)*100).toFixed(1):0}%</td>
-        </tr>
-      `).join('')}
-    </tbody>
-    <tfoot class="bg-slate-50 font-bold">
-      <tr>
-        <td class="px-4 py-2">TOTAL</td>
-        <td class="px-4 py-2 text-right">${gastos.length}</td>
-        <td class="px-4 py-2 text-right">$${totalGeneral.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-        <td class="px-4 py-2 text-right text-green-600">$${totalPagado.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-        <td class="px-4 py-2 text-right text-amber-600">$${totalPendiente.toLocaleString('es-MX',{minimumFractionDigits:2})}</td>
-        <td class="px-4 py-2 text-right">100%</td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
-`;
-$('reporteContainer').classList.remove('hidden');
+<div class="flex flex-wrap items-center gap-2 mb-3"><span class="text-sm text-ink-muted">Ingreso:</span><div class="seg" style="width:auto"><button type="button" class="seg-btn ${base==='caja'?'active':''}" onclick="window._repBase='caja';generarReporteFinanciero()">Caja (cobrado)</button><button type="button" class="seg-btn ${base==='devengado'?'active':''}" onclick="window._repBase='devengado';generarReporteFinanciero()">Devengado (contrato × avance)</button></div><span class="text-xs text-ink-subtle">${fi||'inicio'} a ${ff||'hoy'}${obraId?' · '+S(nombre(D.o.find(o=>o.id===obraId)||{})):''}</span><span class="flex-1"></span><button type="button" class="btn btn-s text-xs" onclick="exportarResultadosExcel()"><i class="ri-file-excel-2-line" aria-hidden="true"></i> Excel</button></div>
+<div class="grid md:grid-cols-2 gap-4 mb-4">
+<div class="bg-slate-50 rounded-lg p-4"><h4 class="font-bold text-slate-700 mb-2">Estado de resultados</h4>${fila('Ingresos',fmt(er.ingresos),'text-ok')}${fila('Costo directo de obras','−'+fmt(er.directos))}${fila('<b>Utilidad bruta</b>',fmt(er.utilidadBruta),er.utilidadBruta<0?'text-danger':'')}${fila('Gastos indirectos','−'+fmt(er.indirectosTotal))}${er.nominaNoAsignada?fila('Nómina no asignada a obra','−'+fmt(er.nominaNoAsignada)):''}${fila('<b>Utilidad neta</b>',fmt(er.utilidadNeta),er.utilidadNeta<0?'text-danger':'text-ok')}${er.margenNeto!=null?fila('Margen neto',er.margenNeto+' %'):''}${(currentUser?.nivel||0)>=100?fila('Gastos personales de socios',fmt(er.personales))+fila('Retiros de socios',fmt(er.retiros))+fila('<b>Disponible</b>',fmt(er.disponible),er.disponible<0?'text-danger':''):''}</div>
+<div class="bg-slate-50 rounded-lg p-4"><h4 class="font-bold text-slate-700 mb-2">Flujo de efectivo</h4>${fila('Cobrado',fmt(f.cobrado),'text-ok')}${fila('Pagos a proveedores','−'+fmt(f.pagosProv))}${fila('Gastos pagados al momento','−'+fmt(f.gastosPagados))}${ids?'':fila('Nómina pagada','−'+fmt(f.nomina))}${ids||(currentUser?.nivel||0)<100?'':fila('Retiros de socios','−'+fmt(f.retiros))}${fila('<b>Flujo neto</b>',fmt(f.neto),f.neto<0?'text-danger':'text-ok')}${fila('Por cobrar al cierre',fmt(f.porCobrar))}${fila('Por pagar al cierre',fmt(f.porPagar))}${fila('Próximos 30 días',fmt(f.proximos30.neto),f.proximos30.neto<0?'text-warn':'')}</div></div>
+<h4 class="font-bold text-slate-700 mb-2">Por obra</h4>
+<div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-slate-100"><tr><th class="px-3 py-2 text-left">Obra</th><th class="px-3 py-2 text-right">Contrato</th><th class="px-3 py-2 text-right">Ingreso</th><th class="px-3 py-2 text-right">Costo directo</th><th class="px-3 py-2 text-right">Indirectos</th><th class="px-3 py-2 text-right">Utilidad</th><th class="px-3 py-2 text-right">Margen</th></tr></thead><tbody>${er.filas.length?er.filas.map(x=>`<tr class="border-t border-slate-100"><td class="px-3 py-2">${S(nombre(x.obra))}</td><td class="px-3 py-2 text-right">${fmt(x.contrato)}</td><td class="px-3 py-2 text-right">${fmt(x.ingreso)}</td><td class="px-3 py-2 text-right">${fmt(x.directo)}</td><td class="px-3 py-2 text-right">${fmt(x.indirectos)}</td><td class="px-3 py-2 text-right font-medium ${x.utilidad<0?'text-danger':''}">${fmt(x.utilidad)}</td><td class="px-3 py-2 text-right">${x.ingreso?Math.round(x.utilidad/x.ingreso*1000)/10+' %':'-'}</td></tr>`).join(''):'<tr><td colspan="7" class="px-3 py-4 text-center text-ink-subtle">Sin movimientos en el periodo.</td></tr>'}</tbody></table></div>
+${er.indirectosSinAsignar>0.5?`<p class="text-xs text-warn mt-2">${fmt(er.indirectosSinAsignar)} de gastos indirectos no están repartidos entre obras.</p>`:''}`;
+}
+function exportarResultadosExcel(){
+const r=reporteActual;if(!r||r.tipo!=='resultados'){Toast.warning('Genera primero el reporte.');return;}
+const wb=XLSX.utils.book_new();
+const ws1=XLSX.utils.json_to_sheet(r.datos.length?r.datos:[{Obra:'(sin movimientos)'}]);XLSX.utils.book_append_sheet(wb,ws1,'Por obra');
+const er=r.er,f=r.f;
+const ws2=XLSX.utils.aoa_to_sheet([['Estado de resultados',''],['Ingresos',er.ingresos],['Costo directo',er.directos],['Utilidad bruta',er.utilidadBruta],['Gastos indirectos',er.indirectosTotal],['Nómina no asignada',er.nominaNoAsignada],['Utilidad neta',er.utilidadNeta],[],['Flujo de efectivo',''],['Cobrado',f.cobrado],['Pagos a proveedores',f.pagosProv],['Gastos pagados',f.gastosPagados],['Nómina',f.nomina],['Retiros',f.retiros],['Flujo neto',f.neto],['Por cobrar',f.porCobrar],['Por pagar',f.porPagar]]);XLSX.utils.book_append_sheet(wb,ws2,'Resumen');
+XLSX.writeFile(wb,`Resultados_${hoyISO()}.xlsx`);
 }
 
 function generarReporteObras(){

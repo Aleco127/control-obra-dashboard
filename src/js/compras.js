@@ -517,6 +517,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     if (d.destino === 'socio' && !d.socio_id) { Toast.warning('Elige el socio.'); return; }
     if (!d.categoria) { const sug = GastosRules.sugerirClasificacion(d.descripcion, provNombre(d.proveedor_id), { sinObra: d.destino === 'indirecto' }); d.categoria = catInfo(sug.categoria)?.nombre || sug.categoria; }
     if (d.folio_fiscal && !validarFolioFiscal(d.folio_fiscal)) { Toast.error('El folio fiscal debe ser un UUID de 36 caracteres.'); $('gastoDetalles').open = true; $('gastoFolioFiscal').focus(); return; }
+    if (typeof Cierres !== 'undefined' && !(await Cierres.verificarEdicion(d.fecha_solicitud))) return;
     const btn = $('gastoGuardarBtn'); btn.disabled = true;
     try {
       // comprobante
@@ -534,7 +535,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
         const { data: row, error } = await sb.from('gastos').update(upd).eq('id', id).select().single();
         if (error) throw error;
         Object.assign(g, row);
-        if (d.destino === 'indirecto') { try { await saveDistribucion(parseInt(id), d.monto_neto); } catch (e) { } }
+        if (d.destino === 'indirecto') await distribuirIndirecto(g);
         Toast.success(`Gasto actualizado: ${F(row.monto_neto)}`);
       } else {
         const params = {
@@ -557,7 +558,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
           if (d.pagado_por_socio_id) { const { data: r2 } = await sb.from('gastos').update({ pagado_por_socio_id: d.pagado_por_socio_id }).eq('id', row.id).select().single(); if (r2) Object.assign(row, r2); }
           if (!row.aprobado_at && row.estatus_pago === 'Pagado') { const { data: r3 } = await sb.from('gastos').update({ estatus_pago: 'Pendiente', monto_pagado: 0 }).eq('id', row.id).select().single(); if (r3) Object.assign(row, r3); }
           D.g.unshift(row);
-          if (d.destino === 'indirecto') { try { await saveDistribucion(row.id, d.monto_neto); } catch (e) { } }
+          if (d.destino === 'indirecto') await distribuirIndirecto(row);
         }
         const destinoTxt = d.destino === 'obra' ? `en ${obraDe({ obra_id: d.obra_id })?.codigo_obra || 'la obra'}` : d.destino === 'indirecto' ? 'como indirecto' : `a la cuenta de ${socioNombre(d.socio_id)}`;
         if (result.aprobado === false) Toast.warning(`Gasto de ${F(d.monto_neto)} enviado a aprobación (excede tu límite de ${fmt(limiteRol(nivel()))}).`);
@@ -570,6 +571,15 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     } catch (err) {
       Toast.error(humanizeError(err, 'No se pudo guardar el gasto'));
     } finally { btn.disabled = false; }
+  }
+
+  // Indirecto: distribución manual si el usuario la capturó; si no, la regla de prorrateo de la empresa (US-121)
+  async function distribuirIndirecto(g) {
+    try {
+      const manual = (typeof getDistribucionData === 'function') ? getDistribucionData() : [];
+      if (manual.length) { await saveDistribucion(g.id, num(g.monto_neto)); const { data } = await sb.from('gastos_admin_distribucion').select('*').eq('gasto_id', g.id); D.gad = (D.gad || []).filter(x => x.gasto_id !== g.id).concat(data || []); }
+      else if (typeof Socios !== 'undefined') await Socios.prorratear([g]);
+    } catch (e) { console.warn('prorrateo', e); }
   }
 
   function refrescar() {
