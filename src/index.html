@@ -8027,7 +8027,7 @@ ${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><
 <div class="flex items-center justify-between py-2">
 <div><p class="text-sm">Respaldo Automático</p><p class="text-xs text-gray-500">Guardar datos localmente</p></div>
 <label class="relative inline-flex items-center cursor-pointer">
-<input type="checkbox" id="prefBackup" ${configData.preferencias.backup_auto?'checked':''} onchange="updatePref('backup_auto',this.checked)" class="sr-only peer" ${!canEdit?'disabled':''}>
+<input type="checkbox" id="prefBackup" aria-label="Respaldo automático" ${configData.preferencias.backup_auto?'checked':''} onchange="updatePref('backup_auto',this.checked)" class="sr-only peer" ${!canEdit?'disabled':''}>
 <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
 </label>
 </div>
@@ -20948,7 +20948,7 @@ return`
 <div class="flex items-center gap-2 mb-1">
 <span class="text-xs font-mono font-bold n">${S(p.numero)}</span>
 <span class="px-2 py-0.5 rounded text-[10px] font-medium ${prioridadColors[p.prioridad]||'bg-gray-500/20 text-gray-400'}">${p.prioridad||'media'}</span>
-<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-600/50 text-slate-300">${S(p.categoria||'General')}</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-800">${S(p.categoria||'General')}</span>
 ${vencido?'<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-red-600 text-white animate-pulse">VENCIDO</span>':''}
 </div>
 <p class="text-sm text-white truncate">${S(p.descripcion)}</p>
@@ -21913,7 +21913,7 @@ return`
 <div class="flex-1 min-w-0">
 <div class="flex items-center gap-2 mb-1">
 <span class="text-sm font-bold n">${S(c.nombre)}</span>
-${c.categoria?`<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-600/50 text-slate-300">${c.categoria}</span>`:''}
+${c.categoria?`<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-800">${c.categoria}</span>`:''}
 ${c.saldo_pendiente>0?`<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-400">$${c.saldo_pendiente.toLocaleString('es-MX')} pendiente</span>`:''}
 </div>
 ${c.razon_social&&c.razon_social!==c.nombre?`<p class="text-xs text-gray-400 truncate">${S(c.razon_social)}</p>`:''}

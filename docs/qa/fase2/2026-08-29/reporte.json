@@ -1,9 +1,9 @@
 {
   "fecha": "2026-08-29",
-  "url": "http://localhost:8765/index.html",
+  "url": "https://obra.srv1090924.hstgr.cloud/",
   "static": {
     "confirm_nativos": 0,
-    "aria_label": 252,
+    "aria_label": 257,
     "label_for": 698,
     "onclick_inline": 668,
     "text_pink_rose": 6,
@@ -77,9 +77,9 @@
             {
               "id": "color-contrast",
               "impact": "serious",
-              "n": 4,
+              "n": 2,
               "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-amber-600"
+              "target": ".bg-orange-600"
             }
           ],
           "screenshot": "desktop_w.png",
@@ -145,15 +145,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Compras y gastos · Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "aria-required-children",
-              "impact": "critical",
-              "n": 1,
-              "help": "Certain ARIA roles must contain particular children",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "desktop_g.png",
           "console": []
         },
@@ -169,15 +161,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Bitácora de Obra- Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "color-contrast",
-              "impact": "serious",
-              "n": 1,
-              "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-green-600"
-            }
-          ],
+          "axe": [],
           "screenshot": "desktop_b.png",
           "console": []
         },
@@ -197,9 +181,9 @@
             {
               "id": "color-contrast",
               "impact": "serious",
-              "n": 3,
+              "n": 2,
               "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-green-600"
+              "target": "div[onclick=\"abrirCliente(7)\"] > .min-w-0.flex-1 > .gap-2.mb-1.items-center > .bg-slate-600\\/50.py-0\\.5.px-2"
             }
           ],
           "screenshot": "desktop_l.png",
@@ -214,20 +198,10 @@
             1440
           ],
           "icon_buttons_sin_label": [],
-          "inputs_sin_label": 4,
-          "montos_en_alerta_sin_motivo": [
-            "1Con CLABE o cuenta"
-          ],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
           "h1": " Proveedores",
-          "axe": [
-            {
-              "id": "select-name",
-              "impact": "critical",
-              "n": 3,
-              "help": "Select element must have an accessible name",
-              "target": ".sm\\:w-40:nth-child(1)"
-            }
-          ],
+          "axe": [],
           "screenshot": "desktop_v.png",
           "console": []
         },
@@ -247,9 +221,9 @@
             {
               "id": "color-contrast",
               "impact": "serious",
-              "n": 3,
+              "n": 2,
               "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-emerald-600"
+              "target": "#seccionPeriodos > .overflow-hidden.shadow.rounded-xl > .overflow-x-auto > table > tbody > tr:nth-child(1) > .text-green-600.text-right"
             }
           ],
           "screenshot": "desktop_n.png",
@@ -328,30 +302,16 @@
             1440
           ],
           "icon_buttons_sin_label": [],
-          "inputs_sin_label": 1,
+          "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Configuración",
           "axe": [
             {
-              "id": "image-alt",
-              "impact": "critical",
-              "n": 1,
-              "help": "Images must have alternative text",
-              "target": "img"
-            },
-            {
               "id": "label",
               "impact": "critical",
-              "n": 2,
-              "help": "Form elements must have labels",
-              "target": "#prefNotif"
-            },
-            {
-              "id": "select-name",
-              "impact": "critical",
               "n": 1,
-              "help": "Select element must have an accessible name",
-              "target": "#prefMoneda"
+              "help": "Form elements must have labels",
+              "target": "#prefBackup"
             }
           ],
           "screenshot": "desktop_z.png",
@@ -374,15 +334,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": "Hoy",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_d.png",
           "console": []
         },
@@ -434,9 +386,9 @@
             {
               "id": "color-contrast",
               "impact": "serious",
-              "n": 4,
+              "n": 2,
               "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-amber-600"
+              "target": ".bg-orange-600"
             }
           ],
           "screenshot": "mobile_w.png",
@@ -454,15 +406,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Pagos y cobranza · Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_pc.png",
           "console": []
         },
@@ -478,15 +422,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Pagos y cobranza · Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 2,
-              "help": "Scrollable region must have keyboard access",
-              "target": "#c > .kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_pagar.png",
           "console": []
         },
@@ -502,15 +438,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Pagos y cobranza · Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_flujo.png",
           "console": []
         },
@@ -526,22 +454,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Compras y gastos · Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "aria-required-children",
-              "impact": "critical",
-              "n": 1,
-              "help": "Certain ARIA roles must contain particular children",
-              "target": ".kpi-strip"
-            },
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_g.png",
           "console": []
         },
@@ -557,15 +470,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Bitácora de Obra- Remodelación local Luminae Studio (depilación láser)",
-          "axe": [
-            {
-              "id": "color-contrast",
-              "impact": "serious",
-              "n": 1,
-              "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-green-600"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_b.png",
           "console": []
         },
@@ -585,9 +490,9 @@
             {
               "id": "color-contrast",
               "impact": "serious",
-              "n": 3,
+              "n": 2,
               "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-green-600"
+              "target": "div[onclick=\"abrirCliente(7)\"] > .min-w-0.flex-1 > .gap-2.mb-1.items-center > .bg-slate-600\\/50.py-0\\.5.px-2"
             }
           ],
           "screenshot": "mobile_l.png",
@@ -602,27 +507,10 @@
             390
           ],
           "icon_buttons_sin_label": [],
-          "inputs_sin_label": 4,
-          "montos_en_alerta_sin_motivo": [
-            "1Con CLABE o cuenta"
-          ],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
           "h1": " Proveedores",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            },
-            {
-              "id": "select-name",
-              "impact": "critical",
-              "n": 3,
-              "help": "Select element must have an accessible name",
-              "target": ".sm\\:w-40:nth-child(1)"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_v.png",
           "console": []
         },
@@ -638,15 +526,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": "Nómina",
-          "axe": [
-            {
-              "id": "color-contrast",
-              "impact": "serious",
-              "n": 1,
-              "help": "Elements must meet minimum color contrast ratio thresholds",
-              "target": ".bg-emerald-600"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_n.png",
           "console": []
         },
@@ -666,9 +546,9 @@
             {
               "id": "scrollable-region-focusable",
               "impact": "serious",
-              "n": 2,
+              "n": 1,
               "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
+              "target": ".table-wrap"
             }
           ],
           "screenshot": "mobile_cb.png",
@@ -702,15 +582,7 @@
           "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Socios",
-          "axe": [
-            {
-              "id": "scrollable-region-focusable",
-              "impact": "serious",
-              "n": 1,
-              "help": "Scrollable region must have keyboard access",
-              "target": ".kpi-strip"
-            }
-          ],
+          "axe": [],
           "screenshot": "mobile_so.png",
           "console": []
         },
@@ -739,30 +611,16 @@
             390
           ],
           "icon_buttons_sin_label": [],
-          "inputs_sin_label": 1,
+          "inputs_sin_label": 0,
           "montos_en_alerta_sin_motivo": [],
           "h1": " Configuración",
           "axe": [
             {
-              "id": "image-alt",
-              "impact": "critical",
-              "n": 1,
-              "help": "Images must have alternative text",
-              "target": "img"
-            },
-            {
               "id": "label",
               "impact": "critical",
-              "n": 2,
-              "help": "Form elements must have labels",
-              "target": "#prefNotif"
-            },
-            {
-              "id": "select-name",
-              "impact": "critical",
               "n": 1,
-              "help": "Select element must have an accessible name",
-              "target": "#prefMoneda"
+              "help": "Form elements must have labels",
+              "target": "#prefBackup"
             }
           ],
           "screenshot": "mobile_z.png",
