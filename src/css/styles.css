@@ -498,7 +498,7 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:var(--sp-3) var(--sp-4);min-width:0}
 .kpi-v{font-size:var(--fs-lg);font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi-l{font-size:var(--fs-xs);color:var(--ink-muted);margin-top:2px}
-@media (max-width:767px){.kpi-strip{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;margin-left:calc(-1*var(--sp-4));margin-right:calc(-1*var(--sp-4));padding-left:var(--sp-4);padding-right:var(--sp-4)}.kpi{flex:0 0 46%;scroll-snap-align:start}}
+@media (max-width:767px){.kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi{padding:var(--sp-2) var(--sp-3)}.kpi-v{font-size:var(--fs-base)}}
 .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tab{padding:8px 12px;font-size:var(--fs-sm);color:var(--ink-muted);border-bottom:2px solid transparent;white-space:nowrap;min-height:var(--tap);display:inline-flex;align-items:center;gap:6px}
 .tab:hover{color:var(--ink)}
@@ -541,3 +541,7 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 .zk-switch input:checked+.zk-slider{background:var(--primary)}
 .zk-switch input:checked+.zk-slider::after{transform:translateX(16px)}
 .zk-switch input:focus-visible+.zk-slider{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Contraste AA de badges con texto blanco (axe): tonos 700 en lugar de 600 */
+.bg-green-600,.bg-emerald-600{background-color:var(--ref-emerald-700)!important}
+.bg-amber-600{background-color:var(--ref-amber-700)!important}

@@ -167,7 +167,7 @@ ${['aprobado', 'parcial'].includes(est) && canEdit && destinoDe(g) !== 'socio' ?
     const ind = all.filter(g => destinoDe(g) === 'indirecto');
     const total = all.filter(g => destinoDe(g) !== 'socio').reduce((s, g) => s + num(g.monto_neto), 0);
     const k = (v, l, cls = '') => `<div class="kpi"><p class="kpi-v ${cls}">${v}</p><p class="kpi-l">${l}</p></div>`;
-    return `<div class="kpi-strip" role="list">
+    return `<div class="kpi-strip">
 ${k(F(total), 'Total de compras')}
 ${k(porAprobar.length, 'Por aprobar' + (porAprobar.length ? ' · ' + F(porAprobar.reduce((s, g) => s + num(g.monto_neto), 0)) : ''), porAprobar.length ? 'text-warn' : '')}
 ${k(F(porPagar.reduce((s, g) => s + saldo(g), 0)), 'Por pagar a proveedores')}

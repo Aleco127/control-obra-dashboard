@@ -2679,3 +2679,76 @@ Permisos configurables por modulo:
 Control de Obra - Plataforma de Gestion Integral para Empresas de Construccion
 
 Para soporte tecnico, contacta a tu administrador de empresa.
+
+## 3.12 Compras y gastos
+
+Desde agosto de 2026 los modulos Gastos y Ordenes son uno solo: **Compras y gastos**. Cada gasto lleva un **destino**: *Obra* (se carga al costo de esa obra), *Indirecto* (renta, luz, telefonia, contador, publicidad: se reparte entre las obras activas con la regla de Configuracion > Finanzas) o *Socio* (gasto personal que pago la empresa; solo lo ven los administradores).
+
+![Compras y gastos](img/compras-lista.png)
+
+**Registrar gasto.** Cinco datos: que se compro, total pagado (marca *Incluye IVA 16 %* si viene desglosado), destino, proveedor (escribe para buscar o crearlo) y fecha. La categoria se sugiere sola a partir de la descripcion y el proveedor; si el sistema detecta que un gasto capturado como obra parece de oficina (Telmex, Meta, luz) lo propone como indirecto y basta un clic para aceptarlo. En *Mas detalles* estan la partida del catalogo, si ya se pago o queda pendiente con su fecha de vencimiento, el numero de factura y el UUID.
+
+**Quien puso el dinero.** Si un socio pago de su bolsa, eligelo en *Quien puso el dinero*: el gasto cuenta para la obra y ademas queda como aportacion en la cuenta corriente del socio, para reembolsarlo o descontarlo en el reparto.
+
+**Foto del ticket desde el celular.** Toca **+** y *Gasto con ticket*: se abre la camara, tomas la foto (se comprime antes de subir), capturas el total y la obra, y listo. Sin senal, el gasto y la foto esperan en el telefono y se envian solos al volver la conexion.
+
+![Gasto con ticket](img/compras-form-movil.png)
+
+**Aprobacion.** Un residente puede registrar hasta $50,000 por gasto y un supervisor hasta $200,000; por arriba, el gasto queda en la pestana *Por aprobar* hasta que un gerente o administrador lo apruebe (uno por uno o en lote). Un rechazo pide motivo y se lo muestra a quien lo pidio en su dashboard.
+
+**Comprobacion.** Cada gasto muestra su estado: *Sin comprobante*, *Ticket*, *Factura pendiente* o *Facturado*. Ya no hace falta el UUID para marcar un gasto como pagado: la factura se pide despues. En la pestana *Sin comprobante* selecciona varios y usa *Pedir factura*: se arma el mensaje de WhatsApp o correo con la lista de tickets y los datos fiscales de la empresa.
+
+**Importar XML.** *Importar XML* acepta uno o varios archivos .xml o un .zip. Cada factura busca sola el gasto que le corresponde (RFC del proveedor, monto y fecha); confirmas y el gasto queda *Facturado* con su UUID, subtotal e IVA. Las facturas emitidas por la empresa se emparejan con los cobros.
+
+**Revisar clasificacion.** El boton *Revisar clasificacion* (gerente o administrador) lista los gastos historicos cuya descripcion sugiere otra categoria o destino y permite corregirlos en lote.
+
+**Orden de compra.** Solo cuando la necesitas: en el menu de un gasto con proveedor, *Generar orden de compra* crea el folio. Ya no se genera una OC automatica por cada gasto.
+
+## 3.13 Pagos a proveedores, flujo y conciliacion
+
+**Una sola formula.** El encabezado de Pagos muestra, para el periodo elegido, lo cobrado, lo pagado (pagos a proveedores, gastos pagados al momento, nomina y retiros de socios), el flujo neto, lo que hay por cobrar y por pagar, y el saldo de los proximos 30 dias. El dashboard y los reportes usan exactamente la misma formula.
+
+![Pagos y cobranza](img/pagos-flujo.png)
+
+**Por pagar.** Los gastos pendientes aparecen agrupados por proveedor con su fecha de vencimiento (fecha del gasto mas los dias de credito del proveedor, o 30). Filtra *Vence esta semana* o *Vencidas*.
+
+**Registrar pago.** Desde la pestana *Por pagar*, desde el gasto o desde la ficha del proveedor. Marca los gastos que cubre el pago y ajusta el monto aplicado si fue parcial; si pagas de mas, el excedente se aplica al siguiente gasto del proveedor o se registra como anticipo. Cada pago lleva folio PP-000xx y comprobante en PDF.
+
+**Ficha del proveedor.** Un clic en el nombre abre su ficha: compras, pagos, saldo, CLABE con *Copiar datos de pago*, WhatsApp, facturas pendientes y los ultimos movimientos. *Estado de cuenta* exporta todo a Excel.
+
+**Conciliar con el banco.** En Pagos > *Conciliar*, sube el CSV o XLSX de tu banca en linea. Cada abono se empareja con un cobro y cada cargo con un pago o gasto pagado (mismo monto y hasta 3 dias de diferencia; hasta 1 % de diferencia se marca como probable). Confirma y los registros quedan marcados como conciliados; lo que no exista en la app lo puedes registrar desde la misma fila.
+
+## 3.14 Panel fiscal, cierre mensual y contador
+
+**Panel fiscal.** Se calcula desde los gastos y cobros del periodo: IVA acreditable (solo gastos facturados y deducibles), IVA trasladado (de los CFDI emitidos importados o, si no hay, estimado de los cobros), IVA a pagar y retenciones. El bloque *Deducibilidad* separa lo facturado, lo que tiene ticket, lo que no tiene comprobante y lo no deducible; cada cifra abre la pestana correspondiente de Compras.
+
+**Cierre mensual (Contabilidad > Cierres).** Cada mes muestra sus totales y una lista de pendientes (gastos sin categoria, facturas pendientes, compras por aprobar, indirectos sin repartir, movimientos sin conciliar). *Generar paquete* descarga un ZIP con gastos.xlsx, cobros.xlsx, pagos.xlsx, nomina.xlsx, retiros_socios.xlsx (solo administradores), resumen.pdf y la carpeta xml/ del mes; ademas deja una copia con enlace de 7 dias para enviarla al contador. *Cerrar mes* deja los registros del mes de solo lectura para el equipo; un administrador puede reabrirlo indicando el motivo.
+
+**Contador externo.** El rol *contador_externo* consulta y exporta todo (Compras, Pagos, Panel fiscal, Cierres, Reportes) sin capturar ni editar, y no ve nada de socios. Se da de alta desde Usuarios como cualquier otro rol.
+
+## 3.15 Resultado por obra y reportes
+
+**En la ficha de la obra.** El bloque *Resultado de la obra* muestra contrato sin IVA, cobrado, por cobrar (con lo vencido), avance, ingreso devengado (contrato por avance), costo directo por categoria, nomina asignada, indirectos prorrateados, costo total, utilidad y margen a la fecha, margen cotizado, utilidad proyectada al cierre y caja de la obra. El semaforo explica la causa con una frase. Si la obra no tiene avance registrado, se estima por lo cobrado y se avisa. *Presupuesto vs real por partida* compara lo gastado por partida contra el catalogo; los gastos sin partida se asignan desde Compras.
+
+![Resultado de la obra](img/ficha-resultado.png)
+
+**Nomina por obra.** En Nomina, *Por obra* asigna cada nomina a una obra para que la mano de obra propia entre al costo real. Al registrar una nomina nueva se asigna sola a la obra del empleado.
+
+**Reportes > Resultados y flujo.** Estado de resultados por obra (ingreso, costo directo, indirectos, utilidad y margen) con base caja o devengada, flujo de efectivo del periodo y exportacion a Excel. Sustituye al antiguo Reporte Financiero.
+
+## 3.16 Socios y reparto de utilidades
+
+Solo para administradores (Contabilidad > Socios).
+
+**Socios.** Nombre, usuario vinculado, RFC y porcentaje de participacion; la suma no puede pasar de 100 %. El saldo en cuenta es positivo cuando la empresa le debe al socio.
+
+**Cuenta corriente.** Por socio: aportaciones (dinero que puso o gastos de obra que pago de su bolsa), retiros, gastos personales que pago la empresa, utilidades asignadas y pagadas, con saldo y estado de cuenta en PDF. Las aportaciones por gastos y los gastos personales se generan solos desde Compras; aqui solo se capturan entradas y salidas de dinero directas.
+
+![Socios](img/socios-resumen.png)
+
+**Reparto de utilidades.** *Nuevo reparto* en cuatro pasos: base (un periodo o una obra terminada), reservas (impuestos y capital de trabajo, configurables), tabla por socio (asignado menos lo retirado a cuenta mas lo aportado, con ajustes justificados) y resumen. El reparto nace *propuesto*; cada socio lo aprueba con su usuario y al aprobar todos pasa a *aprobado* y se registran las utilidades asignadas. *Marcar pagado* registra los pagos por socio. El *Acta* en PDF se guarda en el expediente. Un periodo no puede repartirse dos veces sin anular el anterior.
+
+**Dashboard de socios.** Al entrar, los administradores ven ademas: utilidad neta del ano, por cobrar, caja del ano, lo retirado por cada socio contra su participacion y las obras con margen bajo.
+
+**Configuracion > Finanzas.** Regla de prorrateo de indirectos (partes iguales, proporcional al contrato, al gasto directo o porcentajes fijos), reservas antes de repartir y base del estado de resultados. *Reprocesar indirectos del ano* vuelve a repartir todo con la regla vigente.
+

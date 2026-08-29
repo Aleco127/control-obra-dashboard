@@ -1444,7 +1444,7 @@ $('empLinkedin').value=data.linkedin||'';
 $('empLogoUrl').value=data.logo_url||'';
 const logoPreview=$('empLogoPreview');
 if(data.logo_url){
-logoPreview.innerHTML=`<img src="${data.logo_url}" class="w-full h-full object-cover">`;
+logoPreview.innerHTML=`<img src="${data.logo_url}" alt="Logotipo de la empresa" class="w-full h-full object-cover">`;
 }else{
 logoPreview.innerHTML='<i class="ri-building-2-line text-3xl text-slate-400"></i>';
 }
@@ -2229,18 +2229,18 @@ html+=`<div class="p-2 hover:bg-slate-50 cursor-pointer border-b border-white/5"
 
 // Gastos pendientes
 if(gastosPend.length>0){
-html+=`<div class="p-2 bg-pink-500/10"><p class="text-[10px] font-bold text-pink-400 uppercase px-2"><i class="ri-wallet-3-line mr-1"></i>Gastos Pendientes (${(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length})</p></div>`;
+html+=`<div class="p-2 bg-pink-500/10"><p class="text-[10px] font-bold text-ink uppercase px-2"><i class="ri-wallet-3-line mr-1"></i>Gastos Pendientes (${(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length})</p></div>`;
 gastosPend.forEach(g=>{
 const obra=D.o.find(ob=>ob.id===g.obra_id);
 html+=`<div class="p-2 hover:bg-slate-50 cursor-pointer border-b border-white/5" onclick="M='g';R();closeNotifMenu();">
 <div class="flex items-center gap-2">
-<div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center"><i class="ri-receipt-line text-pink-400"></i></div>
+<div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center"><i class="ri-receipt-line text-ink"></i></div>
 <div class="flex-1 min-w-0">
 <p class="text-xs font-medium truncate">${g.concepto||'Sin concepto'}</p>
 <p class="text-[10px] text-gray-500 truncate">${obra?.nombre_obra||'Sin obra'}</p>
 </div>
 <div class="text-right">
-<p class="text-xs font-bold text-pink-400">${F(g.monto_neto||0)}</p>
+<p class="text-xs font-bold text-ink">${F(g.monto_neto||0)}</p>
 <p class="text-[10px] text-gray-500">${g.fecha_solicitud?.slice(0,10)||''}</p>
 </div>
 </div>
@@ -2659,7 +2659,7 @@ c.innerHTML=`
 <!-- KPIs Principales -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
 <div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-2"><i class="ri-money-dollar-circle-line n"></i></div><p class="text-xl font-bold n">${F(tp)}</p><p class="text-xs text-gray-400">Presupuesto Total</p></div>
-<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center mb-2"><i class="ri-wallet-3-line text-pink-400"></i></div><p class="text-xl font-bold text-pink-400">${F(tg)}</p><p class="text-xs text-gray-400">Gastos Totales</p></div>
+<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center mb-2"><i class="ri-wallet-3-line text-ink"></i></div><p class="text-xl font-bold text-ink">${F(tg)}</p><p class="text-xs text-gray-400">Gastos Totales</p></div>
 <div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center mb-2"><i class="ri-line-chart-line text-green-400"></i></div><p class="text-xl font-bold ${ut>=0?'text-green-400':'text-red-400'}">${F(ut)}</p><p class="text-xs text-gray-400">${ut>=0?'Saldo Disponible':'Sobrepresupuesto'}</p></div>
 <div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center mb-2"><i class="ri-percent-line text-purple-400"></i></div><p class="text-xl font-bold ${variacionPres>100?'text-red-400':variacionPres>80?'text-amber-400':'text-green-400'}">${variacionPres}%</p><p class="text-xs text-gray-400">Presupuesto Utilizado</p></div>
 </div>
@@ -2776,7 +2776,7 @@ ${a.accion?`<button onclick="${a.accion}" class="px-2 py-1 text-xs rounded ${a.t
 <!-- Graficos -->
 <div class="grid lg:grid-cols-3 gap-3 mb-4">
 <div class="g rounded-xl p-3"><h3 class="font-bold text-sm mb-3"><i class="ri-pie-chart-line n"></i> Por Categoría</h3><canvas id="chCat" height="180"></canvas></div>
-<div class="g rounded-xl p-3"><h3 class="font-bold text-sm mb-3"><i class="ri-bar-chart-line text-pink-400"></i> Por Estatus</h3><canvas id="chSt" height="180"></canvas></div>
+<div class="g rounded-xl p-3"><h3 class="font-bold text-sm mb-3"><i class="ri-bar-chart-line text-ink"></i> Por Estatus</h3><canvas id="chSt" height="180"></canvas></div>
 <div class="g rounded-xl p-3"><h3 class="font-bold text-sm mb-3"><i class="ri-calendar-line text-green-400"></i> Últimos 7 dias</h3><canvas id="chTr" height="180"></canvas></div>
 </div>
 
@@ -4386,7 +4386,7 @@ const ocData={
 codigo_orden:codigo,
 obra_id:null,
 fecha_orden:gastoData.fecha_solicitud||hoyISO(),
-descripcion:gastoData.descripcion||gastoData.categoria||'Gasto Administrativo',
+descripcion:gastoData.descripcion||gastoData.categoria||'Gasto indirecto',
 proveedor_id:gastoData.proveedor_id||null,
 monto_estimado:gastoData.monto_neto||0,
 estatus:'Completada',
@@ -5187,10 +5187,7 @@ c.innerHTML=`
 <div>
 <div class="flex items-center gap-3">
 <h1 class="text-xl font-bold text-amber-400"><i class="ri-exchange-line"></i> Órdenes de Compra${obraTitle}</h1>
-<span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px]">
-<span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-Auto-sync 3s
-</span>
+
 </div>
 <p class="text-sm text-gray-400 mt-1">Gestión y seguimiento de órdenes de compra</p>
 </div>
@@ -6685,8 +6682,8 @@ c.innerHTML=`
 </div>
 <div class="g rounded-xl p-4">
 <div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center"><i class="ri-wallet-3-line text-2xl text-pink-400"></i></div>
-<div><p class="text-lg font-bold text-pink-400">${F(totalGastado)}</p><p class="text-xs text-gray-400">Ejecutado</p></div>
+<div class="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center"><i class="ri-wallet-3-line text-2xl text-ink"></i></div>
+<div><p class="text-lg font-bold text-ink">${F(totalGastado)}</p><p class="text-xs text-gray-400">Ejecutado</p></div>
 </div>
 </div>
 <div class="g rounded-xl p-4">
@@ -6734,7 +6731,7 @@ c.innerHTML=`
 
 <!-- Top 5 Categorias -->
 <div class="g rounded-xl p-4">
-<h3 class="font-bold text-sm mb-4"><i class="ri-pie-chart-line text-pink-400"></i> Top Categorías de Gasto</h3>
+<h3 class="font-bold text-sm mb-4"><i class="ri-pie-chart-line text-ink"></i> Top Categorías de Gasto</h3>
 ${categoriasOrdenadas.length?categoriasOrdenadas.map((cat,i)=>{
 const porcentaje=totalGastado>0?Math.round((cat[1]/totalGastado)*100):0;
 const colores=['bg-cyan-500','bg-pink-500','bg-purple-500','bg-amber-500','bg-green-500'];
@@ -6783,7 +6780,7 @@ return `<tr class="border-t border-white/5 hover:bg-slate-50">
 </div>
 </td>
 <td class="p-3 text-right font-bold text-purple-400">${F(x.presupuesto_total)}</td>
-<td class="p-3 text-right font-bold text-pink-400">${F(x.gastosObra)}</td>
+<td class="p-3 text-right font-bold text-ink">${F(x.gastosObra)}</td>
 <td class="p-3 text-right font-bold ${dispColor}">${F(x.disponible)}</td>
 <td class="p-3 text-center">
 <div class="flex flex-col items-center">
@@ -6940,53 +6937,33 @@ const activos=filtered.filter(p=>p.estatus==='Activo'||!p.estatus).length;
 c.innerHTML=`
 <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
 <div>
-<h1 class="text-xl font-bold text-cyan-400"><i class="ri-store-2-line"></i> Proveedores</h1>
+<h1 class="text-xl font-bold"><i class="ri-store-2-line" aria-hidden="true"></i> Proveedores</h1>
 <p class="text-sm text-gray-400 mt-1">Gestión de proveedores con datos fiscales y bancarios</p>
 </div>
 <button onclick="newProveedor()" class="btn btn-p text-sm"><i class="ri-add-line"></i> Nuevo Proveedor</button>
 </div>
 
 <!-- Resumen -->
-<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center"><i class="ri-store-2-line text-2xl n"></i></div>
-<div><p class="text-2xl font-bold n">${totalProv}</p><p class="text-xs text-gray-400">Total Proveedores</p></div>
+<div class="kpi-strip">
+<div class="kpi"><p class="kpi-v">${totalProv}</p><p class="kpi-l">Proveedores</p></div>
+<div class="kpi"><p class="kpi-v">${activos}</p><p class="kpi-l">Activos</p></div>
+<div class="kpi"><p class="kpi-v">${filtered.filter(p=>p.rfc).length}</p><p class="kpi-l">Con RFC</p></div>
+<div class="kpi"><p class="kpi-v">${filtered.filter(p=>p.clabe||p.cuenta_bancaria).length}</p><p class="kpi-l">Con CLABE o cuenta${filtered.filter(p=>p.clabe||p.cuenta_bancaria).length<activos?' · faltan '+(activos-filtered.filter(p=>p.clabe||p.cuenta_bancaria).length):''}</p></div>
+<div class="kpi"><p class="kpi-v">${fmt(Finanzas.cuentasPorPagar({}).reduce((a,r)=>a+r.saldo,0))}</p><p class="kpi-l">Por pagar a proveedores</p></div>
 </div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center"><i class="ri-checkbox-circle-line text-2xl text-green-400"></i></div>
-<div><p class="text-2xl font-bold text-green-400">${activos}</p><p class="text-xs text-gray-400">Activos</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center"><i class="ri-file-text-line text-2xl text-purple-400"></i></div>
-<div><p class="text-2xl font-bold text-purple-400">${filtered.filter(p=>p.rfc).length}</p><p class="text-xs text-gray-400">Con RFC</p></div>
-</div>
-</div>
-<div class="g rounded-xl p-4">
-<div class="flex items-center gap-3">
-<div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center"><i class="ri-bank-line text-2xl text-amber-400"></i></div>
-<div><p class="text-2xl font-bold text-amber-400">${filtered.filter(p=>p.clabe||p.cuenta_bancaria).length}</p><p class="text-xs text-gray-400">Con Cuenta</p></div>
-</div>
-</div>
-</div>
-
 <!-- Filtros -->
 <div class="g rounded-xl p-4 mb-4">
 <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-<select onchange="provFilterTipo=this.value;Pv($('c'))" class="inp w-full sm:w-40 text-xs">
+<select onchange="provFilterTipo=this.value;Pv($('c'))" class="inp w-full sm:w-40 text-xs" aria-label="Filtrar por tipo de proveedor">
 <option value="todos">Todos los tipos</option>
 ${tiposProveedor.map(t=>`<option value="${t}" ${provFilterTipo===t?'selected':''}>${t}</option>`).join('')}
 </select>
-<select onchange="provFilterEstatus=this.value;Pv($('c'))" class="inp w-full sm:w-32 text-xs">
+<select onchange="provFilterEstatus=this.value;Pv($('c'))" class="inp w-full sm:w-32 text-xs" aria-label="Filtrar por estatus">
 <option value="todos">Todos</option>
 <option value="activo" ${provFilterEstatus==='activo'?'selected':''}>Activos</option>
 <option value="Inactivo" ${provFilterEstatus==='Inactivo'?'selected':''}>Inactivos</option>
 </select>
-<select onchange="provFilterEstado=this.value;Pv($('c'))" class="inp w-full sm:w-40 text-xs">
+<select onchange="provFilterEstado=this.value;Pv($('c'))" class="inp w-full sm:w-40 text-xs" aria-label="Filtrar por estado de la república">
 <option value="todos">Todos los estados</option>
 ${estadosList.map(e=>`<option value="${e}" ${provFilterEstado===e?'selected':''}>${e}</option>`).join('')}
 </select>
@@ -7937,7 +7914,7 @@ if(error||!data){
 display.innerHTML='<div class="text-red-500 py-4">Error al cargar datos</div>';
 return;
 }
-const logoHtml=data.logo_url?`<img src="${data.logo_url}" class="w-full h-full object-cover">`:'<i class="ri-building-2-line text-2xl text-slate-400"></i>';
+const logoHtml=data.logo_url?`<img src="${data.logo_url}" alt="Logotipo de la empresa" class="w-full h-full object-cover">`:'<i class="ri-building-2-line text-2xl text-slate-400"></i>';
 const redes=[];
 if(data.sitio_web)redes.push(`<a href="${data.sitio_web}" target="_blank" class="text-cyan-500 hover:text-cyan-700"><i class="ri-global-line"></i></a>`);
 if(data.facebook)redes.push(`<a href="${data.facebook}" target="_blank" class="text-blue-500 hover:text-blue-700"><i class="ri-facebook-circle-line"></i></a>`);
@@ -8019,7 +7996,7 @@ ${canEdit?'<button onclick="openEmpresaModal()" class="text-xs text-cyan-400 hov
 <!-- Categorias de Gastos -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">
-<h3 class="font-bold text-sm"><i class="ri-price-tag-3-line text-pink-400"></i> Categorías de Gastos</h3>
+<h3 class="font-bold text-sm"><i class="ri-price-tag-3-line text-ink"></i> Categorías de Gastos</h3>
 ${canEdit?'<button onclick="editCategoriaDB()" class="text-xs text-cyan-400 hover:underline"><i class="ri-add-line"></i> Nueva</button>':''}
 </div>
 <div id="catList" class="space-y-2">
@@ -8035,7 +8012,7 @@ ${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><
 <div class="space-y-3">
 <div class="flex items-center justify-between py-2 border-b border-white/5">
 <div><p class="text-sm">Moneda</p><p class="text-xs text-gray-500">Moneda para mostrar valores</p></div>
-<select id="prefMoneda" onchange="updatePref('moneda',this.value)" class="inp w-24 text-xs" ${!canEdit?'disabled':''}>
+<select id="prefMoneda" aria-label="Moneda" onchange="updatePref('moneda',this.value)" class="inp w-24 text-xs" ${!canEdit?'disabled':''}>
 <option value="MXN" ${configData.preferencias.moneda==='MXN'?'selected':''}>MXN</option>
 <option value="USD" ${configData.preferencias.moneda==='USD'?'selected':''}>USD</option>
 </select>
@@ -8043,7 +8020,7 @@ ${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><
 <div class="flex items-center justify-between py-2 border-b border-white/5">
 <div><p class="text-sm">Notificaciones</p><p class="text-xs text-gray-500">Recibir alertas del sistema</p></div>
 <label class="relative inline-flex items-center cursor-pointer">
-<input type="checkbox" id="prefNotif" ${configData.preferencias.notificaciones?'checked':''} onchange="updatePref('notificaciones',this.checked)" class="sr-only peer" ${!canEdit?'disabled':''}>
+<input type="checkbox" id="prefNotif" aria-label="Notificaciones" ${configData.preferencias.notificaciones?'checked':''} onchange="updatePref('notificaciones',this.checked)" class="sr-only peer" ${!canEdit?'disabled':''}>
 <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
 </label>
 </div>
@@ -15454,7 +15431,7 @@ const totalMonto=facturas.reduce((s,f)=>s+(f.total||0),0);
 c.innerHTML=`
 <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
 <div>
-<h1 class="text-xl font-bold text-slate-700"><i class="ri-bill-line mr-2"></i>Facturas CFDI Recibidas</h1>
+<h1 class="text-xl font-bold text-slate-700"><i class="ri-bill-line mr-2"></i>Facturas recibidas (CFDI)</h1>
 <p class="text-sm text-slate-500 mt-1">Registro de comprobantes fiscales para IVA acreditable</p>
 </div>
 <div class="flex gap-2">
@@ -23272,7 +23249,7 @@ ${clientes.map(c=>`<option value="${c.id}" ${cf.cliente_id===c.id?'selected':''}
 
 <h3 class="font-bold text-slate-700 border-b pb-2 mt-4">Datos del Comprobante</h3>
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiTipo">Tipo Comprobante</label>
+<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiTipo">Tipo de comprobante</label>
 <select id="cfdiTipo" class="inp">
 <option value="I" ${(cf.tipo_comprobante||'I')==='I'?'selected':''}>I - Ingreso</option>
 <option value="E" ${cf.tipo_comprobante==='E'?'selected':''}>E - Egreso</option>
