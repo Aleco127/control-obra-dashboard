@@ -1,0 +1,124 @@
+{
+  "fecha": "2026-08-28",
+  "url": "https://obra.srv1090924.hstgr.cloud/index.html",
+  "static": {
+    "confirm_nativos": 0,
+    "aria_label": 249,
+    "label_for": 719,
+    "onclick_inline": 679
+  },
+  "runs": [
+    {
+      "viewport": "desktop",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "h1": "Hoy",
+          "screenshot": "desktop_d.png",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "h1": " Gestión de obras",
+          "screenshot": "desktop_o.png",
+          "console": []
+        },
+        {
+          "module": "ficha",
+          "label": "Ficha de obra",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "h1": "Remodelación local Luminae Studio (depilación láser)",
+          "screenshot": "desktop_ficha.png",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "h1": " Pagos y cobranza",
+          "screenshot": "desktop_pc.png",
+          "console": []
+        },
+        {
+          "module": "w",
+          "label": "Programa",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "h1": "Programa de Obra- Remodelación local Luminae Studio (depilación láser)",
+          "screenshot": "desktop_w.png",
+          "console": []
+        }
+      ],
+      "final_console": []
+    },
+    {
+      "viewport": "mobile",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "error": "Page.evaluate: ReferenceError: R is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:1:67)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "error": "Page.evaluate: ReferenceError: R is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:1:67)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "console": []
+        },
+        {
+          "module": "ficha",
+          "label": "Ficha de obra",
+          "error": "Page.evaluate: ReferenceError: abrirFichaObra is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:1:5)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "error": "Page.evaluate: ReferenceError: R is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:1:68)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "console": []
+        },
+        {
+          "module": "w",
+          "label": "Programa",
+          "error": "Page.evaluate: ReferenceError: irAModuloConObra is not defined\n    at eval (eval at evaluate (:302:30), <anonymous>:1:5)\n    at UtilityScript.evaluate (<anonymous>:309:18)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+          "console": []
+        }
+      ],
+      "final_console": []
+    }
+  ]
+}

@@ -76,16 +76,18 @@ def main():
             page.on('console', lambda m: console.append({'type': m.type, 'text': m.text}) if m.type in ('error', 'warning') else None)
             page.on('pageerror', lambda e: console.append({'type': 'pageerror', 'text': str(e)}))
 
+            page.set_default_navigation_timeout(120000)
             page.goto(args.url, wait_until='domcontentloaded')
             if token:
                 page.evaluate("t=>localStorage.setItem('obra_session',JSON.stringify({token:t}))", token)
-                page.reload(wait_until='domcontentloaded')
+                page.reload(wait_until='commit')
             else:
                 page.fill('#loginEmail', email)
                 page.fill('#loginPassword', pwd)
                 page.click('#loginBtn')
             try:
-                page.wait_for_selector('#appScreen', state='visible', timeout=30000)
+                page.wait_for_function("()=>typeof R==='function'&&typeof abrirFichaObra==='function'", timeout=90000)
+                page.wait_for_selector('#appScreen', state='visible', timeout=60000)
                 page.wait_for_function("()=>document.querySelector('#sync')&&/Sincronizado \d|Caché|Sync |Actualizado/.test(document.querySelector('#sync').textContent)", timeout=45000)
             except Exception as e:
                 console.append({'type': 'pageerror', 'text': f'No cargó la app: {e}'})
