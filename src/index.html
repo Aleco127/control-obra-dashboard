@@ -2139,7 +2139,8 @@ totalPeso+=peso;
 avancePonderado+=(act.porcentaje_avance||0)*peso/100;
 });
 });
-const nuevoAvance=totalPeso>0?Math.round(avancePonderado*100/totalPeso):0;
+if(totalPeso===0)continue; // programa sin actividades: se respeta el avance capturado a mano
+const nuevoAvance=Math.round(avancePonderado*100/totalPeso);
 if(nuevoAvance!==obra.avance_porcentaje){
 updates.push({id:obra.id,avance:nuevoAvance});
 obra.avance_porcentaje=nuevoAvance; // Update local data
@@ -9760,7 +9761,8 @@ const obra=D.o.find(o=>o.id==obraId);if(!obra)return;
 const progs=(D.pg||[]).filter(p=>p.obra_id==obraId).map(p=>p.id);
 const acts=(D.ap||[]).filter(a=>progs.includes(a.programa_id)&&!a.es_hito);
 let tot=0,acc=0;acts.forEach(a=>{const p=parseFloat(a.peso_porcentual)||1;tot+=p;acc+=(parseFloat(a.porcentaje_avance)||0)*p/100;});
-const nuevo=tot?Math.round(acc*100/tot):0;
+if(!acts.length)return; // sin actividades no se pisa el avance manual
+const nuevo=Math.round(acc*100/tot);
 if(nuevo!==obra.avance_porcentaje){obra.avance_porcentaje=nuevo;await sb.from('obras').update({avance_porcentaje:nuevo,updated_at:new Date().toISOString()}).eq('id',obraId);}
 }
 async function marcarHitoCumplido(actId,done=true){
