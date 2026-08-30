@@ -132,7 +132,7 @@ const DataLoader = {
         sb.from('obra_asignaciones').select('*,obras(*)'),
         query('bitacora_obra').order('fecha', { ascending: false }).limit(100),
         query('calendario_eventos').order('fecha_inicio', { ascending: false }),
-        query('clientes').order('nombre_cliente')
+        query('clientes').order('nombre')
       ]);
 
       data.u = usuarios.data || [];
@@ -195,7 +195,8 @@ const DataLoader = {
       data.dm = [];
       data.cd = [];
       data.cal = [];
-      data.pac = [];
+      // config_pac ya no guarda secretos (migración 049): la vista sólo trae datos fiscales y la vigencia del CSD.
+      data.pac = (await query('config_pac')).data || [];
 
       // Guardar en caché
       Cache.saveAppData(data, empresaId);

@@ -43,21 +43,60 @@ nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap
 <li>Haz clic en <strong>"Guardar"</strong></li>
 </ol>
 <p>&gt; <strong>Validacion importante:</strong> Si el tipo de comprobante es "Fiscal", el folio fiscal (UUID) es obligatorio para poder registrar el pago.</p>
-<p><strong>Registrar CFDIs emitidos:</strong></p>
+<p><strong>Facturar a un cliente (CFDI 4.0 timbrado):</strong></p>
+<p>Antes de la primera factura hay que dar de alta a la empresa una sola vez. Lo hace el administrador</p>
+<p>desde <strong>CFDIs Emitidos &gt; Configurar facturacion</strong>:</p>
 <ol>
-<li>Ve al modulo <strong>CFDIs Emitidos</strong> (categoria Contabilidad)</li>
-<li>Haz clic en <strong>"+ Nuevo CFDI"</strong></li>
-<li>Completa:</li>
+<li>Captura los datos fiscales tal como aparecen en la constancia de situacion fiscal: RFC, razon social</li>
 </ol>
+<p>   (sin "S.A. de C.V."), regimen, codigo postal de expedicion, serie y folio de la primera factura.</p>
+<ol>
+<li>Elige el concepto y la clave del SAT que usaras por omision (por ejemplo 72141500, servicios de</li>
+</ol>
+<p>   construccion de edificaciones) y el uso de CFDI mas comun de tus clientes (normalmente G03).</p>
+<ol>
+<li>Sube el sello digital: el archivo <strong>.cer</strong>, el <strong>.key</strong> y la contrasena de la llave. La app lee del</li>
+</ol>
+<p>   certificado el numero de serie y la vigencia, y registra el sello con el proveedor de timbrado.</p>
+<p>   <strong>La llave y su contrasena no se guardan en ningun lado</strong>: viajan cifradas hasta el proveedor y se</p>
+<p>   descartan. Treinta dias antes de que venza el sello llega un aviso.</p>
+<ol>
+<li>Deja el modo en <strong>Pruebas</strong> mientras aprendes; en ese modo los comprobantes no tienen validez fiscal.</li>
+</ol>
+<p>   Cambia a <strong>Produccion</strong> cuando vayas a facturar de verdad.</p>
+<p>Ya configurada, la factura se emite desde el documento que la origina, para que no tengas que recapturar:</p>
 <ul>
-<li><strong>Numero de Serie y Folio</strong></li>
-<li><strong>UUID:</strong> Identificador unico</li>
-<li><strong>Fecha de Emision</strong></li>
-<li><strong>Cliente RFC y Razon Social</strong></li>
-<li><strong>Subtotal, IVA Trasladado y Total</strong></li>
-<li><strong>Forma de Pago:</strong> Metodo de pago utilizado</li>
-<li><strong>Estatus:</strong> Vigente o Cancelada</li>
+<li><strong>Desde una estimacion</strong> (boton con el icono de factura en la lista de estimaciones): se prellena con el</li>
 </ul>
+<p>  numero de estimacion, la obra, el periodo y el importe sin IVA, con metodo <strong>PPD</strong> y forma de pago 99,</p>
+<p>  porque la estimacion se cobra despues.</p>
+<ul>
+<li><strong>Desde un cobro</strong> (Pagos &gt; Cobros): se prellena con metodo <strong>PUE</strong>, la forma de pago segun como te</li>
+</ul>
+<p>  pagaron y el importe convertido a base, porque el cobro se captura con IVA incluido.</p>
+<ul>
+<li><strong>Desde cero</strong> con el boton "Nueva factura".</li>
+</ul>
+<p>En el formulario revisas al cliente (RFC, nombre, regimen, codigo postal y uso de CFDI, que se toman de su</p>
+<p>ficha), los conceptos y el IVA:</p>
+<ul>
+<li><strong>16 %</strong> es lo normal.</li>
+<li><strong>Tasa 0 %</strong> desglosa el impuesto en cero.</li>
+<li><strong>Exento</strong> no lleva impuesto y es lo que corresponde a la construccion de casa habitacion. La obra lo</li>
+</ul>
+<p>  propone segun su porcentaje de IVA y la app avisa cuando la factura va a salir sin impuesto.</p>
+<ul>
+<li>Las <strong>retenciones</strong> de ISR e IVA se capturan en el apartado plegable, solo si tu cliente te retiene.</li>
+</ul>
+<p>Antes de gastar un timbre la app revisa lo que el SAT rechaza mas seguido: que el RFC tenga el formato</p>
+<p>correcto, que el regimen corresponda al tipo de persona (una empresa no puede tener regimen de persona</p>
+<p>fisica), que el codigo postal traiga cinco digitos y que al publico en general se le facture con uso S01.</p>
+<p>Si algo falla te lo dice en espanol y <strong>no se consume folio</strong>: el consecutivo solo avanza cuando la</p>
+<p>factura de verdad se va a timbrar.</p>
+<p>Timbrada la factura, quedan guardados el UUID, el XML y el PDF. Los descargas desde la lista o desde la</p>
+<p>ficha de la factura, y el cliente los ve en su portal.</p>
+<p>&gt; <strong>Todavia no puedes facturar?</strong> El timbrado necesita que activemos la cuenta del proveedor para tu</p>
+<p>&gt; empresa. Captura tus datos fiscales y escribenos: la app te lo indica en el mismo modulo.</p>
 <h3 id="retenciones">Retenciones</h3>
 <p><strong>Registrar una retencion:</strong></p>
 <ol>

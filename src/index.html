@@ -113,6 +113,7 @@ async function massDeleteNomina(){
 <script src="js/compras.js?v=20260829d"></script>
 <script src="js/pagos.js?v=20260829d"></script>
 <script src="js/cfdi.js?v=20260829d"></script>
+<script src="js/facturacion.js?v=20260830c"></script>
 <script src="js/socios.js?v=20260829d"></script>
 <script src="js/cierre-mensual.js?v=20260829d"></script>
 <script src="js/contabilidad.js?v=20260830a"></script>
@@ -4766,6 +4767,7 @@ const html=data.length===0?vacio('cobros',{icon:'ri-arrow-down-circle-line',body
 <tbody class="divide-y divide-gray-700/30">
 ${data.map(p=>{
 const obra=D.o.find(o=>o.id===p.obra_id);
+const fact=(D.cfdi||[]).find(f=>f.pago_recibido_id===p.id&&f.estatus==='timbrado');
 return`<tr class="hover:bg-gray-800/30">
 <td class="p-2 font-mono text-green-400">${S(p.numero_pago)}</td>
 <td class="p-2">${p.fecha_pago?new Date(p.fecha_pago).toLocaleDateString('es-MX'):'-'}</td>
@@ -4775,6 +4777,7 @@ return`<tr class="hover:bg-gray-800/30">
 <td class="p-2 text-right font-medium text-green-400">${fmt(p.monto)}</td>
 <td class="p-2 text-center">
 <button onclick="reciboCobroPDF(${p.id})" class="p-1 text-gray-400 hover:text-cyan-400" aria-label="Recibo PDF" title="Recibo PDF"><i class="ri-file-pdf-line" aria-hidden="true"></i></button>
+${fact?`<button onclick="viewCfdi(${fact.id})" class="p-1 text-green-500 hover:text-green-600" aria-label="Ver factura" title="Facturado: ${S(fact.serie||'')}-${fact.folio||''}"><i class="ri-bill-line" aria-hidden="true"></i></button>`:`${(currentUser?.nivel||0)>=80?`<button onclick="facturarCobro(${p.id})" class="p-1 text-gray-400 hover:text-green-500" aria-label="Facturar cobro" title="Facturar"><i class="ri-bill-line" aria-hidden="true"></i></button>`:''}`}
 <button onclick="editPagoRecibido(${p.id})" class="p-1 text-gray-400 hover:text-amber-400" aria-label="Editar cobro"><i class="ri-edit-line" aria-hidden="true"></i></button>
 <button onclick="deletePagoRecibido(${p.id})" class="p-1 text-gray-400 hover:text-red-400" aria-label="Eliminar cobro"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
 </td>
@@ -15346,6 +15349,7 @@ ${canEdit?`<button onclick="openMdlEstimacion()" class="btn btn-p"><i class="ri-
 <div id="estList" class="divide-y divide-gray-800">
 ${estimaciones.length?estimaciones.map(x=>{
 const partidas=(D.estp||[]).filter(p=>p.estimacion_id===x.id);
+const facturada=(D.cfdi||[]).find(f=>f.estimacion_id===x.id&&f.estatus==='timbrado');
 const statusColor=x.estatus==='Aprobada'?'bg-green-500':x.estatus==='Presentada'?'bg-amber-500':x.estatus==='Rechazada'?'bg-red-500':'bg-gray-500';
 return `<div class="p-4 hover:bg-slate-50 transition-colors">
 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -15375,10 +15379,12 @@ ${x.fecha_presentacion?`<span><i class="ri-send-plane-line"></i> Presentada: ${x
 <p class="text-xs text-gray-500">Acumulado</p>
 <p class="text-sm font-semibold text-green-400">${fmt(x.monto_acumulado)} (${x.porcentaje_avance||0}%)</p>
 </div>
+${facturada?`<span class="px-2 py-1 rounded text-xs bg-green-100 text-green-700" title="Factura ${S(facturada.serie||'')}-${facturada.folio||''}"><i class="ri-bill-line"></i> Facturada</span>`:''}
 ${canEdit?`<div class="flex gap-2">
 <button onclick="viewEstimacion(${x.id})" class="px-3 py-1 rounded text-xs g hover:border-sky-400 text-cyan-400" aria-label="Ver detalle"><i class="ri-eye-line" aria-hidden="true"></i></button>
 <button onclick="editEstimacion(${x.id})" class="px-3 py-1 rounded text-xs g hover:border-amber-400 text-amber-400" aria-label="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button>
 <button onclick="printEstimacion(${x.id})" class="px-3 py-1 rounded text-xs g hover:border-purple-400 text-purple-400" aria-label="Imprimir"><i class="ri-printer-line" aria-hidden="true"></i></button>
+${!facturada&&nivel>=80?`<button onclick="facturarEstimacion(${x.id})" class="px-3 py-1 rounded text-xs g hover:border-green-400 text-green-500" title="Facturar" aria-label="Facturar"><i class="ri-bill-line" aria-hidden="true"></i></button>`:''}
 <button onclick="deleteEstimacion(${x.id})" class="px-3 py-1 rounded text-xs g hover:border-red-400 text-red-400" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
 </div>`:''}
 </div>
@@ -23143,7 +23149,6 @@ URL.revokeObjectURL(url);
 }
 
 // ========== MÓDULO CFDIs EMITIDOS (FACTURACIÓN) ==========
-let cfdiEditId=null;
 let pacConfigured=false;
 
 // Filtro CFDIs usando factory
@@ -23152,12 +23157,12 @@ const getFilteredCfdis=createStandardFilter('cfdi');
 function CFDIsEmitidos(c){
 const cfdis=getFilteredCfdis();
 const pacConfig=(D.pac||[])[0];
-pacConfigured=pacConfig&&pacConfig.activo&&pacConfig.pac_usuario;
+pacConfigured=!!(pacConfig&&pacConfig.activo&&pacConfig.csd_registrado_at);
 const canEdit=currentUser?.rol&&['admin_general','gerente_obra','contador'].includes(currentUser.rol);
 
 // Estadísticas
 const timbrados=cfdis.filter(x=>x.estatus==='timbrado');
-const borradores=cfdis.filter(x=>x.estatus==='borrador');
+const fallidos=cfdis.filter(x=>x.estatus==='error');
 const cancelados=cfdis.filter(x=>x.estatus==='cancelado');
 const totalFacturado=timbrados.reduce((s,x)=>s+(x.total||0),0);
 
@@ -23166,16 +23171,16 @@ c.innerHTML=`
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
 <div>
 <h1 class="text-xl font-bold text-slate-700"><i class="ri-file-mark-line mr-2"></i>CFDIs Emitidos</h1>
-<p class="text-sm text-slate-500">Facturación electrónica con timbrado SAT via Facturama</p>
+<p class="text-sm text-slate-500">Facturas que le emites a tus clientes, timbradas ante el SAT</p>
 </div>
 <div class="flex flex-wrap gap-2">
 <input type="text" id="cfdiSearch" class="inp text-sm py-1.5 w-48" placeholder="Buscar RFC, folio..." oninput="filterCfdis()">
 ${canEdit?`
-<button onclick="openPacConfig()" class="btn ${pacConfigured?'btn-s':'btn-p'}" title="Configurar PAC">
-<i class="ri-settings-3-line"></i> <span class="hidden md:inline">${pacConfigured?'PAC Configurado':'Configurar PAC'}</span>
+<button onclick="openPacConfig()" class="btn ${pacConfigured?'btn-s':'btn-p'}" title="Configurar facturación">
+<i class="ri-settings-3-line"></i> <span class="hidden md:inline">${pacConfigured?'Configuración fiscal':'Configurar facturación'}</span>
 </button>
-<button onclick="newCfdi()" class="btn btn-p" ${!pacConfigured?'disabled title="Configure primero el PAC"':''}>
-<i class="ri-add-line"></i> Nuevo CFDI
+<button onclick="newCfdi()" class="btn btn-p" ${!pacConfigured?'disabled title="Primero configura tus datos fiscales y sube tu sello"':''}>
+<i class="ri-add-line"></i> Nueva factura
 </button>
 `:''}
 </div>
@@ -23191,8 +23196,8 @@ ${canEdit?`
 </div>
 <div class="g rounded-xl p-4">
 <div class="flex items-center gap-3">
-<div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><i class="ri-draft-line text-amber-600"></i></div>
-<div><p class="text-2xl font-bold text-slate-700">${borradores.length}</p><p class="text-xs text-slate-500">Borradores</p></div>
+<div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center"><i class="ri-error-warning-line text-amber-600"></i></div>
+<div><p class="text-2xl font-bold text-slate-700">${fallidos.length}</p><p class="text-xs text-slate-500">Sin timbrar</p></div>
 </div>
 </div>
 <div class="g rounded-xl p-4">
@@ -23215,10 +23220,10 @@ ${!pacConfigured?`
 <div class="flex items-start gap-3">
 <i class="ri-alert-line text-2xl text-amber-500"></i>
 <div>
-<h3 class="font-bold text-amber-800">PAC No Configurado</h3>
-<p class="text-sm text-amber-700">Para emitir facturas con timbrado SAT, configure primero sus credenciales de Facturama y los datos fiscales del emisor.</p>
+<h3 class="font-bold text-amber-800">Todavía no puedes facturar</h3>
+<p class="text-sm text-amber-700">Captura los datos fiscales de tu empresa y sube tu sello digital (CSD). Se tarda unos minutos y sólo se hace una vez.</p>
 <button onclick="openPacConfig()" class="mt-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">
-<i class="ri-settings-3-line mr-1"></i> Configurar Ahora
+<i class="ri-settings-3-line mr-1"></i> Configurar facturación
 </button>
 </div>
 </div>
@@ -23244,7 +23249,7 @@ ${renderCfdiRows(cfdis,canEdit)}
 </tbody>
 </table>
 </div>
-${cfdis.length===0?`<div class="p-8 text-center text-slate-400"><i class="ri-file-unknow-line text-4xl mb-2"></i><p>No hay CFDIs emitidos</p></div>`:''}
+${cfdis.length===0?`<div class="p-8 text-center text-slate-400"><i class="ri-bill-line text-4xl mb-2"></i><p>Todavía no has emitido facturas. Se generan desde una estimación, desde un cobro o con "Nueva factura".</p></div>`:''}
 </div>
 </div>
 `;
@@ -23252,7 +23257,7 @@ ${cfdis.length===0?`<div class="p-8 text-center text-slate-400"><i class="ri-fil
 
 function renderCfdiRows(cfdis,canEdit){
 return cfdis.map(cf=>{
-const statusColors={borrador:'bg-amber-100 text-amber-700',timbrado:'bg-green-100 text-green-700',cancelado:'bg-red-100 text-red-700',error:'bg-red-100 text-red-700'};
+const statusColors={timbrado:'bg-green-100 text-green-700',cancelado:'bg-red-100 text-red-700',error:'bg-amber-100 text-amber-700'};
 const statusClass=statusColors[cf.estatus]||'bg-slate-100 text-slate-700';
 const cliente=(D.cli||[]).find(cl=>cl.id===cf.cliente_id);
 return `<tr class="hover:bg-slate-50">
@@ -23266,16 +23271,11 @@ return `<tr class="hover:bg-slate-50">
 <td class="text-center">
 <div class="flex justify-center gap-1">
 <button onclick="viewCfdi(${cf.id})" class="p-1 hover:bg-slate-100 rounded text-slate-600" title="Ver" aria-label="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button>
-${cf.estatus==='borrador'&&canEdit?`
-<button onclick="editCfdi(${cf.id})" class="p-1 hover:bg-slate-100 rounded text-blue-600" title="Editar" aria-label="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button>
-<button onclick="timbrarCfdi(${cf.id})" class="p-1 hover:bg-green-100 rounded text-green-600" title="Timbrar" aria-label="Timbrar"><i class="ri-stamp-line" aria-hidden="true"></i></button>
-`:''}
 ${cf.estatus==='timbrado'?`
 <button onclick="downloadCfdiXml(${cf.id})" class="p-1 hover:bg-slate-100 rounded text-slate-600" title="Descargar XML" aria-label="Descargar XML"><i class="ri-file-code-line" aria-hidden="true"></i></button>
 <button onclick="downloadCfdiPdf(${cf.id})" class="p-1 hover:bg-slate-100 rounded text-red-600" title="Descargar PDF" aria-label="Descargar PDF"><i class="ri-file-pdf-line" aria-hidden="true"></i></button>
-${canEdit?`<button onclick="cancelarCfdi(${cf.id})" class="p-1 hover:bg-red-100 rounded text-red-600" title="Cancelar" aria-label="Cancelar"><i class="ri-close-circle-line" aria-hidden="true"></i></button>`:''}
 `:''}
-${cf.estatus==='borrador'&&canEdit?`<button onclick="deleteCfdi(${cf.id})" class="p-1 hover:bg-red-100 rounded text-red-600" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>`:''}
+${cf.estatus==='error'&&canEdit?`<button onclick="deleteCfdi(${cf.id})" class="p-1 hover:bg-red-100 rounded text-red-600" title="Borrar intento fallido" aria-label="Borrar intento fallido"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>`:''}
 </div>
 </td>
 </tr>`;
@@ -23297,712 +23297,20 @@ const tbody=$('cfdiTableBody');
 if(tbody)tbody.innerHTML=renderCfdiRows(filtered,canEdit);
 }
 
-// ===== CONFIGURACIÓN PAC =====
-function openPacConfig(){
-const pac=(D.pac||[])[0]||{};
-$('mdlPacConfig').innerHTML=`
-<div class="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
-<div class="mdl-h sticky top-0 bg-white z-10 border-b"><span class="text-cyan-600 font-bold"><i class="ri-settings-3-line mr-2"></i>Configuración PAC - Facturama</span><button onclick="closeMdl('mdlPacConfig')" class="mdl-x">&times;</button></div>
-<form id="frmPacConfig" onsubmit="savePacConfig(event)" class="p-6 space-y-4">
-<input type="hidden" id="pacId" value="${pac.id||''}">
-
-<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-<p class="text-sm text-blue-800"><i class="ri-information-line mr-1"></i> Para obtener credenciales de Facturama, registrese en <a href="https://www.facturama.mx" target="_blank" class="underline">facturama.mx</a></p>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2">Credenciales Facturama</h3>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacUsuario">Usuario Facturama*</label><input type="text" id="pacUsuario" class="inp" value="${S(pac.pac_usuario||'')}" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacPassword">Password Facturama*</label><input type="password" id="pacPassword" class="inp" value="${pac.pac_password_encrypted?'••••••••':''}" placeholder="${pac.pac_password_encrypted?'Dejar vacío para mantener':''}"></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacModo">Modo</label>
-<select id="pacModo" class="inp">
-<option value="sandbox" ${pac.pac_modo==='sandbox'?'selected':''}>Sandbox (Pruebas)</option>
-<option value="produccion" ${pac.pac_modo==='produccion'?'selected':''}>Producción</option>
-</select>
-</div>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2 mt-6">Datos del Emisor (Su Empresa)</h3>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacRfc">RFC Emisor*</label><input type="text" id="pacRfc" class="inp uppercase" value="${S(pac.rfc_emisor||'')}" maxlength="13" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacRazonSocial">Razón Social*</label><input type="text" id="pacRazonSocial" class="inp uppercase" value="${S(pac.razon_social||'')}" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacNombreComercial">Nombre Comercial</label><input type="text" id="pacNombreComercial" class="inp" value="${S(pac.nombre_comercial||'')}"></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacRegimen">Régimen Fiscal*</label>
-<select id="pacRegimen" class="inp" required>
-<option value="">Seleccione...</option>
-<option value="601" ${pac.regimen_fiscal==='601'?'selected':''}>601 - General de Ley PM</option>
-<option value="603" ${pac.regimen_fiscal==='603'?'selected':''}>603 - Personas Morales Fines No Lucrativos</option>
-<option value="606" ${pac.regimen_fiscal==='606'?'selected':''}>606 - Arrendamiento</option>
-<option value="612" ${pac.regimen_fiscal==='612'?'selected':''}>612 - Personas Físicas Actividad Empresarial</option>
-<option value="620" ${pac.regimen_fiscal==='620'?'selected':''}>620 - Sociedad Cooperativas</option>
-<option value="621" ${pac.regimen_fiscal==='621'?'selected':''}>621 - Incorporación Fiscal</option>
-<option value="625" ${pac.regimen_fiscal==='625'?'selected':''}>625 - Actividades Agrícolas</option>
-<option value="626" ${pac.regimen_fiscal==='626'?'selected':''}>626 - Régimen Simplificado de Confianza</option>
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacCp">Código Postal*</label><input type="text" id="pacCp" class="inp" value="${S(pac.codigo_postal||'')}" maxlength="5" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacSerie">Serie Default</label><input type="text" id="pacSerie" class="inp uppercase" value="${S(pac.serie_default||'A')}" maxlength="10"></div>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2 mt-6">Certificado de Sello Digital (CSD)</h3>
-<p class="text-xs text-slate-500 mb-2">Suba sus archivos .cer y .key del CSD para timbrado en producción</p>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacCer">Archivo .cer</label><input type="file" id="pacCer" class="inp" accept=".cer"></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacKey">Archivo .key</label><input type="file" id="pacKey" class="inp" accept=".key"></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacCsdPassword">Contraseña CSD</label><input type="password" id="pacCsdPassword" class="inp" placeholder="${pac.csd_password_encrypted?'Dejar vacío para mantener':'Contraseña del .key'}"></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="pacCsdVigencia">Vigencia CSD</label><input type="date" id="pacCsdVigencia" class="inp" value="${pac.csd_vigencia_fin||''}"></div>
-</div>
-
-<div class="flex items-center gap-2 mt-4">
-<input type="checkbox" id="pacActivo" ${pac.activo!==false?'checked':''} class="w-4 h-4">
-<label for="pacActivo" class="text-sm text-slate-700">Configuración activa</label>
-</div>
-
-<div class="flex gap-2 mt-6 pt-4 border-t">
-<button type="button" onclick="testPacConnection()" class="btn btn-s flex-1"><i class="ri-wifi-line mr-1"></i> Probar Conexión</button>
-<button type="button" onclick="closeMdl('mdlPacConfig')" class="btn btn-s flex-1">Cancelar</button>
-<button type="submit" class="btn btn-p flex-1"><i class="ri-save-line mr-1"></i> Guardar</button>
-</div>
-</form>
-</div>
-`;
-openMdl('mdlPacConfig');
-}
-
-async function savePacConfig(e){
-e.preventDefault();
-const id=$('pacId').value;
-const cerFile=$('pacCer').files[0];
-const keyFile=$('pacKey').files[0];
-
-let cerBase64=null,keyBase64=null;
-if(cerFile){cerBase64=await fileToBase64(cerFile);}
-if(keyFile){keyBase64=await fileToBase64(keyFile);}
-
-const data={
-empresa_id:currentUser?.empresa_id||null,
-pac_nombre:'facturama',
-pac_usuario:$('pacUsuario').value.trim(),
-pac_modo:$('pacModo').value,
-rfc_emisor:$('pacRfc').value.trim().toUpperCase(),
-razon_social:$('pacRazonSocial').value.trim().toUpperCase(),
-nombre_comercial:$('pacNombreComercial').value.trim()||null,
-regimen_fiscal:$('pacRegimen').value,
-codigo_postal:$('pacCp').value.trim(),
-lugar_expedicion:$('pacCp').value.trim(),
-serie_default:$('pacSerie').value.trim().toUpperCase()||'A',
-csd_vigencia_fin:$('pacCsdVigencia').value||null,
-activo:$('pacActivo').checked,
-updated_at:new Date().toISOString()
-};
-
-// Solo actualizar password si se ingresó uno nuevo
-const pwd=$('pacPassword').value;
-if(pwd)data.pac_password_encrypted=pwd;
-
-const csdPwd=$('pacCsdPassword').value;
-if(csdPwd)data.csd_password_encrypted=csdPwd;
-
-if(cerBase64)data.csd_cer_base64=cerBase64;
-if(keyBase64)data.csd_key_base64=keyBase64;
-
-let res;
-if(id){
-res=await sb.from('config_pac').update(data).eq('id',id);
-}else{
-data.created_at=new Date().toISOString();
-res=await sb.from('config_pac').insert(data);
-}
-
-if(res.error){Toast.error(humanizeError(res.error));return;}
-Toast.success('Configuración guardada');
-closeMdl('mdlPacConfig');
-await L();
-}
-
-function fileToBase64(file){
-return new Promise((resolve,reject)=>{
-const reader=new FileReader();
-reader.onload=()=>resolve(reader.result.split(',')[1]);
-reader.onerror=reject;
-reader.readAsDataURL(file);
-});
-}
-
-async function testPacConnection(){
-const usuario=$('pacUsuario').value.trim();
-const password=$('pacPassword').value||'stored';
-const modo=$('pacModo').value;
-if(!usuario){Toast.warning('Ingrese el usuario de Facturama');return;}
-const url=modo==='produccion'?'https://api.facturama.mx/api/Account':'https://apisandbox.facturama.mx/api/Account';
-try{
-const basicAuth=btoa(usuario+':'+password);
-const resp=await fetch(url,{
-method:'GET',
-headers:{'Authorization':'Basic '+basicAuth,'Content-Type':'application/json'}
-});
-if(resp.ok){
-const data=await resp.json();
-Toast.success('Conexión exitosa: '+data.Email);
-}else{
-const err=await resp.text();
-Toast.error('Error de conexión: '+err);
-}
-}catch(e){
-Toast.error(humanizeError(e));
-}
-}
-
-// ===== CREAR/EDITAR CFDI =====
-function newCfdi(){
-if(!pacConfigured){Toast.warning('Configure primero el PAC');return;}
-cfdiEditId=null;
-openCfdiForm({});
-}
-
-function editCfdi(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf)return;
-cfdiEditId=id;
-openCfdiForm(cf);
-}
-
-function openCfdiForm(cf){
-const pac=(D.pac||[])[0]||{};
-const clientes=D.cli||[];
-const obras=D.o||[];
-const conceptos=cf.conceptos||[];
-
-$('mdlCfdi').innerHTML=`
-<div class="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
-<div class="mdl-h sticky top-0 bg-white z-10 border-b"><span class="text-cyan-600 font-bold"><i class="ri-file-mark-line mr-2"></i>${cfdiEditId?'Editar':'Nuevo'} CFDI</span><button onclick="closeMdl('mdlCfdi')" class="mdl-x">&times;</button></div>
-<form id="frmCfdi" onsubmit="saveCfdi(event)" class="p-6 space-y-4">
-
-<div class="bg-slate-50 rounded-lg p-3 mb-4">
-<div class="flex justify-between text-sm">
-<span class="text-slate-600">Emisor: <strong>${S(pac.razon_social)}</strong></span>
-<span class="text-slate-600">RFC: <strong>${S(pac.rfc_emisor)}</strong></span>
-<span class="text-slate-600">Serie: <strong>${S(cf.serie||pac.serie_default||'A')}</strong></span>
-</div>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2">Datos del Receptor</h3>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiCliente">Cliente</label>
-<select id="cfdiCliente" class="inp" onchange="loadClienteData()">
-<option value="">Seleccione o ingrese manual...</option>
-${clientes.map(c=>`<option value="${c.id}" ${cf.cliente_id===c.id?'selected':''}>${S(c.nombre)} - ${S(c.rfc||'')}</option>`).join('')}
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiRfc">RFC Receptor*</label><input type="text" id="cfdiRfc" class="inp uppercase" value="${S(cf.receptor_rfc||'')}" maxlength="13" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiNombre">Nombre/Razón Social*</label><input type="text" id="cfdiNombre" class="inp uppercase" value="${S(cf.receptor_nombre||'')}" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiRegimenReceptor">Régimen Fiscal Receptor*</label>
-<select id="cfdiRegimenReceptor" class="inp" required>
-<option value="">Seleccione...</option>
-<option value="601" ${cf.receptor_regimen==='601'?'selected':''}>601 - General de Ley PM</option>
-<option value="603" ${cf.receptor_regimen==='603'?'selected':''}>603 - PM Fines No Lucrativos</option>
-<option value="605" ${cf.receptor_regimen==='605'?'selected':''}>605 - Sueldos y Salarios</option>
-<option value="606" ${cf.receptor_regimen==='606'?'selected':''}>606 - Arrendamiento</option>
-<option value="612" ${cf.receptor_regimen==='612'?'selected':''}>612 - Actividad Empresarial PF</option>
-<option value="616" ${cf.receptor_regimen==='616'?'selected':''}>616 - Sin Obligaciones Fiscales</option>
-<option value="621" ${cf.receptor_regimen==='621'?'selected':''}>621 - Incorporación Fiscal</option>
-<option value="625" ${cf.receptor_regimen==='625'?'selected':''}>625 - Actividades Agrícolas</option>
-<option value="626" ${cf.receptor_regimen==='626'?'selected':''}>626 - RESICO</option>
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiCpReceptor">CP Domicilio Fiscal*</label><input type="text" id="cfdiCpReceptor" class="inp" value="${S(cf.receptor_domicilio_cp||'')}" maxlength="5" required></div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiUsoCfdi">Uso CFDI*</label>
-<select id="cfdiUsoCfdi" class="inp" required>
-<option value="G01" ${cf.uso_cfdi==='G01'?'selected':''}>G01 - Adquisición de mercancías</option>
-<option value="G02" ${cf.uso_cfdi==='G02'?'selected':''}>G02 - Devoluciones, descuentos</option>
-<option value="G03" ${(cf.uso_cfdi||'G03')==='G03'?'selected':''}>G03 - Gastos en general</option>
-<option value="I01" ${cf.uso_cfdi==='I01'?'selected':''}>I01 - Construcciones</option>
-<option value="I02" ${cf.uso_cfdi==='I02'?'selected':''}>I02 - Mobiliario y equipo</option>
-<option value="I04" ${cf.uso_cfdi==='I04'?'selected':''}>I04 - Equipo de transporte</option>
-<option value="I08" ${cf.uso_cfdi==='I08'?'selected':''}>I08 - Otra maquinaria</option>
-<option value="S01" ${cf.uso_cfdi==='S01'?'selected':''}>S01 - Sin efectos fiscales</option>
-<option value="CP01" ${cf.uso_cfdi==='CP01'?'selected':''}>CP01 - Pagos</option>
-</select>
-</div>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2 mt-4">Datos del Comprobante</h3>
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiTipo">Tipo de comprobante</label>
-<select id="cfdiTipo" class="inp">
-<option value="I" ${(cf.tipo_comprobante||'I')==='I'?'selected':''}>I - Ingreso</option>
-<option value="E" ${cf.tipo_comprobante==='E'?'selected':''}>E - Egreso</option>
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiFormaPago">Forma de Pago*</label>
-<select id="cfdiFormaPago" class="inp" required>
-<option value="01" ${cf.forma_pago==='01'?'selected':''}>01 - Efectivo</option>
-<option value="02" ${cf.forma_pago==='02'?'selected':''}>02 - Cheque nominativo</option>
-<option value="03" ${(cf.forma_pago||'03')==='03'?'selected':''}>03 - Transferencia</option>
-<option value="04" ${cf.forma_pago==='04'?'selected':''}>04 - Tarjeta de crédito</option>
-<option value="28" ${cf.forma_pago==='28'?'selected':''}>28 - Tarjeta de débito</option>
-<option value="99" ${cf.forma_pago==='99'?'selected':''}>99 - Por definir</option>
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiMetodoPago">Método de Pago*</label>
-<select id="cfdiMetodoPago" class="inp" required>
-<option value="PUE" ${(cf.metodo_pago||'PUE')==='PUE'?'selected':''}>PUE - Pago en Una Exhibición</option>
-<option value="PPD" ${cf.metodo_pago==='PPD'?'selected':''}>PPD - Pago en Parcialidades o Diferido</option>
-</select>
-</div>
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiObra">Obra Relacionada</label>
-<select id="cfdiObra" class="inp">
-<option value="">Sin obra</option>
-${obras.map(o=>`<option value="${o.id}" ${cf.obra_id===o.id?'selected':''}>${S(o.nombre_obra)}</option>`).join('')}
-</select>
-</div>
-</div>
-
-<h3 class="font-bold text-slate-700 border-b pb-2 mt-4">Conceptos</h3>
-<div id="cfdiConceptos" class="space-y-2">
-${conceptos.length?conceptos.map((con,i)=>conceptoRow(i,con)).join(''):conceptoRow(0,{})}
-</div>
-<button type="button" onclick="addConcepto()" class="text-blue-600 text-sm hover:underline"><i class="ri-add-line"></i> Agregar concepto</button>
-
-<div class="bg-slate-50 rounded-lg p-4 mt-4">
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-right">
-<div><span class="text-xs text-slate-500 block">Subtotal</span><span id="cfdiSubtotal" class="font-bold">${F(cf.subtotal||0)}</span></div>
-<div><span class="text-xs text-slate-500 block">IVA (16%)</span><span id="cfdiIvaMonto" class="font-bold">${F(cf.iva_monto||0)}</span></div>
-<div><span class="text-xs text-slate-500 block">Retenciones</span><span id="cfdiRetenciones" class="font-bold text-red-600">-${F((cf.isr_retenido||0)+(cf.iva_retenido||0))}</span></div>
-<div><span class="text-xs text-slate-500 block">Total</span><span id="cfdiTotal" class="text-xl font-bold text-green-600">${F(cf.total||0)}</span></div>
-</div>
-</div>
-
-<div><label class="text-xs text-slate-500 mb-1 block" for="cfdiNotas">Notas internas</label><textarea id="cfdiNotas" class="inp" rows="2">${S(cf.notas||'')}</textarea></div>
-
-<div class="flex gap-2 mt-6 pt-4 border-t">
-<button type="button" onclick="closeMdl('mdlCfdi')" class="btn btn-s flex-1">Cancelar</button>
-<button type="submit" class="btn btn-p flex-1"><i class="ri-save-line mr-1"></i> Guardar Borrador</button>
-</div>
-</form>
-</div>
-`;
-openMdl('mdlCfdi');
-}
-
-function conceptoRow(idx,con){
-return `<div class="grid grid-cols-12 gap-2 items-end border p-2 rounded bg-white" data-concepto="${idx}">
-<div class="col-span-12 md:col-span-4"><label class="text-xs text-slate-500">Descripción*</label><input type="text" class="inp con-desc" value="${S(con.descripcion||'')}" required></div>
-<div class="col-span-4 md:col-span-2"><label class="text-xs text-slate-500">Clave SAT*</label><input type="text" class="inp con-clave" value="${S(con.clave_prod_serv||'80111600')}" maxlength="8" required></div>
-<div class="col-span-4 md:col-span-1"><label class="text-xs text-slate-500">Unidad</label><input type="text" class="inp con-unidad" value="${S(con.clave_unidad||'E48')}" maxlength="3"></div>
-<div class="col-span-4 md:col-span-1"><label class="text-xs text-slate-500">Cantidad</label><input type="number" class="inp con-cant" value="${con.cantidad||1}" min="0.01" step="0.01" onchange="calcCfdiTotals()"></div>
-<div class="col-span-6 md:col-span-2"><label class="text-xs text-slate-500">P.Unitario</label><input type="number" class="inp con-precio" value="${con.valor_unitario||0}" min="0" step="0.01" onchange="calcCfdiTotals()"></div>
-<div class="col-span-5 md:col-span-1"><label class="text-xs text-slate-500">Importe</label><input type="text" class="inp con-importe bg-slate-100" value="${F(con.importe||0)}" readonly></div>
-<div class="col-span-1 flex items-end"><button type="button" onclick="removeConcepto(${idx})" class="p-2 text-red-500 hover:bg-red-50 rounded" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div>
-</div>`;
-}
-
-function addConcepto(){
-const container=$('cfdiConceptos');
-const idx=container.children.length;
-container.insertAdjacentHTML('beforeend',conceptoRow(idx,{}));
-}
-
-function removeConcepto(idx){
-const container=$('cfdiConceptos');
-if(container.children.length<=1){Toast.warning('Debe haber al menos un concepto');return;}
-const row=container.querySelector(`[data-concepto="${idx}"]`);
-if(row)row.remove();
-calcCfdiTotals();
-}
-
-function calcCfdiTotals(){
-const rows=document.querySelectorAll('#cfdiConceptos > div');
-let subtotal=0;
-rows.forEach(row=>{
-const cant=parseFloat(row.querySelector('.con-cant')?.value)||0;
-const precio=parseFloat(row.querySelector('.con-precio')?.value)||0;
-const importe=cant*precio;
-const importeInput=row.querySelector('.con-importe');
-if(importeInput)importeInput.value=F(importe);
-subtotal+=importe;
-});
-const iva=subtotal*0.16;
-const total=subtotal+iva;
-if($('cfdiSubtotal'))$('cfdiSubtotal').textContent=F(subtotal);
-if($('cfdiIvaMonto'))$('cfdiIvaMonto').textContent=F(iva);
-if($('cfdiTotal'))$('cfdiTotal').textContent=F(total);
-}
-
-function loadClienteData(){
-const clienteId=$('cfdiCliente').value;
-if(!clienteId)return;
-const cliente=(D.cli||[]).find(c=>c.id==clienteId);
-if(!cliente)return;
-$('cfdiRfc').value=cliente.rfc||'';
-$('cfdiNombre').value=cliente.nombre||'';
-if(cliente.regimen_fiscal)$('cfdiRegimenReceptor').value=cliente.regimen_fiscal;
-if(cliente.codigo_postal)$('cfdiCpReceptor').value=cliente.codigo_postal;
-}
-
-async function saveCfdi(e){
-e.preventDefault();
-const pac=(D.pac||[])[0];
-if(!pac)return Toast.warning('Configure primero el PAC');
-
-// Recolectar conceptos
-const conceptos=[];
-document.querySelectorAll('#cfdiConceptos > div').forEach(row=>{
-const desc=row.querySelector('.con-desc')?.value?.trim();
-const clave=row.querySelector('.con-clave')?.value?.trim();
-const unidad=row.querySelector('.con-unidad')?.value?.trim()||'E48';
-const cant=parseFloat(row.querySelector('.con-cant')?.value)||1;
-const precio=parseFloat(row.querySelector('.con-precio')?.value)||0;
-if(desc&&clave){
-conceptos.push({
-descripcion:desc,
-clave_prod_serv:clave,
-clave_unidad:unidad,
-cantidad:cant,
-valor_unitario:precio,
-importe:cant*precio
-});
-}
-});
-
-if(!conceptos.length){Toast.warning('Agregue al menos un concepto');return;}
-
-const subtotal=conceptos.reduce((s,c)=>s+c.importe,0);
-const ivaMonto=subtotal*0.16;
-const total=subtotal+ivaMonto;
-
-const data={
-empresa_id:currentUser?.empresa_id||null,
-obra_id:$('cfdiObra').value||null,
-cliente_id:$('cfdiCliente').value||null,
-serie:pac.serie_default||'A',
-tipo_comprobante:$('cfdiTipo').value,
-forma_pago:$('cfdiFormaPago').value,
-metodo_pago:$('cfdiMetodoPago').value,
-uso_cfdi:$('cfdiUsoCfdi').value,
-receptor_rfc:$('cfdiRfc').value.trim().toUpperCase(),
-receptor_nombre:$('cfdiNombre').value.trim().toUpperCase(),
-receptor_regimen:$('cfdiRegimenReceptor').value,
-receptor_domicilio_cp:$('cfdiCpReceptor').value.trim(),
-receptor_uso_cfdi:$('cfdiUsoCfdi').value,
-subtotal:subtotal,
-iva_tasa:16,
-iva_monto:ivaMonto,
-total:total,
-moneda:'MXN',
-conceptos:conceptos,
-estatus:'borrador',
-notas:$('cfdiNotas').value.trim()||null,
-updated_at:new Date().toISOString()
-};
-
-let res;
-if(cfdiEditId){
-res=await sb.from('cfdis_emitidos').update(data).eq('id',cfdiEditId);
-}else{
-data.fecha_emision=new Date().toISOString();
-data.created_by=currentUser?.email||'sistema';
-data.created_at=new Date().toISOString();
-// Obtener siguiente folio
-const{data:lastFolio}=await sb.from('cfdis_emitidos').select('folio').eq('empresa_id',data.empresa_id).eq('serie',data.serie).order('folio',{ascending:false}).limit(1);
-data.folio=(lastFolio&&lastFolio[0])?lastFolio[0].folio+1:1;
-res=await sb.from('cfdis_emitidos').insert(data);
-}
-
-if(res.error){Toast.error(humanizeError(res.error));return;}
-Toast.success('CFDI guardado como borrador');
-closeMdl('mdlCfdi');
-await L();
-}
-
-// ===== TIMBRAR CFDI =====
-async function timbrarCfdi(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf){Toast.error('CFDI no encontrado');return;}
-if(cf.estatus!=='borrador'){Toast.warning('Solo se pueden timbrar borradores');return;}
-
-const pac=(D.pac||[])[0];
-if(!pac||!pac.pac_usuario){Toast.warning('Configure primero el PAC');return;}
-
-if(!await Dialog.confirm('¿Timbrar este CFDI?\n\nEsta acción generará un CFDI válido ante el SAT y no podrá deshacerse fácilmente.'))return;
-
-try{
-// Construir payload para Facturama API
-const cfdiPayload={
-Serie:cf.serie,
-Currency:'MXN',
-ExpeditionPlace:pac.lugar_expedicion||pac.codigo_postal,
-PaymentConditions:'CONTADO',
-CfdiType:cf.tipo_comprobante,
-PaymentForm:cf.forma_pago,
-PaymentMethod:cf.metodo_pago,
-Receiver:{
-Rfc:cf.receptor_rfc,
-Name:cf.receptor_nombre,
-CfdiUse:cf.uso_cfdi,
-FiscalRegime:cf.receptor_regimen,
-TaxZipCode:cf.receptor_domicilio_cp
-},
-Items:(cf.conceptos||[]).map(c=>({
-ProductCode:c.clave_prod_serv,
-Description:c.descripcion,
-Unit:'Servicio',
-UnitCode:c.clave_unidad||'E48',
-Quantity:c.cantidad,
-UnitPrice:c.valor_unitario,
-Subtotal:c.importe,
-Taxes:[{
-Total:c.importe*0.16,
-Name:'IVA',
-Base:c.importe,
-Rate:0.16,
-IsRetention:false
-}],
-Total:c.importe*1.16
-}))
-};
-
-const baseUrl=pac.pac_modo==='produccion'?'https://api.facturama.mx':'https://apisandbox.facturama.mx';
-const basicAuth=btoa(pac.pac_usuario+':'+pac.pac_password_encrypted);
-
-const resp=await fetch(baseUrl+'/3/cfdis',{
-method:'POST',
-headers:{
-'Authorization':'Basic '+basicAuth,
-'Content-Type':'application/json'
-},
-body:JSON.stringify(cfdiPayload)
-});
-
-const result=await resp.json();
-
-if(!resp.ok){
-console.error('Facturama error:',result);
-await sb.from('cfdis_emitidos').update({
-estatus:'error',
-pac_response:result,
-updated_at:new Date().toISOString()
-}).eq('id',id);
-Toast.error('Error al timbrar: '+(result.Message||result.message||'Error desconocido'));
-await L();
-return;
-}
-
-// Timbrado exitoso
-const updateData={
-uuid:result.Complement?.TaxStamp?.Uuid||result.Id,
-fecha_timbrado:new Date().toISOString(),
-folio:result.Folio||cf.folio,
-estatus:'timbrado',
-cadena_original:result.Complement?.TaxStamp?.CadenaOriginal||null,
-sello_cfdi:result.Complement?.TaxStamp?.CfdiSign||null,
-sello_sat:result.Complement?.TaxStamp?.SatSign||null,
-certificado_sat:result.Complement?.TaxStamp?.SatCertNumber||null,
-pac_response:result,
-updated_at:new Date().toISOString()
-};
-
-// Obtener URLs de descarga
-if(result.Id){
-updateData.xml_url=baseUrl+'/cfdi/xml/'+result.Id;
-updateData.pdf_url=baseUrl+'/cfdi/pdf/'+result.Id;
-}
-
-await sb.from('cfdis_emitidos').update(updateData).eq('id',id);
-
-// Actualizar folio en config_pac
-await sb.from('config_pac').update({folio_actual:(result.Folio||cf.folio)+1}).eq('id',pac.id);
-
-Toast.success('CFDI Timbrado! UUID: '+updateData.uuid, 5000);
-await L();
-}catch(e){
-console.error('Error timbrado:',e);
-Toast.error(humanizeError(e,'Error de conexión'));
-}
-}
-
-// ===== VER CFDI =====
-function viewCfdi(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf)return;
-const pac=(D.pac||[])[0]||{};
-const cliente=(D.cli||[]).find(c=>c.id===cf.cliente_id);
-
-$('mdlCfdi').innerHTML=`
-<div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4">
-<div class="mdl-h sticky top-0 bg-white z-10 border-b"><span class="text-cyan-600 font-bold"><i class="ri-file-mark-line mr-2"></i>CFDI ${cf.serie}-${cf.folio}</span><button onclick="closeMdl('mdlCfdi')" class="mdl-x">&times;</button></div>
-<div class="p-6">
-
-<div class="flex justify-between items-start mb-6">
-<div>
-<p class="text-2xl font-bold">${cf.serie}-${cf.folio}</p>
-<p class="text-sm text-slate-500">${cf.fecha_emision?new Date(cf.fecha_emision).toLocaleString('es-MX'):'-'}</p>
-</div>
-<span class="px-3 py-1 rounded-full text-sm font-medium ${cf.estatus==='timbrado'?'bg-green-100 text-green-700':cf.estatus==='cancelado'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'}">${cf.estatus?.toUpperCase()}</span>
-</div>
-
-${cf.uuid?`
-<div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-<p class="text-xs text-green-600 font-medium">UUID (Folio Fiscal)</p>
-<p class="font-mono text-green-800">${cf.uuid}</p>
-<p class="text-xs text-green-600 mt-2">Timbrado: ${cf.fecha_timbrado?new Date(cf.fecha_timbrado).toLocaleString('es-MX'):'-'}</p>
-</div>
-`:''}
-
-<div class="grid grid-cols-2 gap-6 mb-6">
-<div class="bg-slate-50 rounded-lg p-4">
-<h4 class="font-bold text-slate-700 mb-2">Emisor</h4>
-<p class="font-medium">${S(pac.razon_social)}</p>
-<p class="text-sm text-slate-600">RFC: ${S(pac.rfc_emisor)}</p>
-<p class="text-sm text-slate-600">Régimen: ${pac.regimen_fiscal}</p>
-</div>
-<div class="bg-slate-50 rounded-lg p-4">
-<h4 class="font-bold text-slate-700 mb-2">Receptor</h4>
-<p class="font-medium">${S(cf.receptor_nombre)}</p>
-<p class="text-sm text-slate-600">RFC: ${S(cf.receptor_rfc)}</p>
-<p class="text-sm text-slate-600">Uso CFDI: ${cf.uso_cfdi}</p>
-</div>
-</div>
-
-<table class="table-modern w-full mb-4">
-<thead><tr><th>Descripción</th><th>Cantidad</th><th>P.Unit</th><th class="text-right">Importe</th></tr></thead>
-<tbody>
-${(cf.conceptos||[]).map(c=>`<tr>
-<td><span class="text-xs text-slate-400">${S(c.clave_prod_serv)}</span><br>${S(c.descripcion)}</td>
-<td>${c.cantidad}</td>
-<td>${F(c.valor_unitario)}</td>
-<td class="text-right">${F(c.importe)}</td>
-</tr>`).join('')}
-</tbody>
-</table>
-
-<div class="bg-slate-50 rounded-lg p-4">
-<div class="flex justify-between py-1"><span>Subtotal</span><span>${F(cf.subtotal)}</span></div>
-<div class="flex justify-between py-1"><span>IVA (${cf.iva_tasa||16}%)</span><span>${F(cf.iva_monto)}</span></div>
-${cf.isr_retenido?`<div class="flex justify-between py-1 text-red-600"><span>ISR Retenido</span><span>-${F(cf.isr_retenido)}</span></div>`:''}
-${cf.iva_retenido?`<div class="flex justify-between py-1 text-red-600"><span>IVA Retenido</span><span>-${F(cf.iva_retenido)}</span></div>`:''}
-<div class="flex justify-between py-2 border-t font-bold text-lg"><span>Total</span><span class="text-green-600">${F(cf.total)}</span></div>
-</div>
-
-${cf.estatus==='timbrado'?`
-<div class="flex gap-2 mt-6">
-<button onclick="downloadCfdiXml(${cf.id})" class="btn btn-s flex-1"><i class="ri-file-code-line mr-1"></i> Descargar XML</button>
-<button onclick="downloadCfdiPdf(${cf.id})" class="btn btn-p flex-1"><i class="ri-file-pdf-line mr-1"></i> Descargar PDF</button>
-</div>
-`:''}
-
-</div>
-</div>
-`;
-openMdl('mdlCfdi');
-}
-
-// ===== DESCARGAS =====
-async function downloadCfdiXml(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf)return;
-const pac=(D.pac||[])[0];
-if(!pac)return;
-
-if(cf.xml_content){
-downloadFile(cf.xml_content,'text/xml',`CFDI_${cf.serie}${cf.folio}.xml`);
-return;
-}
-
-// Si no hay contenido local, descargar de Facturama
-const pacResp=cf.pac_response;
-if(pacResp&&pacResp.Id){
-const baseUrl=pac.pac_modo==='produccion'?'https://api.facturama.mx':'https://apisandbox.facturama.mx';
-window.open(baseUrl+'/cfdi/xml/issuedLite/'+pacResp.Id,'_blank');
-}else{
-Toast.warning('No hay XML disponible');
-}
-}
-
-async function downloadCfdiPdf(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf)return;
-const pac=(D.pac||[])[0];
-if(!pac)return;
-
-const pacResp=cf.pac_response;
-if(pacResp&&pacResp.Id){
-const baseUrl=pac.pac_modo==='produccion'?'https://api.facturama.mx':'https://apisandbox.facturama.mx';
-window.open(baseUrl+'/cfdi/pdf/issuedLite/'+pacResp.Id,'_blank');
-}else{
-Toast.warning('No hay PDF disponible');
-}
-}
-
-function downloadFile(content,type,filename){
-const blob=new Blob([content],{type:type});
-const url=URL.createObjectURL(blob);
-const a=document.createElement('a');
-a.href=url;
-a.download=filename;
-a.click();
-URL.revokeObjectURL(url);
-}
-
-// ===== CANCELAR CFDI =====
-async function cancelarCfdi(id){
-const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf||cf.estatus!=='timbrado')return;
-
-const motivo=prompt('Motivo de cancelación:\n01 - Comprobante emitido con errores con relación\n02 - Comprobante emitido con errores sin relación\n03 - No se llevó a cabo la operación\n04 - Operación nominativa relacionada\n\nIngrese código (01-04):');
-if(!motivo||!['01','02','03','04'].includes(motivo))return;
-
-let uuidSustitucion=null;
-if(motivo==='01'){
-uuidSustitucion=prompt('Ingrese el UUID del CFDI que sustituye a este:');
-if(!uuidSustitucion)return;
-}
-
-if(!await Dialog.confirm('¿Está seguro de cancelar este CFDI ante el SAT?\n\nEsta acción puede tardar hasta 72 horas en procesarse.'))return;
-
-const pac=(D.pac||[])[0];
-const pacResp=cf.pac_response;
-if(!pac||!pacResp?.Id){Toast.error('No se puede cancelar: datos incompletos');return;}
-
-try{
-const baseUrl=pac.pac_modo==='produccion'?'https://api.facturama.mx':'https://apisandbox.facturama.mx';
-const basicAuth=btoa(pac.pac_usuario+':'+pac.pac_password_encrypted);
-
-const cancelUrl=baseUrl+'/cfdi/'+pacResp.Id+'?motive='+motivo+(uuidSustitucion?'&uuidReplacement='+uuidSustitucion:'');
-
-const resp=await fetch(cancelUrl,{
-method:'DELETE',
-headers:{'Authorization':'Basic '+basicAuth}
-});
-
-const result=await resp.json();
-
-if(!resp.ok&&result.Status!=='Cancelado'){
-Toast.error('Error al cancelar: '+(result.Message||'Error desconocido'));
-return;
-}
-
-await sb.from('cfdis_emitidos').update({
-estatus:'cancelado',
-estatus_cancelacion:result.Status||'Cancelado',
-fecha_cancelacion:new Date().toISOString(),
-motivo_cancelacion:motivo,
-uuid_sustitucion:uuidSustitucion,
-updated_at:new Date().toISOString()
-}).eq('id',id);
-
-Toast.success('Solicitud de cancelación enviada. Estatus: '+(result.Status||'Cancelado'));
-await L();
-}catch(e){
-Toast.error(humanizeError(e));
-}
-}
-
-// ===== ELIMINAR BORRADOR =====
+// ===== FACTURACIÓN (US-231, US-232) =====
+// La configuración del PAC y el timbrado viven en js/facturacion.js, que habla con las Edge Functions
+// pac-config y cfdi-emitir. El navegador ya no ve la cuenta del proveedor ni arma el comprobante.
+function openPacConfig(){Facturacion.abrirConfig();}
+function newCfdi(){Facturacion.abrirFactura({origen:'libre'});}
+function facturarEstimacion(id){Facturacion.abrirFactura({origen:'estimacion',estimacion_id:id});}
+function facturarCobro(id){Facturacion.abrirFactura({origen:'cobro',pago_recibido_id:id});}
+function viewCfdi(id){Facturacion.verFactura(id);}
+function downloadCfdiXml(id){Facturacion.descargar(id,'xml');}
+function downloadCfdiPdf(id){Facturacion.descargar(id,'pdf');}
 async function deleteCfdi(id){
 const cf=(D.cfdi||[]).find(x=>x.id===id);
-if(!cf||cf.estatus!=='borrador')return;
-if(!await Dialog.confirm('¿Eliminar este borrador de CFDI?'))return;
+if(!cf||cf.estatus!=='error')return;
+if(!await Dialog.confirm('¿Borrar este intento fallido? No afecta al SAT: la factura nunca se timbró.'))return;
 const{error}=await sb.from('cfdis_emitidos').delete().eq('id',id);
 if(error){Toast.error(humanizeError(error));return;}
 await L();

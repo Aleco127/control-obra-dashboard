@@ -475,17 +475,51 @@ El contador gestiona toda la operacion fiscal y financiera de la empresa.
 
 > **Validacion importante:** Si el tipo de comprobante es "Fiscal", el folio fiscal (UUID) es obligatorio para poder registrar el pago.
 
-**Registrar CFDIs emitidos:**
-1. Ve al modulo **CFDIs Emitidos** (categoria Contabilidad)
-2. Haz clic en **"+ Nuevo CFDI"**
-3. Completa:
-   - **Numero de Serie y Folio**
-   - **UUID:** Identificador unico
-   - **Fecha de Emision**
-   - **Cliente RFC y Razon Social**
-   - **Subtotal, IVA Trasladado y Total**
-   - **Forma de Pago:** Metodo de pago utilizado
-   - **Estatus:** Vigente o Cancelada
+**Facturar a un cliente (CFDI 4.0 timbrado):**
+
+Antes de la primera factura hay que dar de alta a la empresa una sola vez. Lo hace el administrador
+desde **CFDIs Emitidos > Configurar facturacion**:
+
+1. Captura los datos fiscales tal como aparecen en la constancia de situacion fiscal: RFC, razon social
+   (sin "S.A. de C.V."), regimen, codigo postal de expedicion, serie y folio de la primera factura.
+2. Elige el concepto y la clave del SAT que usaras por omision (por ejemplo 72141500, servicios de
+   construccion de edificaciones) y el uso de CFDI mas comun de tus clientes (normalmente G03).
+3. Sube el sello digital: el archivo **.cer**, el **.key** y la contrasena de la llave. La app lee del
+   certificado el numero de serie y la vigencia, y registra el sello con el proveedor de timbrado.
+   **La llave y su contrasena no se guardan en ningun lado**: viajan cifradas hasta el proveedor y se
+   descartan. Treinta dias antes de que venza el sello llega un aviso.
+4. Deja el modo en **Pruebas** mientras aprendes; en ese modo los comprobantes no tienen validez fiscal.
+   Cambia a **Produccion** cuando vayas a facturar de verdad.
+
+Ya configurada, la factura se emite desde el documento que la origina, para que no tengas que recapturar:
+
+- **Desde una estimacion** (boton con el icono de factura en la lista de estimaciones): se prellena con el
+  numero de estimacion, la obra, el periodo y el importe sin IVA, con metodo **PPD** y forma de pago 99,
+  porque la estimacion se cobra despues.
+- **Desde un cobro** (Pagos > Cobros): se prellena con metodo **PUE**, la forma de pago segun como te
+  pagaron y el importe convertido a base, porque el cobro se captura con IVA incluido.
+- **Desde cero** con el boton "Nueva factura".
+
+En el formulario revisas al cliente (RFC, nombre, regimen, codigo postal y uso de CFDI, que se toman de su
+ficha), los conceptos y el IVA:
+
+- **16 %** es lo normal.
+- **Tasa 0 %** desglosa el impuesto en cero.
+- **Exento** no lleva impuesto y es lo que corresponde a la construccion de casa habitacion. La obra lo
+  propone segun su porcentaje de IVA y la app avisa cuando la factura va a salir sin impuesto.
+- Las **retenciones** de ISR e IVA se capturan en el apartado plegable, solo si tu cliente te retiene.
+
+Antes de gastar un timbre la app revisa lo que el SAT rechaza mas seguido: que el RFC tenga el formato
+correcto, que el regimen corresponda al tipo de persona (una empresa no puede tener regimen de persona
+fisica), que el codigo postal traiga cinco digitos y que al publico en general se le facture con uso S01.
+Si algo falla te lo dice en espanol y **no se consume folio**: el consecutivo solo avanza cuando la
+factura de verdad se va a timbrar.
+
+Timbrada la factura, quedan guardados el UUID, el XML y el PDF. Los descargas desde la lista o desde la
+ficha de la factura, y el cliente los ve en su portal.
+
+> **Todavia no puedes facturar?** El timbrado necesita que activemos la cuenta del proveedor para tu
+> empresa. Captura tus datos fiscales y escribenos: la app te lo indica en el mismo modulo.
 
 ### Retenciones
 
