@@ -72,26 +72,38 @@ if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(
 // 6) Service worker: precache del app shell (US-226)
 const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), 'img/icon-192.png', 'img/icon-512.png'];
 const sw = `// Service worker de Control de Obra · build ${BUILD_ID} (generado por scripts/build.mjs; no editar)
+// Estrategia: red primero para todo; la caché sólo entra cuando no hay red. Las respuestas se guardan sin
+// Content-Encoding (el cuerpo ya viene descomprimido) para que Chrome no falle al servirlas desde caché.
 const CACHE='obra-${BUILD_ID}';
 const PRECACHE=${JSON.stringify(precache)};
-self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(PRECACHE)).then(()=>self.skipWaiting()));});
+async function limpia(r){
+  const h=new Headers(r.headers);['content-encoding','content-length','transfer-encoding','vary'].forEach(k=>h.delete(k));
+  return new Response(await r.arrayBuffer(),{status:r.status,statusText:r.statusText,headers:h});
+}
+self.addEventListener('install',e=>{e.waitUntil((async()=>{const c=await caches.open(CACHE);for(const u of PRECACHE){try{const r=await fetch(u,{cache:'reload'});if(r.ok)await c.put(u,await limpia(r));}catch(_){}}await self.skipWaiting();})());});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k.startsWith('obra-')).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting();});
 self.addEventListener('fetch',e=>{
-  const u=new URL(e.request.url);
-  if(e.request.method!=='GET')return;
-  // Supabase y funciones: siempre red (la app cachea datos en IndexedDB)
-  if(u.hostname.endsWith('supabase.co')||u.pathname.startsWith('/functions/'))return;
-  // Navegación: red primero, app shell si no hay conexión
-  if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).catch(()=>caches.match('index.html')));return;}
-  // Activos propios con hash y CDN: caché primero, luego red (stale-while-revalidate)
-  if(u.origin===location.origin||/cdn\\.jsdelivr\\.net|cdnjs\\.cloudflare\\.com|fonts\\.(googleapis|gstatic)\\.com/.test(u.hostname)){
-    e.respondWith(caches.open(CACHE).then(async c=>{const hit=await c.match(e.request);const net=fetch(e.request).then(r=>{if(r&&r.ok&&(u.origin===location.origin||r.type==='basic'||r.type==='cors'))c.put(e.request,r.clone());return r;}).catch(()=>hit);return hit||net;}));
-  }
+  const req=e.request; if(req.method!=='GET')return;
+  const u=new URL(req.url);
+  if(u.hostname.endsWith('supabase.co')||u.pathname.startsWith('/functions/')||u.hostname.includes('openpay'))return;
+  const propio=u.origin===location.origin; const cdn=/cdn\\.jsdelivr\\.net|cdnjs\\.cloudflare\\.com|fonts\\.(googleapis|gstatic)\\.com/.test(u.hostname);
+  if(!propio&&!cdn)return;
+  if(req.mode==='navigate'){e.respondWith(fetch(req).catch(()=>caches.match('index.html')));return;}
+  e.respondWith((async()=>{
+    try{
+      const r=await fetch(req);
+      if(r&&r.ok&&(r.type==='basic'||r.type==='cors')){const c=await caches.open(CACHE);limpia(r.clone()).then(x=>c.put(req,x)).catch(()=>{});}
+      return r;
+    }catch(_){
+      const hit=await caches.match(req,{ignoreSearch:propio});
+      return hit||Response.error();
+    }
+  })());
 });`;
 writeFileSync(join(DIST, 'sw.js'), sw);
 writeFileSync(join(DIST, 'js', `sw-register.js`), `// Registro del service worker y aviso de versión nueva (US-226)
-if('serviceWorker' in navigator&&location.protocol==='https:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(reg=>{reg.addEventListener('updatefound',()=>{const nw=reg.installing;nw&&nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller){window.dispatchEvent(new CustomEvent('obra:actualizacion',{detail:reg}));}});});}).catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(window.__recargando)return;window.__recargando=true;location.reload();});});}
+if('serviceWorker' in navigator&&location.protocol==='https:'){const teniaControl=!!navigator.serviceWorker.controller;window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(reg=>{reg.addEventListener('updatefound',()=>{const nw=reg.installing;nw&&nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller){window.dispatchEvent(new CustomEvent('obra:actualizacion',{detail:reg}));}});});}).catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!teniaControl||window.__recargando)return;window.__recargando=true;location.reload();});});}
 window.addEventListener('obra:actualizacion',e=>{if(typeof Toast==='undefined')return;const reg=e.detail;const t=document.createElement('div');t.id='swUpdate';t.setAttribute('role','status');t.className='px-4 py-2 text-sm flex items-center gap-3 justify-center';t.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:var(--z-toast,1200);background:var(--ink,#1e293b);color:#fff;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)';t.innerHTML='Hay una versión nueva. <button type="button" class="btn btn-p text-xs" id="swUpdBtn">Actualizar</button>';document.body.appendChild(t);document.getElementById('swUpdBtn').onclick=()=>{reg.waiting&&reg.waiting.postMessage('SKIP_WAITING');t.remove();};});
 // Instalar como app (Android/Chrome); en iOS se explica desde Ayuda
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__installPrompt=e;if(localStorage.getItem('pwaInstallOculto'))return;const b=document.createElement('div');b.id='pwaInstall';b.className='px-4 py-2 text-sm flex items-center gap-3 justify-center';b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:var(--z-toast,1200);background:var(--surface,#fff);color:var(--ink,#1e293b);border:1px solid var(--line,#e2e8f0);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15)';b.innerHTML='Instala Control de Obra en tu teléfono <button type="button" class="btn btn-p text-xs" id="pwaYes">Instalar</button><button type="button" class="btn btn-s text-xs" id="pwaNo" aria-label="Ahora no">Ahora no</button>';document.body.appendChild(b);document.getElementById('pwaYes').onclick=async()=>{b.remove();e.prompt();try{await e.userChoice;}catch(_){}};document.getElementById('pwaNo').onclick=()=>{localStorage.setItem('pwaInstallOculto','1');b.remove();};});`);

@@ -1162,7 +1162,7 @@ async function loadBrand(){
       currentUser.baja_programada_at=data.baja_programada_at||null;
       aplicarEstadoBaja();
       configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||''});
-      if(data.logo_url){const ic=$('brandIcon');if(ic)ic.innerHTML=`<img src="${S(data.logo_url)}" alt="" class="w-10 h-10 rounded-xl object-cover">`;}
+      if(data.logo_url){const ic=$('brandIcon');if(ic){const im=new Image();im.alt='';im.className='w-10 h-10 rounded-xl object-cover';im.onload=()=>{ic.innerHTML='';ic.appendChild(im);};im.onerror=()=>{};im.src=data.logo_url;}}
     }
   }catch(e){}
 }
