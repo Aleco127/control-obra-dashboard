@@ -3,7 +3,7 @@
 $VPS_HOST = "213.210.13.36"
 $VPS_USER = "root"
 $PROJECT_DIR = "/root/whisperwind-app"
-$LOCAL_PROJECT_DIR = "C:\Users\aleja\iCloudDrive\Claude_projects\whisperwind-dashboard"
+$LOCAL_PROJECT_DIR = "C:\dev\Claude_projects\whisperwind-dashboard"
 
 Write-Host "=== Desplegando Whisperwind Dashboard al VPS ===" -ForegroundColor Cyan
 Write-Host ""

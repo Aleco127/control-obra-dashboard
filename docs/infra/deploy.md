@@ -30,7 +30,7 @@ En cada push a `master` y en PR: pruebas de lógica, tokens de diseño, build co
 
 ## nginx y Caddy
 
-- Caddy (`/docker/clientes-caddy/control-obra-app.caddy`) comprime (`zstd`, `gzip`) y pone los headers de seguridad.
+- Caddy (`/docker/clientes-caddy/control-obra-app.caddy`) comprime con `gzip` (zstd se quitó: Chrome fallaba con service worker + zstd) y pone los headers de seguridad.
 - nginx (`docker/nginx.conf`, montado en `/docker/control-obra-dashboard/nginx.conf`): `index.html` sin caché; `sw.js`, `manifest.json`, `status.json`, `build.json` con `no-cache`; el resto de `.js/.css/imágenes` con `immutable` a 1 año (los nombres llevan hash). Recargar con `docker exec control-obra-dashboard-web-1 nginx -s reload`.
 
 ## Gotcha del build

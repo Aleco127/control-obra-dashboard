@@ -159,7 +159,7 @@ VALUES ((SELECT id FROM public.empleados WHERE nombre_completo LIKE '%{nombre[:2
 print(f"  Nómina generados: {nomina_count}")
 
 # Guardar SQL
-output_file = r'C:\Users\aleja\iCloudDrive\Claude_projects\insert_data.sql'
+output_file = r'C:\dev\Claude_projects\insert_data.sql'
 with open(output_file, 'w', encoding='utf-8') as f:
     f.write('\n'.join(sql_statements))
 

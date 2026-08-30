@@ -2,7 +2,7 @@
 
 $VPS_HOST = "root@213.210.13.36"
 $PROJECT_NAME = "whisperwind-dashboard"
-$LOCAL_BUILD_DIR = "C:\Users\aleja\iCloudDrive\Claude_projects\whisperwind-dashboard\dist"
+$LOCAL_BUILD_DIR = "C:\dev\Claude_projects\whisperwind-dashboard\dist"
 
 # Buscar ubicación del proyecto en el VPS
 Write-Host "Buscando proyecto en VPS..." -ForegroundColor Cyan
