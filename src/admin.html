@@ -207,10 +207,18 @@ body{background:#0f172a;min-height:100vh}
 // ========== CONFIGURACION ==========
 const SB_URL = 'https://cpjdlaiarmxojiyhhpxt.supabase.co';
 const SB_KEY = 'sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
+// Token de la sesión de plataforma: viaja en el header x-platform-token y lo validan las funciones (require_platform_session)
+function platformToken() { try { return (JSON.parse(localStorage.getItem('platform_admin_session') || 'null') || {}).token || ''; } catch (e) { return ''; } }
+const PLATFORM_HEADERS = { global: { headers: { 'x-platform-token': platformToken() } } };
 // Cliente para schema public (platform_admins, platform_sessions, etc)
-const sb = supabase.createClient(SB_URL, SB_KEY);
+let sb = supabase.createClient(SB_URL, SB_KEY, PLATFORM_HEADERS);
 // Cliente para schema control_obra (empresas, obra_usuarios, etc)
-const sbObra = supabase.createClient(SB_URL, SB_KEY, { db: { schema: 'control_obra' } });
+let sbObra = supabase.createClient(SB_URL, SB_KEY, { db: { schema: 'control_obra' }, global: { headers: { 'x-platform-token': platformToken() } } });
+function refreshPlatformClients() {
+  const h = { 'x-platform-token': platformToken() };
+  sb = supabase.createClient(SB_URL, SB_KEY, { global: { headers: h } });
+  sbObra = supabase.createClient(SB_URL, SB_KEY, { db: { schema: 'control_obra' }, global: { headers: h } });
+}
 
 let currentAdmin = null;
 let platformData = {
@@ -293,6 +301,7 @@ async function doAdminLogin(e) {
       admin: data.admin,
       expires_at: data.expires_at
     }));
+    refreshPlatformClients();
 
     showApp();
     showToast('Bienvenido, ' + currentAdmin.nombre, 'success');
