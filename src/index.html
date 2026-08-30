@@ -160,6 +160,7 @@ async function massDeleteNomina(){
 </div>
 </div>
 <div id="loginError" class="hidden text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2"></div>
+<div class="text-right -mt-2"><button type="button" class="link text-xs" onclick="recuperarPassword()">Olvidé mi contraseña</button></div>
 <button type="submit" id="loginBtn" class="btn btn-p w-full flex items-center justify-center gap-2">
 <span id="loginBtnText">Entrar</span>
 <i id="loginSpinner" class="ri-loader-4-line animate-spin hidden"></i>
@@ -680,6 +681,7 @@ async function massDeleteNomina(){
 <div class="flex gap-3 mt-6">
 <button type="button" onclick="closeMdl('mdlCambiarPassword')" class="btn btn-s flex-1">Cancelar</button>
 <button type="submit" id="btnCambiarPwd" class="btn btn-p flex-1"><i class="ri-lock-password-line mr-1"></i>Cambiar Contraseña</button>
+<button type="button" class="btn btn-s w-full mt-2 text-xs" onclick="cerrarOtrasSesiones()"><i class="ri-logout-box-r-line" aria-hidden="true"></i> Cerrar sesión en mis otros dispositivos</button>
 </div>
 </form>
 </div>
@@ -1043,11 +1045,76 @@ async function solicitarBajaEmpresa(){
   Toast.success('Eliminación programada. Te avisamos por correo 7 días antes.');Telemetry.track('baja_solicitada');
   try{await fetch(SB+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','x-obra-token':currentUser.token},body:JSON.stringify({to:currentUser.email,template:'baja_empresa',data:{nombre:currentUser.nombre,empresa:nombre,fecha:new Date(data.baja_programada_at).toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})}})});}catch(e){}
 }
+// ===== Recuperación de contraseña y verificación de correo (Edge Function auth) =====
+async function authFn(action,payload){
+  const r=await fetch(SB+'/functions/v1/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({action},payload||{}))});
+  let j=null;try{j=await r.json();}catch(e){}
+  return Object.assign({status:r.status},j||{});
+}
+async function recuperarPassword(){
+  const pre=($('loginEmail')&&$('loginEmail').value)||'';
+  const ok=await Dialog.confirm({title:'Recuperar contraseña',confirmText:'Enviar instrucciones',icon:'ri-mail-send-line',bodyHtml:`<p class="mb-2">Te enviamos un enlace para crear una contraseña nueva. Vence en 1 hora.</p><label class="text-xs text-slate-600" for="recEmail">Tu correo</label><input id="recEmail" type="email" class="inp mt-1" autocomplete="email" value="${S(pre)}">`});
+  if(!ok)return;
+  const email=($('recEmail')&&$('recEmail').value||'').trim();
+  if(!email){Toast.warning('Escribe tu correo');return;}
+  const r=await authFn('solicitar_recuperacion',{email});
+  if(r.status===429){Toast.warning(r.error,6000);return;}
+  if(r.status>=400){Toast.error(r.error||'No se pudo enviar');return;}
+  Toast.success(r.mensaje||'Si el correo está registrado, recibirás instrucciones.',7000);
+}
+async function reenviarVerificacion(){
+  if(!currentUser||!currentUser.email)return;
+  const r=await authFn('enviar_verificacion',{email:currentUser.email});
+  if(r.status>=400){Toast.error(r.error||'No se pudo enviar');return;}
+  Toast.success(r.mensaje||'Te enviamos el correo de confirmación. Revisa tu bandeja.',6000);
+}
+function aplicarEstadoVerificacion(){
+  if(!currentUser||currentUser.email_verificado_at){const v=$('verifBanner');if(v)v.remove();if(String(window.READ_ONLY_MOTIVO).startsWith('correo'))setReadOnly(false);return;}
+  const dias=currentUser.created_at?Math.floor((Date.now()-new Date(currentUser.created_at).getTime())/86400000):0;
+  const btn='<button type="button" class="btn btn-p text-xs" onclick="reenviarVerificacion()"><i class="ri-mail-send-line" aria-hidden="true"></i> Reenviar correo</button>';
+  if(dias>7){
+    setReadOnly(true,'correo sin verificar',`<span><i class="ri-mail-lock-line" aria-hidden="true"></i> Confirma tu correo <strong>${S(currentUser.email)}</strong> para seguir capturando. Han pasado ${dias} días desde el registro.</span>${btn}`);
+    return;
+  }
+  let v=$('verifBanner');
+  if(!v){v=document.createElement('div');v.id='verifBanner';v.setAttribute('role','status');v.className='px-4 py-2 text-sm flex flex-wrap items-center gap-2 justify-between';v.style.cssText='background:var(--info-soft,#e0f2fe);color:var(--info,#075985);border-bottom:1px solid var(--info,#075985)';const main=$('main');if(main)main.parentNode.insertBefore(v,main);}
+  v.innerHTML=`<span><i class="ri-mail-line" aria-hidden="true"></i> Confirma tu correo <strong>${S(currentUser.email)}</strong> con el enlace que te enviamos (tienes ${Math.max(0,7-dias)} días).</span>${btn}`;
+}
+async function cerrarOtrasSesiones(){
+  const{data,error}=await sb.rpc('cerrar_otras_sesiones');
+  if(error||!data||!data.success){Toast.error(humanizeError(error||{message:'No se pudo'},'cerrar sesiones'));return;}
+  Toast.success(data.cerradas?`Se cerraron ${data.cerradas} sesiones en otros dispositivos`:'No había otras sesiones abiertas');
+}
+// Enlaces que llegan por correo: ?reset=<token> y ?verificar=<token>
+async function procesarEnlacesCorreo(){
+  const q=new URLSearchParams(location.search);
+  const reset=q.get('reset'),verif=q.get('verificar');
+  if(!reset&&!verif)return;
+  history.replaceState(null,'',location.pathname);
+  if(verif){
+    const r=await authFn('verificar_correo',{token:verif});
+    if(r.ok){Toast.success('Correo confirmado. Gracias, '+(r.nombre||''),6000);if(currentUser){currentUser.email_verificado_at=new Date().toISOString();aplicarEstadoVerificacion();}}
+    else Toast.error(r.error||'El enlace no es válido',7000);
+    return;
+  }
+  const ok=await Dialog.confirm({title:'Nueva contraseña',confirmText:'Guardar contraseña',icon:'ri-lock-password-line',bodyHtml:`<label class="text-xs text-slate-600" for="rsPass1">Contraseña nueva (mínimo 8 caracteres)</label><input id="rsPass1" type="password" class="inp mt-1 mb-2" autocomplete="new-password"><label class="text-xs text-slate-600" for="rsPass2">Repite la contraseña</label><input id="rsPass2" type="password" class="inp mt-1" autocomplete="new-password">`});
+  if(!ok)return;
+  const p1=$('rsPass1')?$('rsPass1').value:'',p2=$('rsPass2')?$('rsPass2').value:'';
+  if(p1.length<8){Toast.warning('La contraseña debe tener al menos 8 caracteres');return;}
+  if(p1!==p2){Toast.warning('Las contraseñas no coinciden');return;}
+  const r=await authFn('aplicar_recuperacion',{token:reset,password:p1});
+  if(!r.ok){Toast.error(r.error||'No se pudo cambiar la contraseña',7000);return;}
+  Toast.success('Contraseña actualizada. Inicia sesión con la nueva.',7000);
+  if($('loginEmail'))$('loginEmail').value=r.email||'';
+  if(typeof switchAuthTab==='function')switchAuthTab('login');
+}
+window.addEventListener('load',()=>{setTimeout(procesarEnlacesCorreo,800);});
 // Aplica nombre y logo de la empresa en título, barra lateral y PDFs
 async function loadBrand(){
   if(!currentUser)return;
   const nombre=currentUser.empresa_nombre||'Mi empresa';
   configData.empresa=Object.assign({},configData.empresa,{nombre});
+  try{aplicarEstadoVerificacion();}catch(e){}
   document.title=nombre+' · Control de Obra';
   const b=$('brandName');if(b)b.textContent=nombre;
   try{
@@ -1353,7 +1420,8 @@ if(error)throw new Error(error.message);
 if(!data.success)throw new Error(data.error);
 
 // Success
-successDiv.textContent='Cuenta creada exitosamente. Ahora puedes iniciar sesion.';
+successDiv.textContent='Cuenta creada. Te enviamos un correo para confirmar tu cuenta; ya puedes iniciar sesión.';
+try{authFn('enviar_verificacion',{email});}catch(e){}
 successDiv.classList.remove('hidden');
 $('registerForm').reset();
 
@@ -1601,7 +1669,9 @@ empresa_id:data[0].empresa_id,
 empresa_nombre:data[0].empresa_nombre,
 es_admin_empresa:!!data[0].es_admin_empresa,
 email:data[0].email||'',
-baja_programada_at:data[0].baja_programada_at||null
+baja_programada_at:data[0].baja_programada_at||null,
+email_verificado_at:data[0].email_verificado_at||null,
+created_at:data[0].created_at||null
 };
 localStorage.setItem('obra_session',JSON.stringify(currentUser));
 // Asegurar que el cliente tenga el token actualizado
@@ -1984,7 +2054,8 @@ p_password_nueva:nueva
 });
 if(error)throw error;
 if(data.success){
-sucDiv.textContent='Contrasena actualizada correctamente';
+try{sb.rpc('cerrar_otras_sesiones');}catch(e){}
+sucDiv.textContent='Contraseña actualizada. Se cerraron las sesiones en otros dispositivos.';
 sucDiv.classList.remove('hidden');
 setTimeout(()=>{
 closeMdl('mdlCambiarPassword');
