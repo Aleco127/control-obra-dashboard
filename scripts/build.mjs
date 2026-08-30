@@ -39,6 +39,60 @@ html = html.replace(/<script>tailwind\.config=\{[\s\S]*?\}<\/script>/, '');
 // El CSS compilado va DESPUÉS de styles.css: el CDN inyectaba sus reglas al final del head y así ganaban a .btn/.inp
 html = html.replace(/<link href="css\/styles\.css\?v=[^"]*" rel="stylesheet">/, `<link href="css/${stylesName}" rel="stylesheet"><link href="css/${twName}" rel="stylesheet">`);
 html = html.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => jsMap[f] ? `<script src="js/${jsMap[f]}"></script>` : m);
+// 3b) US-227: módulos hoja del script principal salen a js/mod-<clave>.<hash>.js y se cargan bajo demanda
+//     (por marcador "// ========== NOMBRE ==========" en src/index.html; src sigue siendo una sola fuente).
+const LAZY = [
+  { key: 'n', marker: 'MÓDULO NÓMINA' },
+  { key: 'ce', marker: 'MÓDULO CFDIs EMITIDOS' },
+  { key: 'y', marker: 'MÓDULO SEGURIDAD' },
+  { key: 't', marker: 'MÓDULO ASISTENCIA' },
+  { key: 'c', marker: 'MODULO CALENDARIO' },
+  { key: 'rp', marker: 'MODULO REPSE' },
+  { key: 'su', marker: 'MODULO SUA' },
+  { key: 'r', marker: 'MÓDULO RFI' },
+  { key: 'u', marker: 'MÓDULO PUNCH LIST' },
+  { key: 'm', marker: 'MODULO MATERIALES' },
+  { key: 's', marker: 'MODULO SUBCONTRATOS' },
+  { key: 'es', marker: 'MODULO ESTIMACIONES' },
+];
+const lazyMap = {};
+{
+  const mainMatch = html.match(/<script>([\s\S]*?)<\/script>/g).map((m) => m).sort((x, y) => y.length - x.length)[0];
+  let main = mainMatch.slice(8, -9);
+  const lines = main.split('\n');
+  const markIdx = lines.map((l, i) => (l.startsWith('// ========== ') ? i : -1)).filter((i) => i >= 0);
+  const cortes = [];
+  for (const { key, marker } of LAZY) {
+    const i = lines.findIndex((l) => l.startsWith('// ========== ' + marker));
+    if (i < 0) { console.warn('lazy: marcador no encontrado', marker); continue; }
+    const j = markIdx.find((k) => k > i) ?? lines.length;
+    cortes.push({ key, i, j });
+  }
+  cortes.sort((a, b) => b.i - a.i); // de abajo hacia arriba para no mover índices
+  let extraidas = 0;
+  for (const { key, i, j } of cortes) {
+    const code = lines.slice(i, j).join('\n');
+    const min = (await esbuild.transform(code, { minify: true, target: 'es2019', legalComments: 'none' })).code; // falla el build si el corte no es JS válido
+    const name = `mod-${key}.${hash(min)}.js`;
+    writeFileSync(join(DIST, 'js', name), min); lazyMap[key] = 'js/' + name; extraidas += j - i;
+    lines.splice(i, j - i, `// [build] módulo '${key}' cargado bajo demanda desde ${name}`);
+  }
+  main = lines.join('\n');
+  // Cargador: R() espera el módulo antes de despachar; el resto se precarga tras el arranque
+  const loader = `const __LAZY=${JSON.stringify(lazyMap)};const __LAZY_OK={};
+function cargarModulo(k){const src=__LAZY[k];if(!src||__LAZY_OK[k])return Promise.resolve();return __LAZY_OK[k]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>{__LAZY_OK[k]=true;res();};s.onerror=()=>{delete __LAZY_OK[k];rej(new Error('No se pudo cargar el módulo '+k));};document.head.appendChild(s);});}
+window.addEventListener('load',()=>{setTimeout(()=>{Object.keys(__LAZY).forEach(k=>cargarModulo(k).catch(()=>{}));},1500);});
+`;
+  main = loader + main;
+  const rIni = 'function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$(\'c\');';
+  if (!main.includes(rIni)) throw new Error('build: no se encontró el inicio de R() para inyectar la carga bajo demanda');
+  main = main.replace(rIni, 'async function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$(\'c\');');
+  const disp = "if(M==='d'){Ds(c);";
+  if (!main.includes(disp)) throw new Error('build: no se encontró el despacho de R()');
+  main = main.replace(disp, "if(__LAZY[M]&&__LAZY_OK[M]!==true){c.innerHTML='<div class=\"p-8 text-center text-slate-500\"><i class=\"ri-loader-4-line animate-spin text-xl\" aria-hidden=\"true\"></i><p class=\"text-sm mt-2\">Cargando módulo…</p></div>';try{await cargarModulo(M);}catch(e){c.innerHTML=EmptyState({icon:'ri-wifi-off-line',title:'No se pudo cargar este módulo',body:'Revisa tu conexión e intenta de nuevo.',action:{label:'Reintentar',onClick:'R()'}});return;}}\n" + disp);
+  html = html.replace(mainMatch, () => '<script>' + main + '</script>'); // función: evita que $' o $& del código se interpreten como patrones
+  console.log(`  módulos bajo demanda: ${Object.keys(lazyMap).length} (${extraidas} líneas fuera del script principal)`);
+}
 // scripts inline (el principal de ~25k líneas y los pequeños): minificar con esbuild
 let inlineBytes = 0, inlineMin = 0, k = 0;
 const partes = html.split(/(<script>[\s\S]*?<\/script>)/);
@@ -70,7 +124,7 @@ if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), joi
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));
 
 // 6) Service worker: precache del app shell (US-226)
-const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), 'img/icon-192.png', 'img/icon-512.png'];
+const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'img/icon-192.png', 'img/icon-512.png'];
 const sw = `// Service worker de Control de Obra · build ${BUILD_ID} (generado por scripts/build.mjs; no editar)
 // Estrategia: red primero para todo; la caché sólo entra cuando no hay red. Las respuestas se guardan sin
 // Content-Encoding (el cuerpo ya viene descomprimido) para que Chrome no falle al servirlas desde caché.
@@ -111,6 +165,6 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__in
 // 7) Reporte
 const size = (p) => statSync(p).size;
 const totalJs = Object.values(jsMap).reduce((a, n) => a + size(join(DIST, 'js', n)), 0);
-writeFileSync(join(DIST, 'build.json'), JSON.stringify({ build: BUILD_ID, css: [twName, stylesName], js: jsMap, inline: { antes: inlineBytes, despues: inlineMin, scripts: k } }, null, 2));
+writeFileSync(join(DIST, 'build.json'), JSON.stringify({ build: BUILD_ID, css: [twName, stylesName], js: jsMap, lazy: lazyMap, inline: { antes: inlineBytes, despues: inlineMin, scripts: k } }, null, 2));
 console.log(`build ${BUILD_ID} en ${Date.now() - t0} ms`);
 console.log(`  index.html ${(size(join(DIST, 'index.html')) / 1024).toFixed(0)} KB (scripts inline ${(inlineBytes / 1024).toFixed(0)} → ${(inlineMin / 1024).toFixed(0)} KB) · css ${(tw.length / 1024).toFixed(0)} + ${(stylesSrc.length / 1024).toFixed(0)} KB · js ${(totalJs / 1024).toFixed(0)} KB (${Object.keys(jsMap).length} archivos) · sw precache ${precache.length}`);

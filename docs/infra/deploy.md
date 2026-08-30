@@ -12,10 +12,11 @@ bash scripts/deploy.sh              # build + tar a /docker/control-obra-dashboa
 
 1. Compila Tailwind con `tailwind.config.js` (extraída de la configuración inline; `safelist` sólo para clases armadas con variables) → `css/tw.<hash>.css` (~82 KB). La app ya no carga `cdn.tailwindcss.com`.
 2. Minifica `src/js/*.js` con esbuild → `js/<nombre>.<hash>.js`; reescribe los `<script src>` de `index.html`.
-3. Minifica los scripts inline de `index.html` (el principal baja ~10 %; la reducción grande viene de US-227).
-4. Copia `manifest.json`, legales, `img/`, `ayuda/`, `docs/img/`, `status.html`.
-5. Genera `sw.js` (precache del app shell, red primero para navegación y Supabase, caché para activos con hash y CDN) y `js/sw-register.js` (aviso "Hay una versión nueva" y banner de instalación).
-6. Escribe `build.json` y `<meta name="build">` con el identificador (fecha-hora UTC).
+3. **US-227**: extrae del script principal 12 módulos hoja (Nómina, CFDIs emitidos, Seguridad, Asistencia, Calendario, REPSE, SUA, RFI, Punch list, Materiales, Subcontratos, Estimaciones; ~8,800 líneas) a `js/mod-<clave>.<hash>.js`. `R()` pasa a ser `async` y espera el módulo antes de despachar; los demás se precargan 1.5 s después del `load`. El corte se hace por los marcadores `// ========== NOMBRE ==========` de `src/index.html`, así que `src/` sigue siendo una sola fuente; el build falla si un corte no es JS válido. `index.html` publicado: 782 KB (antes 1,18 MB).
+4. Minifica los scripts inline restantes.
+5. Copia `manifest.json`, legales, `img/`, `ayuda/`, `docs/img/`, `status.html`.
+6. Genera `sw.js` (precache del app shell, red primero para navegación y Supabase, caché para activos con hash y CDN) y `js/sw-register.js` (aviso "Hay una versión nueva" y banner de instalación).
+7. Escribe `build.json` y `<meta name="build">` con el identificador (fecha-hora UTC).
 
 ## Verificación
 
@@ -31,3 +32,7 @@ En cada push a `master` y en PR: pruebas de lógica, tokens de diseño, build co
 
 - Caddy (`/docker/clientes-caddy/control-obra-app.caddy`) comprime (`zstd`, `gzip`) y pone los headers de seguridad.
 - nginx (`docker/nginx.conf`, montado en `/docker/control-obra-dashboard/nginx.conf`): `index.html` sin caché; `sw.js`, `manifest.json`, `status.json`, `build.json` con `no-cache`; el resto de `.js/.css/imágenes` con `immutable` a 1 año (los nombres llevan hash). Recargar con `docker exec control-obra-dashboard-web-1 nginx -s reload`.
+
+## Gotcha del build
+
+Nunca usar `String.replace(str, cadena)` con código como reemplazo: `$'`, `$&` o `$1` dentro del código se interpretan como patrones. Usar siempre una función de reemplazo (`html.replace(x, () => codigo)`).
