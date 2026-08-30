@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SUPERNOVA ARQUITECTOS - Control de Obra</title><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231e3a5f'/%3E%3Crect x='20' y='35' width='25' height='45' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3Crect x='55' y='20' width='25' height='60' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E"><meta name="theme-color" content="#1e3a5f"><meta name="mobile-web-app-capable" content="yes"><script src="https://cdn.tailwindcss.com/3.4.1">
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control de Obra</title><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="img/icon-192.png"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231e3a5f'/%3E%3Crect x='20' y='35' width='25' height='45' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3Crect x='55' y='20' width='25' height='60' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E"><meta name="theme-color" content="#1e3a5f"><meta name="mobile-web-app-capable" content="yes"><script src="https://cdn.tailwindcss.com/3.4.1">
 
 // === Funciones de Selección en Masa para Nómina ===
 function toggleSelectAllNomina(){
@@ -128,8 +128,8 @@ async function massDeleteNomina(){
 <div class="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center mb-4 shadow-lg shadow-slate-500/20">
 <i class="ri-building-4-fill text-3xl text-white"></i>
 </div>
-<h1 class="text-2xl font-bold n">SUPERNOVA</h1>
-<p class="text-slate-500 text-sm">ARQUITECTOS - Control de Obra</p>
+<h1 class="text-2xl font-bold n">Control de Obra</h1>
+<p class="text-slate-500 text-sm">Supernova Arquitectos</p>
 </div>
 
 <div class="g rounded-2xl p-6">
@@ -225,6 +225,7 @@ async function massDeleteNomina(){
 </div>
 <p class="text-xs text-slate-400 mt-1">Solicita el código al administrador de la empresa</p>
 </div>
+<label class="flex items-start gap-2 text-xs text-slate-600 mb-3"><input type="checkbox" id="regAceptaTerminos" class="mt-0.5 w-4 h-4 accent-slate-800" required> <span>Acepto los <a href="terminos.html" target="_blank" rel="noopener" class="link">términos y condiciones</a> y el <a href="privacidad.html" target="_blank" rel="noopener" class="link">aviso de privacidad</a> de Supernova Arquitectos, S.A. de C.V.</span></label>
 <div id="registerError" class="hidden text-red-400 text-sm text-center bg-red-500/10 rounded-lg p-2"></div>
 <div id="registerSuccess" class="hidden text-green-600 text-sm text-center bg-green-500/10 rounded-lg p-2"></div>
 <button type="submit" id="registerBtn" class="btn btn-p w-full flex items-center justify-center gap-2">
@@ -236,7 +237,7 @@ async function massDeleteNomina(){
 </div>
 </div>
 
-<p class="text-center text-xs text-slate-400 mt-6">SUPERNOVA v2.5 - Sistema de Control de Obra</p>
+<p class="text-center text-xs text-slate-500 mt-6">Control de Obra v3 · Supernova Arquitectos, S.A. de C.V. · <a href="privacidad.html" class="link">Aviso de privacidad</a> · <a href="terminos.html" class="link">Términos</a></p>
 </div>
 </div>
 
@@ -244,12 +245,12 @@ async function massDeleteNomina(){
 <div id="appScreen">
 <aside id="sb" class="sb hidden md:flex md:w-56 h-screen g fixed p-3 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
 <div class="lg flex items-center gap-3 p-2 mb-4">
-<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 shadow-md">
+<div id="brandIcon" class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 shadow-md overflow-hidden">
 <i class="ri-building-4-fill text-lg text-white"></i>
 </div>
 <div class="tx flex-1">
-<span class="font-bold n text-base tracking-tight">SUPERNOVA</span>
-<p class="text-[10px] text-slate-400 font-medium">Control de Obra v2.6</p>
+<span id="brandName" class="font-bold n text-base tracking-tight truncate block max-w-[150px]">Control de Obra</span>
+<p class="text-[10px] text-slate-400 font-medium">Control de Obra v3</p>
 </div>
 <button onclick="closeMobileMenu()" class="md:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú">
 <i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i>
@@ -344,7 +345,7 @@ async function massDeleteNomina(){
 <main id="main" tabindex="-1" class="flex-1 p-4 bg-slate-50"><div id="c"></div></main>
 
 <footer class="g px-4 py-2 flex items-center justify-between text-xs text-slate-400">
-<span>SUPERNOVA v2.5</span>
+<span>Control de Obra v3 · <a href="privacidad.html" class="link" target="_blank" rel="noopener">Privacidad</a> · <a href="terminos.html" class="link" target="_blank" rel="noopener">Términos</a></span>
 <span id="sync">Sincronizado</span>
 </footer>
 </div>
@@ -985,15 +986,32 @@ const S=sanitize; // Shorthand alias
 const F=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
 const fmt=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(v||0);
 
-// ========== SUPERNOVA BRANDING ==========
-const SUPERNOVA_LOGO_URL='https://i0.wp.com/supernovarquitectos.com/wp-content/uploads/2024/03/logo-supernova-06.png?fit=4167%2C2096&ssl=1';
-const SUPERNOVA_INFO={
-  nombre:'SUPERNOVA ARQUITECTOS',
-  direccion:'Chihuahua, México',
-  telefono:'+52 614 344 3936',
-  web:'www.supernovarquitectos.com',
-  email:'contacto@supernovarquitectos.com'
+// ========== MARCA DE LA EMPRESA (Configuración › Empresa; nada hardcodeado) ==========
+const EMPRESA_INFO={
+  get nombre(){return (configData&&configData.empresa&&configData.empresa.nombre)||(typeof currentUser!=='undefined'&&currentUser&&currentUser.empresa_nombre)||'Mi empresa';},
+  get direccion(){return (configData&&configData.empresa&&configData.empresa.direccion)||'';},
+  get telefono(){return (configData&&configData.empresa&&configData.empresa.telefono)||'';},
+  get web(){return (configData&&configData.empresa&&configData.empresa.web)||'';},
+  get email(){return (configData&&configData.empresa&&configData.empresa.email)||'';},
+  get logo(){return (configData&&configData.empresa&&configData.empresa.logo)||'';},
+  get slug(){return String(this.nombre).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'empresa';}
 };
+const SUPERNOVA_INFO=EMPRESA_INFO; // alias de compatibilidad para PDFs viejos
+// Aplica nombre y logo de la empresa en título, barra lateral y PDFs
+async function loadBrand(){
+  if(!currentUser)return;
+  const nombre=currentUser.empresa_nombre||'Mi empresa';
+  configData.empresa=Object.assign({},configData.empresa,{nombre});
+  document.title=nombre+' · Control de Obra';
+  const b=$('brandName');if(b)b.textContent=nombre;
+  try{
+    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web').eq('id',currentUser.empresa_id).maybeSingle();
+    if(data){
+      configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||''});
+      if(data.logo_url){const ic=$('brandIcon');if(ic)ic.innerHTML=`<img src="${S(data.logo_url)}" alt="" class="w-10 h-10 rounded-xl object-cover">`;}
+    }
+  }catch(e){}
+}
 
 // ========== ERROR MONITOR (Platform Monitoring) ==========
 const ErrorMonitor={
@@ -1247,12 +1265,12 @@ successDiv.classList.add('hidden');
 
 // Validations
 if(password!==passwordConfirm){
-errDiv.textContent='Las contrasenas no coinciden';
+errDiv.textContent='Las contraseñas no coinciden';
 errDiv.classList.remove('hidden');
 return;
 }
-if(password.length<6){
-errDiv.textContent='La contrasena debe tener al menos 6 caracteres';
+if(password.length<8){
+errDiv.textContent='La contraseña debe tener al menos 8 caracteres';
 errDiv.classList.remove('hidden');
 return;
 }
@@ -1278,7 +1296,9 @@ p_email:email,
 p_password:password,
 p_tipo_registro:registerType,
 p_empresa_nombre:registerType==='nueva'?empresaNombre:null,
-p_codigo_invitacion:registerType==='unirse'?codigoInvitacion:null
+p_codigo_invitacion:registerType==='unirse'?codigoInvitacion:null,
+p_acepta_terminos:!!($('regAceptaTerminos')&&$('regAceptaTerminos').checked),
+p_terminos_version:'1.0'
 });
 
 if(error)throw new Error(error.message);
@@ -1351,6 +1371,7 @@ $('avatarHdr').className=`w-8 h-8 rounded-full bg-gradient-to-br ${color} flex i
 // Actualizar menú desplegable
 $('menuUserName').textContent=currentUser.nombre;
 $('menuUserEmail').textContent=currentUser.empresa_nombre||'Sin empresa';
+loadBrand();
 }
 
 buildNav();
@@ -7892,7 +7913,7 @@ XLSX.writeFile(wb,`Bitacora_Obra_${fecha}.xlsx`);
 }
 
 // ========== CONFIGURATION MODULE ==========
-let configData={empresa:{nombre:'SUPERNOVA ARQUITECTOS',rfc:'',direccion:'',telefono:'',email:'',logo:''},categorias:[],preferencias:{moneda:'MXN',tema:'oscuro',notificaciones:true,backup_auto:true}};
+let configData={empresa:{nombre:'',rfc:'',direccion:'',telefono:'',email:'',logo:'',web:''},categorias:[],preferencias:{moneda:'MXN',tema:'oscuro',notificaciones:true,backup_auto:true}};
 
 async function loadConfig(){
 const saved=localStorage.getItem('obra_config');
@@ -8290,7 +8311,7 @@ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
 const url=URL.createObjectURL(blob);
 const a=document.createElement('a');
 a.href=url;
-a.download=`supernova_backup_${hoyISO()}.json`;
+a.download=`control-obra_${EMPRESA_INFO.slug}_${hoyISO()}.json`;
 a.click();
 URL.revokeObjectURL(url);
 }
@@ -8299,7 +8320,7 @@ async function clearLocalData(){
 if(!await Dialog.confirm('¿Limpiar todos los datos locales? Esto no afecta los datos en el servidor.'))return;
 localStorage.removeItem('obra_config');
 localStorage.removeItem('selectedObra');
-configData={empresa:{nombre:'SUPERNOVA ARQUITECTOS',rfc:'',direccion:'',telefono:'',email:'',logo:''},categorias:[],preferencias:{moneda:'MXN',tema:'oscuro',notificaciones:true,backup_auto:true}};
+configData={empresa:{nombre:(currentUser&&currentUser.empresa_nombre)||'',rfc:'',direccion:'',telefono:'',email:'',logo:'',web:''},categorias:[],preferencias:{moneda:'MXN',tema:'oscuro',notificaciones:true,backup_auto:true}};
 R();
 }
 
@@ -14189,11 +14210,12 @@ return false;
 }
 
 // ===== HEADER CON LOGO =====
-// Cargar logo Supernova
+// Cargar logo de la empresa (Configuración › Empresa)
 let logoLoaded=false;
 try{
+if(!EMPRESA_INFO.logo)throw new Error('sin logo');
 const img=new Image();img.crossOrigin='Anonymous';
-img.src=SUPERNOVA_LOGO_URL;
+img.src=EMPRESA_INFO.logo;
 await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;setTimeout(reject,3000);});
 // Logo centrado - proporcion 2:1 aprox
 const logoWidth=50;
@@ -14205,7 +14227,7 @@ logoLoaded=true;
 // Fallback: Texto del nombre si no carga logo
 doc.setFontSize(16);doc.setTextColor(...grayDark);
 doc.setFont('helvetica','bold');
-doc.text('SUPERNOVA ARQUITECTOS',pageWidth/2,y+10,{align:'center'});
+doc.text(String(EMPRESA_INFO.nombre).toUpperCase(),pageWidth/2,y+10,{align:'center'});
 y+=18;
 }
 
@@ -14572,7 +14594,7 @@ y+=8;
 // Parrafo de cierre formal
 checkNewPage(50);
 doc.setFontSize(10);doc.setTextColor(...grayDark);
-const cierreTextDiseno='Sin más por el momento, quedamos a sus órdenes para cualquier duda o aclaración. Agradecemos la confianza depositada en Supernova Arquitectos.';
+const cierreTextDiseno='Sin más por el momento, quedamos a sus órdenes para cualquier duda o aclaración. Agradecemos la confianza depositada en '+EMPRESA_INFO.nombre+'.';
 const cierreLines=doc.splitTextToSize(cierreTextDiseno,contentWidth);
 doc.text(cierreLines,marginLeft,y);
 y+=cierreLines.length*5+12;
@@ -14594,7 +14616,7 @@ if(cot.firma_cargo){
 doc.text(cot.firma_cargo,marginLeft,y);
 y+=5;
 }
-doc.text('y equipo de Supernova Arquitectos',marginLeft,y);
+doc.text('y equipo de '+EMPRESA_INFO.nombre,marginLeft,y);
 
 }else{
 // ===== FORMATO CONSTRUCCION (mantiene el formato original) =====
@@ -14724,14 +14746,14 @@ if(cot.firma_cargo){
 doc.text(cot.firma_cargo,marginLeft,y);
 y+=5;
 }
-doc.text('y equipo de Supernova Arquitectos',marginLeft,y);
+doc.text('y equipo de '+EMPRESA_INFO.nombre,marginLeft,y);
 } // End else (construccion)
 
 // Agregar footer a todas las paginas
 addFooter();
 
 // Descargar
-doc.save('Cotizacion_'+cot.numero_cotizacion+'_Supernova.pdf');
+doc.save('Cotizacion_'+cot.numero_cotizacion+'_'+EMPRESA_INFO.slug+'.pdf');
 }
 function filterCotizaciones(){R();}
 
@@ -14787,7 +14809,7 @@ let html=`<div style="font-family: Arial, sans-serif; color: ${grayDark}; max-wi
 
 // ===== HEADER =====
 html+=`<div style="text-align:center; margin-bottom:20px;">
-<img src="${SUPERNOVA_LOGO_URL}" style="max-width:200px; height:auto; margin-bottom:10px;" onerror="this.style.display='none'">
+${EMPRESA_INFO.logo?`<img src="${S(EMPRESA_INFO.logo)}" style="max-width:200px; height:auto; margin-bottom:10px;" onerror="this.style.display='none'">`:`<div style="font-weight:700;font-size:18px;margin-bottom:10px;">${S(EMPRESA_INFO.nombre)}</div>`}
 <div style="display:flex; height:4px;">
 <div style="flex:0.7; background:#f0f0f0;"></div>
 <div style="flex:0.3; background:${accentBlue};"></div>
@@ -14964,7 +14986,7 @@ html+=`</div>`;
 }
 
 // ===== CIERRE =====
-html+=`<div style="margin-top:30px; line-height:1.6;">Sin más por el momento, quedamos a sus órdenes para cualquier duda o aclaración.${cot.tipo==='diseno'?' Agradecemos la confianza depositada en Supernova Arquitectos.':''}</div>`;
+html+=`<div style="margin-top:30px; line-height:1.6;">Sin más por el momento, quedamos a sus órdenes para cualquier duda o aclaración.${cot.tipo==='diseno'?' Agradecemos la confianza depositada en '+EMPRESA_INFO.nombre+'.':''}</div>`;
 
 // ===== FIRMA =====
 html+=`<div style="margin-top:30px;">
@@ -14972,7 +14994,7 @@ html+=`<div style="margin-top:30px;">
 <div style="margin-top:40px; border-top:1px solid ${grayLight}; width:200px; padding-top:10px;">
 <div style="font-weight:bold;">${S(cot.firma_nombre||'')}</div>
 ${cot.firma_cargo?`<div style="color:${grayMed}; font-size:13px;">${S(cot.firma_cargo)}</div>`:''}
-<div style="color:${grayMed}; font-size:13px;">y equipo de Supernova Arquitectos</div>
+<div style="color:${grayMed}; font-size:13px;">y equipo de ${S(EMPRESA_INFO.nombre)}</div>
 </div>
 </div>`;
 
