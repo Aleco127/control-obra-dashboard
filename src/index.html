@@ -1191,16 +1191,105 @@ async function guardarWaAvisos(){
   if(error||!data||!data.success){Toast.error((data&&data.error)||humanizeError(error,'guardar'));return;}
   if(data.telefono)currentUser.telefono=data.telefono;Toast.success(activo?'Avisos por WhatsApp activados':'Avisos por WhatsApp desactivados');
 }
-// ===== Portal del cliente (US-237/238) =====
+// ===== Portal del cliente (US-237/238, acceso con contraseña US-248) =====
+const PORTAL_URL=()=>`${location.origin}/portal.html`;
 async function compartirObra(obraId){
   if(typeof Suscripcion!=='undefined'&&!Suscripcion.feature('portal')){await Suscripcion.verificarFeature('portal');return;}
   const{data,error}=await sb.rpc('portal_token_obra',{p_obra_id:obraId});
   if(error||!data||!data.success){if(!(error&&/PLAN_LIMIT/.test(error.message)))Toast.error((data&&data.error)||humanizeError(error,'crear el enlace'));return;}
   const o=D.o.find(x=>x.id==obraId)||{};const url=data.url;
   const msg=encodeURIComponent(`Hola, aquí puedes ver el avance, las fotos y los pagos de ${o.nombre_obra||'tu obra'}: ${url}`);
-  const ok=await Dialog.confirm({title:'Compartir con el cliente',icon:'ri-share-forward-line',confirmText:'Copiar enlace',cancelText:'Cerrar',bodyHtml:`<p class="text-sm mb-2">El cliente verá avance, programa, fotos, estimaciones, plan de pagos, pagos realizados y facturas de esta obra. <strong>No ve costos, gastos ni socios.</strong></p><input class="inp text-xs mb-2" readonly value="${S(url)}" onclick="this.select()"><div class="flex flex-wrap gap-2"><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="${S(url)}"><i class="ri-external-link-line" aria-hidden="true"></i> Ver como cliente</a><button type="button" class="btn btn-s text-xs" onclick="regenerarPortal(${obraId})"><i class="ri-refresh-line" aria-hidden="true"></i> Nuevo enlace</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="revocarPortal(${obraId})"><i class="ri-link-unlink" aria-hidden="true"></i> Desactivar</button></div>`});
+  const cuerpo=`<p class="text-sm mb-3">El cliente ve avance, programa, fotos, documentos que marques, estimaciones, plan de pagos, pagos y facturas de esta obra. <strong>No ve costos, gastos ni socios.</strong></p>
+  <div class="border border-slate-200 rounded-lg p-3 mb-3">
+    <p class="text-sm font-semibold text-slate-800 mb-1">Con correo y contraseña</p>
+    <p class="text-xs text-slate-500 mb-2">Cada persona entra con lo suyo. Puedes reiniciar su contraseña o quitarle el acceso cuando quieras.</p>
+    <div id="acListado" class="text-sm text-slate-500 mb-2">Cargando…</div>
+    <div id="acAlta" class="grid gap-2">
+      <input id="acNombre" class="inp text-sm" placeholder="Nombre de la persona">
+      <input id="acEmail" class="inp text-sm" type="email" placeholder="correo@ejemplo.com">
+      <input id="acTel" class="inp text-sm" placeholder="Celular (opcional, para mandarle el acceso)">
+      <button type="button" class="btn btn-p text-xs" id="acBtn" onclick="accesoClienteCrear(${obraId})"><i class="ri-user-add-line" aria-hidden="true"></i> Dar acceso</button>
+    </div>
+    <div id="acCredenciales" class="hidden mt-3"></div>
+  </div>
+  <div class="border border-slate-200 rounded-lg p-3">
+    <p class="text-sm font-semibold text-slate-800 mb-1">Enlace sin contraseña</p>
+    <p class="text-xs text-slate-500 mb-2">Quien tenga la liga entra. Cómodo, pero si se reenvía no hay forma de saber quién la vio.</p>
+    <input class="inp text-xs mb-2" readonly value="${S(url)}" onclick="this.select()">
+    <div class="flex flex-wrap gap-2"><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="${S(url)}"><i class="ri-external-link-line" aria-hidden="true"></i> Ver como cliente</a><button type="button" class="btn btn-s text-xs" onclick="regenerarPortal(${obraId})"><i class="ri-refresh-line" aria-hidden="true"></i> Nuevo enlace</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="revocarPortal(${obraId})"><i class="ri-link-unlink" aria-hidden="true"></i> Desactivar</button></div>
+  </div>`;
+  const pendiente=Dialog.confirm({title:'Acceso del cliente',icon:'ri-share-forward-line',confirmText:'Copiar enlace',cancelText:'Cerrar',bodyHtml:cuerpo});
+  accesoClienteCargar(obraId);
+  const ok=await pendiente;
   if(ok){try{await navigator.clipboard.writeText(url);Toast.success('Enlace copiado');}catch(e){Toast.info(url,8000);}}
   Telemetry.track('portal_compartido',{obra_id:obraId});
+}
+async function accesoClienteCargar(obraId){
+  const cont=document.getElementById('acListado');if(!cont)return;
+  const{data,error}=await sb.rpc('portal_accesos',{p_obra_id:obraId});
+  if(error||!data||data.error){cont.innerHTML=`<p class="text-xs text-slate-500">${S((data&&data.error)||'No se pudo leer la lista')}</p>`;return;}
+  const lista=data.accesos||[];
+  cont.innerHTML=lista.length?lista.map(a=>`<div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">
+    <div class="min-w-0"><p class="text-sm text-slate-800 truncate">${S(a.nombre)}${a.activo?'':' <span class="text-xs text-red-500">(desactivado)</span>'}</p>
+    <p class="text-xs text-slate-500 truncate">${S(a.email)} · ${a.ultimo_acceso?'entró '+new Date(a.ultimo_acceso).toLocaleDateString('es-MX'):(a.debe_cambiar?'aún no entra':'sin entrar')}</p></div>
+    <div class="flex gap-1 shrink-0">
+      <button type="button" class="p-1.5 rounded hover:bg-slate-100" title="Nueva contraseña" aria-label="Nueva contraseña" onclick="accesoClienteConfirmar('password',${a.id},${obraId},'Se genera una contraseña nueva para ${S(a.nombre).replace(/'/g,'')} y se cierran sus sesiones.')"><i class="ri-key-2-line text-slate-600" aria-hidden="true"></i></button>
+      <button type="button" class="p-1.5 rounded hover:bg-red-50" title="Quitar acceso" aria-label="Quitar acceso" onclick="accesoClienteConfirmar('quitar',${a.id},${obraId},'${S(a.nombre).replace(/'/g,'')} dejará de ver esta obra.')"><i class="ri-user-unfollow-line text-red-500" aria-hidden="true"></i></button>
+    </div></div>`).join(''):'<p class="text-xs text-slate-500">Todavía nadie tiene acceso con contraseña.</p>';
+}
+// Muestra las credenciales una sola vez: la contraseña no se puede volver a consultar.
+function accesoClienteCredenciales(nombre,email,pass,obraId){
+  const cont=document.getElementById('acCredenciales');if(!cont)return;
+  const o=D.o.find(x=>x.id==obraId)||{};
+  const texto=`Hola ${nombre}, ya puedes seguir el avance de ${o.nombre_obra||'tu obra'} desde aquí: ${PORTAL_URL()}\nCorreo: ${email}\nContraseña temporal: ${pass}\nLa primera vez te va a pedir cambiarla.`;
+  cont.classList.remove('hidden');
+  cont.innerHTML=`<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+    <p class="text-sm font-semibold text-emerald-800 mb-1">Contraseña temporal</p>
+    <p class="text-xs text-emerald-700 mb-2">Apúntala o mándasela ahora: no se puede volver a ver.</p>
+    <p class="text-sm font-mono bg-white border border-emerald-200 rounded px-2 py-1 mb-2">${S(pass)}</p>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn btn-s text-xs" onclick="navigator.clipboard.writeText(${JSON.stringify(texto).replace(/"/g,'&quot;')}).then(()=>Toast.success('Mensaje copiado'))"><i class="ri-file-copy-line" aria-hidden="true"></i> Copiar mensaje</button>
+      <a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a>
+    </div></div>`;
+}
+async function accesoClienteCrear(obraId){
+  const btn=document.getElementById('acBtn');const nombre=document.getElementById('acNombre').value.trim();
+  const email=document.getElementById('acEmail').value.trim();const tel=document.getElementById('acTel').value.trim();
+  if(nombre.length<3)return Toast.warning('Escribe el nombre de la persona');
+  if(!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email))return Toast.warning('Escribe un correo válido');
+  if(btn){btn.disabled=true;btn.textContent='Creando…';}
+  const{data,error}=await sb.rpc('portal_acceso_crear',{p_obra_id:obraId,p_nombre:nombre,p_email:email,p_telefono:tel||null});
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="ri-user-add-line" aria-hidden="true"></i> Dar acceso';}
+  if(error||!data||!data.ok){if(!(error&&/PLAN_LIMIT/.test(error.message)))Toast.error((data&&data.error)||humanizeError(error,'dar el acceso'));return;}
+  document.getElementById('acNombre').value='';document.getElementById('acEmail').value='';document.getElementById('acTel').value='';
+  if(data.password)accesoClienteCredenciales(nombre,email,data.password,obraId);
+  else Toast.success('Esa persona ya tenía cuenta; ahora también ve esta obra');
+  accesoClienteCargar(obraId);
+  Telemetry.track('portal_acceso_creado',{obra_id:obraId});
+}
+// Dialog es un singleton: uno anidado dejaría colgado al diálogo de acceso, así que la confirmación va en línea.
+function accesoClienteConfirmar(accion,id,obraId,texto){
+  const cont=document.getElementById('acCredenciales');if(!cont)return;
+  cont.classList.remove('hidden');
+  cont.innerHTML=`<div class="rounded-lg border border-amber-200 bg-amber-50 p-3">
+    <p class="text-sm text-amber-900 mb-2">${S(texto)}</p>
+    <div class="flex gap-2">
+      <button type="button" class="btn btn-p text-xs" onclick="${accion==='password'?`accesoClientePassword(${id},${obraId})`:`accesoClienteQuitar(${id},${obraId})`}">Sí, continuar</button>
+      <button type="button" class="btn btn-s text-xs" onclick="document.getElementById('acCredenciales').classList.add('hidden')">Cancelar</button>
+    </div></div>`;
+}
+async function accesoClientePassword(id,obraId){
+  const{data,error}=await sb.rpc('portal_acceso_password',{p_usuario_id:id});
+  if(error||!data||!data.ok){Toast.error((data&&data.error)||humanizeError(error,'reiniciar la contraseña'));return;}
+  accesoClienteCredenciales(data.nombre,data.email,data.password,obraId);
+  accesoClienteCargar(obraId);
+}
+async function accesoClienteQuitar(id,obraId){
+  const{data,error}=await sb.rpc('portal_acceso_quitar',{p_usuario_id:id,p_obra_id:obraId});
+  if(error||!data||!data.ok){Toast.error((data&&data.error)||humanizeError(error,'quitar el acceso'));return;}
+  const cont=document.getElementById('acCredenciales');if(cont)cont.classList.add('hidden');
+  Toast.success('Acceso quitado');
+  accesoClienteCargar(obraId);
 }
 async function regenerarPortal(obraId){const{data,error}=await sb.rpc('portal_token_obra',{p_obra_id:obraId,p_regenerar:true});if(error||!data||!data.success){Toast.error('No se pudo generar');return;}Toast.success('Enlace nuevo generado; el anterior ya no funciona');document.querySelector('dialog[open] input')&&(document.querySelector('dialog[open] input').value=data.url);}
 async function revocarPortal(obraId){const{data}=await sb.rpc('portal_revocar',{p_obra_id:obraId});if(data&&data.success){Toast.success('Enlace desactivado');const d=document.querySelector('dialog[open]');if(d)d.close();}}
@@ -3162,7 +3251,7 @@ const secLink=(mod,label)=>`<a href="#${mod}" class="text-xs text-accent hover:u
 c.innerHTML=`
 <div class="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
 <div class="min-w-0">
-<div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-xs text-ink-subtle"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>${(currentUser&&currentUser.nivel>=80)?`<button type="button" class="btn btn-s text-xs" onclick="compartirObra(${o.id})"><i class="ri-share-forward-line" aria-hidden="true"></i> Compartir con el cliente</button>`:''}</div>
+<div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-xs text-ink-subtle"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>${(currentUser&&currentUser.nivel>=80)?`<button type="button" class="btn btn-s text-xs" onclick="compartirObra(${o.id})"><i class="ri-share-forward-line" aria-hidden="true"></i> Acceso del cliente</button>`:''}</div>
 <h1 class="text-xl font-bold n truncate">${S(o.nombre_obra)}</h1>
 <div class="flex flex-wrap gap-2 mt-2 text-xs">
 <span class="px-2 py-1 rounded-full ${o.estatus==='Completada'?'bg-green-100 text-green-800':o.estatus==='Pausada'?'bg-amber-100 text-amber-800':'bg-sky-100 text-sky-800'}">${S(o.estatus||'En Proceso')}</span>
@@ -16415,8 +16504,8 @@ return`
 <i class="${iconoCat} text-slate-600 text-lg"></i>
 </div>
 <div>
-<p class="font-medium text-slate-800">${d.nombre}</p>
-<p class="text-xs text-slate-500">${d.tipo_archivo||'Documento'} ${d.version>1?`v${d.version}`:''}</p>
+<p class="font-medium text-slate-800">${S(d.nombre)}</p>
+<p class="text-xs text-slate-500">${S(d.tipo_archivo||'Documento')} ${d.version>1?`v${d.version}`:''}${d.visible_cliente?' · <span class="text-emerald-600">visible al cliente</span>':''}</p>
 </div>
 </div>
 </td>
@@ -16432,7 +16521,8 @@ ${vencProximo?'<i class="ri-alarm-warning-line text-amber-500 ml-1"></i>':''}
 <td><span class="px-2 py-1 rounded-full text-xs bg-${colorEstatus}-100 text-${colorEstatus}-600">${d.estatus}</span></td>
 <td class="text-right">
 <div class="flex items-center justify-end gap-1">
-${d.url_archivo?`<button onclick="window.open('${d.url_archivo}','_blank')" class="p-2 hover:bg-slate-100 rounded" title="Descargar" aria-label="Descargar"><i class="ri-download-line text-slate-600" aria-hidden="true"></i></button>`:''}
+${(d.url_archivo||d.archivo_path)?`<button onclick="abrirDocumento(${d.id})" class="p-2 hover:bg-slate-100 rounded" title="Abrir" aria-label="Abrir"><i class="ri-download-line text-slate-600" aria-hidden="true"></i></button>`:''}
+${d.obra_id?`<button onclick="toggleDocCliente(${d.id})" class="p-2 hover:bg-slate-100 rounded" title="${d.visible_cliente?'Quitar del portal del cliente':'Mostrar en el portal del cliente'}" aria-label="${d.visible_cliente?'Quitar del portal del cliente':'Mostrar en el portal del cliente'}"><i class="${d.visible_cliente?'ri-eye-line text-emerald-600':'ri-eye-off-line text-slate-400'}" aria-hidden="true"></i></button>`:''}
 <button onclick="openMdlDoc(${d.id})" class="p-2 hover:bg-slate-100 rounded" title="Editar" aria-label="Editar"><i class="ri-edit-line text-slate-600" aria-hidden="true"></i></button>
 <button onclick="deleteDoc(${d.id})" class="p-2 hover:bg-red-50 rounded" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line text-red-500" aria-hidden="true"></i></button>
 </div>
@@ -16488,10 +16578,18 @@ ${DOC_CATEGORIAS.map(cat=>`<option value="${cat}">${cat}</option>`).join('')}
 </div>
 </div>
 <div>
-<label class="text-xs text-slate-500 mb-1 block" for="docUrl">URL del Archivo</label>
-<input type="url" id="docUrl" class="inp" placeholder="https://...">
-<p class="text-xs text-slate-400 mt-1">Sube el archivo a un servicio externo y pega la URL aquí</p>
+<label class="text-xs text-slate-500 mb-1 block" for="docArchivo">Archivo</label>
+<input type="file" id="docArchivo" class="inp" onchange="docArchivoElegido()">
+<p class="text-xs text-slate-400 mt-1" id="docArchivoNota">Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.</p>
 </div>
+<div>
+<label class="text-xs text-slate-500 mb-1 block" for="docUrl">O pega una liga (Drive, Dropbox…)</label>
+<input type="url" id="docUrl" class="inp" placeholder="https://...">
+</div>
+<label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50">
+<input type="checkbox" id="docVisibleCliente" class="mt-0.5">
+<span><span class="text-sm font-medium text-slate-700">Visible para el cliente</span><span class="block text-xs text-slate-500">Aparece en el portal del cliente de esta obra. Deja la casilla vacía para documentos internos.</span></span>
+</label>
 <div class="grid grid-cols-2 gap-4">
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docTipo">Tipo de Archivo</label>
@@ -16571,15 +16669,28 @@ $('docUrl').value=d.url_archivo||'';
 $('docTipo').value=d.tipo_archivo||'PDF';
 $('docEstatus').value=d.estatus||'Activo';
 $('docNotas').value=d.notas||'';
+$('docVisibleCliente').checked=!!d.visible_cliente;
+$('docArchivo').value='';
+$('docArchivoNota').textContent=d.archivo_path?'Ya hay un archivo guardado. Elige otro sólo si quieres reemplazarlo.':'Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 }
 }else{
 $('formDoc').reset();
 $('docCategoria').value='General';
 $('docEstatus').value='Activo';
 $('docTipo').value='PDF';
+$('docArchivoNota').textContent='Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 if(selectedObra&&selectedObra!=='all')$('docObra').value=selectedObra;
 }
 openMdl('mdlDoc');
+}
+
+// El tipo se deduce de la extensión para no obligar a elegirlo dos veces.
+function docArchivoElegido(){
+const f=$('docArchivo').files[0];if(!f)return;
+if(!$('docNombre').value)$('docNombre').value=f.name.replace(/\.[^.]+$/,'');
+const ext=(f.name.split('.').pop()||'').toLowerCase();
+const tipo=ext==='pdf'?'PDF':/^(docx?|odt)$/.test(ext)?'Word':/^(xlsx?|csv|ods)$/.test(ext)?'Excel':/^(png|jpe?g|webp|gif|heic)$/.test(ext)?'Imagen':/^(dwg|dxf|rvt|skp)$/.test(ext)?'CAD':'Otro';
+$('docTipo').value=tipo;
 }
 
 async function saveDoc(e){
@@ -16596,20 +16707,64 @@ url_archivo:$('docUrl').value||null,
 tipo_archivo:$('docTipo').value,
 estatus:$('docEstatus').value,
 notas:$('docNotas').value||null,
+visible_cliente:$('docVisibleCliente').checked,
 subido_por:currentUser?.nombre||'Sistema',
 updated_at:new Date().toISOString()
 };
+const btn=e.target.querySelector('button[type=submit]');
 try{
+const file=$('docArchivo').files[0];
+if(file){
+if(file.size>25*1024*1024)return Toast.error('El archivo pasa de 25 MB. Súbelo a Drive y pega la liga.');
+if(btn){btn.disabled=true;btn.textContent='Subiendo…';}
+const limpio=file.name.replace(/[^\w.\-]+/g,'_').slice(-80);
+const ruta=`empresa/${currentUser.empresa_id}/${data.obra_id||'sin-obra'}/${Date.now()}_${limpio}`;
+const{error:upErr}=await sb.storage.from('documentos').upload(ruta,file,{upsert:false});
+if(upErr)throw upErr;
+data.archivo_path=ruta;
+data.tamano_bytes=file.size;
+}
 if(id){
-await sb.from('documentos').update(data).eq('id',id);
+const{error}=await sb.from('documentos').update(data).eq('id',id);
+if(error)throw error;
 }else{
-await sb.from('documentos').insert(data);
+data.empresa_id=currentUser?.empresa_id;
+const{error}=await sb.from('documentos').insert(data);
+if(error)throw error;
 }
 closeMdl('mdlDoc');
 await L();
 }catch(err){
 Toast.error(humanizeError(err,'No se pudo guardar'));
+}finally{
+if(btn){btn.disabled=false;btn.textContent='Guardar';}
 }
+}
+
+// Descarga con liga firmada: el archivo vive en un bucket privado.
+async function abrirDocumento(id){
+const d=(D.doc||[]).find(x=>x.id===id);if(!d)return;
+if(d.archivo_path){
+try{
+const{data,error}=await sb.storage.from('documentos').createSignedUrl(d.archivo_path,300);
+if(error)throw error;
+window.open(data.signedUrl,'_blank','noopener');
+}catch(err){Toast.error(humanizeError(err,'No se pudo abrir el archivo'));}
+return;
+}
+if(d.url_archivo)window.open(d.url_archivo,'_blank','noopener');
+}
+
+async function toggleDocCliente(id){
+const d=(D.doc||[]).find(x=>x.id===id);if(!d)return;
+const nuevo=!d.visible_cliente;
+try{
+const{error}=await sb.from('documentos').update({visible_cliente:nuevo,updated_at:new Date().toISOString()}).eq('id',id);
+if(error)throw error;
+d.visible_cliente=nuevo;
+Toast.success(nuevo?'El cliente ya lo ve en su portal':'Ya no aparece en el portal del cliente');
+R();
+}catch(err){Toast.error(humanizeError(err,'No se pudo cambiar'));}
 }
 
 async function deleteDoc(id){

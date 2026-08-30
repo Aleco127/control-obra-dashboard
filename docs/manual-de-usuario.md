@@ -34,6 +34,7 @@ Version 1.0 | Febrero 2026
   - [3.9 Plan de pagos y cobros](#39-plan-de-pagos-y-cobros)
   - [3.10 Programa por semanas](#310-programa-por-semanas)
   - [3.11 Captura desde el celular](#311-captura-desde-el-celular)
+  - [3.17 Dar acceso al cliente](#317-dar-acceso-al-cliente)
 - [PARTE 4: Referencia de Modulos](#parte-4-referencia-de-modulos)
   - [Proyectos](#categoria-proyectos)
   - [Contabilidad](#categoria-contabilidad)
@@ -2134,18 +2135,24 @@ Se crea CxC con monto = monto_periodo, estatus = "Pendiente", vencimiento = fech
 |-------|------|-----------|
 | Nombre | Texto | Si |
 | Tipo | Selector | Si |
-| Archivo | Upload | Si |
+| Archivo | Upload | No |
+| Liga externa | URL | No |
 | Obra | Selector | No |
-| Fecha Carga | Fecha | Auto |
+| Categoria | Selector | Si |
+| Visible para el cliente | Casilla | No |
+| Fecha del documento | Fecha | No |
 | Descripcion | Textarea | No |
 | Version | Numero | No |
 | Responsable | Auto | Usuario actual |
 
 **Tipos de documento:** Planos, Especificaciones, Permisos, Contratos, Reportes, Otro
 
-**Limites:**
-- PDF: maximo 10MB
-- Archivos ZIP/TAR: maximo 50MB
+**Archivo o liga:** puedes subir el archivo (hasta 25 MB) o pegar una liga de Drive o Dropbox. Si subes
+el archivo, se guarda en un almacen privado y solo se abre con una liga firmada que caduca en 5 minutos.
+
+**Visible para el cliente:** deja la casilla vacia salvo que quieras que ese documento aparezca en el
+portal del cliente de esa obra. Tambien puedes prenderlo y apagarlo desde la lista con el icono del ojo.
+Los documentos sin obra asignada nunca se publican.
 
 **Almacenamiento:** Supabase Storage con acceso controlado por empresa.
 
@@ -2789,3 +2796,36 @@ Solo para administradores (Contabilidad > Socios).
 
 **Configuracion > Finanzas.** Regla de prorrateo de indirectos (partes iguales, proporcional al contrato, al gasto directo o porcentajes fijos), reservas antes de repartir y base del estado de resultados. *Reprocesar indirectos del ano* vuelve a repartir todo con la regla vigente.
 
+---
+
+## 3.17 Dar acceso al cliente
+
+Tu cliente puede seguir su obra por su cuenta, sin llamarte: ve el programa, el avance, las fotos, los
+documentos que tu marques, el plan de pagos, lo que ya pago y sus facturas. **Nunca ve costos, gastos,
+utilidad ni socios.**
+
+Abre la obra y toca **Acceso del cliente** (arriba a la derecha de la ficha; necesitas ser gerente o
+administrador). Hay dos formas de darle entrada y puedes usar las dos a la vez.
+
+**Con correo y contrasena.** Escribe el nombre y el correo de la persona y toca *Dar acceso*. El sistema
+genera una contrasena temporal y te la muestra **una sola vez**: copiala o mandala por WhatsApp con el
+boton que aparece ahi mismo. La primera vez que entre, la aplicacion le pide cambiarla por una suya.
+
+Usa esta forma cuando quieras saber quien entra, cuando sean varias personas (el cliente y su esposa, o
+dos socios) o cuando la obra tenga informacion delicada. En la lista ves cuando entro cada quien, puedes
+generarle una contrasena nueva (con el icono de la llave) o quitarle el acceso (con el icono de la
+persona tachada). Si le quitas su ultima obra, la cuenta se desactiva sola.
+
+Una misma persona puede ver varias obras: dale acceso desde cada obra con el mismo correo y en su
+portal le aparece un selector para cambiar de una a otra.
+
+**Con enlace sin contrasena.** Un link privado que abre directo. Es comodo para una obra chica, pero
+quien reciba el link entra: si se reenvia, no hay forma de saber quien lo vio. Puedes generar un enlace
+nuevo (el anterior deja de servir) o desactivarlo.
+
+**Que documentos ve.** Solo los que marques uno por uno. En el modulo Documentos, prende *Visible para el
+cliente* al guardar, o toca el icono del ojo en la lista. Todo lo demas (contratos con proveedores,
+cotizaciones, precios de costo) se queda de tu lado.
+
+**Si el cliente olvida su contrasena** no hay correo de recuperacion: te lo pide a ti y le generas una
+nueva desde la misma pantalla.

@@ -10,7 +10,7 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;font-size:16px}
 .wrap{max-width:760px;margin:0 auto;padding:16px 14px 56px}
 header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
-header .emp{font-weight:700;color:var(--primary)}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+header .emp{font-weight:700;color:var(--primary);flex:1}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
 h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
 .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -22,16 +22,27 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 .tbl{overflow-x:auto}
 .fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}@media(min-width:560px){.fotos{grid-template-columns:repeat(4,1fr)}}.fotos a{display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#e5eaf0}.fotos img{width:100%;height:100%;object-fit:cover}
 .act{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.act .bar{width:110px}
-.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:10px 14px;border-radius:9px;font-size:14px;font-weight:600;border:0;cursor:pointer}.btn.s{background:#fff;color:var(--primary);border:1px solid var(--line)}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:10px 14px;border-radius:9px;font-size:14px;font-weight:600;border:0;cursor:pointer}.btn.s{background:#fff;color:var(--primary);border:1px solid var(--line)}.btn:disabled{opacity:.6;cursor:default}
 .pago{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:14px}.pago dt{color:var(--muted)}.pago dd{margin:0;font-weight:600;word-break:break-all}
 .copy{font-size:12px;color:var(--accent);background:none;border:0;cursor:pointer;padding:0 4px}
 footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
 .vacio{color:var(--muted);font-size:14px}
+.doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.doc:last-child{border-bottom:0}
+.doc .meta{font-size:12px;color:var(--muted)}
+.login{max-width:380px;margin:6vh auto 0}
+.login .marca{text-align:center;margin-bottom:18px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input[type=email],input[type=password],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:#fff;color:var(--ink);font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.err{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:9px 11px;font-size:14px;margin:10px 0 0}
+.barra{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.barra select{width:auto;flex:1;min-width:200px;padding:8px 10px;font-size:14px}
+.txt{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;padding:4px;font-family:inherit}
 </style>
 </head>
 <body><div class="wrap">
 <div id="app"><p class="sub">Cargando…</p></div>
-<footer>Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.<br>Control de Obra · Supernova Arquitectos</footer>
+<footer id="pie">Control de Obra</footer>
 </div>
 <script>
 const SB='https://cpjdlaiarmxojiyhhpxt.supabase.co', ANON='sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
@@ -40,21 +51,114 @@ const esc=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':
 const fmt=(n)=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0);
 const fecha=(d)=>d?new Date(d.length===10?d+'T12:00:00':d).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}):'';
 const token=new URLSearchParams(location.search).get('t')||'';
+let sesion=localStorage.getItem('portal_sesion')||'', obras=[], obraActual=null, usuario=null;
+
+async function rpc(fn,body){
+  try{
+    const r=await fetch(SB+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'},body:JSON.stringify(body||{})});
+    const d=await r.json().catch(()=>null);
+    if(!r.ok) return {error:(d&&(d.message||d.error))||'No se pudo conectar. Revisa tu internet.'};
+    return d||{};
+  }catch(e){ return {error:'No se pudo conectar. Revisa tu internet.'}; }
+}
 async function copiar(t,btn){try{await navigator.clipboard.writeText(t);btn.textContent='Copiado';setTimeout(()=>btn.textContent='Copiar',1500);}catch(e){}}
 function estadoChip(e){e=String(e||'');if(/cobrad|pagad|aprobad|completad|termin/i.test(e))return`<span class="chip c-ok">${esc(e)}</span>`;if(/parcial|proceso|pendiente/i.test(e))return`<span class="chip c-warn">${esc(e)}</span>`;if(/vencid|cancel|rechaz/i.test(e))return`<span class="chip c-bad">${esc(e)}</span>`;return`<span class="chip c-info">${esc(e||'-')}</span>`;}
-async function cargar(){
-  if(!/^[a-f0-9]{48}$/.test(token)){$('#app').innerHTML='<div class="card"><h2>Enlace no válido</h2><p class="vacio">Pide a tu constructor un enlace nuevo.</p></div>';return;}
-  const r=await fetch(SB+'/rest/v1/rpc/portal_obra',{method:'POST',headers:{apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'},body:JSON.stringify({p_token:token})});
-  const d=await r.json().catch(()=>null);
-  if(!r.ok||!d||d.error){$('#app').innerHTML='<div class="card"><h2>Este enlace ya no está activo</h2><p class="vacio">Pide a tu constructor un enlace nuevo.</p></div>';return;}
+
+/* ---------- Entrada: enlace privado o sesión con contraseña ---------- */
+async function arranca(){
+  if(token){
+    if(!/^[a-f0-9]{48}$/.test(token))return pantallaError('Enlace no válido','Pide a tu constructor un enlace nuevo.');
+    const d=await rpc('portal_obra',{p_token:token});
+    if(!d||d.error)return pantallaError('Este enlace ya no está activo','Pide a tu constructor un enlace nuevo.');
+    return pintarObra(d);
+  }
+  if(sesion){
+    const s=await rpc('portal_sesion',{p_token:sesion});
+    if(s&&s.ok){
+      usuario=s.usuario;obras=s.obras||[];
+      if(usuario.debe_cambiar)return pantallaPassword(true);
+      return abrirObra(obras.length?obras[0].id:null);
+    }
+    localStorage.removeItem('portal_sesion');sesion='';
+  }
+  pantallaLogin();
+}
+function pantallaError(titulo,texto){$('#app').innerHTML=`<div class="card" style="margin-top:6vh"><h2>${esc(titulo)}</h2><p class="vacio">${esc(texto)}</p></div>`;}
+
+function pantallaLogin(msg){
+  $('#app').innerHTML=`<div class="login">
+    <div class="marca"><h1 style="font-size:20px;margin:10px 0 2px">Avance de tu obra</h1><p class="sub" style="margin:0">Entra con el correo que te dio tu constructor.</p></div>
+    <form class="card" id="formLogin">
+      <label for="lgEmail">Correo</label>
+      <input id="lgEmail" type="email" inputmode="email" autocomplete="username" required placeholder="tucorreo@ejemplo.com">
+      <label for="lgPass">Contraseña</label>
+      <input id="lgPass" type="password" autocomplete="current-password" required>
+      ${msg?`<div class="err">${esc(msg)}</div>`:''}
+      <p style="margin:14px 0 0"><button class="btn" style="width:100%" id="lgBtn" type="submit">Entrar</button></p>
+      <p class="vacio" style="margin:12px 0 0;font-size:13px">¿Olvidaste tu contraseña? Pídele a tu constructor que te la reinicie.</p>
+    </form></div>`;
+  $('#formLogin').addEventListener('submit',async(ev)=>{
+    ev.preventDefault();
+    const b=$('#lgBtn');b.disabled=true;b.textContent='Entrando…';
+    const d=await rpc('portal_login',{p_email:$('#lgEmail').value.trim(),p_password:$('#lgPass').value,p_user_agent:navigator.userAgent});
+    if(!d||!d.ok)return pantallaLogin((d&&d.error)||'Correo o contraseña incorrectos.');
+    sesion=d.token;localStorage.setItem('portal_sesion',sesion);usuario=d.usuario;obras=d.obras||[];
+    if(usuario.debe_cambiar)return pantallaPassword(true);
+    abrirObra(obras.length?obras[0].id:null);
+  });
+}
+
+function pantallaPassword(obligatorio,msg){
+  $('#app').innerHTML=`<div class="login">
+    <h1 style="font-size:20px;text-align:center">${obligatorio?'Elige tu contraseña':'Cambiar contraseña'}</h1>
+    ${obligatorio?'<p class="sub" style="text-align:center">Es tu primera vez aquí. Cambia la contraseña que te dieron por una tuya.</p>':''}
+    <form class="card" id="formPass">
+      <label for="pwAct">Contraseña actual</label><input id="pwAct" type="password" autocomplete="current-password" required>
+      <label for="pwNue">Contraseña nueva</label><input id="pwNue" type="password" autocomplete="new-password" minlength="8" required>
+      <p class="vacio" style="font-size:12px;margin:6px 0 0">Al menos 8 caracteres.</p>
+      ${msg?`<div class="err">${esc(msg)}</div>`:''}
+      <p style="margin:14px 0 0"><button class="btn" style="width:100%" id="pwBtn" type="submit">Guardar</button></p>
+      ${obligatorio?'':'<p style="margin:8px 0 0;text-align:center"><button type="button" class="txt" onclick="volver()">Cancelar</button></p>'}
+    </form>
+    <p style="text-align:center"><button class="txt" onclick="salir()">Cerrar sesión</button></p></div>`;
+  $('#formPass').addEventListener('submit',async(ev)=>{
+    ev.preventDefault();
+    const b=$('#pwBtn');b.disabled=true;b.textContent='Guardando…';
+    const d=await rpc('portal_password',{p_token:sesion,p_actual:$('#pwAct').value,p_nueva:$('#pwNue').value});
+    if(!d||!d.ok)return pantallaPassword(obligatorio,(d&&d.error)||'No se pudo cambiar la contraseña.');
+    const s=await rpc('portal_sesion',{p_token:sesion});
+    if(s&&s.ok){usuario=s.usuario;obras=s.obras||[];}
+    abrirObra(obraActual||(obras.length?obras[0].id:null));
+  });
+}
+function volver(){abrirObra(obraActual||(obras.length?obras[0].id:null));}
+async function salir(){await rpc('portal_logout',{p_token:sesion});localStorage.removeItem('portal_sesion');sesion='';location.href=location.pathname;}
+
+async function abrirObra(id){
+  if(!id)return pantallaError('Todavía no tienes una obra asignada','Escríbele a tu constructor para que te dé acceso.');
+  obraActual=Number(id);
+  $('#app').innerHTML='<p class="sub">Cargando…</p>';
+  const d=await rpc('portal_datos',{p_token:sesion,p_obra_id:obraActual});
+  if(!d||d.error){
+    if(d&&d.error==='sesion_invalida'){localStorage.removeItem('portal_sesion');sesion='';return pantallaLogin('Tu sesión expiró. Entra otra vez.');}
+    return pantallaError('No pudimos abrir la obra','Inténtalo de nuevo en un momento.');
+  }
+  pintarObra(d);
+}
+function cambiarObra(sel){abrirObra(Number(sel.value));}
+
+/* ---------- Vista de la obra ---------- */
+function pintarObra(d){
   document.title=`${d.obra.nombre} · Avance`;
-  const o=d.obra, e=d.empresa, plan=d.plan_pagos||[], pagos=d.pagos||[], acts=d.actividades||[], fotos=d.fotos||[], ests=d.estimaciones||[], cfdis=d.cfdis||[];
+  const o=d.obra, e=d.empresa, plan=d.plan_pagos||[], pagos=d.pagos||[], acts=d.actividades||[], fotos=d.fotos||[], ests=d.estimaciones||[], cfdis=d.cfdis||[], docs=d.documentos||[];
   const cobrado=pagos.reduce((a,p)=>a+Number(p.monto||0),0), contrato=Number(o.contrato||0), saldo=Math.max(0,contrato-cobrado);
   const hoy=new Date().toISOString().slice(0,10); const proximo=plan.find(x=>!/cobrad/i.test(x.estatus||'')&&Number(x.monto)-Number(x.cobrado||0)>0.5);
   const dp=e.datos_pago||{};
   const wa=e.telefono?('https://wa.me/'+String(e.telefono).replace(/\D/g,'').replace(/^(\d{10})$/,'52$1')+'?text='+encodeURIComponent('Hola, tengo una duda sobre la obra '+o.nombre)):'';
+  $('#pie').innerHTML=(sesion?'Tu acceso es personal; no compartas tu contraseña.':'Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.')+'<br>Control de Obra'+(e.nombre?' · '+esc(e.nombre):'');
   $('#app').innerHTML=`
-  <header>${e.logo_url?`<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">`:''}<div class="emp">${esc(e.nombre)}<small>Avance de tu obra</small></div></header>
+  <header>${e.logo_url?`<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">`:''}<div class="emp">${esc(e.nombre)}<small>${(sesion&&usuario)?esc(usuario.nombre):'Avance de tu obra'}</small></div>${sesion?`<button class="txt" onclick="salir()">Salir</button>`:''}</header>
+  ${(sesion&&obras.length>1)?`<div class="barra"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x=>`<option value="${x.id}" ${x.id===obraActual?'selected':''}>${esc(x.nombre)}</option>`).join('')}</select></div>`:''}
   <h1>${esc(o.nombre)}</h1>
   <p class="sub">${esc(o.cliente||'')}${o.ubicacion?' · '+esc(o.ubicacion):''}${o.fecha_inicio?' · inicio '+fecha(o.fecha_inicio):''}${o.fecha_fin?' · entrega estimada '+fecha(o.fecha_fin):''}</p>
   <div class="kpis">
@@ -63,7 +167,7 @@ async function cargar(){
     <div class="kpi"><b>${fmt(cobrado)}</b><span>Pagado a la fecha</span></div>
     <div class="kpi"><b>${fmt(saldo)}</b><span>Saldo por pagar</span></div>
   </div>
-  <div class="card"><h2>Avance de la obra <span class="chip c-info">${esc(o.estatus||'')}</span></h2>
+  <div class="card"><h2>Programa de obra <span class="chip c-info">${esc(o.estatus||'')}</span></h2>
     <div class="bar" aria-label="Avance ${Math.round(Number(o.avance||0))}%"><i style="width:${Math.min(100,Number(o.avance||0))}%"></i></div>
     ${acts.length?`<div style="margin-top:10px">${acts.map(a=>`<div class="act"><div><div>${a.hito?'🏁 ':''}${esc(a.nombre)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin?' a '+fecha(a.fin):''}${a.responsable?' · '+esc(a.responsable):''}</div></div><div><div class="bar"><i style="width:${Math.min(100,Number(a.avance||0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance||0))}%</div></div></div>`).join('')}</div>`:'<p class="vacio">Tu constructor aún no comparte el programa de trabajo.</p>'}
   </div>
@@ -73,18 +177,32 @@ async function cargar(){
   </div>`:''}
   <div class="card"><h2>Plan de pagos</h2>${plan.length?`<div class="tbl"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${plan.map(x=>`<tr><td>${esc(x.concepto)}</td><td class="n">${fmt(x.monto)}</td><td class="n">${fmt(x.cobrado)}</td><td>${fecha(x.vence)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Sin plan de pagos registrado.</p>'}</div>
   <div class="card"><h2>Pagos realizados</h2>${pagos.length?`<div class="tbl"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${pagos.map(p=>`<tr><td>${fecha(p.fecha)}</td><td>${esc(p.concepto||p.numero||'')}</td><td>${esc(p.metodo||'')}</td><td class="n">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Aún no hay pagos registrados.</p>'}</div>
+  <div class="card"><h2>Documentos de tu obra</h2>${docs.length?docs.map(x=>`<div class="doc"><div><div>${esc(x.nombre)}</div><div class="meta">${esc(x.categoria||'')}${x.fecha?' · '+fecha(x.fecha):''}${(x.version&&Number(x.version)>1)?' · versión '+esc(x.version):''}${x.descripcion?' · '+esc(x.descripcion):''}</div></div><div>${(x.tiene_archivo||x.url)?`<button class="btn s" style="padding:7px 12px" onclick="verDocumento(${x.id},this)">Abrir</button>`:'<span class="vacio">Sin archivo</span>'}</div></div>`).join(''):'<p class="vacio">Todavía no hay documentos publicados para ti.</p>'}</div>
   ${cfdis.length?`<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${cfdis.map(c=>`<tr><td>${esc((c.serie||'')+(c.folio||''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid||'')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo?`<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   ${ests.length?`<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ests.map(x=>`<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin?' a '+fecha(x.periodo_fin):''}</td><td class="n">${x.avance!=null?Math.round(Number(x.avance))+'%':''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   <div class="card"><h2>Fotos de la obra</h2>${fotos.length?`<div class="fotos">${fotos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo||f.descripcion||'')} ${fecha(f.fecha)}"><img src="${esc(f.thumb||f.url)}" alt="${esc(f.titulo||'Foto de obra')}" loading="lazy"></a>`).join('')}</div>`:'<p class="vacio">Todavía no hay fotos publicadas.</p>'}</div>
-  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}</div>`;
+  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}${sesion?`<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button></p>`:''}</div>`;
+}
+
+async function pedirArchivo(cuerpo){
+  try{
+    const r=await fetch(SB+'/functions/v1/portal-archivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cuerpo)});
+    return await r.json().catch(()=>null);
+  }catch(e){ return null; }
 }
 async function archivo(id,tipo){
-  const r=await fetch(SB+'/functions/v1/portal-archivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,cfdi_id:id,tipo})});
-  const j=await r.json().catch(()=>null);
-  if(!r.ok||!j||!j.url){alert((j&&j.error)||'No se pudo obtener el archivo');return;}
+  const j=await pedirArchivo({token,sesion,cfdi_id:id,tipo});
+  if(!j||!j.url){alert((j&&j.error)||'No se pudo abrir el archivo');return;}
   window.open(j.url,'_blank','noopener');
 }
-cargar();
+async function verDocumento(id,btn){
+  if(btn){btn.disabled=true;btn.textContent='Abriendo…';}
+  const j=await pedirArchivo({token,sesion,documento_id:id});
+  if(btn){btn.disabled=false;btn.textContent='Abrir';}
+  if(!j||!j.url){alert((j&&j.error)||'No se pudo abrir el documento');return;}
+  window.open(j.url,'_blank','noopener');
+}
+arranca();
 </script>
 </body>
 </html>

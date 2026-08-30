@@ -1,0 +1,28 @@
+-- 050: acceso del cliente con correo y contraseña + documentos visibles para el cliente (US-248).
+-- Aplicada el 30-ago-2026 con el MCP de Supabase, en seis partes (050, 050b..050f).
+--
+-- Las credenciales del cliente viven en tablas propias: NO sirven para entrar a la app de la constructora.
+--   control_obra.portal_usuarios        (empresa_id, cliente_id, email único, nombre, password_hash bcrypt,
+--                                        activo, debe_cambiar_password, ultimo_acceso)
+--   control_obra.portal_usuario_obras   (usuario_id, obra_id)  -> una persona puede ver varias obras
+--   control_obra.portal_sesiones        (token 64 hex, expira a 30 días con renovación deslizante)
+--   control_obra.documentos.visible_cliente  boolean default false
+--   control_obra.documentos.archivo_path     text  -> bucket privado 'documentos'
+--
+-- Funciones para el cliente (públicas, validan la sesión por dentro):
+--   portal_login(email, password, user_agent) -> {ok, token, usuario, obras}; 5 intentos fallidos por 15 min
+--   portal_sesion(token), portal_datos(token, obra_id), portal_logout(token), portal_password(token, actual, nueva)
+-- Funciones para la constructora (exigen sesión de la app con nivel >= 80 y la feature 'portal' del plan):
+--   portal_accesos(obra_id), portal_acceso_crear(obra_id, nombre, email, telefono, password),
+--   portal_acceso_password(usuario_id), portal_acceso_estado(usuario_id, activo), portal_acceso_quitar(usuario_id, obra_id)
+--
+-- control_obra.portal_payload(obra_id) arma el contenido una sola vez; lo usan el enlace privado (portal_obra)
+-- y la sesión con contraseña (portal_datos). Ahí se agregó la lista de documentos con visible_cliente = true.
+--
+-- Bucket 'documentos' privado (25 MB), con las mismas políticas por empresa que 'comprobantes':
+-- la carpeta es empresa/{empresa_id}/{obra_id}/ y storage.foldername(name)[2] tiene que coincidir con la sesión.
+--
+-- La vista public.documentos se recreó (drop + create) para exponer visible_cliente y archivo_path;
+-- las columnas nuevas van al final porque create or replace no permite reordenar.
+--
+-- El cuerpo completo está en el historial de migraciones del proyecto (versiones 050 a 050f).

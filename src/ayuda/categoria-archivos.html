@@ -17,13 +17,13 @@ nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap
 <p><strong>Codigo interno:</strong> <code>k</code> | <strong>Icono:</strong> ri-folder-3-line</p>
 <p><strong>Proposito:</strong> Almacenamiento y organizacion de documentos del proyecto.</p>
 <p><strong>Campos:</strong></p>
-<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td></tr><tr><td>Tipo</td><td>Selector</td><td>Si</td></tr><tr><td>Archivo</td><td>Upload</td><td>Si</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Fecha Carga</td><td>Fecha</td><td>Auto</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Version</td><td>Numero</td><td>No</td></tr><tr><td>Responsable</td><td>Auto</td><td>Usuario actual</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td></tr><tr><td>Tipo</td><td>Selector</td><td>Si</td></tr><tr><td>Archivo</td><td>Upload</td><td>No</td></tr><tr><td>Liga externa</td><td>URL</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>Si</td></tr><tr><td>Visible para el cliente</td><td>Casilla</td><td>No</td></tr><tr><td>Fecha del documento</td><td>Fecha</td><td>No</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Version</td><td>Numero</td><td>No</td></tr><tr><td>Responsable</td><td>Auto</td><td>Usuario actual</td></tr></tbody></table></div>
 <p><strong>Tipos de documento:</strong> Planos, Especificaciones, Permisos, Contratos, Reportes, Otro</p>
-<p><strong>Limites:</strong></p>
-<ul>
-<li>PDF: maximo 10MB</li>
-<li>Archivos ZIP/TAR: maximo 50MB</li>
-</ul>
+<p><strong>Archivo o liga:</strong> puedes subir el archivo (hasta 25 MB) o pegar una liga de Drive o Dropbox. Si subes</p>
+<p>el archivo, se guarda en un almacen privado y solo se abre con una liga firmada que caduca en 5 minutos.</p>
+<p><strong>Visible para el cliente:</strong> deja la casilla vacia salvo que quieras que ese documento aparezca en el</p>
+<p>portal del cliente de esa obra. Tambien puedes prenderlo y apagarlo desde la lista con el icono del ojo.</p>
+<p>Los documentos sin obra asignada nunca se publican.</p>
 <p><strong>Almacenamiento:</strong> Supabase Storage con acceso controlado por empresa.</p>
 <p>---</p>
 <h3 id="4-25-fotos">4.25 Fotos</h3>
