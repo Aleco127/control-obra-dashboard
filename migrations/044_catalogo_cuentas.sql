@@ -1,0 +1,7 @@
+-- 044: catálogo de cuentas contables por empresa (US-241). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- Tabla control_obra.cuentas_contables (empresa_id, rol único por empresa, cuenta, nombre). RLS: lectura por empresa, escritura nivel >= 100.
+-- Vista public.cuentas_contables (security_invoker) con SELECT/INSERT/UPDATE/DELETE para la app.
+-- public.cuentas_contables_default(): crea las cuentas base (bancos, caja, clientes, proveedores, iva_acreditable, iva_trasladado,
+--   ingresos, costo_directo, indirectos, nomina, socios_aportaciones, socios_retiros) y una 'costo:<categoría>' por categoría de gasto activa.
+-- Los números son sugeridos (agrupador SAT en la clave); el contador los ajusta en Configuración › Contabilidad.
+-- El cuerpo completo está en el historial de migraciones del proyecto (versión 044_catalogo_cuentas).

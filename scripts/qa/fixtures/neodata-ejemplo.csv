@@ -1,0 +1,20 @@
+Neodata · Presupuesto
+
+Clave,Descripción,Unidad,Cantidad,Precio,Importe,%
+A,PRELIMINARES,,,,55180.0,
+A.01,Limpieza y trazo del terreno con equipo topográfico,m2,800.0,18.5,14800.0,
+A.02,Excavación a mano en cepas material tipo II hasta 1.50 m,m3,96.0,285.0,27360.0,
+A.03,Relleno compactado con material de banco en capas de 20 cm,m3,42.0,310.0,13020.0,
+B,CIMENTACIÓN,,,,197655.0,
+B.01,Plantilla de concreto f'c=100 kg/cm2 de 5 cm de espesor,m2,64.0,145.0,9280.0,
+B.02,"Zapata corrida de concreto f'c=250 kg/cm2 armada, incluye cimbra",m3,28.5,4850.0,138225.0,
+B.03,Cadena de desplante 15x30 cm concreto f'c=250 armex 15-30-4,ml,118.0,425.0,50150.0,
+C,ESTRUCTURA,,,,584900.0,
+C.01,Muro de block de concreto 15x20x40 asentado con mortero 1:4,m2,420.0,385.0,161700.0,
+C.02,Castillo K-1 15x15 cm concreto f'c=250 armex 15-15-4,ml,260.0,295.0,76700.0,
+C.03,"Losa maciza 12 cm concreto f'c=250 armada, incluye cimbra",m2,210.0,1650.0,346500.0,
+D,ACABADOS,,,,335220.0,
+D.01,Aplanado de mortero cemento-arena 1:4 acabado fino,m2,840.0,165.0,138600.0,
+D.02,Piso de porcelanato 60x60 asentado con adhesivo,m2,190.0,690.0,131100.0,
+D.03,Pintura vinílica dos manos sobre aplanado,m2,840.0,78.0,65520.0,
+,TOTAL,,,,1172955.0,

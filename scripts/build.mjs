@@ -137,6 +137,7 @@ async function limpia(r){
 self.addEventListener('install',e=>{e.waitUntil((async()=>{const c=await caches.open(CACHE);for(const u of PRECACHE){try{const r=await fetch(u,{cache:'reload'});if(r.ok)await c.put(u,await limpia(r));}catch(_){}}await self.skipWaiting();})());});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k.startsWith('obra-')).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('message',e=>{if(e.data==='SKIP_WAITING')self.skipWaiting();});
+self.addEventListener('sync',e=>{if(e.tag==='outbox')e.waitUntil(self.clients.matchAll({includeUncontrolled:true}).then(cs=>cs.forEach(c=>c.postMessage('OUTBOX_FLUSH'))));});
 self.addEventListener('fetch',e=>{
   const req=e.request; if(req.method!=='GET')return;
   const u=new URL(req.url);

@@ -2,6 +2,7 @@
 let importCsvData = [];
 let importCsvHeaders = [];
 let importColumnMapping = {}; // {columnIndex: fieldName}
+let importPreset = null; // "opus" | "neodata" | null (US-242)
 
 const IMPORT_FIELDS = [
   {key:'clave', label:'Clave', icon:'ri-key-line', color:'bg-blue-500'},
@@ -24,11 +25,11 @@ $('mdlImportCatalogoContent').innerHTML=`
 <!-- Paso 1: Seleccionar archivo -->
 <div id="importStep1">
 <div class="g rounded-lg p-4 border-2 border-dashed border-gray-600 hover:border-cyan-500 transition-colors cursor-pointer" onclick="document.getElementById('csvFileInput').click()">
-<input type="file" id="csvFileInput" accept=".csv,.txt,.tsv" class="hidden" onchange="handleCsvFile(event)">
+<input type="file" id="csvFileInput" accept=".csv,.txt,.tsv,.xlsx,.xls" class="hidden" onchange="handleCsvFile(event)">
 <div class="text-center py-6">
 <i class="ri-file-excel-2-line text-4xl text-cyan-400 mb-2"></i>
-<p class="text-sm text-gray-300">Haz clic para seleccionar archivo CSV</p>
-<p class="text-xs text-gray-500 mt-1">Formatos: .csv, .txt, .tsv</p>
+<p class="text-sm text-gray-300">Haz clic para seleccionar el archivo</p>
+<p class="text-xs text-gray-500 mt-1">Excel exportado de OPUS o Neodata (.xlsx) o CSV. Las columnas se reconocen solas.</p>
 </div>
 </div>
 <div class="text-center my-3 text-gray-500 text-xs">-- o pega los datos directamente --</div>
@@ -41,7 +42,7 @@ $('mdlImportCatalogoContent').innerHTML=`
 <!-- Paso 2: Mapear columnas con drag & drop -->
 <div id="importStep2" class="hidden">
 <div class="flex items-center justify-between mb-3">
-<span class="text-sm text-gray-300"><i class="ri-drag-drop-line mr-1"></i>Arrastra los campos a las columnas</span>
+<span class="text-sm text-gray-300"><i class="ri-drag-drop-line mr-1"></i>Arrastra los campos a las columnas <span id="importPresetBadge"></span></span>
 <button onclick="resetImport()" class="text-xs text-cyan-400 hover:underline"><- Cambiar archivo</button>
 </div>
 
@@ -57,6 +58,7 @@ $('mdlImportCatalogoContent').innerHTML=`
 <div id="previewTable" class="text-xs"></div>
 </div>
 
+<div id="importPreview" class="g rounded-lg p-3 mb-3 hidden"></div>
 <div class="flex gap-2 mt-4">
 <button onclick="executeImport()" class="flex-1 py-2 rounded bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-sm hover:opacity-90">
 <i class="ri-upload-2-line mr-1"></i>Importar <span id="importCount">0</span> conceptos
@@ -71,6 +73,19 @@ $('mdlImportCatalogoContent').innerHTML=`
 function handleCsvFile(event){
 const file = event.target.files[0];
 if(!file) return;
+if(/\.xlsx?$/i.test(file.name)){
+const rd = new FileReader();
+rd.onload = function(e){
+try{
+const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+const ws = wb.Sheets[wb.SheetNames[0]];
+const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''}).map(r => r.map(v => v === null || v === undefined ? '' : v));
+cargarFilas(rows);
+}catch(err){ Toast.error('No se pudo leer el Excel: ' + (err.message||err)); }
+};
+rd.readAsArrayBuffer(file);
+return;
+}
 const reader = new FileReader();
 reader.onload = function(e){
 // Limpiar caracteres problematicos de encoding
@@ -166,6 +181,17 @@ return cells;
 return cells.some(c => c && c.trim());
 });
 
+cargarFilas(importCsvData);
+}
+
+/** Recibe una matriz de filas (Excel o CSV), localiza los encabezados y detecta el preset (US-242). */
+function cargarFilas(rows){
+rows = (rows||[]).filter(r => r && r.some(c => String(c ?? '').trim()));
+if(!rows.length){ Toast.error('No se encontraron datos'); return; }
+const esHeader = (r) => { const t = r.map(c => String(c ?? '').toLowerCase()); return t.filter(Boolean).length >= 3 && t.some(c => /clave|codigo|código|desc|concepto/.test(c)) && t.some(c => /unidad|cantidad|precio|p\.u|unitario|importe/.test(c)); };
+let hIdx = rows.slice(0, 25).findIndex(esHeader);
+if(hIdx > 0){ rows = rows.slice(hIdx); }
+importCsvData = rows.map(r => r.map(c => String(c ?? '').trim()));
 // Usar primera fila como headers o generar
 const firstRow = importCsvData[0];
 const looksLikeHeaders = firstRow.some(cell => {
@@ -182,6 +208,7 @@ importCsvHeaders = firstRow.map((_, i) => `Columna ${i+1}`);
 
 showMappingStep();
 }
+
 
 function showMappingStep(){
 $('importStep1').classList.add('hidden');
@@ -237,9 +264,33 @@ const numericCols = colsWithData.filter(c => c.isNumeric >= c.hasData/2 && !impo
 if(!Object.values(importColumnMapping).includes('cantidad') && numericCols.length > 0) importColumnMapping[numericCols[0].idx] = 'cantidad';
 if(!Object.values(importColumnMapping).includes('precio_unitario') && numericCols.length > 1) importColumnMapping[numericCols[1].idx] = 'precio_unitario';
 
-console.log('Mapeo automatico:', importColumnMapping);
+// Preset OPUS / Neodata (US-242): sustituye el mapeo si reconoce los encabezados
+importPreset = null;
+try{
+const det = ImportPresets.detectar(importCsvHeaders);
+if(det.preset){ importPreset = det.preset; importColumnMapping = {}; Object.entries(det.mapping).forEach(([i,f]) => { if(f !== 'importe') importColumnMapping[i] = f; }); importColumnMapping.__importe = det.mapping; }
+}catch(e){}
+const badge = $('importPresetBadge'); if(badge) badge.innerHTML = importPreset ? `<span class="ml-2 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Formato ${importPreset === 'opus' ? 'OPUS' : 'Neodata'} reconocido</span>` : '';
+console.log('Mapeo automatico:', importColumnMapping, 'preset:', importPreset);
 
 renderMappingUI();
+renderImportPreview();
+}
+
+/** Vista previa agrupada por partida con errores por fila (US-242). */
+function importMappingLimpio(){ const mp = {}; Object.entries(importColumnMapping).forEach(([k,v]) => { if(!String(k).startsWith('__')) mp[k] = v; }); const extra = importColumnMapping.__importe || {}; Object.entries(extra).forEach(([k,v]) => { if(v === 'importe' && !mp[k]) mp[k] = 'importe'; }); return mp; }
+function renderImportPreview(){
+const box = $('importPreview'); if(!box) return;
+try{
+const r = ImportPresets.construir(importCsvData, importMappingLimpio(), {});
+window._importResultado = r;
+$('importCount').textContent = r.conceptos.length;
+const total = r.conceptos.reduce((s,c) => s + c.cantidad * c.precio_unitario, 0);
+box.classList.remove('hidden');
+box.innerHTML = `<p class="text-xs text-gray-400 mb-2"><i class="ri-eye-line mr-1"></i>Se importarán <strong>${r.conceptos.length}</strong> conceptos${r.partidas.length ? ` en <strong>${r.partidas.length}</strong> partidas` : ''} · importe ${typeof fmt === 'function' ? fmt(total) : total.toFixed(2)}</p>
+${r.partidas.length ? `<ul class="text-xs space-y-1 max-h-40 overflow-y-auto">${r.partidas.map(p => `<li class="flex justify-between gap-2"><span class="truncate">${'&nbsp;'.repeat(Math.max(0,(p.nivel-1)*3))}${S(p.clave ? p.clave + ' ' : '')}${S(p.nombre)}</span><span class="text-gray-500 shrink-0">${p.n} concepto${p.n === 1 ? '' : 's'}</span></li>`).join('')}</ul>` : ''}
+${r.errores.length ? `<details class="mt-2"><summary class="text-xs text-amber-600 cursor-pointer">${r.errores.length} aviso${r.errores.length === 1 ? '' : 's'} por fila</summary><ul class="text-xs text-gray-400 mt-1 max-h-32 overflow-y-auto">${r.errores.slice(0,80).map(e => `<li>Fila ${e.fila}: ${S(e.motivo)}</li>`).join('')}</ul></details>` : '<p class="text-xs text-emerald-600 mt-1">Sin avisos.</p>'}`;
+}catch(e){ box.classList.add('hidden'); }
 }
 
 function renderMappingUI(){
@@ -376,6 +427,7 @@ if(menu) menu.remove();
 }
 
 function assignField(colIdx, fieldKey){
+setTimeout(renderImportPreview, 0);
 Object.keys(importColumnMapping).forEach(k => {
 if(importColumnMapping[k] === fieldKey) delete importColumnMapping[k];
 });
@@ -384,6 +436,7 @@ renderMappingUI();
 }
 
 function removeMapping(colIdx){
+setTimeout(renderImportPreview, 0);
 delete importColumnMapping[colIdx];
 renderMappingUI();
 }
@@ -416,11 +469,13 @@ Toast.error('Selecciona una obra especifica primero');
 return;
 }
 
-// Construir conceptos
-const conceptos = [];
+// Construir conceptos con jerarquía de partidas y avisos por fila (US-242)
+let conceptos = [];
 let orden = (D.cc||[]).filter(c=>c.obra_id==selectedObra).length;
-
-importCsvData.forEach((row, idx) => {
+const resultado = ImportPresets.construir(importCsvData, importMappingLimpio(), { obra_id: parseInt(selectedObra), empresa_id: currentUser?.empresa_id || null, orden });
+conceptos = resultado.conceptos.map(c => { const { partida, ...rest } = c; return Object.assign(rest, importColumnMapping.__usarPartida === false ? {} : { partida }); });
+if(!conceptos.length){ Toast.error('No se encontró ningún concepto con descripción'); return; }
+if(false) importCsvData.forEach((row, idx) => {
 const concepto = {
 obra_id: parseInt(selectedObra),
 empresa_id: currentUser?.empresa_id || null,
@@ -464,12 +519,12 @@ concepto.precio_unitario = Number(concepto.precio_unitario) || 0;
 conceptos.push(concepto);
 });
 
-console.log('Conceptos a importar:', conceptos.slice(0,2));
+console.log('Conceptos a importar:', conceptos.slice(0,2), 'avisos:', resultado.errores.length);
 
 try{
 const{error} = await sb.from('catalogo_conceptos').insert(conceptos);
 if(error) throw error;
-Toast.success(`Se importaron ${conceptos.length} conceptos`);
+Toast.success(`Se importaron ${conceptos.length} conceptos${resultado.partidas.length ? ` en ${resultado.partidas.length} partidas` : ''}${resultado.errores.length ? ` (${resultado.errores.length} avisos revisados)` : ''}`);
 Cache.clear();
 closeMdl('mdlImportCatalogo');
 await L();
