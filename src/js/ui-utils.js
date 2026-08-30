@@ -116,7 +116,7 @@ const Dialog = {
   },
 
   /**
-   * @param {object|string} opts  {title, body, confirmText, cancelText, tone:'danger'|'default', icon}
+   * @param {object|string} opts  {title, body, bodyHtml (HTML ya saneado con S()), confirmText, cancelText, tone:'danger'|'default', icon}
    *                              o un string (se usa como body y se infiere el resto)
    * @returns {Promise<boolean>}
    */
@@ -125,7 +125,7 @@ const Dialog = {
     const d = this._ensure();
     const tone = opts.tone === 'danger' ? 'danger' : 'default';
     d.querySelector('#dlgTitle').textContent = opts.title || 'Confirmar';
-    d.querySelector('#dlgText').textContent = opts.body || '';
+    if (opts.bodyHtml) d.querySelector('#dlgText').innerHTML = opts.bodyHtml; else d.querySelector('#dlgText').textContent = opts.body || '';
     const icon = d.querySelector('#dlgIcon');
     icon.className = 'dlg-icon ' + tone;
     icon.innerHTML = `<i class="${opts.icon || (tone === 'danger' ? 'ri-delete-bin-line' : 'ri-question-line')}" aria-hidden="true"></i>`;

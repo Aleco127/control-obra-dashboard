@@ -99,7 +99,7 @@ async function massDeleteNomina(){
 <link href="css/styles.css?v=20260829d" rel="stylesheet">
 <script src="js/cache.js?v=20260829d"></script>
 <script src="js/data-loader.js?v=20260829d"></script>
-<script src="js/ui-utils.js?v=20260829d"></script>
+<script src="js/ui-utils.js?v=20260830a"></script>
 <script src="js/reports.js?v=20260829d"></script>
 <script src="js/security.js?v=20260829d"></script>
 <script src="js/import-catalogo.js?v=20260829d"></script>
@@ -114,6 +114,7 @@ async function massDeleteNomina(){
 <script src="js/socios.js?v=20260829d"></script>
 <script src="js/cierre-mensual.js?v=20260829d"></script>
 <script src="js/conciliacion.js?v=20260829d"></script>
+<script src="js/respaldo.js?v=20260830a"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -950,13 +951,34 @@ async function massDeleteNomina(){
 <script>
 const SB='https://cpjdlaiarmxojiyhhpxt.supabase.co',SK='sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
 // Cliente Supabase con soporte para token de sesión en headers
-let sb=supabase.createClient(SB,SK);
+let sb=null;
 function initSupabaseWithToken(token){
-sb=supabase.createClient(SB,SK,{global:{headers:{'x-obra-token':token||''}}});
+sb=wrapReadOnly(supabase.createClient(SB,SK,{global:{headers:{'x-obra-token':token||''}}}));
+}
+// ===== MODO LECTURA (baja programada o suscripción vencida): bloquea escrituras desde el cliente =====
+window.READ_ONLY=false;window.READ_ONLY_MOTIVO='';
+const READ_ONLY_RPC_OK=new Set(['validar_sesion','cerrar_sesion','cancelar_baja_empresa','solicitar_baja_empresa','load_all_data_seguro','load_secondary_data_seguro','get_empresa_config','get_email_log','log_client_error','cambiar_password_usuario','update_user_password']);
+function readOnlyFake(){const err={message:'La cuenta está en modo lectura: '+(window.READ_ONLY_MOTIVO||'sin cambios permitidos'),code:'MODO_LECTURA'};if(typeof Toast!=='undefined')Toast.warning(err.message,4000);const fake=new Proxy(function(){},{get:(t,p)=>p==='then'?(res)=>res({data:null,error:err,count:null}):()=>fake,apply:()=>fake});return fake;}
+function wrapReadOnly(client){
+const from=client.from.bind(client);
+client.from=function(t){const b=from(t);['insert','update','delete','upsert'].forEach(m=>{const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
+const rpc=client.rpc.bind(client);
+client.rpc=function(n,...a){return (window.READ_ONLY&&!READ_ONLY_RPC_OK.has(n)&&!/^get_|^load_|^validar_|^listar_|^calcular_/.test(n))?readOnlyFake():rpc(n,...a);};
+const st=client.storage.from.bind(client.storage);
+client.storage.from=function(bk){const b=st(bk);['upload','remove','update','move','copy'].forEach(m=>{if(!b[m])return;const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
+return client;
+}
+function setReadOnly(on,motivo,html){
+window.READ_ONLY=!!on;window.READ_ONLY_MOTIVO=motivo||'';
+let bar=$('roBanner');
+if(!on){if(bar)bar.remove();return;}
+if(!bar){bar=document.createElement('div');bar.id='roBanner';bar.setAttribute('role','status');bar.className='px-4 py-2 text-sm flex flex-wrap items-center gap-2 justify-between';bar.style.cssText='background:var(--warn-soft,#fef3c7);color:var(--warn,#b45309);border-bottom:1px solid var(--warn,#b45309)';const main=$('main');if(main)main.parentNode.insertBefore(bar,main);else document.body.prepend(bar);}
+bar.innerHTML=html||('<span><i class="ri-lock-line" aria-hidden="true"></i> Cuenta en modo lectura: '+S(motivo)+'</span>');
 }
 let D={o:[],e:[],g:[],u:[],r:[],a:[],oc:[],pv:[],bt:[],mt:[],mm:[],sc:[],sp:[],ev:[],cc:[],pg:[],ap:[],cal:[],dnl:[],lb:[],alb:[],rec:[],ar:[],cot:[],cotp:[],est:[],estp:[],fr:[],ret:[],mf:[],dm:[],cd:[],doc:[],fot:[],nom:[],rfi:[],pl:[],seg:[],cli:[],asi:[],pac:[],cfdi:[],rep:[],repc:[],repd:[],repcfg:[],sua:[],suac:[],suad:[],suap:[],cat:[]},M=location.hash.slice(1)||localStorage.getItem('currentTab')||'d',ch=null,currentUser=null,selectedObra=localStorage.getItem('selectedObra')||null;
 // Configuracion de modulos por empresa (cargada dinamicamente)
 let empresaModulosConfig={};
+sb=wrapReadOnly(supabase.createClient(SB,SK));
 var showArchived=localStorage.getItem('showArchived')==='true';
 // Routing: actualizar URL al cambiar módulo
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==M){M=h;R();}});
@@ -997,6 +1019,30 @@ const EMPRESA_INFO={
   get slug(){return String(this.nombre).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'empresa';}
 };
 const SUPERNOVA_INFO=EMPRESA_INFO; // alias de compatibilidad para PDFs viejos
+function aplicarEstadoBaja(){
+  const f=currentUser&&currentUser.baja_programada_at;
+  if(!f){if(String(window.READ_ONLY_MOTIVO).startsWith('baja'))setReadOnly(false);return;}
+  const fecha=new Date(f).toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'});
+  const puede=currentUser.nivel>=100;
+  setReadOnly(true,'baja programada para el '+fecha,`<span><i class="ri-lock-line" aria-hidden="true"></i> Esta empresa se eliminará el <strong>${S(fecha)}</strong>. Mientras tanto la cuenta está en modo lectura.</span>${puede?'<span class="flex gap-2"><button type="button" class="btn btn-s text-xs" onclick="Respaldo.completo()"><i class="ri-download-2-line" aria-hidden="true"></i> Descargar respaldo</button><button type="button" class="btn btn-p text-xs" onclick="cancelarBajaEmpresa()"><i class="ri-arrow-go-back-line" aria-hidden="true"></i> Cancelar la baja</button></span>':''}`);
+}
+async function cancelarBajaEmpresa(){
+  if(!await Dialog.confirm({title:'Cancelar la baja',body:'La empresa seguirá activa y se conservan todos los datos.',confirmText:'Sí, conservar mi empresa'}))return;
+  const{data,error}=await sb.rpc('cancelar_baja_empresa');
+  if(error||!data||!data.success){Toast.error(humanizeError(error||{message:(data&&data.error)||'No se pudo cancelar'},'cancelar la baja'));return;}
+  currentUser.baja_programada_at=null;aplicarEstadoBaja();Toast.success('Baja cancelada: tu empresa sigue activa');Telemetry.track('baja_cancelada');
+}
+async function solicitarBajaEmpresa(){
+  const nombre=EMPRESA_INFO.nombre;
+  const ok=await Dialog.confirm({title:'Eliminar mi empresa',tone:'danger',confirmText:'Programar eliminación',bodyHtml:`<p class="mb-2">Se eliminarán <strong>todos</strong> los datos de <strong>${S(nombre)}</strong> (obras, gastos, cobros, socios, archivos) en <strong>30 días</strong>. Hasta entonces la cuenta queda en modo lectura y puedes cancelar.</p><p class="mb-2">Descarga antes tu respaldo completo desde Configuración › Respaldo.</p><label class="text-xs text-slate-600" for="bajaConfirm">Escribe el nombre de la empresa para confirmar</label><input id="bajaConfirm" class="inp mt-1" autocomplete="off" placeholder="${S(nombre)}">`});
+  if(!ok)return;
+  const conf=(document.getElementById('bajaConfirm')&&document.getElementById('bajaConfirm').value)||window._bajaConfirmValor||'';
+  const{data,error}=await sb.rpc('solicitar_baja_empresa',{p_confirmacion:conf});
+  if(error||!data||!data.success){Toast.error((data&&data.error)||humanizeError(error,'programar la baja'));return;}
+  currentUser.baja_programada_at=data.baja_programada_at;aplicarEstadoBaja();
+  Toast.success('Eliminación programada. Te avisamos por correo 7 días antes.');Telemetry.track('baja_solicitada');
+  try{await fetch(SB+'/functions/v1/send-email',{method:'POST',headers:{'Content-Type':'application/json','x-obra-token':currentUser.token},body:JSON.stringify({to:currentUser.email,template:'baja_empresa',data:{nombre:currentUser.nombre,empresa:nombre,fecha:new Date(data.baja_programada_at).toLocaleDateString('es-MX',{day:'numeric',month:'long',year:'numeric'})}})});}catch(e){}
+}
 // Aplica nombre y logo de la empresa en título, barra lateral y PDFs
 async function loadBrand(){
   if(!currentUser)return;
@@ -1005,8 +1051,10 @@ async function loadBrand(){
   document.title=nombre+' · Control de Obra';
   const b=$('brandName');if(b)b.textContent=nombre;
   try{
-    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web').eq('id',currentUser.empresa_id).maybeSingle();
+    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web,baja_programada_at').eq('id',currentUser.empresa_id).maybeSingle();
     if(data){
+      currentUser.baja_programada_at=data.baja_programada_at||null;
+      aplicarEstadoBaja();
       configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||''});
       if(data.logo_url){const ic=$('brandIcon');if(ic)ic.innerHTML=`<img src="${S(data.logo_url)}" alt="" class="w-10 h-10 rounded-xl object-cover">`;}
     }
@@ -1550,7 +1598,10 @@ nivel:data[0].nivel_acceso,
 permisos:data[0].permisos||{},
 token:session.token,
 empresa_id:data[0].empresa_id,
-empresa_nombre:data[0].empresa_nombre
+empresa_nombre:data[0].empresa_nombre,
+es_admin_empresa:!!data[0].es_admin_empresa,
+email:data[0].email||'',
+baja_programada_at:data[0].baja_programada_at||null
 };
 localStorage.setItem('obra_session',JSON.stringify(currentUser));
 // Asegurar que el cliente tenga el token actualizado
@@ -8013,6 +8064,7 @@ ${canEdit?'<button onclick="openEmpresaModal()" class="text-xs text-cyan-400 hov
 <div id="empresaDataDisplay" class="grid md:grid-cols-2 gap-4">
 <div class="text-center py-4"><i class="ri-loader-4-line animate-spin text-cyan-500"></i> Cargando...</div>
 </div>
+${currentUser&&currentUser.nivel>=100?`<div class="mt-4 pt-4 border-t" style="border-color:var(--line)"><p class="text-xs text-slate-600 mb-2">Tus datos son tuyos: puedes descargarlos completos cuando quieras y eliminar la empresa con 30 días de gracia.</p><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s text-xs" onclick="Respaldo.completo()"><i class="ri-download-2-line" aria-hidden="true"></i> Descargar todo</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="solicitarBajaEmpresa()"><i class="ri-delete-bin-line" aria-hidden="true"></i> Eliminar mi empresa</button></div></div>`:''}
 </div>
 
 <!-- Categorias de Gastos -->
@@ -8075,7 +8127,8 @@ ${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><
 <div class="g rounded-xl p-4">
 <h3 class="font-bold text-sm mb-4"><i class="ri-flashlight-line text-amber-400"></i> Acciones Rapidas</h3>
 <div class="space-y-2">
-<button onclick="exportData()" class="w-full btn btn-s text-xs flex items-center justify-center gap-2"><i class="ri-download-line"></i> Exportar Datos</button>
+<button onclick="Respaldo.completo()" class="w-full btn btn-p text-xs flex items-center justify-center gap-2"><i class="ri-download-2-line" aria-hidden="true"></i> Descargar respaldo completo (ZIP)</button>
+<button onclick="exportData()" class="w-full btn btn-s text-xs flex items-center justify-center gap-2"><i class="ri-download-line" aria-hidden="true"></i> Exportar JSON rápido</button>
 <button onclick="L()" class="w-full btn btn-s text-xs flex items-center justify-center gap-2"><i class="ri-refresh-line"></i> Sincronizar</button>
 ${canEdit?'<button onclick="clearLocalData()" class="w-full btn btn-s text-xs flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10"><i class="ri-delete-bin-line"></i> Limpiar Cache</button>':''}
 </div>
