@@ -35,8 +35,9 @@ for (const f of readdirSync(join(SRC, 'js')).filter((f) => f.endsWith('.js'))) {
 // 3) index.html: quitar Tailwind CDN + config inline, enlazar CSS compilado, scripts con hash, minificar scripts inline
 let html = readFileSync(join(SRC, 'index.html'), 'utf8');
 html = html.replace(/<script src="https:\/\/cdn\.tailwindcss\.com[^"]*"[^>]*>\s*<\/script>/, '');
-html = html.replace(/<script>tailwind\.config=\{[\s\S]*?\}<\/script>/, `<link href="css/${twName}" rel="stylesheet">`);
-html = html.replace(/<link href="css\/styles\.css\?v=[^"]*" rel="stylesheet">/, `<link href="css/${stylesName}" rel="stylesheet">`);
+html = html.replace(/<script>tailwind\.config=\{[\s\S]*?\}<\/script>/, '');
+// El CSS compilado va DESPUÉS de styles.css: el CDN inyectaba sus reglas al final del head y así ganaban a .btn/.inp
+html = html.replace(/<link href="css\/styles\.css\?v=[^"]*" rel="stylesheet">/, `<link href="css/${stylesName}" rel="stylesheet"><link href="css/${twName}" rel="stylesheet">`);
 html = html.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => jsMap[f] ? `<script src="js/${jsMap[f]}"></script>` : m);
 // scripts inline (el principal de ~25k líneas y los pequeños): minificar con esbuild
 let inlineBytes = 0, inlineMin = 0, k = 0;
@@ -57,7 +58,8 @@ writeFileSync(join(DIST, 'index.html'), html);
 
 // 4) admin.html: Tailwind compilado también (misma config), sin CDN
 let adminHtml = readFileSync(join(SRC, 'admin.html'), 'utf8');
-adminHtml = adminHtml.replace(/<script src="https:\/\/cdn\.tailwindcss\.com[^"]*"[^>]*>\s*<\/script>/, `<link href="css/${twName}" rel="stylesheet">`);
+adminHtml = adminHtml.replace(/<script src="https:\/\/cdn\.tailwindcss\.com[^"]*"[^>]*>\s*<\/script>/, '');
+adminHtml = adminHtml.replace('</head>', `<link href="css/${twName}" rel="stylesheet"></head>`);
 adminHtml = adminHtml.replace(/<script>\s*tailwind\.config\s*=\s*\{[\s\S]*?\}\s*<\/script>/, '');
 writeFileSync(join(DIST, 'admin.html'), adminHtml);
 

@@ -1,8 +1,11 @@
 // Configuración de Tailwind extraída de la configuración inline de src/index.html (US-224).
 // El build (scripts/build.mjs) compila el CSS con esta config; la app en producción ya no carga cdn.tailwindcss.com.
+// Clases observadas en producción con scripts/qa/collect-classes.py (34 módulos, escritorio y móvil, diálogos)
+const observadas = require('./tailwind.safelist.json');
 module.exports = {
   content: ['./src/index.html', './src/admin.html', './src/js/**/*.js', './src/privacidad.html', './src/terminos.html'],
   safelist: [
+    ...observadas,
     // Sólo las clases que el código arma con variables (roleColors "from-x-500 to-y-500", colores de categoría/estatus, badges del admin)
     { pattern: /^(bg|text)-(slate|gray|red|orange|amber|yellow|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|pink|rose)-(100|400|500|600|700)$/ },
     { pattern: /^bg-(slate|gray|red|orange|amber|yellow|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|pink|rose)-(500|600)\/(10|20)$/ },

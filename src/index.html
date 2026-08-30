@@ -44,9 +44,9 @@ async function massUpdateNominaStatus(newStatus){
   
   if(ids.length === 0) return;
   
-  if(!await Dialog.confirm(\`¿Cambiar el estatus de \${ids.length} registros a "\${newStatus}"?\`)) return;
+  if(!await Dialog.confirm(`¿Cambiar el estatus de ${ids.length} registros a "${newStatus}"?`)) return;
   
-  Toast.info(\`Actualizando \${ids.length} registros...\`);
+  Toast.info(`Actualizando ${ids.length} registros...`);
   
   const updateData = { estatus: newStatus };
   if(newStatus === 'Pagado') updateData.fecha_pago = hoyISO();
@@ -58,7 +58,7 @@ async function massUpdateNominaStatus(newStatus){
     return;
   }
   
-  Toast.success(\`\${ids.length} registros actualizados a "\${newStatus}"\`);
+  Toast.success(`${ids.length} registros actualizados a "${newStatus}"`);
   clearNominaSelection();
   await L();
   showSeccion('nomina');
@@ -70,9 +70,9 @@ async function massDeleteNomina(){
   
   if(ids.length === 0) return;
   
-  if(!await Dialog.confirm(\`¿Eliminar \${ids.length} registros de nómina? Esta acción no se puede deshacer.\`)) return;
+  if(!await Dialog.confirm(`¿Eliminar ${ids.length} registros de nómina? Esta acción no se puede deshacer.`)) return;
   
-  Toast.info(\`Eliminando \${ids.length} registros...\`);
+  Toast.info(`Eliminando ${ids.length} registros...`);
   
   const { error } = await sb.from('nomina').delete().in('id', ids);
   
@@ -81,7 +81,7 @@ async function massDeleteNomina(){
     return;
   }
   
-  Toast.success(\`\${ids.length} registros eliminados\`);
+  Toast.success(`${ids.length} registros eliminados`);
   clearNominaSelection();
   await L();
   showSeccion('nomina');
