@@ -2807,14 +2807,19 @@ utilidad ni socios.**
 Abre la obra y toca **Acceso del cliente** (arriba a la derecha de la ficha; necesitas ser gerente o
 administrador). Hay dos formas de darle entrada y puedes usar las dos a la vez.
 
-**Con correo y contrasena.** Escribe el nombre y el correo de la persona y toca *Dar acceso*. El sistema
-genera una contrasena temporal y te la muestra **una sola vez**: copiala o mandala por WhatsApp con el
-boton que aparece ahi mismo. La primera vez que entre, la aplicacion le pide cambiarla por una suya.
+**Con usuario y contrasena.** Escribe el nombre de la persona: la aplicacion propone un usuario a
+partir de el (*Luis Adrian Lopez* se convierte en `luis.adrian`) y tu puedes cambiarlo. El correo y el
+celular son opcionales, para tenerlos a la mano. Al tocar *Dar acceso* se genera una contrasena temporal
+y se te muestra junto con el usuario **una sola vez**: copiala o mandala por WhatsApp con el boton que
+aparece ahi mismo. La primera vez que entre, la aplicacion le pide cambiarla por una suya.
+
+Las cuentas del portal solo se crean aqui: **tu cliente no puede registrarse por su cuenta**. El usuario
+no se repite en toda la plataforma, asi que si el que pediste ya esta tomado te lo dice y te propone otro.
 
 Usa esta forma cuando quieras saber quien entra, cuando sean varias personas (el cliente y su esposa, o
-dos socios) o cuando la obra tenga informacion delicada. En la lista ves cuando entro cada quien, puedes
-generarle una contrasena nueva (con el icono de la llave) o quitarle el acceso (con el icono de la
-persona tachada). Si le quitas su ultima obra, la cuenta se desactiva sola.
+dos socios) o cuando la obra tenga informacion delicada. En la lista ves el usuario de cada quien y
+cuando entro, puedes generarle una contrasena nueva (con el icono de la llave) o quitarle el acceso (con
+el icono de la persona tachada). Si le quitas su ultima obra, la cuenta se desactiva sola.
 
 Una misma persona puede ver varias obras: dale acceso desde cada obra con el mismo correo y en su
 portal le aparece un selector para cambiar de una a otra.
@@ -2828,4 +2833,4 @@ cliente* al guardar, o toca el icono del ojo en la lista. Todo lo demas (contrat
 cotizaciones, precios de costo) se queda de tu lado.
 
 **Si el cliente olvida su contrasena** no hay correo de recuperacion: te lo pide a ti y le generas una
-nueva desde la misma pantalla.
+nueva desde la misma pantalla. Si lo que olvido es el usuario, lo ves en la lista de esa obra.

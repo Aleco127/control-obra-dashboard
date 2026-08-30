@@ -1,0 +1,26 @@
+-- 051: el cliente entra al portal con USUARIO y contraseña (no con correo). Aplicada el 30-ago-2026
+-- con el MCP de Supabase, en tres partes (051, 051b, 051c).
+--
+-- Por qué: muchos clientes de obra no dan correo, no lo revisan o lo escriben mal desde el celular.
+-- El correo queda como dato de contacto opcional. Las cuentas SOLO nacen desde el panel de la
+-- constructora (`portal_acceso_crear`, nivel >= 80): no hay registro público ni auto-alta.
+--
+--   portal_usuarios.usuario   text, único global por índice sobre lower(usuario)
+--   portal_usuarios.email     ahora acepta NULL; queda un índice parcial para buscarlo
+--
+-- El usuario es único global porque el login no tiene contexto de empresa. Si el que se pide ya está
+-- tomado, `portal_acceso_crear` responde "ya está ocupado" y devuelve una sugerencia libre, sin
+-- decir en qué constructora está: eso seria una fuga de información entre inquilinos.
+--
+-- Funciones:
+--   control_obra.portal_usuario_normalizar(texto)  quita acentos y deja [a-z0-9._-]
+--   control_obra.portal_usuario_libre(nombre)      "Luis Adrián López" -> luis.adrian, luis.adrian2, ...
+--   public.portal_usuario_sugerido(nombre)         la usa el panel para proponer mientras se escribe (nivel >= 80)
+--   public.portal_login(p_usuario, p_password, p_user_agent)  reemplaza la firma con p_email; acepta
+--       el usuario o, para quien lo tenga registrado, su correo. Formato del usuario: ^[a-z0-9][a-z0-9._-]{2,31}$
+--
+-- portal_sesion, portal_datos, portal_accesos y portal_acceso_password devuelven ahora el `usuario`.
+-- Se pudo cambiar la firma de portal_login sin compatibilidad hacia atrás porque no había ninguna
+-- cuenta creada todavía (0 filas en portal_usuarios al aplicar la migración).
+--
+-- El cuerpo completo está en el historial de migraciones del proyecto (versiones 051 a 051c).

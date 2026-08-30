@@ -1201,12 +1201,16 @@ async function compartirObra(obraId){
   const msg=encodeURIComponent(`Hola, aquí puedes ver el avance, las fotos y los pagos de ${o.nombre_obra||'tu obra'}: ${url}`);
   const cuerpo=`<p class="text-sm mb-3">El cliente ve avance, programa, fotos, documentos que marques, estimaciones, plan de pagos, pagos y facturas de esta obra. <strong>No ve costos, gastos ni socios.</strong></p>
   <div class="border border-slate-200 rounded-lg p-3 mb-3">
-    <p class="text-sm font-semibold text-slate-800 mb-1">Con correo y contraseña</p>
-    <p class="text-xs text-slate-500 mb-2">Cada persona entra con lo suyo. Puedes reiniciar su contraseña o quitarle el acceso cuando quieras.</p>
+    <p class="text-sm font-semibold text-slate-800 mb-1">Con usuario y contraseña</p>
+    <p class="text-xs text-slate-500 mb-2">Las cuentas se crean sólo aquí: tu cliente no puede registrarse por su cuenta. Puedes reiniciarle la contraseña o quitarle el acceso cuando quieras.</p>
     <div id="acListado" class="text-sm text-slate-500 mb-2">Cargando…</div>
     <div id="acAlta" class="grid gap-2">
-      <input id="acNombre" class="inp text-sm" placeholder="Nombre de la persona">
-      <input id="acEmail" class="inp text-sm" type="email" placeholder="correo@ejemplo.com">
+      <input id="acNombre" class="inp text-sm" placeholder="Nombre de la persona" oninput="accesoClienteSugerir()">
+      <div>
+        <input id="acUsuario" class="inp text-sm" placeholder="usuario" autocapitalize="none" autocorrect="off" spellcheck="false" oninput="acUsuarioTocado=true">
+        <p class="text-xs text-slate-400 mt-1">Con esto entra al portal. Se propone solo a partir del nombre; puedes cambiarlo.</p>
+      </div>
+      <input id="acEmail" class="inp text-sm" type="email" placeholder="Correo (opcional)">
       <input id="acTel" class="inp text-sm" placeholder="Celular (opcional, para mandarle el acceso)">
       <button type="button" class="btn btn-p text-xs" id="acBtn" onclick="accesoClienteCrear(${obraId})"><i class="ri-user-add-line" aria-hidden="true"></i> Dar acceso</button>
     </div>
@@ -1231,38 +1235,59 @@ async function accesoClienteCargar(obraId){
   const lista=data.accesos||[];
   cont.innerHTML=lista.length?lista.map(a=>`<div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">
     <div class="min-w-0"><p class="text-sm text-slate-800 truncate">${S(a.nombre)}${a.activo?'':' <span class="text-xs text-red-500">(desactivado)</span>'}</p>
-    <p class="text-xs text-slate-500 truncate">${S(a.email)} · ${a.ultimo_acceso?'entró '+new Date(a.ultimo_acceso).toLocaleDateString('es-MX'):(a.debe_cambiar?'aún no entra':'sin entrar')}</p></div>
+    <p class="text-xs text-slate-500 truncate">usuario <strong>${S(a.usuario||'')}</strong> · ${a.ultimo_acceso?'entró '+new Date(a.ultimo_acceso).toLocaleDateString('es-MX'):(a.debe_cambiar?'aún no entra':'sin entrar')}</p></div>
     <div class="flex gap-1 shrink-0">
       <button type="button" class="p-1.5 rounded hover:bg-slate-100" title="Nueva contraseña" aria-label="Nueva contraseña" onclick="accesoClienteConfirmar('password',${a.id},${obraId},'Se genera una contraseña nueva para ${S(a.nombre).replace(/'/g,'')} y se cierran sus sesiones.')"><i class="ri-key-2-line text-slate-600" aria-hidden="true"></i></button>
       <button type="button" class="p-1.5 rounded hover:bg-red-50" title="Quitar acceso" aria-label="Quitar acceso" onclick="accesoClienteConfirmar('quitar',${a.id},${obraId},'${S(a.nombre).replace(/'/g,'')} dejará de ver esta obra.')"><i class="ri-user-unfollow-line text-red-500" aria-hidden="true"></i></button>
     </div></div>`).join(''):'<p class="text-xs text-slate-500">Todavía nadie tiene acceso con contraseña.</p>';
 }
 // Muestra las credenciales una sola vez: la contraseña no se puede volver a consultar.
-function accesoClienteCredenciales(nombre,email,pass,obraId){
+function accesoClienteCredenciales(nombre,usuario,pass,obraId){
   const cont=document.getElementById('acCredenciales');if(!cont)return;
   const o=D.o.find(x=>x.id==obraId)||{};
-  const texto=`Hola ${nombre}, ya puedes seguir el avance de ${o.nombre_obra||'tu obra'} desde aquí: ${PORTAL_URL()}\nCorreo: ${email}\nContraseña temporal: ${pass}\nLa primera vez te va a pedir cambiarla.`;
+  const texto=`Hola ${nombre}, ya puedes seguir el avance de ${o.nombre_obra||'tu obra'} desde aquí: ${PORTAL_URL()}\nUsuario: ${usuario}\nContraseña temporal: ${pass}\nLa primera vez te va a pedir cambiarla.`;
   cont.classList.remove('hidden');
   cont.innerHTML=`<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-    <p class="text-sm font-semibold text-emerald-800 mb-1">Contraseña temporal</p>
-    <p class="text-xs text-emerald-700 mb-2">Apúntala o mándasela ahora: no se puede volver a ver.</p>
-    <p class="text-sm font-mono bg-white border border-emerald-200 rounded px-2 py-1 mb-2">${S(pass)}</p>
+    <p class="text-sm font-semibold text-emerald-800 mb-1">Usuario y contraseña temporal</p>
+    <p class="text-xs text-emerald-700 mb-2">Apúntalos o mándaselos ahora: la contraseña no se puede volver a ver.</p>
+    <p class="text-sm font-mono bg-white border border-emerald-200 rounded px-2 py-1 mb-2">usuario: ${S(usuario)}<br>contraseña: ${S(pass)}</p>
     <div class="flex flex-wrap gap-2">
       <button type="button" class="btn btn-s text-xs" onclick="navigator.clipboard.writeText(${JSON.stringify(texto).replace(/"/g,'&quot;')}).then(()=>Toast.success('Mensaje copiado'))"><i class="ri-file-copy-line" aria-hidden="true"></i> Copiar mensaje</button>
       <a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(texto)}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a>
     </div></div>`;
 }
+// Propone el usuario mientras se escribe el nombre; deja de proponer si el usuario ya lo edito a mano.
+let acUsuarioTocado=false, acSugerirTimer=null;
+function accesoClienteSugerir(){
+  const u=document.getElementById('acUsuario');const n=document.getElementById('acNombre');
+  if(!u||!n)return;
+  if(u.value&&acUsuarioTocado)return;
+  clearTimeout(acSugerirTimer);
+  acSugerirTimer=setTimeout(async()=>{
+    const nombre=n.value.trim();if(nombre.length<3)return;
+    const{data}=await sb.rpc('portal_usuario_sugerido',{p_nombre:nombre});
+    if(data&&data.ok&&!acUsuarioTocado)u.value=data.usuario;
+  },400);
+}
 async function accesoClienteCrear(obraId){
   const btn=document.getElementById('acBtn');const nombre=document.getElementById('acNombre').value.trim();
+  const usuario=document.getElementById('acUsuario').value.trim().toLowerCase();
   const email=document.getElementById('acEmail').value.trim();const tel=document.getElementById('acTel').value.trim();
   if(nombre.length<3)return Toast.warning('Escribe el nombre de la persona');
-  if(!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email))return Toast.warning('Escribe un correo válido');
+  if(!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(usuario))return Toast.warning('El usuario va de 3 a 32 caracteres: letras, números, punto, guion o guion bajo');
+  if(email&&!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email))return Toast.warning('Ese correo no se ve bien. Déjalo vacío si no lo tienes');
   if(btn){btn.disabled=true;btn.textContent='Creando…';}
-  const{data,error}=await sb.rpc('portal_acceso_crear',{p_obra_id:obraId,p_nombre:nombre,p_email:email,p_telefono:tel||null});
+  const{data,error}=await sb.rpc('portal_acceso_crear',{p_obra_id:obraId,p_nombre:nombre,p_usuario:usuario,p_email:email||null,p_telefono:tel||null});
   if(btn){btn.disabled=false;btn.innerHTML='<i class="ri-user-add-line" aria-hidden="true"></i> Dar acceso';}
-  if(error||!data||!data.ok){if(!(error&&/PLAN_LIMIT/.test(error.message)))Toast.error((data&&data.error)||humanizeError(error,'dar el acceso'));return;}
-  document.getElementById('acNombre').value='';document.getElementById('acEmail').value='';document.getElementById('acTel').value='';
-  if(data.password)accesoClienteCredenciales(nombre,email,data.password,obraId);
+  if(error||!data||!data.ok){
+    if(data&&data.sugerido){document.getElementById('acUsuario').value=data.sugerido;acUsuarioTocado=false;}
+    if(!(error&&/PLAN_LIMIT/.test(error.message)))Toast.error((data&&data.error)||humanizeError(error,'dar el acceso'));
+    return;
+  }
+  document.getElementById('acNombre').value='';document.getElementById('acUsuario').value='';
+  document.getElementById('acEmail').value='';document.getElementById('acTel').value='';
+  acUsuarioTocado=false;
+  if(data.password)accesoClienteCredenciales(nombre,data.usuario.usuario,data.password,obraId);
   else Toast.success('Esa persona ya tenía cuenta; ahora también ve esta obra');
   accesoClienteCargar(obraId);
   Telemetry.track('portal_acceso_creado',{obra_id:obraId});
@@ -1281,7 +1306,7 @@ function accesoClienteConfirmar(accion,id,obraId,texto){
 async function accesoClientePassword(id,obraId){
   const{data,error}=await sb.rpc('portal_acceso_password',{p_usuario_id:id});
   if(error||!data||!data.ok){Toast.error((data&&data.error)||humanizeError(error,'reiniciar la contraseña'));return;}
-  accesoClienteCredenciales(data.nombre,data.email,data.password,obraId);
+  accesoClienteCredenciales(data.nombre,data.usuario,data.password,obraId);
   accesoClienteCargar(obraId);
 }
 async function accesoClienteQuitar(id,obraId){

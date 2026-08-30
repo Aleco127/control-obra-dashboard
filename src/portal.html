@@ -87,10 +87,10 @@ function pantallaError(titulo,texto){$('#app').innerHTML=`<div class="card" styl
 
 function pantallaLogin(msg){
   $('#app').innerHTML=`<div class="login">
-    <div class="marca"><h1 style="font-size:20px;margin:10px 0 2px">Avance de tu obra</h1><p class="sub" style="margin:0">Entra con el correo que te dio tu constructor.</p></div>
+    <div class="marca"><h1 style="font-size:20px;margin:10px 0 2px">Avance de tu obra</h1><p class="sub" style="margin:0">Entra con el usuario y la contraseña que te dio tu constructor.</p></div>
     <form class="card" id="formLogin">
-      <label for="lgEmail">Correo</label>
-      <input id="lgEmail" type="email" inputmode="email" autocomplete="username" required placeholder="tucorreo@ejemplo.com">
+      <label for="lgUsuario">Usuario</label>
+      <input id="lgUsuario" type="text" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required placeholder="tu usuario">
       <label for="lgPass">Contraseña</label>
       <input id="lgPass" type="password" autocomplete="current-password" required>
       ${msg?`<div class="err">${esc(msg)}</div>`:''}
@@ -100,8 +100,8 @@ function pantallaLogin(msg){
   $('#formLogin').addEventListener('submit',async(ev)=>{
     ev.preventDefault();
     const b=$('#lgBtn');b.disabled=true;b.textContent='Entrando…';
-    const d=await rpc('portal_login',{p_email:$('#lgEmail').value.trim(),p_password:$('#lgPass').value,p_user_agent:navigator.userAgent});
-    if(!d||!d.ok)return pantallaLogin((d&&d.error)||'Correo o contraseña incorrectos.');
+    const d=await rpc('portal_login',{p_usuario:$('#lgUsuario').value.trim(),p_password:$('#lgPass').value,p_user_agent:navigator.userAgent});
+    if(!d||!d.ok)return pantallaLogin((d&&d.error)||'Usuario o contraseña incorrectos.');
     sesion=d.token;localStorage.setItem('portal_sesion',sesion);usuario=d.usuario;obras=d.obras||[];
     if(usuario.debe_cambiar)return pantallaPassword(true);
     abrirObra(obras.length?obras[0].id:null);
@@ -181,7 +181,7 @@ function pintarObra(d){
   ${cfdis.length?`<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${cfdis.map(c=>`<tr><td>${esc((c.serie||'')+(c.folio||''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid||'')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo?`<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   ${ests.length?`<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ests.map(x=>`<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin?' a '+fecha(x.periodo_fin):''}</td><td class="n">${x.avance!=null?Math.round(Number(x.avance))+'%':''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   <div class="card"><h2>Fotos de la obra</h2>${fotos.length?`<div class="fotos">${fotos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo||f.descripcion||'')} ${fecha(f.fecha)}"><img src="${esc(f.thumb||f.url)}" alt="${esc(f.titulo||'Foto de obra')}" loading="lazy"></a>`).join('')}</div>`:'<p class="vacio">Todavía no hay fotos publicadas.</p>'}</div>
-  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}${sesion?`<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button></p>`:''}</div>`;
+  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}${sesion?`<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button>${(usuario&&usuario.usuario)?`<span class="vacio" style="font-size:12px"> · entraste como ${esc(usuario.usuario)}</span>`:''}</p>`:''}</div>`;
 }
 
 async function pedirArchivo(cuerpo){
