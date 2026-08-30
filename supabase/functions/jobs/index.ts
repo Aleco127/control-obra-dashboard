@@ -1,5 +1,5 @@
-// Edge Function jobs: tareas diarias de la plataforma. La invoca n8n (cron) con x-internal-key.
-// Acciones: bajas (recordatorio a los 23 días y eliminación al vencer), all.
+// Edge Function jobs: tareas diarias de la plataforma. La invoca n8n (cron 8:00 America/Chihuahua) con x-internal-key.
+// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -11,7 +11,6 @@ async function secret(key: string): Promise<string> {
   const { data } = await admin.from("app_secrets").select("value").eq("key", key).maybeSingle();
   return data?.value ?? "";
 }
-
 async function enviar(internalKey: string, to: string, template: string, data: Record<string, unknown>, empresa_id: number) {
   const r = await fetch(FN_URL + "/send-email", {
     method: "POST",
@@ -20,7 +19,11 @@ async function enviar(internalKey: string, to: string, template: string, data: R
   });
   return r.ok;
 }
-
+// Evita repetir una plantilla a la misma empresa
+async function yaEnviado(empresa_id: number, template: string): Promise<boolean> {
+  const { count } = await admin.from("email_log").select("id", { count: "exact", head: true }).eq("empresa_id", empresa_id).eq("template", template).eq("status", "enviado");
+  return (count ?? 0) > 0;
+}
 const fmtFecha = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Chihuahua" });
 
 async function jobBajas(internalKey: string) {
@@ -45,6 +48,40 @@ async function jobBajas(internalKey: string) {
   return out;
 }
 
+async function jobSuscripciones(internalKey: string) {
+  const out: Record<string, unknown> = {};
+  const { data: est, error: e1 } = await admin.rpc("actualizar_estados_suscripcion");
+  out.estados = e1 ? e1.message : est;
+  const { data: subs, error } = await admin.rpc("suscripciones_para_correos");
+  if (error) { out.correos = error.message; return out; }
+  const enviados: Record<string, unknown>[] = [];
+  for (const s of subs ?? []) {
+    if (!s.admin_email) continue;
+    const d = s.dias_desde_registro ?? 0;
+    const base = { nombre: s.admin_nombre, empresa: s.empresa, fecha: s.trial_ends_at ? fmtFecha(s.trial_ends_at) : "" };
+    const candidatos: Array<[string, boolean]> = [
+      ["prueba_dia3", s.estado === "trial" && d >= 3],
+      ["prueba_dia7", s.estado === "trial" && d >= 7],
+      ["prueba_dia25", s.estado === "trial" && d >= 25],
+      ["notificacion", s.estado === "vencida"],
+    ];
+    for (const [tpl, aplica] of candidatos) {
+      if (!aplica) continue;
+      const clave = tpl === "notificacion" ? "prueba_vencida" : tpl;
+      if (await yaEnviado(s.empresa_id, clave)) continue;
+      const data = tpl === "notificacion"
+        ? { subject: "Tu prueba terminó: elige un plan", titulo: "Tu prueba terminó", cuerpo: `<p>Hola ${s.admin_nombre}. La prueba de <strong>${s.empresa}</strong> terminó. Tienes hasta el <strong>${fmtFecha(s.gracia_hasta)}</strong> para elegir un plan; después la cuenta pasa a modo lectura (tus datos se conservan).</p>`, url: "https://app.supernovarquitectos.com/?m=z", cta: "Elegir plan", ...base }
+        : base;
+      const ok = await enviar(internalKey, s.admin_email, tpl, data, s.empresa_id);
+      if (ok && tpl === "notificacion") await admin.from("email_log").insert({ empresa_id: s.empresa_id, to_email: s.admin_email, template: "prueba_vencida", subject: "marca", status: "enviado" });
+      enviados.push({ empresa: s.empresa, plantilla: clave, ok });
+      break; // una plantilla por día por empresa
+    }
+  }
+  out.correos = enviados;
+  return out;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   const internalKey = await secret("internal_key");
@@ -54,5 +91,6 @@ Deno.serve(async (req: Request) => {
   const action = body.action ?? "all";
   const result: Record<string, unknown> = { action, at: new Date().toISOString() };
   if (action === "bajas" || action === "all") result.bajas = await jobBajas(internalKey);
+  if (action === "suscripciones" || action === "all") result.suscripciones = await jobSuscripciones(internalKey);
   return json(result);
 });

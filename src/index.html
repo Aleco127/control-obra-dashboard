@@ -115,6 +115,7 @@ async function massDeleteNomina(){
 <script src="js/cierre-mensual.js?v=20260829d"></script>
 <script src="js/conciliacion.js?v=20260829d"></script>
 <script src="js/respaldo.js?v=20260830a"></script>
+<script src="js/suscripcion.js?v=20260830a"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -965,7 +966,7 @@ function wrapReadOnly(client){
 const from=client.from.bind(client);
 client.from=function(t){const b=from(t);['insert','update','delete','upsert'].forEach(m=>{const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
 const rpc=client.rpc.bind(client);
-client.rpc=function(n,...a){return (window.READ_ONLY&&!READ_ONLY_RPC_OK.has(n)&&!/^get_|^load_|^validar_|^listar_|^calcular_/.test(n))?readOnlyFake():rpc(n,...a);};
+client.rpc=function(n,...a){if(window.READ_ONLY&&!READ_ONLY_RPC_OK.has(n)&&!/^get_|^load_|^validar_|^listar_|^calcular_/.test(n))return readOnlyFake();const b=rpc(n,...a);const t=b.then.bind(b);b.then=function(ok,ko){return t(function(r){if(r&&r.error&&typeof Suscripcion!=='undefined')Suscripcion.manejarError(r.error);return ok?ok(r):r;},ko);};return b;};
 const st=client.storage.from.bind(client.storage);
 client.storage.from=function(bk){const b=st(bk);['upload','remove','update','move','copy'].forEach(m=>{if(!b[m])return;const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
 return client;
@@ -2127,6 +2128,7 @@ else secData=data;
 
 // Asignar datos principales
 D.o=mainData.obras||[];
+if(typeof Suscripcion!=='undefined')Suscripcion.cargar();
 D.e=mainData.empleados||[];
 D.g=mainData.gastos||[];
 D.u=mainData.usuarios||[];
@@ -2557,6 +2559,7 @@ if(R._last!==M){registrarUsoModulo(M);if(typeof Telemetry!=='undefined')Telemetr
 if(location.hash.slice(1)!==M)history.replaceState(null,null,'#'+M);
 if(selectedObra)localStorage.setItem('selectedObra',selectedObra);
 else localStorage.removeItem('selectedObra');
+if(typeof Suscripcion!=='undefined'&&Suscripcion.get()&&!Suscripcion.moduloPermitido(M)){const f={so:'socios',ci:'cierres'}[M];c.innerHTML=EmptyState({icon:'ri-lock-2-line',title:'Esta función no está en tu plan',body:(Suscripcion.FEATURE_LABEL[f]||'Esta función')+' está disponible en los planes Estudio y Constructora. Tu plan actual es '+(Suscripcion.get().plan.nombre)+'.',action:{label:'Ver planes',onClick:'Suscripcion.irAPlan()'}});Telemetry.track('plan_limit',{resource:'feature:'+f,plan:Suscripcion.get().plan.slug});return;}
 // Gestionar auto-refresh segun modulo (d=Dashboard, g=Gastos, x=Ordenes)
 if(M==='x'){M='g';localStorage.setItem('currentTab','g');if(!localStorage.getItem('avisoOrdenes')){localStorage.setItem('avisoOrdenes','1');setTimeout(()=>Toast.info('Las órdenes de compra viven ahora en Compras y gastos (pestaña Por aprobar).',6000),300);}R();Compras.setTab('aprobar');return;}
 {
@@ -8126,6 +8129,7 @@ c.innerHTML=`
 <!-- Panel Principal -->
 <div class="lg:col-span-2 space-y-4">
 
+${typeof Suscripcion!=='undefined'?Suscripcion.html():''}
 <!-- Datos de empresa -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">
