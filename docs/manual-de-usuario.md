@@ -1303,7 +1303,10 @@ Desde agosto de 2026 el boton **Nueva obra** abre un asistente de cinco pasos qu
 
 **Paso 2, Catalogo.** Tres opciones:
 
-- *Importar archivo*: arrastra el XLSX o CSV exportado de OPUS o Excel. Se reconocen las columnas Clave, Descripcion, Unidad, Cantidad y P.U. sin importar mayusculas ni acentos; las filas sin cantidad se toman como partidas. Puedes corregir cualquier celda en la vista previa.
+- *Importar archivo*: arrastra el XLSX o CSV exportado de OPUS 24, Neodata o Excel. Se reconocen las columnas Clave, Descripcion, Unidad, Cantidad y P.U. sin importar mayusculas ni acentos; las filas sin cantidad se toman como partidas. Puedes corregir cualquier celda en la vista previa.
+- *Formato de OPUS*: el sistema entiende las claves de OPUS (01-PRE para la partida y 01-PRE-105 para el concepto), asi que cada concepto cae en su partida aunque el archivo venga desordenado o sin los renglones de grupo. Si el exportado no trae encabezados, se usa el orden de columnas de OPUS: Clave, Concepto, Unidad, Cantidad, P.U. e Importe. El nombre del proyecto que OPUS escribe arriba de la tabla se muestra en la vista previa para que confirmes que es el archivo correcto.
+- *Catalogo para cotizar*: si el archivo sale de OPUS sin precios (catalogo de concurso), se importa igual con claves, unidades y cantidades, y los precios se capturan despues. No se marca cada renglon como error.
+- *Revisiones automaticas*: se avisa de claves repetidas, de renglones cuyo importe no coincide con cantidad por precio y de partidas cuyos conceptos no suman el subtotal del archivo. Las unidades se guardan como las escribe OPUS (M2, ML, PZA, LOTE).
 - *Etapas de honorarios*: para proyectos arquitectonicos, de 2 a 4 etapas con porcentaje; se generan los conceptos ETAPA-A, ETAPA-B, etc.
 - *Omitir por ahora*.
 

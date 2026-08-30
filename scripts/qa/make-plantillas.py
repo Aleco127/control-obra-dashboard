@@ -58,3 +58,69 @@ t1 = escribir('opus-ejemplo', ['Código', 'Concepto', 'Unidad', 'Cantidad', 'P. 
 t2 = escribir('neodata-ejemplo', ['Clave', 'Descripción', 'Unidad', 'Cantidad', 'Precio', 'Importe', '%'],
               'Neodata · Presupuesto', lambda k, d, u, c, p, i, part: [k, d, u, c, p, i, ''])
 print('plantillas listas; total', t1, t2)
+
+# --- Formato real de OPUS 24 (skill /opus-budget-direct) ------------------------------
+# El exportador de OPUS pone el nombre del proyecto en B5, los encabezados en la fila 6 y usa
+# claves NN-XXX para la partida y NN-XXX-NNN para el concepto. Un catalogo de concurso sale con
+# los precios en cero. Se generan las dos variantes para las pruebas.
+OPUS24 = [
+    ('01-PRE', 'PRELIMINARES Y DEMOLICIONES', '', None, None),
+    ('01-PRE-005', 'PROTECCION DE AREAS ADYACENTES PREVIA A DEMOLICIONES A BASE DE PLASTICO CAL. 700 Y LONA', 'LOTE', 1.00, 850.00),
+    ('01-PRE-010', 'RETIRO DE RECUBRIMIENTO EXISTENTE EN MUROS DE ADOBE DE FACHADA FRONTAL POR MEDIOS MANUALES', 'M2', 40.00, 95.00),
+    ('01-PRE-020', 'DEMOLICION DE FIRME DE CONCRETO EXISTENTE EN COCHERA DE E=10 CM POR MEDIOS MECANICOS', 'M2', 35.00, 135.00),
+    ('01-PRE-030', 'DEMOLICION DE MOLDURAS PERIMETRALES EXISTENTES EN FACHADA POR MEDIOS MANUALES', 'LOTE', 1.00, 3500.00),
+    ('02-ALB', 'ALBAÑILERIA Y RECUBRIMIENTOS', '', None, None),
+    ('02-ALB-005', 'RESANE Y REPOSICION PUNTUAL DE PIEZAS DE ADOBE DANADAS CON MORTERO DE BARRO-CAL COMPATIBLE', 'M2', 6.00, 185.00),
+    ('02-ALB-010', 'APLANADO REPELLADO Y AFINADO LISO EN MUROS DE ADOBE CON MORTERO CAL-ARENA PROP. 1:3', 'M2', 40.00, 340.00),
+    ('02-ALB-020', 'APLICACION DE ESTUCO EN MUROS PERIMETRALES DE FACHADA SEGUN MUESTRA APROBADA', 'M2', 30.00, 180.00),
+    ('02-ALB-030', 'CONSTRUCCION DE MURETE EN FACHADA A BASE DE BLOCK DE CONCRETO 15x20x40 CM, ALTURA HASTA 1.00 M', 'ML', 4.00, 795.00),
+    ('02-ALB-035', 'SUMINISTRO, TENDIDO Y COMPACTACION DE MATERIAL DE BANCO PARA NIVELACION DE BASE EN COCHERA', 'M3', 2.50, 290.00),
+    ('02-ALB-040', "FIRME DE CONCRETO F'C=200 KG/CM2 DE 10 CM EN COCHERA ARMADO CON MALLA 6x6-10/10", 'M2', 35.00, 445.00),
+    ('03-PLA', 'PLAFONES', '', None, None),
+    ('03-PLA-010', 'SUM. Y COLOC. DE PLAFON CORRIDO EN COCHERA A BASE DE PANEL DE YESO PARA EXTERIOR DE 12.7 MM', 'M2', 35.00, 520.00),
+    ('03-PLA-020', 'DETALLADO DE CAJILLOS EXTERIORES CON PLAFON DE PANEL DE YESO, DESARROLLO HASTA 60 CM', 'ML', 15.00, 350.00),
+    ('04-PIN', 'PINTURA', '', None, None),
+    ('04-PIN-010', 'APLICACION DE PINTURA VINIL-ACRILICA PARA EXTERIOR A 2 MANOS SOBRE SELLADOR ACRILICO 5X1', 'M2', 90.00, 95.00),
+    ('04-PIN-020', 'APLICACION DE SELLADOR Y PINTURA ELASTOMERICA TRANSPIRABLE A 2 MANOS EN LADRILLO APARENTE', 'M2', 15.00, 145.00),
+    ('05-HOJ', 'HOJALATERIA', '', None, None),
+    ('05-HOJ-010', 'REUBICACION DE CANALON DE LAMINA GALVANIZADA EXISTENTE SEGUN NUEVA POSICION', 'ML', 8.00, 260.00),
+    ('06-LIM', 'LIMPIEZA Y ACARREOS', '', None, None),
+    ('06-LIM-010', 'CARGA Y ACARREO EN CAMION DE MATERIAL PRODUCTO DE DEMOLICIONES A TIRO AUTORIZADO', 'M3', 8.00, 210.00),
+    ('06-LIM-020', 'LIMPIEZA GRUESA Y FINA DE LAS AREAS INTERVENIDAS AL TERMINO DE LOS TRABAJOS', 'LOTE', 1.00, 2000.00),
+]
+ENCABEZADOS_OPUS = ['Clave', 'Concepto', 'Unidad', 'Cantidad', 'P.U.', 'Importe']
+
+def filas_opus(con_precios=True):
+    filas = []
+    for cve, desc, uni, cant, pu in OPUS24:
+        if cant is None:
+            sub = sum(c * p for k, d, u, c, p in OPUS24 if c is not None and k.startswith(cve + '-'))
+            filas.append([cve, desc, '', '', '', round(sub, 2) if con_precios else ''])
+        elif con_precios:
+            filas.append([cve, desc, uni, cant, pu, round(cant * pu, 2)])
+        else:
+            filas.append([cve, desc, uni, cant, '', ''])
+    return filas
+
+def escribir_opus(nombre, titulo, con_precios):
+    filas = filas_opus(con_precios)
+    wb = Workbook(); ws = wb.active; ws.title = 'Presupuesto'
+    for _ in range(4): ws.append([])
+    ws['B5'] = titulo; ws['B5'].font = Font(bold=True, size=12)     # OPUS: nombre del proyecto en B5
+    ws.append([]); ws.append(ENCABEZADOS_OPUS)                       # encabezados en la fila 6
+    for c in ws[6]: c.font = Font(bold=True)
+    for f in filas: ws.append(f)
+    if con_precios:
+        ws.append([]); ws.append(['', 'TOTAL', '', '', '', round(sum(c * p for k, d, u, c, p in OPUS24 if c is not None), 2)])
+    for col, w in zip('ABCDEF', [14, 70, 8, 12, 14, 16]): ws.column_dimensions[col].width = w
+    wb.save(os.path.join(R, 'docs', 'plantillas', nombre + '.xlsx'))
+    with io.open(os.path.join(R, 'scripts', 'qa', 'fixtures', nombre + '.csv'), 'w', encoding='utf-8', newline='') as f:
+        w = csv.writer(f)
+        for _ in range(4): w.writerow([])
+        w.writerow(['', titulo]); w.writerow([]); w.writerow(ENCABEZADOS_OPUS)
+        for fila in filas: w.writerow(fila)
+    return len(filas)
+
+n1 = escribir_opus('opus-24-ejemplo', 'REMODELACION DE FACHADA FRONTAL CASA AV. ORTIZ MENA', True)
+n2 = escribir_opus('opus-24-concurso', 'ADAPTACION DE SUCURSAL CD. CUAUHTEMOC CHIHUAHUA CR 152', False)
+print('plantillas OPUS 24 listas;', n1, 'renglones con precio y', n2, 'para cotizar')

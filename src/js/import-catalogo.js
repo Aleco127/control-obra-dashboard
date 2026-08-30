@@ -3,6 +3,8 @@ let importCsvData = [];
 let importCsvHeaders = [];
 let importColumnMapping = {}; // {columnIndex: fieldName}
 let importPreset = null; // "opus" | "neodata" | null (US-242)
+let importPorPosicion = false; // se usó el orden fijo de columnas de OPUS
+let importProyecto = ''; // nombre del proyecto que OPUS escribe arriba de los encabezados (B5)
 
 const IMPORT_FIELDS = [
   {key:'clave', label:'Clave', icon:'ri-key-line', color:'bg-blue-500'},
@@ -29,7 +31,7 @@ $('mdlImportCatalogoContent').innerHTML=`
 <div class="text-center py-6">
 <i class="ri-file-excel-2-line text-4xl text-cyan-400 mb-2"></i>
 <p class="text-sm text-gray-300">Haz clic para seleccionar el archivo</p>
-<p class="text-xs text-gray-500 mt-1">Excel exportado de OPUS o Neodata (.xlsx) o CSV. Las columnas se reconocen solas.</p>
+<p class="text-xs text-gray-500 mt-1">Excel exportado de OPUS 24 o Neodata (.xlsx) o CSV. Las columnas y las partidas se reconocen solas, y un catálogo para cotizar (sin precios) también entra.</p>
 </div>
 </div>
 <div class="text-center my-3 text-gray-500 text-xs">-- o pega los datos directamente --</div>
@@ -184,13 +186,35 @@ return cells.some(c => c && c.trim());
 cargarFilas(importCsvData);
 }
 
+/**
+ * Nombre del proyecto entre las filas previas a los encabezados. OPUS lo escribe en B5, pero también
+ * aparece como "Obra: ..." o suelto en la primera fila; se toma el texto más largo que no sea etiqueta.
+ */
+function nombreDeProyecto(filas){
+let mejor = '';
+(filas||[]).forEach(r => (r||[]).forEach(c => {
+let t = String(c ?? '').replace(/\s+/g,' ').trim();
+t = t.replace(/^(obra|proyecto|cliente|presupuesto)\s*:\s*/i, '');
+if(t.length < 8 || t.length > 120) return;
+if(/^(fecha|clave|codigo|concepto|unidad|cantidad|importe|hoja|p[aá]gina)\b/i.test(t)) return;
+if(!/[A-Za-zÁÉÍÓÚÑáéíóúñ]{4}/.test(t)) return;
+if(t.length > mejor.length) mejor = t;
+}));
+return mejor;
+}
+
 /** Recibe una matriz de filas (Excel o CSV), localiza los encabezados y detecta el preset (US-242). */
 function cargarFilas(rows){
 rows = (rows||[]).filter(r => r && r.some(c => String(c ?? '').trim()));
 if(!rows.length){ Toast.error('No se encontraron datos'); return; }
+importProyecto = '';
 const esHeader = (r) => { const t = r.map(c => String(c ?? '').toLowerCase()); return t.filter(Boolean).length >= 3 && t.some(c => /clave|codigo|código|desc|concepto/.test(c)) && t.some(c => /unidad|cantidad|precio|p\.u|unitario|importe/.test(c)); };
 let hIdx = rows.slice(0, 25).findIndex(esHeader);
-if(hIdx > 0){ rows = rows.slice(hIdx); }
+if(hIdx < 0){
+// Exportado de OPUS sin encabezados legibles: la tabla empieza en la primera clave NN-XXX.
+const cIdx = rows.slice(0, 25).findIndex(r => ImportPresets.esClaveOpus(r[0]));
+if(cIdx > 0){ importProyecto = nombreDeProyecto(rows.slice(0, cIdx)); rows = rows.slice(cIdx); }
+} else if(hIdx > 0){ importProyecto = nombreDeProyecto(rows.slice(0, hIdx)); rows = rows.slice(hIdx); }
 importCsvData = rows.map(r => r.map(c => String(c ?? '').trim()));
 // Usar primera fila como headers o generar
 const firstRow = importCsvData[0];
@@ -265,12 +289,12 @@ if(!Object.values(importColumnMapping).includes('cantidad') && numericCols.lengt
 if(!Object.values(importColumnMapping).includes('precio_unitario') && numericCols.length > 1) importColumnMapping[numericCols[1].idx] = 'precio_unitario';
 
 // Preset OPUS / Neodata (US-242): sustituye el mapeo si reconoce los encabezados
-importPreset = null;
+importPreset = null; importPorPosicion = false;
 try{
-const det = ImportPresets.detectar(importCsvHeaders);
-if(det.preset){ importPreset = det.preset; importColumnMapping = {}; Object.entries(det.mapping).forEach(([i,f]) => { if(f !== 'importe') importColumnMapping[i] = f; }); importColumnMapping.__importe = det.mapping; }
+const det = ImportPresets.detectar(importCsvHeaders, importCsvData);
+if(det.preset){ importPreset = det.preset; importPorPosicion = !!det.porPosicion; importColumnMapping = {}; Object.entries(det.mapping).forEach(([i,f]) => { if(f !== 'importe') importColumnMapping[i] = f; }); importColumnMapping.__importe = det.mapping; }
 }catch(e){}
-const badge = $('importPresetBadge'); if(badge) badge.innerHTML = importPreset ? `<span class="ml-2 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Formato ${importPreset === 'opus' ? 'OPUS' : 'Neodata'} reconocido</span>` : '';
+const badge = $('importPresetBadge'); if(badge) badge.innerHTML = importPreset ? `<span class="ml-2 px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Formato ${importPreset === 'opus' ? 'OPUS' : 'Neodata'} reconocido${importPorPosicion ? ' por el orden de columnas' : ''}</span>` : '';
 console.log('Mapeo automatico:', importColumnMapping, 'preset:', importPreset);
 
 renderMappingUI();
@@ -287,7 +311,11 @@ window._importResultado = r;
 $('importCount').textContent = r.conceptos.length;
 const total = r.conceptos.reduce((s,c) => s + c.cantidad * c.precio_unitario, 0);
 box.classList.remove('hidden');
-box.innerHTML = `<p class="text-xs text-gray-400 mb-2"><i class="ri-eye-line mr-1"></i>Se importarán <strong>${r.conceptos.length}</strong> conceptos${r.partidas.length ? ` en <strong>${r.partidas.length}</strong> partidas` : ''} · importe ${typeof fmt === 'function' ? fmt(total) : total.toFixed(2)}</p>
+const derivadas = r.partidas.filter(p => p.derivada).length;
+box.innerHTML = `${importProyecto ? `<p class="text-xs text-gray-300 mb-1"><i class="ri-building-line mr-1"></i>Catálogo de <strong>${S(importProyecto)}</strong></p>` : ''}
+<p class="text-xs text-gray-400 mb-2"><i class="ri-eye-line mr-1"></i>Se importarán <strong>${r.conceptos.length}</strong> conceptos${r.partidas.length ? ` en <strong>${r.partidas.length}</strong> partidas` : ''}${r.sinPrecios ? '' : ` · importe ${typeof fmt === 'function' ? fmt(total) : total.toFixed(2)}`}</p>
+${r.sinPrecios ? '<p class="text-xs text-amber-600 mb-2"><i class="ri-price-tag-3-line mr-1"></i>El archivo no trae precios: se importa como catálogo para cotizar, con claves, unidades y cantidades. Los precios se capturan después.</p>' : ''}
+${derivadas ? `<p class="text-xs text-gray-500 mb-2">El archivo no traía renglones de partida: las ${derivadas} partidas se dedujeron de la clave de cada concepto y puedes renombrarlas después.</p>` : ''}
 ${r.partidas.length ? `<ul class="text-xs space-y-1 max-h-40 overflow-y-auto">${r.partidas.map(p => `<li class="flex justify-between gap-2"><span class="truncate">${'&nbsp;'.repeat(Math.max(0,(p.nivel-1)*3))}${S(p.clave ? p.clave + ' ' : '')}${S(p.nombre)}</span><span class="text-gray-500 shrink-0">${p.n} concepto${p.n === 1 ? '' : 's'}</span></li>`).join('')}</ul>` : ''}
 ${r.errores.length ? `<details class="mt-2"><summary class="text-xs text-amber-600 cursor-pointer">${r.errores.length} aviso${r.errores.length === 1 ? '' : 's'} por fila</summary><ul class="text-xs text-gray-400 mt-1 max-h-32 overflow-y-auto">${r.errores.slice(0,80).map(e => `<li>Fila ${e.fila}: ${S(e.motivo)}</li>`).join('')}</ul></details>` : '<p class="text-xs text-emerald-600 mt-1">Sin avisos.</p>'}`;
 }catch(e){ box.classList.add('hidden'); }
@@ -449,6 +477,7 @@ $('importPasteData').value = '';
 importCsvData = [];
 importCsvHeaders = [];
 importColumnMapping = {};
+importPreset = null; importPorPosicion = false; importProyecto = '';
 }
 
 async function executeImport(){
