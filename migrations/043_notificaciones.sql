@@ -1,0 +1,8 @@
+-- 043: notificaciones persistentes (US-239). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- Tabla control_obra.notificaciones (empresa_id, usuario_id opcional, clave única por empresa, tipo, severidad info/warning/danger,
+--   titulo, cuerpo, modulo, obra_id, leida_at). RLS select por empresa; vista public.notificaciones security_invoker.
+-- control_obra.generar_notificaciones_empresa(p_empresa): cobros vencidos (90 d) y próximos (3 d), pagos a proveedor vencidos (60 d),
+--   obras activas sin bitácora 3 días (una por semana, sólo días hábiles), estimaciones presentadas sin aprobar 15 días. Idempotente por clave.
+-- public.generar_notificaciones_todas() y public.notificaciones_para_correo(): sólo service_role (job diario "notificaciones").
+-- public.get_notificaciones() y public.marcar_notificaciones_leidas(p_ids bigint[] = NULL): sesión de la app.
+-- El cuerpo completo está en el historial de migraciones del proyecto (versión 043_notificaciones).

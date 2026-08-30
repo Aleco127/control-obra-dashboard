@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Avance de tu obra</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="img/icon-192.png">
+<style>
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#16202a;--muted:#55677a;--line:#d9e0e6;--primary:#1e3a5f;--accent:#0369a1;--ok:#047857;--ok-soft:#dcfce7;--warn:#b45309;--warn-soft:#fef3c7;--danger:#b91c1c;--danger-soft:#fee2e2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;font-size:16px}
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px 56px}
+header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
+header .emp{font-weight:700;color:var(--primary)}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}@media(min-width:560px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
+.bar{height:10px;background:#e5eaf0;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}.c-ok{background:var(--ok-soft);color:var(--ok)}.c-warn{background:var(--warn-soft);color:var(--warn)}.c-bad{background:var(--danger-soft);color:var(--danger)}.c-info{background:#e1eaf6;color:#2f5b8f}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl{overflow-x:auto}
+.fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}@media(min-width:560px){.fotos{grid-template-columns:repeat(4,1fr)}}.fotos a{display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#e5eaf0}.fotos img{width:100%;height:100%;object-fit:cover}
+.act{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.act .bar{width:110px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:10px 14px;border-radius:9px;font-size:14px;font-weight:600;border:0;cursor:pointer}.btn.s{background:#fff;color:var(--primary);border:1px solid var(--line)}
+.pago{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:14px}.pago dt{color:var(--muted)}.pago dd{margin:0;font-weight:600;word-break:break-all}
+.copy{font-size:12px;color:var(--accent);background:none;border:0;cursor:pointer;padding:0 4px}
+footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
+.vacio{color:var(--muted);font-size:14px}
+</style>
+</head>
+<body><div class="wrap">
+<div id="app"><p class="sub">Cargando…</p></div>
+<footer>Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.<br>Control de Obra · Supernova Arquitectos</footer>
+</div>
+<script>
+const SB='https://cpjdlaiarmxojiyhhpxt.supabase.co', ANON='sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
+const $=(s)=>document.querySelector(s);
+const esc=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(n)=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n)||0);
+const fecha=(d)=>d?new Date(d.length===10?d+'T12:00:00':d).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'}):'';
+const token=new URLSearchParams(location.search).get('t')||'';
+async function copiar(t,btn){try{await navigator.clipboard.writeText(t);btn.textContent='Copiado';setTimeout(()=>btn.textContent='Copiar',1500);}catch(e){}}
+function estadoChip(e){e=String(e||'');if(/cobrad|pagad|aprobad|completad|termin/i.test(e))return`<span class="chip c-ok">${esc(e)}</span>`;if(/parcial|proceso|pendiente/i.test(e))return`<span class="chip c-warn">${esc(e)}</span>`;if(/vencid|cancel|rechaz/i.test(e))return`<span class="chip c-bad">${esc(e)}</span>`;return`<span class="chip c-info">${esc(e||'-')}</span>`;}
+async function cargar(){
+  if(!/^[a-f0-9]{48}$/.test(token)){$('#app').innerHTML='<div class="card"><h2>Enlace no válido</h2><p class="vacio">Pide a tu constructor un enlace nuevo.</p></div>';return;}
+  const r=await fetch(SB+'/rest/v1/rpc/portal_obra',{method:'POST',headers:{apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'},body:JSON.stringify({p_token:token})});
+  const d=await r.json().catch(()=>null);
+  if(!r.ok||!d||d.error){$('#app').innerHTML='<div class="card"><h2>Este enlace ya no está activo</h2><p class="vacio">Pide a tu constructor un enlace nuevo.</p></div>';return;}
+  document.title=`${d.obra.nombre} · Avance`;
+  const o=d.obra, e=d.empresa, plan=d.plan_pagos||[], pagos=d.pagos||[], acts=d.actividades||[], fotos=d.fotos||[], ests=d.estimaciones||[], cfdis=d.cfdis||[];
+  const cobrado=pagos.reduce((a,p)=>a+Number(p.monto||0),0), contrato=Number(o.contrato||0), saldo=Math.max(0,contrato-cobrado);
+  const hoy=new Date().toISOString().slice(0,10); const proximo=plan.find(x=>!/cobrad/i.test(x.estatus||'')&&Number(x.monto)-Number(x.cobrado||0)>0.5);
+  const dp=e.datos_pago||{};
+  const wa=e.telefono?('https://wa.me/'+String(e.telefono).replace(/\D/g,'').replace(/^(\d{10})$/,'52$1')+'?text='+encodeURIComponent('Hola, tengo una duda sobre la obra '+o.nombre)):'';
+  $('#app').innerHTML=`
+  <header>${e.logo_url?`<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">`:''}<div class="emp">${esc(e.nombre)}<small>Avance de tu obra</small></div></header>
+  <h1>${esc(o.nombre)}</h1>
+  <p class="sub">${esc(o.cliente||'')}${o.ubicacion?' · '+esc(o.ubicacion):''}${o.fecha_inicio?' · inicio '+fecha(o.fecha_inicio):''}${o.fecha_fin?' · entrega estimada '+fecha(o.fecha_fin):''}</p>
+  <div class="kpis">
+    <div class="kpi"><b>${Math.round(Number(o.avance||0))}%</b><span>Avance físico</span></div>
+    <div class="kpi"><b>${fmt(contrato)}</b><span>Contrato</span></div>
+    <div class="kpi"><b>${fmt(cobrado)}</b><span>Pagado a la fecha</span></div>
+    <div class="kpi"><b>${fmt(saldo)}</b><span>Saldo por pagar</span></div>
+  </div>
+  <div class="card"><h2>Avance de la obra <span class="chip c-info">${esc(o.estatus||'')}</span></h2>
+    <div class="bar" aria-label="Avance ${Math.round(Number(o.avance||0))}%"><i style="width:${Math.min(100,Number(o.avance||0))}%"></i></div>
+    ${acts.length?`<div style="margin-top:10px">${acts.map(a=>`<div class="act"><div><div>${a.hito?'🏁 ':''}${esc(a.nombre)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin?' a '+fecha(a.fin):''}${a.responsable?' · '+esc(a.responsable):''}</div></div><div><div class="bar"><i style="width:${Math.min(100,Number(a.avance||0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance||0))}%</div></div></div>`).join('')}</div>`:'<p class="vacio">Tu constructor aún no comparte el programa de trabajo.</p>'}
+  </div>
+  ${proximo?`<div class="card" style="border-color:var(--accent)"><h2>Siguiente pago</h2><p style="margin:0 0 8px"><strong>${esc(proximo.concepto)}</strong> · ${fmt(Number(proximo.monto)-Number(proximo.cobrado||0))}${proximo.vence?' · vence '+fecha(proximo.vence):''} ${proximo.vence&&proximo.vence<hoy?'<span class="chip c-bad">vencido</span>':''}</p>
+    ${dp.clabe||dp.cuenta?`<dl class="pago"><dt>Banco</dt><dd>${esc(dp.banco||'')}</dd><dt>Titular</dt><dd>${esc(dp.titular||e.nombre)}</dd>${dp.clabe?`<dt>CLABE</dt><dd>${esc(dp.clabe)} <button class="copy" onclick="copiar('${esc(dp.clabe)}',this)">Copiar</button></dd>`:''}${dp.cuenta?`<dt>Cuenta</dt><dd>${esc(dp.cuenta)} <button class="copy" onclick="copiar('${esc(dp.cuenta)}',this)">Copiar</button></dd>`:''}${dp.referencia?`<dt>Referencia</dt><dd>${esc(dp.referencia)}</dd>`:''}</dl>${dp.instrucciones?`<p style="font-size:13px;color:var(--muted);margin:8px 0 0">${esc(dp.instrucciones)}</p>`:''}`:'<p class="vacio">Pide a tu constructor los datos de pago.</p>'}
+    ${wa?`<p style="margin:10px 0 0"><a class="btn s" href="${wa}" target="_blank" rel="noopener">Avisar que ya pagué por WhatsApp</a></p>`:''}
+  </div>`:''}
+  <div class="card"><h2>Plan de pagos</h2>${plan.length?`<div class="tbl"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${plan.map(x=>`<tr><td>${esc(x.concepto)}</td><td class="n">${fmt(x.monto)}</td><td class="n">${fmt(x.cobrado)}</td><td>${fecha(x.vence)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Sin plan de pagos registrado.</p>'}</div>
+  <div class="card"><h2>Pagos realizados</h2>${pagos.length?`<div class="tbl"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${pagos.map(p=>`<tr><td>${fecha(p.fecha)}</td><td>${esc(p.concepto||p.numero||'')}</td><td>${esc(p.metodo||'')}</td><td class="n">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Aún no hay pagos registrados.</p>'}</div>
+  ${cfdis.length?`<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${cfdis.map(c=>`<tr><td>${esc((c.serie||'')+(c.folio||''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid||'')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo?`<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${ests.length?`<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ests.map(x=>`<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin?' a '+fecha(x.periodo_fin):''}</td><td class="n">${x.avance!=null?Math.round(Number(x.avance))+'%':''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  <div class="card"><h2>Fotos de la obra</h2>${fotos.length?`<div class="fotos">${fotos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo||f.descripcion||'')} ${fecha(f.fecha)}"><img src="${esc(f.thumb||f.url)}" alt="${esc(f.titulo||'Foto de obra')}" loading="lazy"></a>`).join('')}</div>`:'<p class="vacio">Todavía no hay fotos publicadas.</p>'}</div>
+  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}</div>`;
+}
+async function archivo(id,tipo){
+  const r=await fetch(SB+'/functions/v1/portal-archivo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,cfdi_id:id,tipo})});
+  const j=await r.json().catch(()=>null);
+  if(!r.ok||!j||!j.url){alert((j&&j.error)||'No se pudo obtener el archivo');return;}
+  window.open(j.url,'_blank','noopener');
+}
+cargar();
+</script>
+</body>
+</html>

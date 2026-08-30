@@ -118,7 +118,7 @@ adminHtml = adminHtml.replace(/<script>\s*tailwind\.config\s*=\s*\{[\s\S]*?\}\s*
 writeFileSync(join(DIST, 'admin.html'), adminHtml);
 
 // 5) Copias tal cual
-for (const f of ['manifest.json', 'privacidad.html', 'terminos.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
+for (const f of ['manifest.json', 'privacidad.html', 'terminos.html', 'portal.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
 for (const d of ['img', 'ayuda']) if (existsSync(join(SRC, d))) cpSync(join(SRC, d), join(DIST, d), { recursive: true });
 if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), join(DIST, 'docs', 'img'), { recursive: true });
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));

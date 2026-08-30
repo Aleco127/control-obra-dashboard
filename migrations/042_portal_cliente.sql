@@ -1,0 +1,9 @@
+-- 042: portal del cliente por obra (US-237, US-238). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- Tabla control_obra.obra_portal_tokens (obra_id, empresa_id, token 48 hex, activo, creado_por, ultimo_acceso, accesos), RLS select por empresa.
+-- empresas.datos_pago jsonb (banco, clabe, titular, referencia, instrucciones); vista public.empresas recreada.
+-- Funciones:
+--   portal_token_obra(p_obra_id, p_regenerar) -> {token, url}  (sesión nivel >= 80; exige feature 'portal' del plan: PLAN_LIMIT si no)
+--   portal_revocar(p_obra_id)
+--   portal_obra(p_token) -> jsonb público con obra, empresa (nombre, contacto, datos_pago), actividades del programa, últimas 24 fotos,
+--                           estimaciones, plan de pagos, pagos recibidos y CFDI emitidos (sin costos, gastos ni socios); cuenta accesos.
+-- El cuerpo completo está en el historial de migraciones del proyecto (versiones 042 y 042b).

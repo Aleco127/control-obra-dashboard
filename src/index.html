@@ -1148,6 +1148,58 @@ const Ayuda=(()=>{
   }
   return {abrir,pintar,cargar};
 })();
+// ===== Notificaciones persistentes (US-239) =====
+const Notif={
+  _t:null,
+  async load(){
+    if(!currentUser||!navigator.onLine)return;
+    try{const{data}=await sb.rpc('get_notificaciones');if(Array.isArray(data)){D.notif=data;updateNotifBadge();}}catch(e){}
+    clearTimeout(this._t);this._t=setTimeout(()=>Notif.load(),10*60*1000);
+  },
+  panelHtml(){
+    const list=(D.notif||[]);const noLeidas=list.filter(n=>!n.leida);
+    if(!list.length)return '';
+    const icon={danger:'ri-error-warning-line text-red-600 bg-red-50',warning:'ri-alert-line text-amber-700 bg-amber-50',info:'ri-information-line text-sky-700 bg-sky-50'};
+    const rel=(f)=>{const d=(Date.now()-new Date(f).getTime())/36e5;return d<1?'hace minutos':d<24?`hace ${Math.round(d)} h`:`hace ${Math.round(d/24)} d`;};
+    return `<div class="p-2 bg-slate-50 flex items-center justify-between"><p class="text-[10px] font-bold text-slate-600 uppercase px-2"><i class="ri-notification-badge-line mr-1"></i>Alertas (${noLeidas.length} sin leer)</p>${noLeidas.length?`<button type="button" class="text-[11px] text-primary hover:underline px-2" onclick="Notif.marcar(null)">Marcar todas leídas</button>`:''}</div>`+
+      list.slice(0,12).map(n=>`<div class="p-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 ${n.leida?'opacity-60':''}" onclick="Notif.abrir(${n.id})"><div class="flex items-start gap-2"><div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${icon[n.severidad]||icon.info}"><i class="${(icon[n.severidad]||icon.info).split(' ')[0]}"></i></div><div class="flex-1 min-w-0"><p class="text-xs font-medium ${n.leida?'':'text-slate-900'}">${S(n.titulo)}</p><p class="text-[11px] text-slate-500 line-clamp-2">${S(n.cuerpo||'')}</p><p class="text-[10px] text-slate-400">${rel(n.fecha)}</p></div>${n.leida?'':'<span class="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" aria-label="Sin leer"></span>'}</div></div>`).join('');
+  },
+  async marcar(ids){
+    (D.notif||[]).forEach(n=>{if(!ids||ids.includes(n.id))n.leida=true;});updateNotifBadge();renderNotifContent();
+    try{await sb.rpc('marcar_notificaciones_leidas',{p_ids:ids});}catch(e){}
+  },
+  abrir(id){
+    const n=(D.notif||[]).find(x=>x.id===id);if(!n)return;
+    if(!n.leida)Notif.marcar([id]);closeNotifMenu();
+    if(n.obra_id&&(n.modulo==='o'||!n.modulo)){abrirFichaObra(n.obra_id);return;}
+    if(n.modulo){M=n.modulo;R();}
+  }
+};
+// ===== Portal del cliente (US-237/238) =====
+async function compartirObra(obraId){
+  if(typeof Suscripcion!=='undefined'&&!Suscripcion.feature('portal')){await Suscripcion.verificarFeature('portal');return;}
+  const{data,error}=await sb.rpc('portal_token_obra',{p_obra_id:obraId});
+  if(error||!data||!data.success){if(!(error&&/PLAN_LIMIT/.test(error.message)))Toast.error((data&&data.error)||humanizeError(error,'crear el enlace'));return;}
+  const o=D.o.find(x=>x.id==obraId)||{};const url=data.url;
+  const msg=encodeURIComponent(`Hola, aquí puedes ver el avance, las fotos y los pagos de ${o.nombre_obra||'tu obra'}: ${url}`);
+  const ok=await Dialog.confirm({title:'Compartir con el cliente',icon:'ri-share-forward-line',confirmText:'Copiar enlace',cancelText:'Cerrar',bodyHtml:`<p class="text-sm mb-2">El cliente verá avance, programa, fotos, estimaciones, plan de pagos, pagos realizados y facturas de esta obra. <strong>No ve costos, gastos ni socios.</strong></p><input class="inp text-xs mb-2" readonly value="${S(url)}" onclick="this.select()"><div class="flex flex-wrap gap-2"><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="${S(url)}"><i class="ri-external-link-line" aria-hidden="true"></i> Ver como cliente</a><button type="button" class="btn btn-s text-xs" onclick="regenerarPortal(${obraId})"><i class="ri-refresh-line" aria-hidden="true"></i> Nuevo enlace</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="revocarPortal(${obraId})"><i class="ri-link-unlink" aria-hidden="true"></i> Desactivar</button></div>`});
+  if(ok){try{await navigator.clipboard.writeText(url);Toast.success('Enlace copiado');}catch(e){Toast.info(url,8000);}}
+  Telemetry.track('portal_compartido',{obra_id:obraId});
+}
+async function regenerarPortal(obraId){const{data,error}=await sb.rpc('portal_token_obra',{p_obra_id:obraId,p_regenerar:true});if(error||!data||!data.success){Toast.error('No se pudo generar');return;}Toast.success('Enlace nuevo generado; el anterior ya no funciona');document.querySelector('dialog[open] input')&&(document.querySelector('dialog[open] input').value=data.url);}
+async function revocarPortal(obraId){const{data}=await sb.rpc('portal_revocar',{p_obra_id:obraId});if(data&&data.success){Toast.success('Enlace desactivado');const d=document.querySelector('dialog[open]');if(d)d.close();}}
+async function guardarDatosPago(){
+  const dp={banco:$('dpBanco').value.trim(),titular:$('dpTitular').value.trim(),clabe:$('dpClabe').value.replace(/\s+/g,''),cuenta:$('dpCuenta').value.trim(),referencia:$('dpRef').value.trim(),instrucciones:$('dpInstr').value.trim()};
+  if(dp.clabe&&!/^\d{18}$/.test(dp.clabe)){Toast.warning('La CLABE debe tener 18 dígitos');return;}
+  const{error}=await sb.from('empresas').update({datos_pago:dp}).eq('id',currentUser.empresa_id);
+  if(error){Toast.error(humanizeError(error,'guardar los datos de pago'));return;}
+  configData.empresa.datos_pago=dp;Toast.success('Datos de pago guardados: ya aparecen en el portal del cliente');
+}
+function datosPagoHtml(){
+  const dp=(configData.empresa&&configData.empresa.datos_pago)||{};
+  const f=(id,l,v,ph)=>`<label class="text-xs">${l}<input id="${id}" class="inp mt-1" value="${S(v||'')}" placeholder="${ph||''}"></label>`;
+  return `<div class="g rounded-xl p-4"><div class="flex items-center justify-between mb-2"><h3 class="font-bold text-sm"><i class="ri-bank-line n" aria-hidden="true"></i> Datos para que te paguen</h3></div><p class="text-xs text-slate-600 mb-3">Aparecen en el portal del cliente junto al siguiente pago. Nunca se muestran a otras empresas.</p><div class="grid md:grid-cols-2 gap-2">${f('dpBanco','Banco',dp.banco,'BBVA, Banorte…')}${f('dpTitular','Titular',dp.titular,EMPRESA_INFO.nombre)}${f('dpClabe','CLABE (18 dígitos)',dp.clabe,'')}${f('dpCuenta','Cuenta o tarjeta (opcional)',dp.cuenta,'')}${f('dpRef','Referencia sugerida',dp.referencia,'Nombre de la obra')}<label class="text-xs md:col-span-2">Instrucciones<input id="dpInstr" class="inp mt-1" value="${S(dp.instrucciones||'')}" placeholder="Envía tu comprobante por WhatsApp después de pagar"></label></div><button type="button" class="btn btn-p text-sm mt-3" onclick="guardarDatosPago()"><i class="ri-save-line" aria-hidden="true"></i> Guardar datos de pago</button></div>`;
+}
 // Aplica nombre y logo de la empresa en título, barra lateral y PDFs
 async function loadBrand(){
   if(!currentUser)return;
@@ -1157,11 +1209,11 @@ async function loadBrand(){
   document.title=nombre+' · Control de Obra';
   const b=$('brandName');if(b)b.textContent=nombre;
   try{
-    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web,baja_programada_at').eq('id',currentUser.empresa_id).maybeSingle();
+    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web,baja_programada_at,datos_pago').eq('id',currentUser.empresa_id).maybeSingle();
     if(data){
       currentUser.baja_programada_at=data.baja_programada_at||null;
       aplicarEstadoBaja();
-      configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||''});
+      configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||'',datos_pago:data.datos_pago||null});
       if(data.logo_url){const ic=$('brandIcon');if(ic){const im=new Image();im.alt='';im.className='w-10 h-10 rounded-xl object-cover';im.onload=()=>{ic.innerHTML='';ic.appendChild(im);};im.onerror=()=>{};im.src=data.logo_url;}}
     }
   }catch(e){}
@@ -1526,7 +1578,7 @@ $('avatarHdr').className=`w-8 h-8 rounded-full bg-gradient-to-br ${color} flex i
 // Actualizar menú desplegable
 $('menuUserName').textContent=currentUser.nombre;
 $('menuUserEmail').textContent=currentUser.empresa_nombre||'Sin empresa';
-loadBrand();
+loadBrand();Notif.load();
 }
 
 buildNav();
@@ -2358,7 +2410,7 @@ const hoy=new Date();
 const repseUrgentes=(D.rep||[]).filter(r=>{if(r.estatus!=='Pendiente'&&r.estatus!=='En Proceso')return false;if(empId&&r.empresa_id!==empId)return false;const lim=new Date(r.fecha_limite);const diff=(lim-hoy)/(1000*60*60*24);return diff>0&&diff<=15;}).length;
 // SUA proximos a vencer o vencidos
 const suaUrgentes=(D.sua||[]).filter(s=>{if(empId&&s.empresa_id!==empId)return false;if(s.estatus==='Vencido')return true;if(s.estatus!=='Pendiente')return false;const lim=new Date(s.fecha_limite);const diff=(lim-hoy)/(1000*60*60*24);return diff>0&&diff<=15;}).length;
-const totalNotif=ordenesPendientes+gastosPendientes+repseUrgentes+suaUrgentes;
+const totalNotif=ordenesPendientes+gastosPendientes+repseUrgentes+suaUrgentes+((D.notif||[]).filter(n=>!n.leida).length);
 const badge=$('notifBadge');
 if(badge){
 if(totalNotif>0){
@@ -2394,9 +2446,9 @@ const suaUrgCount=(D.sua||[]).filter(s=>{if(empId&&s.empresa_id!==empId)return f
 const content=$('notifContent');
 if(!content)return;
 
-let html='';
+let html=Notif.panelHtml();
 
-if(ordenesPend.length===0&&gastosPend.length===0&&suaUrgCount===0){
+if(ordenesPend.length===0&&gastosPend.length===0&&suaUrgCount===0&&!html){
 html=`<div class="p-6 text-center text-gray-500"><i class="ri-check-double-line text-3xl mb-2"></i><p class="text-sm">No hay notificaciones pendientes</p></div>`;
 }else{
 // Ordenes pendientes
@@ -3088,7 +3140,7 @@ const secLink=(mod,label)=>`<a href="#${mod}" class="text-xs text-accent hover:u
 c.innerHTML=`
 <div class="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
 <div class="min-w-0">
-<p class="text-xs text-ink-subtle mb-1"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>
+<div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-xs text-ink-subtle"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>${(currentUser&&currentUser.nivel>=80)?`<button type="button" class="btn btn-s text-xs" onclick="compartirObra(${o.id})"><i class="ri-share-forward-line" aria-hidden="true"></i> Compartir con el cliente</button>`:''}</div>
 <h1 class="text-xl font-bold n truncate">${S(o.nombre_obra)}</h1>
 <div class="flex flex-wrap gap-2 mt-2 text-xs">
 <span class="px-2 py-1 rounded-full ${o.estatus==='Completada'?'bg-green-100 text-green-800':o.estatus==='Pausada'?'bg-amber-100 text-amber-800':'bg-sky-100 text-sky-800'}">${S(o.estatus||'En Proceso')}</span>
@@ -8190,6 +8242,7 @@ ${canEdit?'<button onclick="openEmpresaModal()" class="text-xs text-cyan-400 hov
 ${currentUser&&currentUser.nivel>=100?`<div class="mt-4 pt-4 border-t" style="border-color:var(--line)"><p class="text-xs text-slate-600 mb-2">Tus datos son tuyos: puedes descargarlos completos cuando quieras y eliminar la empresa con 30 días de gracia.</p><div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s text-xs" onclick="Respaldo.completo()"><i class="ri-download-2-line" aria-hidden="true"></i> Descargar todo</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="solicitarBajaEmpresa()"><i class="ri-delete-bin-line" aria-hidden="true"></i> Eliminar mi empresa</button></div></div>`:''}
 </div>
 
+${currentUser&&currentUser.nivel>=100?datosPagoHtml():''}
 <!-- Categorias de Gastos -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">

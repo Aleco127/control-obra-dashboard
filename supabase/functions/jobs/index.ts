@@ -1,5 +1,5 @@
 // Edge Function jobs: tareas diarias de la plataforma. La invoca n8n (cron 8:00 America/Chihuahua) con x-internal-key.
-// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), all.
+// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -82,6 +82,29 @@ async function jobSuscripciones(internalKey: string) {
   return out;
 }
 
+// US-239: genera las alertas de todas las empresas y manda un resumen diario a los administradores con alertas nuevas
+async function jobNotificaciones(internalKey: string) {
+  const out: Record<string, unknown> = {};
+  const { data: gen, error: e1 } = await admin.rpc("generar_notificaciones_todas");
+  out.generadas = e1 ? e1.message : gen;
+  const { data: rows, error } = await admin.rpc("notificaciones_para_correo");
+  if (error) { out.correos = error.message; return out; }
+  const hoy = new Date().toISOString().slice(0, 10);
+  const enviados: Record<string, unknown>[] = [];
+  for (const r of rows ?? []) {
+    const { count } = await admin.from("email_log").select("id", { count: "exact", head: true }).eq("empresa_id", r.empresa_id).eq("to_email", r.email).eq("template", "resumen_diario").gte("created_at", hoy + "T00:00:00Z");
+    if ((count ?? 0) > 0) continue;
+    const color: Record<string, string> = { danger: "#b91c1c", warning: "#b45309", info: "#1e3a5f" };
+    const lista = (r.titulos as Array<{ titulo: string; cuerpo: string; severidad: string }>).map((t) => `<li style="margin:0 0 8px"><strong style="color:${color[t.severidad] || color.info}">${t.titulo}</strong><br><span style="color:#475569">${t.cuerpo || ""}</span></li>`).join("");
+    const cuerpo = `<p>Hola ${r.nombre}. <strong>${r.empresa}</strong> tiene ${r.nuevas} alerta${r.nuevas === 1 ? "" : "s"} nueva${r.nuevas === 1 ? "" : "s"} (${r.pendientes} sin atender en total):</p><ul style="padding-left:18px">${lista}</ul>`;
+    const ok = await enviar(internalKey, r.email, "notificacion", { subject: `${r.nuevas} pendiente${r.nuevas === 1 ? "" : "s"} en ${r.empresa}`, titulo: "Pendientes de hoy", cuerpo, url: "https://app.supernovarquitectos.com/", cta: "Abrir Control de Obra", nombre: r.nombre, empresa: r.empresa }, r.empresa_id);
+    if (ok) await admin.from("email_log").insert({ empresa_id: r.empresa_id, to_email: r.email, template: "resumen_diario", subject: "marca", status: "enviado" });
+    enviados.push({ empresa: r.empresa, email: r.email, nuevas: r.nuevas, ok });
+  }
+  out.correos = enviados;
+  return out;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   const internalKey = await secret("internal_key");
@@ -92,5 +115,6 @@ Deno.serve(async (req: Request) => {
   const result: Record<string, unknown> = { action, at: new Date().toISOString() };
   if (action === "bajas" || action === "all") result.bajas = await jobBajas(internalKey);
   if (action === "suscripciones" || action === "all") result.suscripciones = await jobSuscripciones(internalKey);
+  if (action === "notificaciones" || action === "all") result.notificaciones = await jobNotificaciones(internalKey);
   return json(result);
 });
