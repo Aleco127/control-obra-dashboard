@@ -1,0 +1,191 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2.4 Guia del Contador · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>2.4 Guia del Contador</h1><p><strong>Nivel de acceso:</strong> 50 | <strong>Modulos principales:</strong> Panel Fiscal, Facturas CFDI, CFDIs Emitidos, Retenciones, Declaraciones, REPSE, SUA, Nomina</p>
+<p>El contador gestiona toda la operacion fiscal y financiera de la empresa.</p>
+<h3 id="facturacion">Facturacion</h3>
+<p><strong>Registrar una factura recibida (CFDI):</strong></p>
+<ol>
+<li>Ve al modulo <strong>Facturas CFDI</strong> (categoria Contabilidad)</li>
+<li>Haz clic en <strong>"+ Nueva Factura"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Proveedor:</strong> Selecciona de la lista (requerido)</li>
+<li><strong>Obra:</strong> Obra asociada</li>
+<li><strong>Numero de Factura:</strong> Folio del proveedor (requerido)</li>
+<li><strong>Fecha de Emision:</strong> Cuando fue emitida</li>
+<li><strong>Subtotal:</strong> Monto antes de impuestos</li>
+<li><strong>IVA Trasladado:</strong> Monto del IVA</li>
+<li><strong>Retenciones ISR:</strong> Si aplica</li>
+<li><strong>Retenciones IVA:</strong> Si aplica</li>
+<li><strong>Total:</strong> Monto final</li>
+<li><strong>Folio Fiscal (UUID):</strong> Identificador unico del CFDI</li>
+<li>Formato obligatorio: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX (36 caracteres con guiones)</li>
+<li>El sistema valida el formato automaticamente</li>
+<li><strong>Tipo de Comprobante:</strong> "Fiscal" o "No Fiscal"</li>
+<li><strong>PDF URL:</strong> Enlace al documento PDF</li>
+<li><strong>Estatus de Pago:</strong> Pendiente, Parcial o Pagado</li>
+</ul>
+<ol>
+<li>Haz clic en <strong>"Guardar"</strong></li>
+</ol>
+<p>&gt; <strong>Validacion importante:</strong> Si el tipo de comprobante es "Fiscal", el folio fiscal (UUID) es obligatorio para poder registrar el pago.</p>
+<p><strong>Registrar CFDIs emitidos:</strong></p>
+<ol>
+<li>Ve al modulo <strong>CFDIs Emitidos</strong> (categoria Contabilidad)</li>
+<li>Haz clic en <strong>"+ Nuevo CFDI"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Numero de Serie y Folio</strong></li>
+<li><strong>UUID:</strong> Identificador unico</li>
+<li><strong>Fecha de Emision</strong></li>
+<li><strong>Cliente RFC y Razon Social</strong></li>
+<li><strong>Subtotal, IVA Trasladado y Total</strong></li>
+<li><strong>Forma de Pago:</strong> Metodo de pago utilizado</li>
+<li><strong>Estatus:</strong> Vigente o Cancelada</li>
+</ul>
+<h3 id="retenciones">Retenciones</h3>
+<p><strong>Registrar una retencion:</strong></p>
+<ol>
+<li>Ve al modulo <strong>Retenciones</strong> (categoria Contabilidad)</li>
+<li>Haz clic en <strong>"+ Nueva Retencion"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Tipo:</strong> ISR, IVA o IEPS</li>
+<li><strong>Proveedor:</strong> A quien se le retiene</li>
+<li><strong>Obra:</strong> Obra asociada</li>
+<li><strong>Numero de Comprobante:</strong> Factura relacionada</li>
+<li><strong>Fecha de Retencion</strong></li>
+<li><strong>Monto Retenido:</strong> Cantidad retenida</li>
+<li><strong>Porcentaje:</strong> Tasa aplicada</li>
+<li><strong>Folio Fiscal:</strong> UUID del CFDI relacionado</li>
+</ul>
+<h3 id="declaraciones-fiscales">Declaraciones Fiscales</h3>
+<p><strong>Crear una declaracion mensual:</strong></p>
+<ol>
+<li>Ve al modulo <strong>Declaraciones</strong> (categoria Contabilidad)</li>
+<li>Haz clic en <strong>"+ Nueva Declaracion"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Periodo:</strong> Mes y año (formato YYYY-MM)</li>
+<li><strong>Ingresos Acumulados:</strong> Total de ingresos del periodo</li>
+<li><strong>Deducciones Autorizadas:</strong> Total de gastos deducibles</li>
+<li><strong>Coeficiente de Utilidad:</strong> Factor aplicable</li>
+<li><strong>ISR Causado:</strong> Impuesto sobre la renta generado</li>
+<li><strong>ISR Retenido por Clientes:</strong> ISR que te retuvieron</li>
+<li><strong>ISR a Pagar:</strong> ISR causado - ISR retenido</li>
+<li><strong>IVA Trasladado:</strong> IVA cobrado</li>
+<li><strong>IVA Acreditable:</strong> IVA pagado en compras</li>
+<li><strong>IVA a Pagar:</strong> IVA trasladado - IVA acreditable</li>
+<li><strong>Base Gravable:</strong> Monto sobre el que se calculan impuestos</li>
+</ul>
+<h3 id="repse">REPSE</h3>
+<p><strong>Presentar declaracion REPSE:</strong></p>
+<ol>
+<li>Ve al modulo <strong>REPSE</strong> (categoria Contabilidad)</li>
+<li>Verifica el banner de alertas - muestra declaraciones proximas a vencer</li>
+<li>Haz clic en <strong>"+ Nueva Declaracion"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Numero de Expediente:</strong> Referencia asignada</li>
+<li><strong>Periodo Cuatrimestre:</strong> Selecciona:</li>
+<li>Primero (Enero-Abril)</li>
+<li>Segundo (Mayo-Agosto)</li>
+<li>Tercero (Septiembre-Diciembre)</li>
+<li><strong>Año</strong></li>
+<li><strong>Fecha de Presentacion</strong></li>
+<li><strong>Fecha Limite:</strong> El sistema la calcula segun el cuatrimestre</li>
+<li><strong>Contratos:</strong> Asocia los contratos de subcontratacion vigentes</li>
+<li><strong>Documentos:</strong> Adjunta la documentacion requerida</li>
+</ul>
+<ol>
+<li>El estatus cambia automaticamente:</li>
+</ol>
+<ul>
+<li><strong>Pendiente</strong> → <strong>Presentada</strong> (al enviar)</li>
+<li><strong>Vencida</strong> (si pasa la fecha limite sin presentar)</li>
+</ul>
+<p>&gt; <strong>Alerta automatica:</strong> El sistema muestra un banner rojo/ambar cuando una declaracion esta a 15 dias o menos de su fecha limite. Las multas por no presentar oscilan entre $56,570 y $226,280 por periodo.</p>
+<h3 id="sua">SUA</h3>
+<p><strong>Registrar pago SUA:</strong></p>
+<ol>
+<li>Ve al modulo <strong>SUA</strong> (categoria Contabilidad)</li>
+<li>Verifica el banner de alertas - muestra pagos proximos o vencidos</li>
+<li>Haz clic en <strong>"+ Nuevo Pago"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Numero de Registro:</strong> Identificador del pago</li>
+<li><strong>Periodo:</strong> Mes y año</li>
+<li><strong>Fecha de Pago:</strong> Cuando se realizo el pago</li>
+<li><strong>Fecha Limite:</strong> Ultimo dia para pagar sin recargos</li>
+<li><strong>Monto Total:</strong> Suma de cuotas IMSS + Infonavit</li>
+<li><strong>Conceptos:</strong> Detalle de los conceptos pagados</li>
+<li><strong>Documentos:</strong> Comprobantes adjuntos</li>
+</ul>
+<p>&gt; <strong>Advertencia de recargos:</strong> El sistema muestra una alerta: "Evita recargos del 1.47% mensual" cuando hay pagos proximos a vencer.</p>
+<h3 id="nomina">Nomina</h3>
+<p><strong>Procesar nomina:</strong></p>
+<ol>
+<li>Ve al modulo <strong>Nomina</strong> (categoria Personal)</li>
+<li>Haz clic en <strong>"+ Nuevo Registro"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Empleado:</strong> Selecciona de la lista</li>
+<li><strong>Tipo de Periodo:</strong> Semanal, Quincenal o Mensual</li>
+<li><strong>Periodo Inicio / Periodo Fin:</strong> Fechas del periodo</li>
+<li><strong>Dias Trabajados:</strong> Numero de dias efectivos</li>
+<li><strong>Sueldo Bruto:</strong> Salario base del periodo</li>
+<li><strong>Percepciones adicionales:</strong></li>
+<li>Bonificacion</li>
+<li>Premios</li>
+<li>Comisiones</li>
+<li><strong>Total Percepciones:</strong> Suma automatica</li>
+<li><strong>Deducciones:</strong></li>
+<li>Seguro Social (IMSS obrero)</li>
+<li>Infonavit</li>
+<li>ISR</li>
+<li>Otras deducciones (FONACOT, pension alimenticia, etc.)</li>
+<li><strong>Total a Pagar:</strong> Se calcula automaticamente</li>
+<li>Formula: Total Percepciones - Total Deducciones</li>
+</ul>
+<ol>
+<li>Guarda con estatus <strong>"Borrador"</strong> para revision</li>
+<li>Cambia a <strong>"Pendiente"</strong> cuando este listo para pago</li>
+<li>Marca como <strong>"Pagado"</strong> al completar la transferencia</li>
+</ol>
+<p><strong>Calculos automaticos de nomina:</strong></p>
+<ul>
+<li><strong>IMSS Obrero:</strong> SBC x 0.02775 x (dias trabajados / dias del mes)</li>
+<li><strong>ISR:</strong> Segun tabla progresiva por rango de ingresos</li>
+<li><strong>Infonavit:</strong> 5% del SBC (si el empleado tiene credito)</li>
+<li><strong>Aguinaldo:</strong> 15 dias de salario al final del año</li>
+<li><strong>Vacaciones:</strong> 12 dias acumulados por año de antiguedad</li>
+<li><strong>Tiempo extra:</strong> 1.5x despues de 40 horas semanales</li>
+</ul>
+<p><strong>Operaciones masivas:</strong></p>
+<ul>
+<li>Selecciona multiples registros con los checkboxes</li>
+<li>Cambia estatus en bloque (ej: marcar todos como "Pagado")</li>
+<li>Elimina registros en bloque (con confirmacion)</li>
+</ul>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

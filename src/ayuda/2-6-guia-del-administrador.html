@@ -1,0 +1,115 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2.6 Guia del Administrador · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>2.6 Guia del Administrador</h1><p><strong>Nivel de acceso:</strong> 100 | <strong>Acceso:</strong> Total a todos los modulos sin restricciones</p>
+<p>El administrador general tiene control total del sistema. Ademas de todas las funciones de los otros roles, gestiona la configuracion de la empresa, usuarios y respaldos.</p>
+<h3 id="configurar-la-empresa">Configurar la empresa</h3>
+<ol>
+<li>Ve al modulo <strong>Configuracion</strong> (categoria Sistema)</li>
+<li>Completa cada pestaña:</li>
+</ol>
+<p><strong>Pestaña Identidad:</strong></p>
+<ul>
+<li><strong>Nombre Comercial:</strong> Como se conoce la empresa (requerido)</li>
+<li><strong>Razon Social:</strong> Nombre legal completo</li>
+<li><strong>Giro:</strong> Tipo de actividad (ej: "Construccion")</li>
+<li><strong>Representante Legal:</strong> Nombre completo</li>
+<li><strong>Descripcion:</strong> Breve descripcion de la empresa</li>
+</ul>
+<p><strong>Pestaña Contacto:</strong></p>
+<ul>
+<li><strong>Telefono, Email, Direccion, Ciudad, Estado, Codigo Postal</strong></li>
+</ul>
+<p><strong>Pestaña Fiscal:</strong></p>
+<ul>
+<li><strong>RFC:</strong> Registro Federal de Contribuyentes (13 caracteres, mayusculas)</li>
+<li><strong>Regimen Fiscal:</strong> Selecciona de la lista de regimenes SAT (601-626)</li>
+<li><strong>Logo de empresa:</strong> Sube una imagen (formato PNG o JPG, maximo 2MB, recomendado 200x200px)</li>
+<li>Vista previa disponible antes de guardar</li>
+<li>Boton para eliminar logo existente</li>
+</ul>
+<p><strong>Pestaña Bancaria:</strong></p>
+<ul>
+<li><strong>Banco:</strong> Nombre de la institucion</li>
+<li><strong>Numero de Cuenta:</strong> Cuenta bancaria</li>
+<li><strong>CLABE:</strong> Clave Bancaria Estandarizada</li>
+</ul>
+<ol>
+<li>Haz clic en <strong>"Guardar"</strong> para aplicar todos los cambios</li>
+</ol>
+<h3 id="gestionar-usuarios">Gestionar usuarios</h3>
+<p><strong>Crear un nuevo usuario:</strong></p>
+<ol>
+<li>Ve al modulo <strong>Usuarios</strong> (categoria Sistema)</li>
+<li>Haz clic en <strong>"+ Nuevo Usuario"</strong></li>
+<li><strong>Pestaña Datos Basicos:</strong></li>
+</ol>
+<ul>
+<li><strong>Nombre:</strong> Nombre completo del empleado</li>
+<li><strong>Email:</strong> Correo electronico (debe ser unico en la empresa)</li>
+<li><strong>Rol:</strong> Selecciona de la lista de 7 roles</li>
+<li><strong>Obras Asignadas:</strong> Marca las casillas de las obras a las que tendra acceso</li>
+<li>Los administradores (nivel 100) tienen acceso automatico a todas las obras</li>
+</ul>
+<ol>
+<li><strong>Pestaña Permisos</strong> (opcional - para personalizar):</li>
+</ol>
+<ul>
+<li>Activa/desactiva permisos individuales por modulo</li>
+<li><strong>"Cargar permisos del rol"</strong> - Restablece al valor predeterminado</li>
+<li><strong>"Quitar todos"</strong> - Elimina todos los permisos personalizados</li>
+</ul>
+<ol>
+<li>Haz clic en <strong>"Guardar"</strong></li>
+</ol>
+<p><strong>Invitar empleados:</strong></p>
+<ol>
+<li>El sistema genera <strong>codigos de invitacion</strong> que puedes compartir con nuevos empleados</li>
+<li>El empleado usa el codigo en la pantalla de registro ("Unirse a Empresa")</li>
+<li>Al registrarse, se le asigna el rol de Trabajador por defecto</li>
+<li>Edita su perfil para cambiar el rol y asignar obras</li>
+</ol>
+<p><strong>Editar permisos de un usuario:</strong></p>
+<ol>
+<li>En el modulo <strong>Usuarios</strong>, busca al usuario</li>
+<li>Haz clic en <strong>"Editar"</strong></li>
+<li>Modifica rol, obras asignadas o permisos individuales</li>
+<li>Guarda los cambios</li>
+</ol>
+<h3 id="distribucion-de-gastos-administrativos">Distribucion de gastos administrativos</h3>
+<p>Los gastos que no estan asociados a una obra especifica (gastos administrativos) se pueden distribuir entre varias obras:</p>
+<ol>
+<li>Al crear un gasto, deja el campo <strong>Obra</strong> vacio (NULL)</li>
+<li>El sistema mostrara el modal <strong>"Distribucion a Obras"</strong></li>
+<li>Asigna el porcentaje o monto que corresponde a cada obra</li>
+<li>El sistema genera registros de distribucion automaticamente</li>
+<li>Cada obra vera reflejada su porcion del gasto en su presupuesto</li>
+</ol>
+<h3 id="respaldos-y-mantenimiento">Respaldos y mantenimiento</h3>
+<p><strong>Datos en la nube:</strong></p>
+<ul>
+<li>Todos los datos se almacenan en Supabase (PostgreSQL)</li>
+<li>Los datos se sincronizan automaticamente cada vez que se accede al sistema</li>
+<li>Cache local de 24 horas para mejorar rendimiento</li>
+</ul>
+<p><strong>Actualizacion de datos:</strong></p>
+<ul>
+<li>El boton <strong>"Actualizar"</strong> en cada modulo fuerza una recarga desde el servidor</li>
+<li>El dashboard se actualiza automaticamente cada 3 segundos</li>
+</ul>
+<p>---</p>
+<p># PARTE 3: Flujos de Trabajo Completos</p>
+<p>Cada flujo describe un proceso de negocio completo desde inicio hasta fin, incluyendo los campos de formulario, validaciones automaticas y calculos del sistema.</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

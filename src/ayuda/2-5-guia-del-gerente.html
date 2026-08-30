@@ -1,0 +1,101 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2.5 Guia del Gerente · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>2.5 Guia del Gerente</h1><p><strong>Nivel de acceso:</strong> 80 | <strong>Modulos principales:</strong> Dashboard, Presupuesto, Ordenes de Compra (aprobacion), Pagos, Clientes, Cuentas por Cobrar</p>
+<p>El gerente tiene una vision estrategica del negocio y aprueba las operaciones financieras importantes.</p>
+<h3 id="dashboard">Dashboard</h3>
+<p>Al iniciar sesion, veras el <strong>Dashboard</strong> con los indicadores clave:</p>
+<p><strong>KPIs principales:</strong></p>
+<div class="tbl"><table><thead><tr><th>Indicador</th><th>Descripcion</th></tr></thead><tbody><tr><td>Presupuesto Total</td><td>Suma de presupuestos de todas las obras activas</td></tr><tr><td>Gastos Totales</td><td>Suma de todos los gastos registrados (monto neto)</td></tr><tr><td>Saldo Disponible</td><td>Presupuesto Total - Gastos Totales (verde si positivo, rojo si negativo)</td></tr><tr><td>% Utilizado</td><td>Porcentaje del presupuesto consumido</td></tr><tr><td>Gastos Pagados</td><td>Cantidad y monto de gastos ya pagados</td></tr><tr><td>Gastos Pendientes</td><td>Cantidad y monto de gastos por pagar</td></tr><tr><td>Gasto/Dia (30d)</td><td>Promedio diario de gasto en los ultimos 30 dias</td></tr><tr><td>OC Pendientes</td><td>Ordenes de compra esperando aprobacion</td></tr><tr><td>Empleados Activos</td><td>Total de personal activo</td></tr><tr><td>Bitacoras Hoy</td><td>Entradas de bitacora registradas hoy</td></tr></tbody></table></div>
+<p><strong>Graficas:</strong></p>
+<ul>
+<li><strong>Por Categoria (Dona):</strong> Distribucion de gastos por categoria</li>
+<li><strong>Por Estatus (Barras):</strong> Pagados vs Pendientes vs Cancelados</li>
+<li><strong>Ultimos 7 dias (Linea):</strong> Tendencia diaria de gastos</li>
+</ul>
+<p><strong>Alertas automaticas que aparecen en el dashboard:</strong></p>
+<ul>
+<li>Presupuesto utilizado al 80% o mas</li>
+<li>Ordenes de compra pendientes de aprobacion</li>
+<li>Obras con fecha de entrega en los proximos 30 dias</li>
+<li>Proyectos con retraso</li>
+<li>Bitacoras del dia no registradas</li>
+<li>Declaraciones REPSE proximas a vencer</li>
+<li>Pagos SUA proximos (con advertencia de recargos)</li>
+</ul>
+<h3 id="aprobar-ordenes-de-compra">Aprobar ordenes de compra</h3>
+<ol>
+<li>En el <strong>Dashboard</strong>, revisa el indicador <strong>"OC Pendientes"</strong></li>
+<li>Ve al modulo <strong>Ordenes</strong> (categoria Proyectos)</li>
+<li>Filtra por estatus <strong>"Pendiente"</strong></li>
+<li>Revisa cada orden:</li>
+</ol>
+<ul>
+<li>Verifica proveedor, obra destino y monto</li>
+<li>Revisa los detalles y condiciones de pago</li>
+</ul>
+<ol>
+<li>Cambia el estatus a <strong>"Aprobada"</strong> o <strong>"Cancelada"</strong></li>
+<li><strong>Automatizacion:</strong> Al aprobar una OC, si el monto esta dentro del limite de la empresa, el sistema puede crear automaticamente un <strong>gasto</strong> vinculado a la orden</li>
+</ol>
+<p>&gt; <strong>Limite de aprobacion:</strong> Como gerente puedes aprobar ordenes de hasta $200,000 MXN. Montos superiores requieren aprobacion del Administrador General.</p>
+<h3 id="gestionar-presupuesto">Gestionar presupuesto</h3>
+<ol>
+<li>Ve al modulo <strong>Presupuesto</strong> (categoria Proyectos)</li>
+<li>El panel muestra:</li>
+</ol>
+<ul>
+<li><strong>Presupuestado:</strong> Total comprometido</li>
+<li><strong>Ejecutado:</strong> Total gastado</li>
+<li><strong>Disponible:</strong> Diferencia (presupuestado - ejecutado)</li>
+<li><strong>% Ejecutado:</strong> Barra de progreso visual</li>
+<li><strong>Avance Promedio:</strong> Porcentaje de avance fisico de las obras</li>
+</ul>
+<ol>
+<li><strong>Modificaciones al presupuesto:</strong></li>
+</ol>
+<ul>
+<li><strong>Adicionales:</strong> Incrementos aprobados al presupuesto original</li>
+<li><strong>Deductivas:</strong> Reducciones al presupuesto</li>
+<li>Solo las modificaciones con estatus "Aprobada" o "Ejecutada" afectan los calculos</li>
+<li>Campos de cada modificacion:</li>
+<li>Partidas afectadas</li>
+<li>Monto de modificacion</li>
+<li>Tipo: Adicional o Deductiva</li>
+<li>Especificaciones</li>
+<li>Aprobado por</li>
+<li>Fecha de aprobacion</li>
+</ul>
+<h3 id="gestionar-pagos-y-cobranza">Gestionar pagos y cobranza</h3>
+<p><strong>Pagos a proveedores:</strong></p>
+<ol>
+<li>Ve al modulo <strong>Pagos</strong> (categoria Proyectos)</li>
+<li>Revisa los gastos con estatus "Pendiente"</li>
+<li>Registra el pago con referencia bancaria</li>
+<li>Actualiza el estatus a "Pagado"</li>
+</ol>
+<p><strong>Cobranza a clientes (CxC):</strong></p>
+<ol>
+<li>Las cuentas por cobrar se crean automaticamente al aprobar estimaciones</li>
+<li>Ve al modulo <strong>Estimaciones</strong> o revisa el <strong>Panel Fiscal</strong></li>
+<li>Da seguimiento a las CxC con los siguientes estatus:</li>
+</ol>
+<ul>
+<li><strong>Pendiente:</strong> Factura enviada, esperando pago</li>
+<li><strong>Parcial:</strong> Pago parcial recibido</li>
+<li><strong>Cobrada:</strong> Pago completo recibido</li>
+</ul>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

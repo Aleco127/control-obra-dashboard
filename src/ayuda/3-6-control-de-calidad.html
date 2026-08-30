@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3.6 Control de Calidad · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>3.6 Control de Calidad</h1><p><strong>Flujo:</strong> Deteccion → Registro → Asignacion → Resolucion → Cierre</p>
+<h3 id="flujo-de-rfis">Flujo de RFIs</h3>
+<ol>
+<li><strong>Deteccion:</strong> Se identifica una duda tecnica, discrepancia en planos o necesidad de aclaracion</li>
+<li><strong>Registro:</strong> Se crea el RFI con la pregunta detallada</li>
+<li><strong>Envio:</strong> Se marca como "Enviada" al destinatario (arquitecto, ingeniero, cliente)</li>
+<li><strong>Revision:</strong> Estatus "En Revision" mientras se analiza</li>
+<li><strong>Respuesta:</strong> Se registra la respuesta recibida con fecha</li>
+<li><strong>Cierre:</strong> Se marca como "Cerrada" y queda como referencia</li>
+</ol>
+<p><strong>Campos del formulario RFI:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Numero RFI</td><td>Auto-generado</td></tr><tr><td>Obra</td><td>Proyecto asociado</td></tr><tr><td>Fecha Emision</td><td>Cuando se crea</td></tr><tr><td>Enviado a</td><td>Destinatario</td></tr><tr><td>Pregunta</td><td>Detalle de la solicitud</td></tr><tr><td>Adjuntos</td><td>Documentos de soporte</td></tr><tr><td>Fecha Respuesta Esperada</td><td>Cuando se necesita</td></tr><tr><td>Respuesta</td><td>Texto de la respuesta</td></tr><tr><td>Fecha Respuesta Actual</td><td>Cuando llego</td></tr><tr><td>Estatus</td><td>Enviada → En Revision → Respondida → Cerrada</td></tr></tbody></table></div>
+<h3 id="flujo-de-punch-list">Flujo de Punch List</h3>
+<ol>
+<li><strong>Deteccion:</strong> Se identifica un defecto o trabajo incompleto durante inspeccion</li>
+<li><strong>Registro:</strong> Se crea el item con descripcion, area y severidad</li>
+<li><strong>Asignacion:</strong> Se asigna un responsable y fecha limite</li>
+<li><strong>Correccion:</strong> El responsable ejecuta la correccion (estatus "En Progreso")</li>
+<li><strong>Verificacion:</strong> Se inspecciona la correccion</li>
+<li><strong>Cierre:</strong> Se marca como "Cerrada" con notas de resolucion</li>
+</ol>
+<p><strong>Niveles de severidad:</strong></p>
+<ul>
+<li><strong>Critica:</strong> Afecta seguridad o estructura. Debe resolverse inmediatamente.</li>
+<li><strong>Mayor:</strong> Afecta funcionalidad. Resolver antes de entrega.</li>
+<li><strong>Menor:</strong> Detalle estetico o menor. Resolver cuando sea posible.</li>
+</ul>
+<h3 id="incidentes-de-seguridad">Incidentes de Seguridad</h3>
+<p><strong>Modulo:</strong> Seguridad</p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Numero Incidente</td><td>Auto-generado</td></tr><tr><td>Obra</td><td>Proyecto donde ocurrio</td></tr><tr><td>Fecha y Hora</td><td>Cuando sucedio</td></tr><tr><td>Tipo</td><td>Accidente, Cuasi-Accidente, Incidente Peligro, Enfermedad Ocupacional</td></tr><tr><td>Descripcion</td><td>Detalle de lo ocurrido</td></tr><tr><td>Personas Involucradas</td><td>Quienes participaron</td></tr><tr><td>Lesionados</td><td>Si hubo heridos</td></tr><tr><td>Gravedad</td><td>Leve, Moderada, Grave, Fatal</td></tr><tr><td>Medidas Tomadas</td><td>Acciones inmediatas</td></tr><tr><td>Investigador</td><td>Quien investiga</td></tr><tr><td>Fotos</td><td>Evidencia fotografica</td></tr><tr><td>Estado</td><td>Reportado → Investigado → Cerrado</td></tr></tbody></table></div>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

@@ -256,6 +256,7 @@ async function massDeleteNomina(){
 <span id="brandName" class="font-bold n text-base tracking-tight truncate block max-w-[150px]">Control de Obra</span>
 <p class="text-[10px] text-slate-400 font-medium">Control de Obra v3</p>
 </div>
+<button type="button" onclick="Ayuda.abrir()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Ayuda" title="Ayuda"><i class="ri-question-line text-lg text-slate-600" aria-hidden="true"></i></button>
 <button onclick="closeMobileMenu()" class="md:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú">
 <i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i>
 </button>
@@ -1111,6 +1112,41 @@ async function procesarEnlacesCorreo(){
   if(typeof switchAuthTab==='function')switchAuthTab('login');
 }
 window.addEventListener('load',()=>{setTimeout(procesarEnlacesCorreo,800);});
+// ===== Centro de ayuda dentro de la app (US-223) =====
+const Ayuda=(()=>{
+  let indice=null;
+  const MODULO_TEMA={d:'guia-del-gerente',o:'ciclo-del-proyecto',p:'ciclo-del-proyecto',w:'programa-por-semanas',g:'compras-y-gastos',pc:'pagos-a-proveedores-flujo-y-conciliacion',x:'compras-y-gastos',ct:'ciclo-de-facturacion-y-cobranza',es:'ciclo-de-facturacion-y-cobranza',cb:'contabilidad-fiscal',so:'socios-y-reparto-de-utilidades',ci:'cierre-mensual',n:'gestion-de-personal',e:'gestion-de-personal',t:'gestion-de-personal',r:'control-de-calidad',u:'control-de-calidad',y:'control-de-calidad',b:'operacion-diaria',f:'captura-desde-el-celular',z:'guia-del-administrador',h:'guia-del-administrador',q:'guia-del-contador'};
+  async function cargar(){ if(indice)return indice; try{const r=await fetch('ayuda/indice.json?v=20260830a');indice=await r.json();}catch(e){indice=[];} return indice; }
+  function tema(){ const t=MODULO_TEMA[M]; if(!t||!indice)return null; return indice.find(x=>x.url.includes(t))||null; }
+  function buscar(q){ q=(q||'').toLowerCase().trim(); if(!q)return (indice||[]).slice(0,8); return (indice||[]).filter(x=>x.titulo.toLowerCase().includes(q)||x.texto.includes(q)).slice(0,10); }
+  function pintar(q){
+    const res=buscar(q); const t=tema();
+    $('ayudaRes').innerHTML=(t&&!q?`<a class="block p-3 rounded-lg mb-2" style="background:var(--accent-soft);color:var(--ink)" href="ayuda/${S(t.url)}" target="_blank" rel="noopener"><strong>Guía de esta pantalla:</strong> ${S(t.titulo)}<span class="block text-xs text-slate-600">${S(t.resumen)}…</span></a>`:'')+
+      (res.length?res.map(x=>`<a class="block p-2 rounded-lg hover:bg-slate-100" href="ayuda/${S(x.url)}" target="_blank" rel="noopener"><span class="font-medium text-sm">${S(x.titulo)}</span><span class="block text-xs text-slate-600">${S(x.resumen.slice(0,110))}…</span></a>`).join(''):'<p class="text-sm text-slate-600 p-2">Sin resultados. Escríbenos por WhatsApp y te ayudamos.</p>');
+  }
+  async function abrir(){
+    await cargar();
+    let d=$('dlgAyuda');
+    if(!d){
+      d=document.createElement('dialog');d.id='dlgAyuda';d.className='dlg-wide';d.setAttribute('aria-label','Ayuda');
+      d.style.cssText='width:min(560px,94vw);border:1px solid var(--line);border-radius:var(--radius-lg,14px);padding:0;background:var(--surface);color:var(--ink)';
+      d.innerHTML=`<div class="p-4"><div class="flex items-center justify-between mb-2"><h3 class="font-bold"><i class="ri-question-line" aria-hidden="true"></i> Ayuda</h3><button type="button" class="btn btn-s text-xs" aria-label="Cerrar" onclick="$('dlgAyuda').close()"><i class="ri-close-line" aria-hidden="true"></i></button></div>
+        <input id="ayudaQ" class="inp mb-2" placeholder="Busca: gastos, cobro, socios, cierre" aria-label="Buscar en la ayuda" oninput="Ayuda.pintar(this.value)">
+        <div id="ayudaRes" class="max-h-[50vh] overflow-y-auto"></div>
+        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t" style="border-color:var(--line)">
+          <a class="btn btn-s text-xs" href="ayuda/index.html" target="_blank" rel="noopener"><i class="ri-book-open-line" aria-hidden="true"></i> Todos los temas</a>
+          <button type="button" class="btn btn-s text-xs" onclick="$('dlgAyuda').close();Onboarding.tour()"><i class="ri-map-pin-line" aria-hidden="true"></i> Ver el recorrido</button>
+          <a class="btn btn-p text-xs" href="https://wa.me/526143443936?text=${encodeURIComponent('Hola, necesito ayuda con Control de Obra ('+(currentUser?currentUser.empresa_nombre||'':'')+')')}" target="_blank" rel="noopener"><i class="ri-whatsapp-line" aria-hidden="true"></i> WhatsApp de soporte</a>
+        </div><p class="text-xs text-slate-500 mt-2">Lunes a viernes de 9 a 18 h · soporte@supernovarquitectos.com</p></div>`;
+      document.body.appendChild(d);
+    }
+    $('ayudaQ').value='';pintar('');
+    if(typeof d.showModal==='function')d.showModal();else d.setAttribute('open','');
+    $('ayudaQ').focus();
+    Telemetry.track('ayuda_abierta',{modulo:M});
+  }
+  return {abrir,pintar,cargar};
+})();
 // Aplica nombre y logo de la empresa en título, barra lateral y PDFs
 async function loadBrand(){
   if(!currentUser)return;

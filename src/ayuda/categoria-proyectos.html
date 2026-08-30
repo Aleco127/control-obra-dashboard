@@ -1,0 +1,171 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Categoria: Proyectos · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>Categoria: Proyectos</h1><h3 id="4-1-dashboard">4.1 Dashboard</h3>
+<p><strong>Codigo interno:</strong> <code>d</code> | <strong>Icono:</strong> ri-dashboard-3-line</p>
+<p><strong>Proposito:</strong> Vista ejecutiva con indicadores clave de rendimiento (KPIs) de toda la operacion.</p>
+<p><strong>Contenido:</strong></p>
+<p><strong>Tarjetas de KPI (10 indicadores):</strong></p>
+<div class="tbl"><table><thead><tr><th>KPI</th><th>Formula</th><th>Color</th></tr></thead><tbody><tr><td>Presupuesto Total</td><td>Suma de presupuesto_total de obras activas</td><td>Azul</td></tr><tr><td>Gastos Totales</td><td>Suma de monto_neto de todos los gastos</td><td>Rojo</td></tr><tr><td>Saldo Disponible</td><td>Presupuesto - Gastos</td><td>Verde (positivo) / Rojo (negativo)</td></tr><tr><td>% Utilizado</td><td>(Gastos / Presupuesto) x 100</td><td>Amarillo</td></tr><tr><td>Gastos Pagados</td><td>Conteo y suma de gastos con estatus "Pagado"</td><td>Verde</td></tr><tr><td>Gastos Pendientes</td><td>Conteo y suma de gastos con estatus "Pendiente"</td><td>Naranja</td></tr><tr><td>Gasto/Dia (30d)</td><td>Suma gastos ultimos 30 dias / 30</td><td>Gris</td></tr><tr><td>OC Pendientes</td><td>Conteo de OC con estatus "Pendiente"</td><td>Rojo</td></tr><tr><td>Empleados Activos</td><td>Total de empleados activos</td><td>Azul</td></tr><tr><td>Bitacoras Hoy</td><td>Entradas de bitacora con fecha de hoy</td><td>Verde</td></tr></tbody></table></div>
+<p><strong>Graficas:</strong></p>
+<ul>
+<li><strong>Por Categoria (Dona):</strong> Distribucion porcentual de gastos por categoria</li>
+<li><strong>Por Estatus (Barras):</strong> Comparacion visual Pagados vs Pendientes vs Cancelados</li>
+<li><strong>Ultimos 7 dias (Linea):</strong> Tendencia de gasto diario</li>
+</ul>
+<p><strong>Alertas dinamicas:</strong></p>
+<ul>
+<li>Presupuesto utilizado &gt;= 80%</li>
+<li>Ordenes de compra pendientes de aprobacion</li>
+<li>Obras con fecha de fin en los proximos 30 dias</li>
+<li>Obras con retraso (fecha fin &lt; hoy y estatus activa)</li>
+<li>Bitacoras no registradas hoy</li>
+<li>Declaraciones REPSE proximas a vencer</li>
+<li>Pagos SUA proximos o vencidos</li>
+</ul>
+<p><strong>Actualizacion:</strong> Cada 3 segundos automaticamente.</p>
+<p>---</p>
+<h3 id="4-2-obras">4.2 Obras</h3>
+<p><strong>Codigo interno:</strong> <code>o</code> | <strong>Icono:</strong> ri-building-2-line</p>
+<p><strong>Proposito:</strong> Gestionar los proyectos de construccion de la empresa.</p>
+<p><strong>Campos del formulario:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th><th>Notas</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td><td>Nombre del proyecto</td></tr><tr><td>Codigo</td><td>Texto</td><td>Auto</td><td>Generado por sistema</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td><td>Activa, En Proceso, Pausada, Completada, Cancelada</td></tr><tr><td>Presupuesto Total</td><td>Numero</td><td>Si</td><td>Con IVA incluido</td></tr><tr><td>Zona Fiscal</td><td>Selector</td><td>Si</td><td>Normal 16%, Frontera 8%, Exento 0%</td></tr><tr><td>Avance</td><td>Numero</td><td>Auto</td><td>Calculado del programa Gantt</td></tr><tr><td>Fecha Inicio</td><td>Fecha</td><td>Si</td><td>-</td></tr><tr><td>Fecha Fin Estimada</td><td>Fecha</td><td>Si</td><td>&gt;= Fecha Inicio</td></tr><tr><td>Responsable</td><td>Selector</td><td>No</td><td>De lista de empleados</td></tr><tr><td>Cliente</td><td>Texto</td><td>No</td><td>-</td></tr><tr><td>Ubicacion</td><td>Texto</td><td>No</td><td>Direccion completa</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td><td>-</td></tr></tbody></table></div>
+<p><strong>Estatus y su significado:</strong></p>
+<ul>
+<li><strong>Activa:</strong> Obra en planeacion o licitacion</li>
+<li><strong>En Proceso:</strong> Obra en ejecucion fisica</li>
+<li><strong>Pausada:</strong> Obra detenida temporalmente</li>
+<li><strong>Completada:</strong> Obra terminada y entregada</li>
+<li><strong>Cancelada:</strong> Obra abandonada</li>
+</ul>
+<p><strong>Vista de lista:</strong> Muestra todas las obras con nombre, estatus, presupuesto, avance y responsable.</p>
+<p>---</p>
+<h3 id="4-3-presupuesto">4.3 Presupuesto</h3>
+<p><strong>Codigo interno:</strong> <code>p</code> | <strong>Icono:</strong> ri-money-dollar-circle-line</p>
+<p><strong>Proposito:</strong> Control de presupuesto por obra con partidas detalladas y modificaciones.</p>
+<p><strong>KPIs del modulo:</strong></p>
+<ul>
+<li>Presupuestado total (formato abreviado: $1.2M)</li>
+<li>Ejecutado total</li>
+<li>Disponible</li>
+<li>% Ejecutado (barra de progreso)</li>
+<li>Avance Promedio de obras</li>
+</ul>
+<p><strong>Tabla comparativa:</strong> Lista cada obra con:</p>
+<ul>
+<li>Presupuesto original</li>
+<li>Modificaciones (adicionales y deductivas)</li>
+<li>Presupuesto vigente</li>
+<li>Gasto acumulado</li>
+<li>Disponible</li>
+<li>Eficiencia (%)</li>
+</ul>
+<p><strong>Modificaciones al presupuesto:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Partidas Afectadas</td><td>Cuales partidas se modifican</td></tr><tr><td>Monto</td><td>Cantidad del cambio</td></tr><tr><td>Tipo</td><td>Adicional (+) o Deductiva (-)</td></tr><tr><td>Especificaciones</td><td>Justificacion del cambio</td></tr><tr><td>Aprobado Por</td><td>Quien autorizo</td></tr><tr><td>Fecha de Aprobacion</td><td>Cuando se autorizo</td></tr><tr><td>Estatus</td><td>Aprobada, Ejecutada</td></tr></tbody></table></div>
+<p><strong>Graficas:</strong></p>
+<ul>
+<li>Comparativo presupuesto vs ejecutado por obra</li>
+<li>Top 5 categorias de gasto</li>
+</ul>
+<p><strong>Exportacion:</strong> Excel con detalle completo.</p>
+<p>---</p>
+<h3 id="4-4-programa">4.4 Programa</h3>
+<p><strong>Codigo interno:</strong> <code>w</code> | <strong>Icono:</strong> ri-bar-chart-horizontal-line</p>
+<p><strong>Proposito:</strong> Programacion de obra con diagrama de Gantt y seguimiento de actividades.</p>
+<p><strong>Campos del programa:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Nombre del Programa</td><td>Identificador</td></tr><tr><td>Obra</td><td>Proyecto asociado</td></tr><tr><td>Fecha Inicio</td><td>Inicio general</td></tr><tr><td>Fecha Fin Estimada</td><td>Fin planificado</td></tr></tbody></table></div>
+<p><strong>Campos de actividades:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Nombre</td><td>Nombre de la actividad</td></tr><tr><td>Descripcion</td><td>Detalle</td></tr><tr><td>Fecha Inicio</td><td>Inicio de la actividad</td></tr><tr><td>Fecha Fin</td><td>Fin de la actividad</td></tr><tr><td>Duracion (dias)</td><td>Calculada de las fechas</td></tr><tr><td>Peso (%)</td><td>Importancia relativa</td></tr><tr><td>Avance (%)</td><td>Progreso actual</td></tr><tr><td>Responsable</td><td>Encargado</td></tr><tr><td>Orden</td><td>Posicion en la lista</td></tr><tr><td>Predecesora</td><td>Actividad previa requerida</td></tr></tbody></table></div>
+<p><strong>Sincronizacion automatica:</strong> La funcion <code>autoSyncAllAvances()</code> calcula el avance de cada obra como promedio ponderado de sus actividades y actualiza el campo <code>avance_porcentaje</code> de la obra.</p>
+<p>---</p>
+<h3 id="4-5-gastos">4.5 Gastos</h3>
+<p><strong>Codigo interno:</strong> <code>g</code> | <strong>Icono:</strong> ri-wallet-3-line</p>
+<p><strong>Proposito:</strong> Registro y seguimiento de todos los gastos de la empresa.</p>
+<p><strong>Campos del formulario:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th><th>Notas</th></tr></thead><tbody><tr><td>Obra</td><td>Selector</td><td>No</td><td>NULL = gasto administrativo</td></tr><tr><td>Descripcion</td><td>Texto</td><td>Si</td><td>-</td></tr><tr><td>Categoria</td><td>Selector</td><td>Si</td><td>Categorias configurables</td></tr><tr><td>Monto Bruto</td><td>Numero</td><td>Si</td><td>Antes de deducciones</td></tr><tr><td>IVA</td><td>Numero</td><td>Auto</td><td>Segun zona fiscal</td></tr><tr><td>Monto Neto</td><td>Numero</td><td>Auto</td><td>Despues de IVA</td></tr><tr><td>Estatus Pago</td><td>Selector</td><td>Si</td><td>Pendiente, Pagado, Cancelado</td></tr><tr><td>Fecha Solicitud</td><td>Fecha</td><td>Si</td><td>-</td></tr><tr><td>Folio Fiscal</td><td>Texto</td><td>No</td><td>UUID del CFDI</td></tr><tr><td>OC Relacionada</td><td>Selector</td><td>No</td><td>Vincula con orden de compra</td></tr><tr><td>Retenciones</td><td>Checkbox</td><td>No</td><td>ISR, IMSS, IVA</td></tr></tbody></table></div>
+<p><strong>Calculos de IVA:</strong></p>
+<ul>
+<li>Normal: Monto Bruto x 0.16 = IVA (total = bruto + IVA)</li>
+<li>Frontera: Monto Bruto x 0.08 = IVA</li>
+<li>Exento: IVA = 0</li>
+</ul>
+<p><strong>Gastos administrativos (sin obra):</strong></p>
+<ul>
+<li>Se pueden distribuir entre multiples obras</li>
+<li>El sistema abre modal de distribucion</li>
+<li>Cada obra recibe su porcion en su presupuesto</li>
+</ul>
+<p><strong>Auto-actualizacion:</strong> Cada 3 segundos en conjunto con el dashboard.</p>
+<p>---</p>
+<h3 id="4-6-pagos">4.6 Pagos</h3>
+<p><strong>Codigo interno:</strong> <code>pc</code> | <strong>Icono:</strong> ri-bank-card-line</p>
+<p><strong>Proposito:</strong> Gestion de pagos realizados a proveedores y contratistas.</p>
+<p><strong>Informacion mostrada:</strong></p>
+<ul>
+<li>Lista de pagos realizados</li>
+<li>Monto y fecha de cada pago</li>
+<li>Proveedor y referencia bancaria</li>
+<li>Vinculacion con gasto u orden de compra</li>
+<li>Estatus del pago</li>
+</ul>
+<p><strong>Flujo de pago:</strong></p>
+<ol>
+<li>Se identifica el gasto pendiente de pago</li>
+<li>Se registra la transferencia o cheque</li>
+<li>Se actualiza el estatus del gasto a "Pagado"</li>
+<li>Se vincula la referencia de pago</li>
+</ol>
+<p>---</p>
+<h3 id="4-7-ordenes-de-compra">4.7 Ordenes de Compra</h3>
+<p><strong>Codigo interno:</strong> <code>x</code> | <strong>Icono:</strong> ri-exchange-line</p>
+<p><strong>Proposito:</strong> Crear, aprobar y dar seguimiento a ordenes de compra.</p>
+<p><strong>Campos del formulario:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th><th>Notas</th></tr></thead><tbody><tr><td>Codigo Orden</td><td>Texto</td><td>Auto</td><td>OC-001, OC-002...</td></tr><tr><td>Proveedor</td><td>Selector</td><td>Si</td><td>De lista de proveedores</td></tr><tr><td>Obra</td><td>Selector</td><td>Si</td><td>Proyecto destino</td></tr><tr><td>Fecha Orden</td><td>Fecha</td><td>Si</td><td>-</td></tr><tr><td>Monto Estimado</td><td>Numero</td><td>Si</td><td>Mayor que 0</td></tr><tr><td>Detalles</td><td>Textarea</td><td>No</td><td>Articulos y cantidades</td></tr><tr><td>Condiciones Pago</td><td>Texto</td><td>No</td><td>Terminos</td></tr><tr><td>Estatus</td><td>Selector</td><td>Auto</td><td>Pendiente, Aprobada, Cancelada</td></tr></tbody></table></div>
+<p><strong>Flujo de aprobacion:</strong></p>
+<ul>
+<li>Se crea como "Pendiente"</li>
+<li>Gerente aprueba hasta $200,000 MXN</li>
+<li>Admin aprueba cualquier monto</li>
+<li>Al aprobar, puede crear gasto automaticamente</li>
+</ul>
+<p><strong>Validacion:</strong> El monto del gasto vinculado no puede exceder el monto de la OC.</p>
+<p>---</p>
+<h3 id="4-8-cotizaciones">4.8 Cotizaciones</h3>
+<p><strong>Codigo interno:</strong> <code>ct</code> | <strong>Icono:</strong> ri-file-list-2-line</p>
+<p><strong>Proposito:</strong> Crear y gestionar cotizaciones de proveedores.</p>
+<p><strong>Campos del encabezado:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Obra</td><td>Selector</td><td>Si</td></tr><tr><td>Proveedor</td><td>Selector</td><td>Si</td></tr><tr><td>Numero Cotizacion</td><td>Texto</td><td>Si</td></tr><tr><td>Fecha Cotizacion</td><td>Fecha</td><td>Si</td></tr><tr><td>Fecha Vencimiento</td><td>Fecha</td><td>No</td></tr><tr><td>Notas</td><td>Textarea</td><td>No</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td></tr></tbody></table></div>
+<p><strong>Estatus disponibles:</strong> Borrador, Enviada, Aceptada, Rechazada</p>
+<p><strong>Partidas de cotizacion:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Descripcion</td><td>Articulo cotizado</td></tr><tr><td>Cantidad</td><td>Unidades</td></tr><tr><td>Unidad</td><td>pza, kg, m3, etc.</td></tr><tr><td>Precio Unitario</td><td>Costo por unidad</td></tr><tr><td>Monto</td><td>Cantidad x Precio Unitario</td></tr></tbody></table></div>
+<p><strong>Calculos automaticos:</strong></p>
+<ul>
+<li>Subtotal = Suma de montos de partidas</li>
+<li>IVA = Subtotal x Tasa IVA</li>
+<li>Total = Subtotal + IVA</li>
+</ul>
+<p>---</p>
+<h3 id="4-9-estimaciones">4.9 Estimaciones</h3>
+<p><strong>Codigo interno:</strong> <code>es</code> | <strong>Icono:</strong> ri-calculator-line</p>
+<p><strong>Proposito:</strong> Medicion de avance de obra para facturacion al cliente.</p>
+<p><strong>Campos del encabezado:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Obra</td><td>Selector</td><td>Si</td></tr><tr><td>Numero Estimacion</td><td>Numero</td><td>Si</td></tr><tr><td>Fecha Estimacion</td><td>Fecha</td><td>Si</td></tr><tr><td>Periodo Inicio</td><td>Fecha</td><td>Si</td></tr><tr><td>Periodo Fin</td><td>Fecha</td><td>Si</td></tr><tr><td>Monto del Periodo</td><td>Numero</td><td>Auto</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td></tr></tbody></table></div>
+<p><strong>Estatus:</strong> Borrador → Enviada → Aprobada</p>
+<p><strong>Partidas de estimacion:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Descripcion</td><td>Concepto de trabajo</td></tr><tr><td>Cantidad</td><td>Volumen ejecutado</td></tr><tr><td>Precio Unitario</td><td>Precio por unidad</td></tr><tr><td>Monto</td><td>Cantidad x Precio Unitario</td></tr><tr><td>% Completado</td><td>Avance de la partida</td></tr></tbody></table></div>
+<p><strong>Automatizacion al aprobar:</strong></p>
+<p>Se crea CxC con monto = monto_periodo, estatus = "Pendiente", vencimiento = fecha + 30 dias.</p>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

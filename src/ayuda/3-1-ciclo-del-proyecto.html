@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3.1 Ciclo del Proyecto · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>3.1 Ciclo del Proyecto</h1><p><strong>Flujo:</strong> Crear Obra → Definir Presupuesto → Crear Programa (Gantt) → Ejecutar → Cerrar</p>
+<h3 id="paso-1-crear-la-obra">Paso 1: Crear la Obra</h3>
+<p><strong>Modulo:</strong> Obras | <strong>Accion:</strong> + Nueva Obra</p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th><th>Validacion</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td><td>No vacio</td></tr><tr><td>Codigo</td><td>Texto</td><td>Auto</td><td>Generado por el sistema</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td><td>Activa, En Proceso, Pausada, Completada, Cancelada</td></tr><tr><td>Presupuesto Total</td><td>Numero</td><td>Si</td><td>Mayor que 0</td></tr><tr><td>Zona Fiscal</td><td>Selector</td><td>Si</td><td>Normal (16%), Frontera (8%), Exento (0%)</td></tr><tr><td>Fecha Inicio</td><td>Fecha</td><td>Si</td><td>-</td></tr><tr><td>Fecha Fin Estimada</td><td>Fecha</td><td>Si</td><td>Debe ser &gt;= Fecha Inicio</td></tr><tr><td>Responsable</td><td>Selector</td><td>No</td><td>Lista de empleados</td></tr><tr><td>Cliente</td><td>Texto</td><td>No</td><td>-</td></tr><tr><td>Ubicacion</td><td>Texto</td><td>No</td><td>-</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td><td>-</td></tr></tbody></table></div>
+<p><strong>Calculo automatico:</strong> El presupuesto total se registra con IVA incluido. El sistema usa la zona fiscal para calcular el IVA en todos los gastos y ordenes de esa obra.</p>
+<h3 id="paso-2-definir-el-presupuesto">Paso 2: Definir el Presupuesto</h3>
+<p><strong>Modulo:</strong> Presupuesto</p>
+<p>Despues de crear la obra, define las partidas presupuestales:</p>
+<ol>
+<li>Selecciona la obra en el filtro global</li>
+<li>Agrega partidas con: descripcion, unidad, cantidad, precio unitario</li>
+<li>El sistema calcula:</li>
+</ol>
+<ul>
+<li><strong>Monto por partida</strong> = Cantidad x Precio Unitario</li>
+<li><strong>Total presupuestado</strong> = Suma de todas las partidas</li>
+</ul>
+<p><strong>Modificaciones posteriores:</strong></p>
+<ul>
+<li><strong>Adicionales:</strong> Incrementan el presupuesto (ej: trabajos extras aprobados)</li>
+<li><strong>Deductivas:</strong> Reducen el presupuesto (ej: trabajos eliminados)</li>
+<li>Formula final: <strong>Presupuesto Vigente = Original + Adicionales - Deductivas</strong></li>
+<li>Solo se aplican modificaciones con estatus "Aprobada" o "Ejecutada"</li>
+</ul>
+<h3 id="paso-3-crear-el-programa-gantt">Paso 3: Crear el Programa (Gantt)</h3>
+<p><strong>Modulo:</strong> Programa</p>
+<ol>
+<li>Haz clic en <strong>"+ Nuevo Programa"</strong></li>
+<li>Completa:</li>
+</ol>
+<ul>
+<li><strong>Nombre del Programa:</strong> Ej: "Programa General de Obra"</li>
+<li><strong>Fecha Inicio y Fecha Fin Estimada</strong></li>
+</ul>
+<ol>
+<li>Agrega actividades:</li>
+</ol>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Nombre</td><td>Nombre de la actividad</td></tr><tr><td>Descripcion</td><td>Detalle del trabajo</td></tr><tr><td>Fecha Inicio</td><td>Cuando inicia</td></tr><tr><td>Fecha Fin</td><td>Cuando termina</td></tr><tr><td>Duracion (dias)</td><td>Calculada automaticamente de las fechas</td></tr><tr><td>Peso Porcentual</td><td>Importancia relativa (ej: 15%)</td></tr><tr><td>Avance (%)</td><td>Progreso actual de la actividad</td></tr><tr><td>Responsable</td><td>Persona encargada</td></tr><tr><td>Orden</td><td>Posicion en la lista</td></tr><tr><td>Predecesora</td><td>Actividad que debe completarse antes</td></tr></tbody></table></div>
+<p><strong>Calculo automatico de avance:</strong></p>
+<ul>
+<li>El sistema calcula el avance general de la obra como promedio ponderado:</li>
+<li><strong>Avance de Obra (%) = Suma(Peso x Avance) / Suma(Peso)</strong></li>
+<li>Este valor se sincroniza automaticamente con el campo <code>avance_porcentaje</code> de la obra</li>
+</ul>
+<h3 id="paso-4-ejecucion">Paso 4: Ejecucion</h3>
+<p>Durante la ejecucion del proyecto se utilizan multiples modulos:</p>
+<ul>
+<li><strong>Gastos:</strong> Registra cada gasto asociado a la obra</li>
+<li><strong>Ordenes de Compra:</strong> Solicita y aprueba compras de materiales</li>
+<li><strong>Bitacora:</strong> Documenta el avance diario</li>
+<li><strong>Materiales:</strong> Controla entradas y salidas de inventario</li>
+<li><strong>Subcontratos:</strong> Gestiona trabajos subcontratados</li>
+<li><strong>Estimaciones:</strong> Mide el avance para facturacion</li>
+<li><strong>RFIs y Punch List:</strong> Controla calidad</li>
+</ul>
+<h3 id="paso-5-cierre">Paso 5: Cierre</h3>
+<ol>
+<li>Verifica que todas las estimaciones esten aprobadas</li>
+<li>Confirma que todas las cuentas por cobrar esten cobradas</li>
+<li>Revisa que no haya items de Punch List abiertos</li>
+<li>Verifica que el presupuesto ejecutado este dentro del rango</li>
+<li>Cambia el estatus de la obra a <strong>"Completada"</strong></li>
+</ol>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Categoria: Operacion · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>Categoria: Operacion</h1><h3 id="4-17-subcontratos">4.17 Subcontratos</h3>
+<p><strong>Codigo interno:</strong> <code>s</code> | <strong>Icono:</strong> ri-team-line</p>
+<p><strong>Proposito:</strong> Gestion de trabajos subcontratados y seguimiento de avance.</p>
+<p><strong>Campos:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Codigo</td><td>Texto</td><td>Auto (SC-001)</td></tr><tr><td>Obra</td><td>Selector</td><td>Si</td></tr><tr><td>Nombre del Trabajo</td><td>Texto</td><td>Si</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Tipo de Trabajo</td><td>Selector</td><td>No</td></tr><tr><td>Fecha Inicio</td><td>Fecha</td><td>No</td></tr><tr><td>Fecha Fin Estimada</td><td>Fecha</td><td>No</td></tr><tr><td>Fecha Fin Real</td><td>Fecha</td><td>No</td></tr><tr><td>Monto Contrato</td><td>Numero</td><td>No</td></tr><tr><td>Monto Pagado</td><td>Numero</td><td>No</td></tr><tr><td>% Avance</td><td>Numero</td><td>No</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td></tr><tr><td>Responsable</td><td>Texto</td><td>No</td></tr><tr><td>Contacto Subcontratista</td><td>Texto</td><td>No</td></tr></tbody></table></div>
+<p><strong>Estatus:</strong> Pendiente, Activo, Completado, Suspendido, Cancelado</p>
+<p><strong>Filtros disponibles:</strong> Por estatus, tipo de trabajo, obra</p>
+<p>---</p>
+<h3 id="4-18-materiales">4.18 Materiales</h3>
+<p><strong>Codigo interno:</strong> <code>m</code> | <strong>Icono:</strong> ri-archive-line</p>
+<p><strong>Proposito:</strong> Control de inventario de materiales de construccion.</p>
+<p><strong>Campos:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Codigo</td><td>Texto</td><td>No</td></tr><tr><td>Nombre</td><td>Texto</td><td>Si</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>No</td></tr><tr><td>Unidad</td><td>Selector</td><td>No (pza, kg, m3, m2, lt)</td></tr><tr><td>Stock Actual</td><td>Numero</td><td>No</td></tr><tr><td>Stock Minimo</td><td>Numero</td><td>No</td></tr><tr><td>Precio Unitario</td><td>Numero</td><td>No</td></tr><tr><td>Proveedor</td><td>Selector</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Estatus</td><td>Auto</td><td>Disponible, Bajo Stock, Agotado, Descontinuado</td></tr></tbody></table></div>
+<p><strong>Indicadores de stock:</strong></p>
+<ul>
+<li>Verde: stock &gt; minimo</li>
+<li>Ambar: stock &lt;= minimo</li>
+<li>Rojo: stock = 0</li>
+</ul>
+<p><strong>Movimientos de inventario:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Tipo</td><td>Entrada, Salida, Ajuste</td></tr><tr><td>Cantidad</td><td>Unidades movidas</td></tr><tr><td>Fecha</td><td>Cuando se registro</td></tr><tr><td>Referencia</td><td>Documento de soporte</td></tr><tr><td>Notas</td><td>Observaciones</td></tr></tbody></table></div>
+<p><strong>Calculo:</strong> Valor del inventario = Suma(Stock x Precio Unitario) por cada material</p>
+<p>---</p>
+<h3 id="4-19-bitacora">4.19 Bitacora</h3>
+<p><strong>Codigo interno:</strong> <code>b</code> | <strong>Icono:</strong> ri-book-2-line</p>
+<p><strong>Proposito:</strong> Registro diario de actividades, personal y condiciones en obra.</p>
+<p><strong>Campos:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Obra</td><td>Selector</td><td>Si</td></tr><tr><td>Fecha</td><td>Fecha</td><td>Si</td></tr><tr><td>Trabajadores Propios</td><td>Numero</td><td>No</td></tr><tr><td>Trabajadores Subcontrato</td><td>Numero</td><td>No</td></tr><tr><td>Tiempo Promedio (hrs)</td><td>Numero</td><td>No</td></tr><tr><td>Clima</td><td>Selector</td><td>No</td></tr><tr><td>Actividades</td><td>Textarea</td><td>No</td></tr><tr><td>Materiales Utilizados</td><td>Textarea</td><td>No</td></tr><tr><td>Maquinaria</td><td>Textarea</td><td>No</td></tr><tr><td>Incidentes</td><td>Textarea</td><td>No (borde rojo)</td></tr><tr><td>Observaciones</td><td>Textarea</td><td>No</td></tr></tbody></table></div>
+<p><strong>Opciones de clima:</strong> Soleado, Nublado, Lluvia, Niebla</p>
+<p><strong>KPIs:</strong> Total trabajadores, conteo de incidentes, promedios semanales</p>
+<p>---</p>
+<h3 id="4-20-calendario">4.20 Calendario</h3>
+<p><strong>Codigo interno:</strong> <code>c</code> | <strong>Icono:</strong> ri-calendar-line</p>
+<p><strong>Proposito:</strong> Programacion de eventos, juntas, inspecciones y entregas.</p>
+<p><strong>Campos:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Tipo</td><td>Selector</td><td>Si</td></tr><tr><td>Titulo</td><td>Texto</td><td>Si</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Fecha Inicio</td><td>Fecha/Hora</td><td>Si</td></tr><tr><td>Fecha Fin</td><td>Fecha/Hora</td><td>No</td></tr><tr><td>Ubicacion</td><td>Texto</td><td>No</td></tr><tr><td>Responsable</td><td>Texto</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Estatus</td><td>Selector</td><td>Si</td></tr><tr><td>Notas</td><td>Textarea</td><td>No</td></tr></tbody></table></div>
+<p><strong>Tipos de evento:</strong> Junta, Inspeccion, Entrega, Mantenimiento, Otro</p>
+<p><strong>Estatus:</strong> Programado, Cancelado, Completado</p>
+<p><strong>Vista:</strong> Calendario mensual/semanal con codificacion de colores por tipo de evento.</p>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>

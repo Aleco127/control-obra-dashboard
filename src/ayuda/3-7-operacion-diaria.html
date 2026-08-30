@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang="es-MX"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>3.7 Operacion Diaria · Ayuda · Control de Obra</title><meta name="robots" content="noindex"><style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--accent:#0369a1;--primary:#1e3a5f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 18px 64px}header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+.brand{font-weight:700;color:var(--primary)}.brand small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+a{color:var(--accent)}h1{font-size:26px;line-height:1.2;margin:0 0 12px}h2{font-size:22px;margin:28px 0 8px}h3{font-size:18px;margin:22px 0 6px}h4{font-size:16px;margin:18px 0 6px}
+p,li{max-width:72ch}code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:.92em}pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 14px}th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}th{background:var(--bg)}
+figure{margin:14px 0}figure img{max-width:100%;border:1px solid var(--line);border-radius:8px}
+input.buscar{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:16px;margin:8px 0 16px}
+.lista a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;text-decoration:none;color:var(--ink);background:var(--surface)}.lista a:hover{border-color:var(--accent)}.lista small{display:block;color:var(--muted);font-size:13px}
+.btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:9px 14px;border-radius:8px;font-size:14px}
+footer{margin-top:40px;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap">
+<header><div class="brand">Centro de ayuda<small>Control de Obra · Supernova Arquitectos</small></div><div><a class="btn" href="https://wa.me/526143443936?text=Hola,%20necesito%20ayuda%20con%20Control%20de%20Obra">WhatsApp de soporte</a></div></header>
+<nav class="mini"><a href="index.html">Todos los temas</a></nav><h1>3.7 Operacion Diaria</h1><p><strong>Flujo diario recomendado:</strong> Bitacora → Control de Materiales → Seguimiento de Subcontratos</p>
+<h3 id="bitacora-diaria">Bitacora Diaria</h3>
+<p>Cada dia de trabajo se debe registrar una entrada de bitacora con:</p>
+<ol>
+<li><strong>Obra y fecha</strong> del registro</li>
+<li><strong>Personal:</strong></li>
+</ol>
+<ul>
+<li>Numero de trabajadores propios</li>
+<li>Numero de trabajadores de subcontrato</li>
+<li>Horas promedio trabajadas</li>
+</ul>
+<ol>
+<li><strong>Condiciones:</strong></li>
+</ol>
+<ul>
+<li>Clima: Soleado, Nublado, Lluvia, Niebla</li>
+</ul>
+<ol>
+<li><strong>Trabajo realizado:</strong></li>
+</ol>
+<ul>
+<li>Actividades ejecutadas (texto libre)</li>
+<li>Materiales utilizados</li>
+<li>Maquinaria empleada</li>
+</ul>
+<ol>
+<li><strong>Incidentes:</strong> Cualquier evento de seguridad (campo con borde rojo para llamar atencion)</li>
+<li><strong>Observaciones:</strong> Notas adicionales</li>
+</ol>
+<p><strong>KPIs de bitacora:</strong></p>
+<ul>
+<li>Total de trabajadores por fecha</li>
+<li>Conteo de incidentes</li>
+<li>Promedios diarios por semana</li>
+</ul>
+<h3 id="control-de-materiales">Control de Materiales</h3>
+<p><strong>Modulo:</strong> Materiales</p>
+<p><strong>Registro de materiales:</strong></p>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Codigo</td><td>Clave del material</td></tr><tr><td>Nombre</td><td>Nombre descriptivo (requerido)</td></tr><tr><td>Descripcion</td><td>Detalle adicional</td></tr><tr><td>Categoria</td><td>Tipo de material</td></tr><tr><td>Unidad</td><td>Medida: pza, kg, m3, m2, lt, etc.</td></tr><tr><td>Stock Actual</td><td>Cantidad disponible</td></tr><tr><td>Stock Minimo</td><td>Nivel de alerta</td></tr><tr><td>Precio Unitario</td><td>Costo por unidad</td></tr><tr><td>Proveedor</td><td>Proveedor preferido</td></tr><tr><td>Obra</td><td>Obra asociada (opcional)</td></tr></tbody></table></div>
+<p><strong>Indicadores de stock:</strong></p>
+<ul>
+<li><strong>Verde:</strong> Stock por encima del minimo</li>
+<li><strong>Ambar:</strong> Stock igual o menor al minimo ("Bajo Stock")</li>
+<li><strong>Rojo:</strong> Stock en cero ("Agotado")</li>
+</ul>
+<p><strong>Movimientos de inventario:</strong></p>
+<ul>
+<li><strong>Entrada:</strong> Material recibido (compra, transferencia)</li>
+<li><strong>Salida:</strong> Material utilizado en obra</li>
+<li><strong>Ajuste:</strong> Correccion de inventario</li>
+</ul>
+<p>Cada movimiento registra: tipo, cantidad, fecha, referencia y notas.</p>
+<p><strong>Calculo de valor de inventario:</strong></p>
+<ul>
+<li>Valor = Stock Actual x Precio Unitario (por cada material)</li>
+<li>Total = Suma de todos los valores</li>
+</ul>
+<h3 id="seguimiento-de-subcontratos">Seguimiento de Subcontratos</h3>
+<p><strong>Modulo:</strong> Subcontratos</p>
+<p><strong>Estatus del subcontrato:</strong></p>
+<ol>
+<li><strong>Pendiente</strong> - Contrato en negociacion</li>
+<li><strong>Activo</strong> - Trabajo en ejecucion</li>
+<li><strong>Completado</strong> - Trabajo terminado</li>
+<li><strong>Suspendido</strong> - Trabajo detenido temporalmente</li>
+<li><strong>Cancelado</strong> - Contrato cancelado</li>
+</ol>
+<p><strong>Seguimiento:</strong></p>
+<ul>
+<li>Actualiza el <strong>% de avance</strong> regularmente</li>
+<li>Registra el <strong>monto pagado</strong> vs <strong>monto del contrato</strong></li>
+<li>Usa las <strong>fechas reales</strong> vs <strong>estimadas</strong> para medir desempeño</li>
+</ul>
+<p>---</p>
+<footer>Soporte: <a href="mailto:soporte@supernovarquitectos.com">soporte@supernovarquitectos.com</a> · WhatsApp +52 614 344 3936 (lunes a viernes, 9 a 18 h) · <a href="../index.html">Volver a la app</a></footer></div></body></html>
