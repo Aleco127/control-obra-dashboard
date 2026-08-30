@@ -28,6 +28,8 @@ test('la empresa A ve sus datos y la empresa B (nueva) ve cero filas en cada tab
     assert.equal(a.status, 200, `${t} A status ${a.status} ${JSON.stringify(a.body)}`);
     assert.equal(b.status, 200, `${t} B status ${b.status} ${JSON.stringify(b.body)}`);
     if (t === 'empresas') { assert.ok(b.body.length === 1 && b.body[0].id !== 1, 'B sólo ve su propia empresa'); continue; }
+    // ui_events: B genera su propia telemetría al usarse en pruebas; se verifica que no vea la de otra empresa
+    if (t === 'ui_events') { const be = await rest('ui_events?select=empresa_id&limit=50', B); assert.ok(be.body.every((r) => r.empresa_id !== 1), 'B no debe ver telemetría de A'); continue; }
     if (t === 'obra_usuarios') { const bu = await rest('obra_usuarios?select=empresa_id', B); assert.ok(bu.body.length >= 1 && bu.body.every((r) => r.empresa_id !== 1), 'B sólo ve usuarios de su empresa'); continue; }
     assert.ok(Array.isArray(b.body) && b.body.length === 0, `${t}: B no debe ver filas, vio ${JSON.stringify(b.body).slice(0, 120)}`);
   }
@@ -64,5 +66,14 @@ test('la vista v_uso_modulos_30d sólo agrega la empresa propia', async () => {
   assert.equal(a.status, 200);
   assert.ok(a.body.every((r) => r.empresa_id === 1), 'sólo empresa 1');
   const b = await rest('v_uso_modulos_30d?select=empresa_id', B);
-  assert.equal(b.body.length, 0);
+  assert.ok(b.body.every((r) => r.empresa_id !== 1), 'B no debe ver el uso de A');
+});
+
+test('las vistas de métricas del MVP no son legibles con sesión de empresa', async () => {
+  for (const v of ['v_activacion', 'v_retencion_semanal', 'v_conversion', 'v_churn_mensual']) {
+    const r = await rest(`${v}?select=*&limit=1`, A);
+    assert.ok(r.status >= 400 || (Array.isArray(r.body) && r.body.length === 0), `${v}: ${r.status} ${JSON.stringify(r.body).slice(0, 80)}`);
+  }
+  const le = await rest('landing_eventos?select=*&limit=1', A);
+  assert.ok(le.status >= 400 || (Array.isArray(le.body) && le.body.length === 0), `landing_eventos: ${le.status}`);
 });
