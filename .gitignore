@@ -31,3 +31,7 @@ temp/
 
 # Temporales del asistente
 tmpclaude-*
+
+# Capacitor (US-244): la plataforma nativa se genera con npx cap add android
+mobile/android/
+mobile/node_modules/

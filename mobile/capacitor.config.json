@@ -1,0 +1,24 @@
+{
+  "appId": "mx.supernovarquitectos.controlobra",
+  "appName": "Control de Obra",
+  "webDir": "www",
+  "server": {
+    "url": "https://app.supernovarquitectos.com",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0d1a26",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": { "style": "DARK", "backgroundColor": "#0d1a26" }
+  }
+}

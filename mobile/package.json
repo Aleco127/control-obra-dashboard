@@ -1,0 +1,22 @@
+{
+  "name": "control-obra-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Envoltorio Capacitor de Control de Obra (US-244): carga https://app.supernovarquitectos.com con cámara nativa.",
+  "scripts": {
+    "sync": "cap sync android",
+    "abrir": "cap open android",
+    "apk": "cd android && gradlew.bat assembleRelease",
+    "aab": "cd android && gradlew.bat bundleRelease"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/camera": "^6.1.2",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2"
+  }
+}

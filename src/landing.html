@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de Obra · Supernova Arquitectos</title>
+<meta name="description" content="Software de control de obra para constructoras y despachos: gastos con foto del ticket, cuánto ganas en cada obra y cuánto le toca a cada socio. Prueba 30 días.">
+<link rel="canonical" href="https://app.supernovarquitectos.com/">
+<meta property="og:title" content="Control de Obra · sabe cuánto ganaste en cada obra">
+<meta property="og:description" content="Gastos desde la obra con foto del ticket, avance, cobros y reparto entre socios. Hecho por arquitectos que construyen.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://app.supernovarquitectos.com/">
+<link rel="icon" href="img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#0f1b26; --ink-2:#33475b; --ink-3:#5d7085; --line:#dbe3ea; --line-2:#eef2f6;
+  --paper:#ffffff; --surface:#f5f8fa; --deep:#0d1a26; --deep-2:#152838;
+  --brand:#0e6a72; --brand-2:#0b545b; --amber:#b8560f; --ok:#0f6b47;
+  --radius:14px; --maxw:1120px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Archivo,Inter,sans-serif;line-height:1.1;letter-spacing:-0.02em;text-wrap:balance;margin:0}
+p{margin:0;text-wrap:pretty}
+a{color:var(--brand-2)}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:16px;padding:14px 22px;border-radius:10px;text-decoration:none;border:1px solid transparent;cursor:pointer;transition:transform .12s ease,background .12s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn-p{background:var(--brand);color:#fff}
+.btn-p:hover{background:var(--brand-2)}
+.btn-g{background:#fff;color:var(--ink);border-color:var(--line)}
+.btn-ghost{background:transparent;color:#e8f1f3;border-color:rgba(255,255,255,.32)}
+:focus-visible{outline:3px solid #35b5c0;outline-offset:2px}
+/* Encabezado */
+header.top{position:sticky;top:0;z-index:20;background:rgba(13,26,38,.95);color:#fff}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:12px;padding-bottom:12px}
+.logo{display:flex;align-items:center;gap:10px;font-family:Archivo;font-weight:700;font-size:18px;color:#fff;text-decoration:none}
+.logo span.mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#0e6a72,#12909b);display:grid;place-items:center;font-size:15px}
+header.top nav{display:none;gap:22px}
+header.top nav a{color:#c8d7e2;text-decoration:none;font-size:15px}
+header.top nav a:hover{color:#fff}
+@media(min-width:860px){header.top nav{display:flex}}
+/* Hero */
+.hero{background:
+  radial-gradient(1100px 420px at 82% -10%, rgba(18,144,155,.30), transparent 60%),
+  linear-gradient(180deg,var(--deep) 0%,var(--deep-2) 100%);
+  color:#eaf2f5;padding:64px 0 72px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:56px 56px;mask-image:linear-gradient(180deg,rgba(0,0,0,.9),transparent 78%);pointer-events:none}
+.hero .wrap{position:relative;z-index:1}
+.hero h1{font-size:clamp(34px,6vw,60px);font-weight:800;max-width:16ch}
+.hero p.lead{font-size:clamp(17px,2.2vw,21px);color:#c3d5de;max-width:58ch;margin-top:18px}
+.hero .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.hero .nota{margin-top:14px;font-size:14px;color:#9db4c1}
+.tira{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 26px;margin-top:40px;max-width:760px}
+@media(min-width:760px){.tira{grid-template-columns:repeat(4,1fr)}}
+.tira div b{display:block;font-family:Archivo;font-size:26px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.tira div span{font-size:13px;color:#9db4c1}
+/* Secciones */
+section{padding:64px 0}
+section.alt{background:var(--surface)}
+.eyebrow{font-size:14px;font-weight:600;color:var(--brand)}
+h2{font-size:clamp(26px,3.6vw,38px);font-weight:700;margin-top:8px;max-width:22ch}
+.sub{color:var(--ink-2);margin-top:12px;max-width:62ch}
+.dolores{display:grid;gap:18px;margin-top:34px}
+@media(min-width:820px){.dolores{grid-template-columns:repeat(3,1fr);gap:24px}}
+.dolor{border-top:2px solid var(--brand);padding-top:16px}
+.dolor h3{font-size:19px;font-weight:700}
+.dolor p{color:var(--ink-2);font-size:16px;margin-top:8px}
+/* Capturas */
+.paso{display:grid;gap:22px;align-items:center;margin-top:44px}
+@media(min-width:900px){.paso{grid-template-columns:1fr 1.25fr;gap:44px}.paso.rev>div:first-child{order:2}}
+.paso h3{font-size:22px;font-weight:700}
+.paso p{color:var(--ink-2);margin-top:10px}
+.paso ul{margin:14px 0 0;padding-left:18px;color:var(--ink-2)}
+.paso li{margin-bottom:6px}
+.shot{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff;box-shadow:0 18px 40px -28px rgba(15,27,38,.55)}
+.shot img{width:100%}
+/* Planes */
+.planes{display:grid;gap:18px;margin-top:34px}
+@media(min-width:880px){.planes{grid-template-columns:repeat(3,1fr);gap:22px}}
+.plan{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column}
+.plan.destacado{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+.plan h3{font-size:19px;font-weight:700}
+.plan .precio{font-family:Archivo;font-size:38px;font-weight:700;margin-top:10px;font-variant-numeric:tabular-nums}
+.plan .precio small{font-size:14px;font-weight:500;color:var(--ink-3);font-family:Inter}
+.plan .para{color:var(--ink-3);font-size:15px;margin-top:4px}
+.plan ul{list-style:none;margin:18px 0 22px;padding:0;font-size:15px;color:var(--ink-2)}
+.plan li{padding:7px 0 7px 26px;position:relative;border-bottom:1px solid var(--line-2)}
+.plan li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:700}
+.plan .btn{justify-content:center;margin-top:auto}
+.etq{display:inline-block;font-size:12px;font-weight:600;color:#fff;background:var(--brand);border-radius:999px;padding:3px 10px;margin-bottom:10px}
+/* Uso propio */
+.uso{background:var(--deep);color:#e5eef2;border-radius:var(--radius);padding:34px}
+.uso h2{color:#fff}
+.uso p{color:#bdd0da;margin-top:14px;max-width:64ch}
+.uso .firma{margin-top:18px;font-size:15px;color:#8fa9b8}
+/* Preguntas */
+details{border-bottom:1px solid var(--line);padding:16px 0}
+details summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:14px;align-items:center}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"+";font-family:Archivo;font-size:22px;color:var(--brand);line-height:1}
+details[open] summary::after{content:"–"}
+details p{color:var(--ink-2);margin-top:10px;max-width:70ch}
+/* Cierre */
+.cierre{background:linear-gradient(135deg,var(--brand-2),#0e6a72);color:#fff;text-align:center;padding:66px 0}
+.cierre h2{color:#fff;margin:0 auto;max-width:20ch}
+.cierre p{color:#cbe8ea;margin:14px auto 26px;max-width:56ch}
+footer{background:var(--deep);color:#9db4c1;font-size:14px;padding:38px 0}
+footer a{color:#c8d7e2}
+footer .cols{display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-between;align-items:center}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#inicio"><span class="mark">🏗️</span> Control de Obra</a>
+    <nav aria-label="Secciones">
+      <a href="#como">Cómo funciona</a>
+      <a href="#planes">Precios</a>
+      <a href="#preguntas">Preguntas</a>
+    </nav>
+    <a class="btn btn-p" style="padding:10px 16px;font-size:15px" href="/?app=1#registro" data-cta="encabezado">Probar 30 días gratis</a>
+  </div>
+</header>
+
+<main id="inicio">
+<section class="hero">
+  <div class="wrap">
+    <h1>Sabe cuánto ganaste en cada obra y cuánto le toca a cada socio</h1>
+    <p class="lead">Tu residente captura el gasto con la foto del ticket desde la obra, tú ves el margen real de cada proyecto y el reparto entre socios sale solo. Sin hojas de cálculo que nadie actualiza.</p>
+    <div class="cta">
+      <a class="btn btn-p" href="/?app=1#registro" data-cta="hero">Probar 30 días gratis</a>
+      <a class="btn btn-ghost" href="#como" data-cta="ver_como">Ver cómo funciona</a>
+    </div>
+    <p class="nota">Sin tarjeta para empezar. Se usa desde el teléfono, aunque en la obra no haya señal.</p>
+    <div class="tira">
+      <div><b>5 min</b><span>de la foto del ticket al gasto registrado</span></div>
+      <div><b>Por obra</b><span>margen, avance y saldo por cobrar</span></div>
+      <div><b>Por socio</b><span>utilidad, aportaciones y retiros</span></div>
+      <div><b>Sin señal</b><span>se captura y se envía al volver la red</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="problema">
+  <div class="wrap">
+    <p class="eyebrow">Para constructoras y despachos de 2 a 15 obras al año</p>
+    <h2>El dinero de la obra se pierde entre WhatsApp, tickets y Excel</h2>
+    <div class="dolores">
+      <div class="dolor">
+        <h3>Los gastos llegan tarde</h3>
+        <p>El residente manda fotos por WhatsApp, alguien las captura días después y para entonces ya compraste de más.</p>
+      </div>
+      <div class="dolor">
+        <h3>No sabes si vas ganando</h3>
+        <p>El presupuesto está en un archivo, los gastos en otro y los cobros en el banco. La utilidad real aparece cuando ya terminó la obra.</p>
+      </div>
+      <div class="dolor">
+        <h3>El reparto entre socios se discute</h3>
+        <p>Quién puso qué, quién sacó cuánto y qué gasto era personal. Sin un registro común, cada quien tiene su versión.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="como">
+  <div class="wrap">
+    <p class="eyebrow">Cómo funciona</p>
+    <h2>Tres pantallas que usas todos los días</h2>
+    <p class="sub">Capturas reales de la aplicación, con los datos de una obra de ejemplo.</p>
+
+    <div class="paso">
+      <div>
+        <h3>1 · Captura el gasto en la obra, con la foto del ticket</h3>
+        <p>El residente registra la compra desde el teléfono en menos de un minuto. Tú apruebas desde donde estés.</p>
+        <ul>
+          <li>Categoría, obra y proveedor con dos toques</li>
+          <li>Foto del ticket o XML de la factura para el contador</li>
+          <li>Si no hay señal, se guarda y se envía al volver la red</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="img/landing-compras.png" width="1280" height="800" alt="Pantalla de compras y gastos con el listado por obra, categoría y estado de pago" loading="lazy"></div>
+    </div>
+
+    <div class="paso rev">
+      <div>
+        <h3>2 · Mira el resultado real de cada obra</h3>
+        <p>Contrato, avance, lo cobrado, el costo directo y el margen. Con la causa cuando la obra se sale de presupuesto.</p>
+        <ul>
+          <li>Margen proyectado y devengado, con semáforo</li>
+          <li>Cuánto falta por cobrar y qué está vencido</li>
+          <li>Programa, bitácora y fotos en la misma ficha</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="img/landing-resultado.png" width="1280" height="800" alt="Ficha de la obra con avance, contrato, costo directo y margen" loading="lazy"></div>
+    </div>
+
+    <div class="paso">
+      <div>
+        <h3>3 · Reparte la utilidad entre socios sin discutir</h3>
+        <p>Cada aportación, retiro y gasto personal queda registrado. La app calcula qué le toca a cada quien y qué falta pagarle.</p>
+        <ul>
+          <li>Porcentaje de participación por socio</li>
+          <li>Reservas para impuestos y capital de trabajo</li>
+          <li>Cierre mensual con el paquete para tu contador</li>
+        </ul>
+      </div>
+      <div class="shot"><img src="img/landing-reparto.png" width="1280" height="800" alt="Pantalla de socios con aportaciones, retiros y reparto de utilidad" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="planes">
+  <div class="wrap">
+    <p class="eyebrow">Precios</p>
+    <h2>Cuesta menos que un error de compra</h2>
+    <p class="sub">Precios en pesos, más IVA. Empiezas con 30 días del plan Constructora sin tarjeta; al terminar eliges plan o te quedas en el gratuito, y tus datos siguen ahí.</p>
+    <div class="planes">
+      <div class="plan">
+        <h3>Gratis</h3>
+        <p class="precio">$0<small> / mes</small></p>
+        <p class="para">Para probar con una obra</p>
+        <ul>
+          <li>1 obra activa y 2 usuarios</li>
+          <li>Gastos con foto y bitácora</li>
+          <li>Avance y plan de pagos</li>
+        </ul>
+        <a class="btn btn-g" href="/?app=1#registro" data-cta="plan_gratis">Crear cuenta</a>
+      </div>
+      <div class="plan destacado">
+        <span class="etq">El más elegido</span>
+        <h3>Constructora</h3>
+        <p class="precio">$1,299<small> / mes</small></p>
+        <p class="para">Para constructoras con varias obras y socios</p>
+        <ul>
+          <li>Obras y usuarios sin límite</li>
+          <li>Finanzas, socios y cierre mensual</li>
+          <li>Estimaciones, subcontratos y nómina</li>
+          <li>Portal del cliente y respaldo completo</li>
+        </ul>
+        <a class="btn btn-p" href="/?app=1#registro" data-cta="plan_constructora">Probar 30 días gratis</a>
+      </div>
+      <div class="plan">
+        <h3>Estudio</h3>
+        <p class="precio">$599<small> / mes</small></p>
+        <p class="para">Para despachos con obra propia</p>
+        <ul>
+          <li>Hasta 5 obras activas y 5 usuarios</li>
+          <li>Compras, cobros y resultado por obra</li>
+          <li>Catálogo, presupuesto y programa</li>
+        </ul>
+        <a class="btn btn-g" href="/?app=1#registro" data-cta="plan_estudio">Empezar</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quien">
+  <div class="wrap">
+    <div class="uso">
+      <h2>Lo construimos para nuestras propias obras</h2>
+      <p>En Supernova Arquitectos llevamos aquí el control de nuestros proyectos: las compras del día, los cobros al cliente, el cierre que se le manda al contador y el reparto entre socios. Cada función existe porque nos hacía falta en una obra, no porque se viera bien en una demostración.</p>
+      <p class="firma">Ricardo Corral · Supernova Arquitectos · Chihuahua</p>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="preguntas">
+  <div class="wrap">
+    <p class="eyebrow">Preguntas</p>
+    <h2>Lo que nos preguntan antes de empezar</h2>
+    <div style="margin-top:24px">
+      <details><summary>¿Tengo que capturar todo mi presupuesto a mano?</summary><p>No. Importas el Excel que exportas de OPUS o Neodata y la aplicación reconoce las columnas y las partidas. Revisas la vista previa y confirmas.</p></details>
+      <details><summary>¿Funciona en la obra donde no hay señal?</summary><p>Sí. Bitácora, fotos y gastos se guardan en el teléfono y se envían solos cuando vuelve la red. Mientras tanto ves cuántos registros están pendientes.</p></details>
+      <details><summary>¿Mi contador puede usar la información?</summary><p>Sí. Cada mes descargas el paquete con gastos, cobros, pagos, nómina y los XML, más las pólizas listas para CONTPAQi y Aspel COI con las cuentas de tu catálogo.</p></details>
+      <details><summary>¿El cliente puede ver el avance de su obra?</summary><p>Sí. Le compartes un enlace privado con avance, fotos, estimaciones, plan de pagos y cómo pagarte. No ve tus costos, tus gastos ni el reparto entre socios.</p></details>
+      <details><summary>¿Qué pasa con mis datos si dejo de pagar?</summary><p>La cuenta pasa a modo lectura y puedes descargar todo en Excel y comprobantes cuando quieras. Si pides la baja, avisamos antes de borrar y hay 30 días para arrepentirse.</p></details>
+      <details><summary>¿Cuánto tardo en tener mi primera obra cargada?</summary><p>Alrededor de media hora con el asistente: datos de la obra, catálogo, programa y plan de pagos. Puedes empezar con una obra de ejemplo para ver cómo se ve todo antes.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="cierre">
+  <div class="wrap">
+    <h2>Empieza con la obra que traes hoy</h2>
+    <p>Registras tu empresa, cargas una obra y en la misma tarde ves en qué se te está yendo el dinero.</p>
+    <a class="btn btn-g" href="/?app=1#registro" data-cta="cierre">Probar 30 días gratis</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap cols">
+    <div>Control de Obra · Supernova Arquitectos SA de CV · Chihuahua, Chih.</div>
+    <div><a href="privacidad.html">Aviso de privacidad</a> · <a href="terminos.html">Términos</a> · <a href="/?app=1">Entrar a mi cuenta</a></div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var SB='https://cpjdlaiarmxojiyhhpxt.supabase.co', ANON='sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
+  var vid;
+  try{ vid=localStorage.getItem('obra_lv'); if(!vid){ vid=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)).slice(0,32); localStorage.setItem('obra_lv',vid); } }catch(e){ vid=''; }
+  function track(evento,seccion){
+    try{
+      fetch(SB+'/rest/v1/rpc/landing_evento',{method:'POST',keepalive:true,headers:{apikey:ANON,Authorization:'Bearer '+ANON,'Content-Type':'application/json'},
+        body:JSON.stringify({p_evento:evento,p_seccion:seccion||null,p_ref:document.referrer.slice(0,120)||null,p_viewport:window.innerWidth,p_visitante:vid})}).catch(function(){});
+    }catch(e){}
+  }
+  track('vista','');
+  document.querySelectorAll('[data-cta]').forEach(function(a){
+    a.addEventListener('click',function(){ track(a.getAttribute('href').indexOf('registro')>=0?'clic_prueba':'clic_nav', a.dataset.cta); });
+  });
+  if('IntersectionObserver' in window){
+    var vistos={};
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting && !vistos[e.target.id]){ vistos[e.target.id]=1; track('seccion',e.target.id); } }); },{threshold:.4});
+    ['como','planes','preguntas'].forEach(function(id){ var el=document.getElementById(id); if(el) io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>

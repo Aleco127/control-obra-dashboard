@@ -1729,6 +1729,11 @@ async function renderAnalytics() {
     // Fetch analytics data
     const { data: stats } = await sb.rpc('get_platform_analytics');
     const analytics = stats || {};
+    const { data: mvp } = await sb.rpc('platform_metricas_mvp');
+    const { data: land } = await sb.rpc('platform_landing_stats', { p_dias: 30 });
+    const MVP = [['activacion', 'Activación'], ['primer_valor', 'Primer valor'], ['conversion', 'Conversión'], ['retencion_s4', 'Retención S4'], ['churn', 'Cancelación mensual'], ['sus', 'SUS'], ['tickets', 'Errores UI / semana'], ['mrr', 'MRR']];
+    const landHtml = land ? `<div class="card mb-6"><div class="card-header">Landing (30 días)</div><div class="grid grid-cols-2 md:grid-cols-4 gap-3">${[['visitantes','Visitantes'],['visitas','Vistas'],['clics_prueba','Clics en probar'],['conversion_landing','Conversión a registro']].map(([k,l])=>`<div class="p-3 rounded-lg bg-slate-800/60"><div class="text-xs text-slate-400">${l}</div><div class="text-xl font-bold text-blue-300">${land[k] ?? 0}${k === 'conversion_landing' ? ' %' : ''}</div></div>`).join('')}</div></div>` : '';
+    const mvpHtml = mvp ? `<div class="card mb-6"><div class="card-header">Métricas del MVP (metas del análisis de mercado 2026)</div><div class="grid grid-cols-2 md:grid-cols-4 gap-3">${MVP.map(([k, label]) => { const m = mvp[k] || {}; const v = m.valor; const ok = v == null ? null : (m.menor_mejor ? v <= m.meta : v >= m.meta); const color = v == null ? 'text-slate-500' : ok ? 'text-green-400' : 'text-amber-400'; const txt = v == null ? 'sin datos' : (m.unidad === 'MXN' ? fmt(v) : v + ' ' + m.unidad); return `<div class="p-3 rounded-lg bg-slate-800/60"><div class="text-xs text-slate-400">${label}</div><div class="text-xl font-bold ${color}">${txt}</div><div class="text-xs text-slate-500">meta ${m.menor_mejor ? '≤' : '≥'} ${m.unidad === 'MXN' ? fmt(m.meta) : m.meta + ' ' + m.unidad}</div><div class="text-xs text-slate-500 mt-1">${esc(m.detalle || '')}</div></div>`; }).join('')}</div></div>` : '';
 
     // Calculate growth
     const empresasActivas = platformData.empresas.filter(e => e.activo).length;
@@ -1750,6 +1755,8 @@ async function renderAnalytics() {
     });
 
     $('content').innerHTML = `
+      ${mvpHtml}
+      ${landHtml}
       <!-- KPIs -->
       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
         <div class="card stat-card">

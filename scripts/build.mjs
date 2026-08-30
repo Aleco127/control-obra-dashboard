@@ -118,13 +118,13 @@ adminHtml = adminHtml.replace(/<script>\s*tailwind\.config\s*=\s*\{[\s\S]*?\}\s*
 writeFileSync(join(DIST, 'admin.html'), adminHtml);
 
 // 5) Copias tal cual
-for (const f of ['manifest.json', 'privacidad.html', 'terminos.html', 'portal.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
+for (const f of ['manifest.json', 'privacidad.html', 'terminos.html', 'portal.html', 'landing.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
 for (const d of ['img', 'ayuda']) if (existsSync(join(SRC, d))) cpSync(join(SRC, d), join(DIST, d), { recursive: true });
 if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), join(DIST, 'docs', 'img'), { recursive: true });
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));
 
 // 6) Service worker: precache del app shell (US-226)
-const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'img/icon-192.png', 'img/icon-512.png'];
+const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'landing.html', 'img/icon-192.png', 'img/icon-512.png'];
 const sw = `// Service worker de Control de Obra · build ${BUILD_ID} (generado por scripts/build.mjs; no editar)
 // Estrategia: red primero para todo; la caché sólo entra cuando no hay red. Las respuestas se guardan sin
 // Content-Encoding (el cuerpo ya viene descomprimido) para que Chrome no falle al servirlas desde caché.

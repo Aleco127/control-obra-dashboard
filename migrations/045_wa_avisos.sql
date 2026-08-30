@@ -1,0 +1,6 @@
+-- 045: avisos urgentes por WhatsApp (US-240). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- obra_usuarios.wa_avisos / wa_avisos_at; notificaciones.wa_enviado_at.
+-- public.set_wa_avisos(p_activo, p_telefono): opt-in del usuario (normaliza +52 para 10 dígitos).
+-- public.wa_avisos_disponible(): {disponible, estado, wa_avisos, telefono}; el estado de aprobación de las plantillas lo guarda el job en app_secrets.wa_tpl_estado.
+-- public.wa_destinatarios_alertas() y public.wa_marcar_enviada(ids): sólo service_role (job diario, Edge Function notify-whatsapp).
+-- Plantillas en la cuenta Twilio de Zook: scripts/vps/obra-wa-templates.sh (obra_cobro_vencido, obra_aprobacion_pendiente).

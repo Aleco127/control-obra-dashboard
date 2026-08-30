@@ -1,0 +1,4 @@
+-- 047: analítica anónima de la landing (US-247). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- control_obra.landing_eventos (evento, seccion, ref, viewport_w, visitante aleatorio del navegador). RLS activa sin políticas: sólo RPC y service_role.
+-- public.landing_evento(evento, seccion, ref, viewport, visitante): registro anónimo desde landing.html (sin datos personales).
+-- public.platform_landing_stats(dias): visitas, visitantes, clics en "Probar 30 días gratis" y conversión, para admin.html.

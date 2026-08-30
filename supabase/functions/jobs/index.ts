@@ -1,5 +1,5 @@
 // Edge Function jobs: tareas diarias de la plataforma. La invoca n8n (cron 8:00 America/Chihuahua) con x-internal-key.
-// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario), all.
+// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario), whatsapp (avisos urgentes vía Twilio de Zook, US-240), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -87,6 +87,7 @@ async function jobNotificaciones(internalKey: string) {
   const out: Record<string, unknown> = {};
   const { data: gen, error: e1 } = await admin.rpc("generar_notificaciones_todas");
   out.generadas = e1 ? e1.message : gen;
+  const { data: limp } = await admin.rpc("limpiar_ui_events"); out.ui_events_borrados = limp;
   const { data: rows, error } = await admin.rpc("notificaciones_para_correo");
   if (error) { out.correos = error.message; return out; }
   const hoy = new Date().toISOString().slice(0, 10);
@@ -105,6 +106,27 @@ async function jobNotificaciones(internalKey: string) {
   return out;
 }
 
+// US-240: refresca el estado de aprobación de las plantillas y manda por WhatsApp las alertas urgentes nuevas a los admins con opt-in
+async function jobWhatsapp(internalKey: string) {
+  const out: Record<string, unknown> = {};
+  const call = async (body: Record<string, unknown>) => { const r = await fetch(FN_URL + "/notify-whatsapp", { method: "POST", headers: { "Content-Type": "application/json", "x-internal-key": internalKey }, body: JSON.stringify(body) }); return { ok: r.ok, json: await r.json().catch(() => ({})) }; };
+  const est = await call({ action: "estado" }); out.estado = est.json;
+  if (est.json?.estado !== "approved") return out;
+  const { data: rows, error } = await admin.rpc("wa_destinatarios_alertas");
+  if (error) { out.envios = error.message; return out; }
+  const enviados: Record<string, unknown>[] = []; const ok: number[] = [];
+  for (const r of rows ?? []) {
+    const obra = String(r.titulo || "").split(":").slice(1).join(":").trim() || "tu obra";
+    const monto = (String(r.cuerpo || "").match(/\$[\d,]+(\.\d{2})?/) || ["-"])[0];
+    const res = await call({ action: "enviar", to: r.telefono, template: r.tipo === "cobro_vencido" ? "cobro_vencido" : "aprobacion", vars: { "1": r.empresa, "2": obra, "3": monto } });
+    enviados.push({ empresa: r.empresa, tel: String(r.telefono).slice(-4), ok: res.ok, status: res.json?.status || res.json?.error });
+    if (res.ok) ok.push(r.notificacion_id);
+  }
+  if (ok.length) await admin.rpc("wa_marcar_enviada", { p_ids: [...new Set(ok)] });
+  out.envios = enviados;
+  return out;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   const internalKey = await secret("internal_key");
@@ -116,5 +138,6 @@ Deno.serve(async (req: Request) => {
   if (action === "bajas" || action === "all") result.bajas = await jobBajas(internalKey);
   if (action === "suscripciones" || action === "all") result.suscripciones = await jobSuscripciones(internalKey);
   if (action === "notificaciones" || action === "all") result.notificaciones = await jobNotificaciones(internalKey);
+  if (action === "whatsapp" || action === "all") result.whatsapp = await jobWhatsapp(internalKey);
   return json(result);
 });

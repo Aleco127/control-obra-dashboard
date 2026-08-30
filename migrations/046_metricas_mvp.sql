@@ -1,0 +1,8 @@
+-- 046: métricas del MVP y beta privada (US-245, US-246). Aplicada el 30-ago-2026 con el MCP de Supabase.
+-- Vistas: v_activacion (empresas 2026-08+ con activada_at y minutos a primer valor), v_retencion_semanal (ui_events por semana/empresa),
+--   v_conversion (trial vs pagando, excluye cortesia/beta), v_churn_mensual.
+-- public.platform_metricas_mvp(): 8 métricas con meta y detalle (activación, primer valor, conversión, retención S4, churn, SUS,
+--   errores UI/semana, MRR) para admin.html › Analytics. Requiere sesión de plataforma.
+-- public.limpiar_ui_events(): borra eventos de más de 180 días (lo llama el job diario).
+-- La acción 'beta' de platform_set_suscripcion ya existía en 040 (trial 90 días, payment_method 'beta'); en 046b se restauró la
+--   función completa después de una reescritura que había perdido las acciones 'cancelar' y 'gratis'.

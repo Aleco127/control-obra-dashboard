@@ -1177,6 +1177,19 @@ const Notif={
     if(n.modulo){M=n.modulo;R();}
   }
 };
+// ===== Avisos por WhatsApp (US-240) =====
+function waAvisosHtml(){
+  setTimeout(async()=>{const el=$('waAvisosBody');if(!el)return;const{data}=await sb.rpc('wa_avisos_disponible');const d=data||{};
+    const tel=(d.telefono||currentUser.telefono||'').replace(/^\+52/,'');
+    if(!d.disponible){el.innerHTML=`<p class="text-xs text-slate-600">${d.estado==='pending'?'Las plantillas de aviso están en revisión de WhatsApp (Meta). En cuanto las aprueben podrás activar los avisos aquí.':d.estado==='rejected'?'WhatsApp rechazó las plantillas de aviso; el equipo las está corrigiendo.':'Los avisos por WhatsApp todavía no están disponibles; mientras tanto recibes el resumen diario por correo.'}</p><label class="flex items-center gap-2 mt-2 text-sm opacity-60"><input type="checkbox" disabled> Recibir avisos urgentes por WhatsApp</label>`;return;}
+    el.innerHTML=`<label class="flex items-center gap-2 text-sm"><input type="checkbox" id="waAvisosChk" ${d.wa_avisos?'checked':''}> Recibir avisos urgentes por WhatsApp (cobros vencidos y compras por aprobar)</label><div class="flex gap-2 mt-2"><input id="waAvisosTel" class="inp" style="max-width:220px" inputmode="tel" placeholder="10 dígitos" value="${S(tel)}"><button type="button" class="btn btn-p text-sm" onclick="guardarWaAvisos()"><i class="ri-save-line" aria-hidden="true"></i> Guardar</button></div><p class="text-xs text-slate-500 mt-1">Máximo un mensaje por alerta; los mensajes salen del número de WhatsApp de Zook.</p>`;},0);
+  return `<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-2"><i class="ri-whatsapp-line n" aria-hidden="true"></i> Avisos por WhatsApp</h3><div id="waAvisosBody" class="text-sm text-ink-subtle">Cargando…</div></div>`;
+}
+async function guardarWaAvisos(){
+  const activo=$('waAvisosChk').checked;const{data,error}=await sb.rpc('set_wa_avisos',{p_activo:activo,p_telefono:$('waAvisosTel').value});
+  if(error||!data||!data.success){Toast.error((data&&data.error)||humanizeError(error,'guardar'));return;}
+  if(data.telefono)currentUser.telefono=data.telefono;Toast.success(activo?'Avisos por WhatsApp activados':'Avisos por WhatsApp desactivados');
+}
 // ===== Portal del cliente (US-237/238) =====
 async function compartirObra(obraId){
   if(typeof Suscripcion!=='undefined'&&!Suscripcion.feature('portal')){await Suscripcion.verificarFeature('portal');return;}
@@ -1726,7 +1739,13 @@ $('empLogoPreview').innerHTML='<i class="ri-building-2-line text-3xl text-slate-
 async function checkSession(){
 const saved=localStorage.getItem('obra_session');
 if(!saved){
+// US-247: un visitante sin cuenta ve la landing; la app queda en /?app=1
+const q=new URLSearchParams(location.search);
+if(!q.has('app')&&!q.has('reset')&&!q.has('verificar')&&!q.has('invitacion')&&!location.hash.startsWith('#registro')&&!sessionStorage.getItem('obra_vista_landing')){
+sessionStorage.setItem('obra_vista_landing','1');location.replace('landing.html');return;
+}
 $('loginScreen').style.display='flex';
+if(location.hash==='#registro'&&typeof switchAuthTab==='function')switchAuthTab('registro');
 return;
 }
 
@@ -8246,6 +8265,7 @@ ${currentUser&&currentUser.nivel>=100?`<div class="mt-4 pt-4 border-t" style="bo
 
 ${currentUser&&currentUser.nivel>=100?datosPagoHtml():''}
 ${currentUser&&currentUser.nivel>=100&&typeof Contabilidad!=='undefined'?Contabilidad.configHtml():''}
+${currentUser&&currentUser.nivel>=80?waAvisosHtml():''}
 <!-- Categorias de Gastos -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">
