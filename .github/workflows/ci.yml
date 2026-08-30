@@ -1,0 +1,38 @@
+# CI de Control de Obra (US-230): pruebas unitarias, tokens de diseño, build y auditoría rápida de la UI.
+# No despliega: el despliegue lo hace scripts/deploy.sh desde la máquina de Ricardo (con verificación posterior).
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Pruebas de lógica (finanzas, reglas, CFDI)
+        run: node --test scripts/qa/finanzas.test.mjs scripts/qa/gastos-rules.test.mjs scripts/qa/cfdi.test.mjs
+      - name: Tokens de diseño
+        run: node scripts/qa/design-tokens-check.mjs
+      - name: Build (Tailwind compilado, JS minificado, service worker)
+        run: node scripts/build.mjs
+      - name: Presupuesto de peso
+        run: |
+          node -e "const fs=require('fs');const b=JSON.parse(fs.readFileSync('dist/build.json'));const idx=fs.statSync('dist/index.html').size;console.log('index.html',Math.round(idx/1024),'KB');if(idx>1400*1024){console.error('index.html supera 1.4 MB');process.exit(1)}"
+      - name: Pruebas contra producción (aislamiento, RPC, planes)
+        if: github.event_name == 'push'
+        env:
+          QA_TOKEN_A: ${{ secrets.QA_TOKEN_A }}
+          QA_TOKEN_B: ${{ secrets.QA_TOKEN_B }}
+        run: node --test scripts/qa/rls-aislamiento.test.mjs scripts/qa/rpc-sesion.test.mjs scripts/qa/planes.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7

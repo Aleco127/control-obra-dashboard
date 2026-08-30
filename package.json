@@ -1,0 +1,17 @@
+{
+  "name": "control-obra-dashboard",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Control de Obra (Supernova Arquitectos): SPA vanilla JS + Supabase. Build: Tailwind compilado, JS minificado con hash, service worker.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:ayuda": "node scripts/build-ayuda.mjs",
+    "test": "node --test scripts/qa/*.test.mjs",
+    "check:tokens": "node scripts/qa/design-tokens-check.mjs",
+    "serve": "node scripts/serve-dist.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "tailwindcss": "^3.4.17"
+  }
+}

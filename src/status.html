@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estado del servicio · Control de Obra</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#f8fafc;--surface:#fff;--ink:#1e293b;--muted:#475569;--line:#e2e8f0;--ok:#047857;--danger:#b91c1c;--primary:#1e3a5f}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5}
+.wrap{max-width:720px;margin:0 auto;padding:28px 18px 56px}h1{font-size:24px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 18px}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-weight:600;font-size:14px}.ok{background:#dcfce7;color:var(--ok)}.bad{background:#fee2e2;color:var(--danger)}
+ul{list-style:none;padding:0;margin:0}li{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:8px}
+li span:last-child{color:var(--muted);font-size:13px;white-space:nowrap}footer{margin-top:24px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body><div class="wrap">
+<h1>Estado del servicio</h1>
+<p class="sub">Control de Obra · Supernova Arquitectos. Se actualiza cada 5 minutos.</p>
+<p id="global"><span class="badge ok">Cargando…</span></p>
+<ul id="lista"></ul>
+<footer>Si ves un servicio caído y necesitas ayuda ahora: WhatsApp +52 614 344 3936 · soporte@supernovarquitectos.com</footer>
+</div>
+<script>
+const NOMBRES={app:'Aplicación',admin:'Panel de administración',ayuda:'Centro de ayuda',supabase_rest:'Base de datos',fn_send_email:'Correo transaccional',fn_auth:'Acceso y contraseñas',fn_jobs:'Tareas programadas',certificado:'Certificado HTTPS',respaldo_diario:'Respaldo diario'};
+fetch('status.json?t='+Date.now()).then(r=>r.json()).then(d=>{
+  const caidos=d.servicios.filter(s=>!s.ok);
+  document.getElementById('global').innerHTML=caidos.length?`<span class="badge bad">${caidos.length} servicio${caidos.length>1?'s':''} con problemas</span>`:'<span class="badge ok">Todo en orden</span>';
+  document.getElementById('lista').innerHTML=d.servicios.map(s=>`<li><span>${s.ok?'🟢':'🔴'} ${NOMBRES[s.nombre]||s.nombre}</span><span>${s.http}${s.ms?' · '+s.ms+' ms':''}</span></li>`).join('');
+  document.querySelector('.sub').textContent+=' Última revisión: '+new Date(d.actualizado).toLocaleString('es-MX')+'.';
+}).catch(()=>{document.getElementById('global').innerHTML='<span class="badge bad">No se pudo leer el estado</span>';});
+</script>
+</body>
+</html>
