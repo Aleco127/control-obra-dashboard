@@ -1,0 +1,8 @@
+-- 041: onboarding, activación y obra de ejemplo (US-219, US-220, US-221). Aplicada el 29-ago-2026 con el MCP de Supabase.
+-- Columnas: empresas.onboarding_completado_at, empresas.activada_at, empresas.giro, obras.es_ejemplo (vistas recreadas).
+-- uso_empresa() excluye obras de ejemplo. Funciones (sesión por header):
+--   get_activacion()                      -> jsonb {obra, catalogo, gastos, cobro, usuario, socios, ejemplo, onboarding_completado_at, activada_at, giro}; fija activada_at
+--   marcar_onboarding(p_giro, p_completado)
+--   crear_obra_ejemplo(p_giro)            -> obra 'EJEMPLO' (casa 120 m² o remodelación) con cliente, 12/20 conceptos, programa 12 semanas, 3 CxC, 1 cobro, 5 proveedores, 15 gastos
+--   borrar_datos_ejemplo()
+-- El cuerpo completo está en el historial de migraciones del proyecto (supabase_migrations.schema_migrations, versión 041).

@@ -116,6 +116,7 @@ async function massDeleteNomina(){
 <script src="js/conciliacion.js?v=20260829d"></script>
 <script src="js/respaldo.js?v=20260830a"></script>
 <script src="js/suscripcion.js?v=20260830b"></script>
+<script src="js/onboarding.js?v=20260830a"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -2128,7 +2129,7 @@ else secData=data;
 
 // Asignar datos principales
 D.o=mainData.obras||[];
-if(typeof Suscripcion!=='undefined')Suscripcion.cargar();
+if(typeof Suscripcion!=='undefined')Suscripcion.cargar().then(()=>{if(typeof Onboarding!=='undefined')setTimeout(()=>Onboarding.iniciar(),800);});
 D.e=mainData.empleados||[];
 D.g=mainData.gastos||[];
 D.u=mainData.usuarios||[];
@@ -2563,7 +2564,7 @@ if(typeof Suscripcion!=='undefined'&&Suscripcion.get()&&!Suscripcion.moduloPermi
 // Gestionar auto-refresh segun modulo (d=Dashboard, g=Gastos, x=Ordenes)
 if(M==='x'){M='g';localStorage.setItem('currentTab','g');if(!localStorage.getItem('avisoOrdenes')){localStorage.setItem('avisoOrdenes','1');setTimeout(()=>Toast.info('Las órdenes de compra viven ahora en Compras y gastos (pestaña Por aprobar).',6000),300);}R();Compras.setTab('aprobar');return;}
 {
-if(M==='d')Ds(c);
+if(M==='d'){Ds(c);if(typeof Onboarding!=='undefined')Onboarding.checklist(c);}
 else if(M==='g')Gs(c);
 else if(M==='o')Ob(c);
 else if(M==='p')Pr(c);
@@ -14266,6 +14267,7 @@ tr:nth-child(even){background:#f9f9f9}
 .firma{margin-top:40px;text-align:center}
 .firma-linea{border-top:1px solid #333;width:200px;margin:0 auto;padding-top:5px}
 @media print{body{padding:15px}@page{margin:1cm}}
+.tour-target{outline:3px solid var(--accent,#0369a1);outline-offset:3px;border-radius:8px}
 </style></head><body>
 <div class="header">
 <div><h1>COTIZACION ${cot.numero_cotizacion}</h1><p style="color:#666">${empresa.nombre||currentUser?.empresa_nombre||''}</p></div>
