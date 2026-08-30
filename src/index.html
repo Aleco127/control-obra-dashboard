@@ -1690,6 +1690,15 @@ initSupabaseWithToken(session.token);
 // Validar token con servidor
 const{data,error}=await sb.rpc('validar_sesion',{p_token:session.token});
 
+// Sin conexión: se conserva la sesión guardada y la app arranca con los datos en caché (US-226)
+const sinRed=!!error&&/Failed to fetch|NetworkError|Load failed|network|ERR_INTERNET/i.test(String(error.message||error.details||''));
+if(sinRed&&session.id&&session.empresa_id){
+currentUser=Object.assign({},session);
+initSupabaseWithToken(currentUser.token);
+showApp();
+setTimeout(()=>{if(typeof Toast!=='undefined')Toast.warning('Sin conexión: se muestran los datos guardados en este dispositivo. Lo que captures se enviará al reconectar.',7000);},1200);
+return;
+}
 if(error||!data||data.length===0){
 localStorage.removeItem('obra_session');
 $('loginScreen').style.display='flex';
