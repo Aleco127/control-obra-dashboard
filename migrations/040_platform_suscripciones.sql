@@ -1,0 +1,3 @@
+-- 040: panel de plataforma para suscripciones (US-218), sólo con x-platform-token.
+-- Funciones: platform_suscripciones(), platform_set_suscripcion(p_empresa_id, p_accion, p_valor), platform_pagos(p_limit).
+-- Aplicada el 29-ago-2026 con el MCP de Supabase (el cuerpo completo está en el historial de migraciones del proyecto).

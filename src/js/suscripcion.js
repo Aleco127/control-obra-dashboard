@@ -47,7 +47,7 @@ const Suscripcion = (() => {
     const main = $('main'); if (main) main.parentNode.insertBefore(bar, main);
   }
 
-  function irAPlan() { M = 'z'; R(); setTimeout(() => { const el = $('cfgPlan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 300); }
+  function irAPlan() { M = 'z'; R(); setTimeout(() => { const el = $('cfgPlan'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); facturas(); }, 300); }
 
   // Intercepta errores PLAN_LIMIT / SUBSCRIPTION_INACTIVE de cualquier RPC
   function manejarError(err) {
@@ -118,6 +118,7 @@ const Suscripcion = (() => {
       <p class="text-sm"><strong>${S(p.nombre)}</strong> · ${S(estadoTexto(s))}</p>
       <div class="mt-3 grid md:grid-cols-3 gap-3">${barra('Obras activas', u.obras_activas || 0, p.max_obras)}${barra('Usuarios', u.usuarios || 0, p.max_usuarios)}${barra('Archivos', u.storage_mb || 0, p.max_storage_mb, ' MB')}</div>
       <div class="grid md:grid-cols-3 gap-3 mt-4">${planes}</div>
+      ${s.estado === 'activa' && s.card_last4 && nivel >= 100 ? '<p class="mt-3"><button type="button" class="link text-xs" onclick="Suscripcion.cambiarTarjeta()"><i class="ri-bank-card-line" aria-hidden="true"></i> Actualizar tarjeta</button></p>' : ''}
       <div id="subFacturas" class="mt-4"></div>
     </div>`;
   }
@@ -144,5 +145,101 @@ const Suscripcion = (() => {
     Toast.success('Suscripción cancelada al fin del periodo.'); await cargar(); if (M === 'z') R();
   }
 
-  return { cargar, get, feature, moduloPermitido, aplicarEstado, irAPlan, manejarError, mostrarLimite, verificarFeature, html, elegir, cancelar, FEATURE_LABEL };
+  // ---------- Checkout con Openpay.js (US-215) ----------
+  let opCfg = null;
+  function cargarScript(src) { return new Promise((res, rej) => { if (document.querySelector(`script[src="${src}"]`)) return res(); const sc = document.createElement('script'); sc.src = src; sc.onload = res; sc.onerror = () => rej(new Error('No se pudo cargar ' + src)); document.head.appendChild(sc); }); }
+  async function fnOpenpay(action, payload) {
+    const r = await fetch(SB + '/functions/v1/openpay', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify(Object.assign({ action }, payload || {})) });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    return Object.assign({ status: r.status }, j || {});
+  }
+  async function prepararOpenpay() {
+    if (opCfg) return opCfg;
+    const r = await fnOpenpay('preparar');
+    if (!r.ok) throw new Error(r.error || 'No se pudo preparar el pago');
+    await cargarScript('https://resources.openpay.mx/lib/openpay-js/1.2.38/openpay.v1.min.js');
+    await cargarScript('https://resources.openpay.mx/lib/openpay-data-js/1.2.38/openpay-data.v1.min.js');
+    OpenPay.setId(r.merchant_id); OpenPay.setApiKey(r.public_key); OpenPay.setSandboxMode(!!r.sandbox);
+    opCfg = r; return r;
+  }
+  function leerTarjeta() {
+    return { holder_name: $('opNombre').value.trim(), card_number: $('opNumero').value.replace(/\s+/g, ''), expiration_month: $('opMes').value.trim(), expiration_year: $('opAnio').value.trim(), cvv2: $('opCvv').value.trim() };
+  }
+  function tarjetaHtml() {
+    return `<div class="grid md:grid-cols-2 gap-2">
+        <label class="text-xs">Nombre en la tarjeta<input id="opNombre" class="inp mt-1" autocomplete="cc-name"></label>
+        <label class="text-xs">Número de tarjeta<input id="opNumero" class="inp mt-1" inputmode="numeric" autocomplete="cc-number" maxlength="19"></label>
+        <label class="text-xs">Vence (MM)<input id="opMes" class="inp mt-1" inputmode="numeric" maxlength="2" autocomplete="cc-exp-month"></label>
+        <label class="text-xs">Vence (AA)<input id="opAnio" class="inp mt-1" inputmode="numeric" maxlength="2" autocomplete="cc-exp-year"></label>
+        <label class="text-xs">CVV<input id="opCvv" class="inp mt-1" inputmode="numeric" maxlength="4" autocomplete="cc-csc"></label>
+      </div>`;
+  }
+  async function tokenizar() {
+    const card = leerTarjeta();
+    if (!OpenPay.card.validateCardNumber(card.card_number)) throw new Error('Revisa el número de tarjeta');
+    if (!OpenPay.card.validateExpiry(card.expiration_month, card.expiration_year)) throw new Error('Revisa la fecha de vencimiento');
+    if (!OpenPay.card.validateCVC(card.cvv2, card.card_number)) throw new Error('Revisa el CVV');
+    const deviceSessionId = OpenPay.deviceData.setup();
+    const token = await new Promise((res, rej) => OpenPay.token.create(card, (r) => res(r.data.id), (e) => rej(new Error((e.data && e.data.description) || 'La tarjeta no fue aceptada'))));
+    return { token, deviceSessionId };
+  }
+  async function checkout(pl, periodicidadInicial) {
+    let cfg;
+    try { cfg = await prepararOpenpay(); } catch (e) { Toast.error(e.message); return; }
+    const df = (cfg.sub && cfg.sub.datos_fiscales) || {};
+    const per0 = periodicidadInicial || 'mensual';
+    const bodyHtml = `
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <label class="seg-btn cursor-pointer text-sm"><input type="radio" name="opPer" value="mensual" ${per0 === 'mensual' ? 'checked' : ''}> Mensual · ${fmt(pl.precio_mensual)}</label>
+        <label class="seg-btn cursor-pointer text-sm"><input type="radio" name="opPer" value="anual" ${per0 === 'anual' ? 'checked' : ''}> Anual · ${fmt(pl.precio_anual)} <span class="text-xs">(2 meses gratis)</span></label>
+      </div>
+      <p class="text-xs text-slate-600 mb-2">Precios más IVA. Se cobra hoy y después cada periodo; puedes cancelar cuando quieras.</p>
+      ${tarjetaHtml()}
+      <details class="mt-3"><summary class="text-xs cursor-pointer">Datos para tu factura (CFDI)</summary>
+        <div class="grid md:grid-cols-2 gap-2 mt-2">
+          <label class="text-xs">RFC<input id="dfRfc" class="inp mt-1" value="${S(df.rfc || '')}" maxlength="13"></label>
+          <label class="text-xs">Razón social<input id="dfRazon" class="inp mt-1" value="${S(df.razon_social || '')}"></label>
+          <label class="text-xs">Régimen fiscal (clave SAT)<input id="dfRegimen" class="inp mt-1" value="${S(df.regimen || '')}" placeholder="601, 612, 626"></label>
+          <label class="text-xs">Código postal fiscal<input id="dfCp" class="inp mt-1" value="${S(df.cp || '')}" maxlength="5"></label>
+          <label class="text-xs">Uso de CFDI<input id="dfUso" class="inp mt-1" value="${S(df.uso || 'G03')}" placeholder="G03"></label>
+          <label class="text-xs">Correo para la factura<input id="dfEmail" type="email" class="inp mt-1" value="${S(df.email || currentUser.email || '')}"></label>
+        </div></details>
+      <p class="text-xs text-slate-500 mt-3"><i class="ri-lock-line" aria-hidden="true"></i> Tu tarjeta la procesa Openpay (BBVA); nunca llega a nuestros servidores.</p>`;
+    const ok = await Dialog.confirm({ title: `Contratar plan ${pl.nombre}`, bodyHtml, confirmText: 'Pagar y activar', icon: 'ri-bank-card-line' });
+    if (!ok) return;
+    const per = (document.querySelector('input[name=opPer]:checked') || {}).value || 'mensual';
+    const datos = { rfc: ($('dfRfc') || {}).value || '', razon_social: ($('dfRazon') || {}).value || '', regimen: ($('dfRegimen') || {}).value || '', cp: ($('dfCp') || {}).value || '', uso: ($('dfUso') || {}).value || 'G03', email: ($('dfEmail') || {}).value || '' };
+    let tk;
+    try { Toast.info('Procesando el pago', 4000); tk = await tokenizar(); } catch (e) { Toast.error(e.message); return; }
+    const r = await fnOpenpay('suscribir', { plan_slug: pl.slug, periodicidad: per, token_id: tk.token, device_session_id: tk.deviceSessionId, datos_fiscales: datos.rfc ? datos : null });
+    if (!r.ok) { Toast.error(r.error || 'No se pudo activar la suscripción', 8000); Telemetry.track('checkout_error', { plan: pl.slug, error: (r.error || '').slice(0, 80) }); return; }
+    Telemetry.track('checkout_ok', { plan: pl.slug, periodicidad: per });
+    Toast.success(`Plan ${pl.nombre} activo. Gracias.`, 7000);
+    opCfg = null; await cargar(); if (M === 'z') R();
+  }
+  async function cambiarTarjeta() {
+    try { await prepararOpenpay(); } catch (e) { Toast.error(e.message); return; }
+    const ok = await Dialog.confirm({ title: 'Actualizar tarjeta', bodyHtml: tarjetaHtml(), confirmText: 'Guardar tarjeta', icon: 'ri-bank-card-line' });
+    if (!ok) return;
+    let tk; try { tk = await tokenizar(); } catch (e) { Toast.error(e.message); return; }
+    const r = await fnOpenpay('cambiar_tarjeta', { token_id: tk.token, device_session_id: tk.deviceSessionId });
+    if (!r.ok) { Toast.error(r.error || 'No se pudo guardar la tarjeta'); return; }
+    Toast.success('Tarjeta actualizada (termina en ' + r.last4 + ')'); await cargar(); if (M === 'z') R();
+  }
+  // Facturas de la suscripción (US-217)
+  async function facturas() {
+    const el = $('subFacturas'); if (!el) return;
+    const { data, error } = await sb.rpc('get_mis_pagos', { p_limit: 36 });
+    if (error || !data || !data.length) { el.innerHTML = ''; return; }
+    el.innerHTML = `<h4 class="font-bold text-sm mb-2">Pagos y facturas</h4><div class="table-wrap"><table class="w-full text-sm"><thead><tr><th class="text-left">Fecha</th><th class="text-left">Concepto</th><th class="text-right">Monto</th><th class="text-left">Estado</th><th class="text-left">CFDI</th></tr></thead><tbody>${data.map((p) => `<tr><td>${S(new Date(p.created_at).toLocaleDateString('es-MX'))}</td><td>${S(p.descripcion || '')}</td><td class="text-right tabular-nums">${fmt(p.monto)}</td><td>${S(p.estado)}</td><td>${p.cfdi_uuid ? `<button type="button" class="link text-xs" onclick="Suscripcion.descargarCfdi(${p.id},'pdf')">PDF</button> · <button type="button" class="link text-xs" onclick="Suscripcion.descargarCfdi(${p.id},'xml')">XML</button>` : (p.cfdi_error ? '<span class="text-xs" style="color:var(--warn)">Pendiente</span>' : '<span class="text-xs text-slate-500">En proceso</span>')}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  async function descargarCfdi(paymentId, tipo) {
+    const { data: pagos } = await sb.rpc('get_mis_pagos', { p_limit: 120 });
+    const p = (pagos || []).find((x) => x.id === paymentId); if (!p) return;
+    const path = tipo === 'pdf' ? p.cfdi_pdf_path : p.cfdi_xml_path; if (!path) { Toast.warning('Archivo no disponible'); return; }
+    const { data, error } = await sb.storage.from('comprobantes').createSignedUrl(path, 120);
+    if (error || !data) { Toast.error('No se pudo generar el enlace'); return; }
+    window.open(data.signedUrl, '_blank', 'noopener');
+  }
+  return { cargar, get, feature, moduloPermitido, aplicarEstado, irAPlan, manejarError, mostrarLimite, verificarFeature, html, elegir, cancelar, checkout, cambiarTarjeta, facturas, descargarCfdi, FEATURE_LABEL };
 })();

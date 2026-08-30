@@ -1434,102 +1434,91 @@ async function deleteUsuario(userId) {
   }
 }
 
-// ========== SUSCRIPCIONES ==========
-function renderSubscriptions() {
-  const plans = [
-    { nombre: 'Free', precio: 0, usuarios: 3, obras: 2, color: 'slate' },
-    { nombre: 'Pro', precio: 799, usuarios: 15, obras: 10, color: 'blue' },
-    { nombre: 'Enterprise', precio: 1999, usuarios: -1, obras: -1, color: 'amber' }
-  ];
-
+// ========== SUSCRIPCIONES (US-218) ==========
+let subsCache = [];
+const ESTADO_BADGE = { trial: 'badge-info', activa: 'badge-success', cortesia: 'badge-success', vencida: 'badge-warning', pago_fallido: 'badge-warning', lectura: 'badge-danger', cancelada: 'badge-danger' };
+const fechaCorta = (iso) => iso ? new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function renderSubscriptions() {
+  $('content').innerHTML = '<div class="text-center py-12 text-slate-400"><i class="ri-loader-4-line animate-spin text-2xl"></i></div>';
+  const { data, error } = await sb.rpc('platform_suscripciones');
+  if (error) { $('content').innerHTML = `<div class="card text-red-400">No se pudieron cargar las suscripciones: ${esc(error.message)}</div>`; return; }
+  subsCache = data || [];
+  const activas = subsCache.filter((s) => ['activa', 'cortesia'].includes(s.estado)).length;
+  const enPrueba = subsCache.filter((s) => s.estado === 'trial').length;
+  const pagando = subsCache.filter((s) => s.estado === 'activa' && s.payment_method === 'openpay');
+  const precios = { estudio: 599, constructora: 1299 };
+  const mrr = pagando.reduce((sum, s) => sum + ((s.periodicidad === 'anual' ? (precios[s.plan_slug] || 0) * 10 / 12 : (precios[s.plan_slug] || 0))), 0);
+  const fallidos = subsCache.filter((s) => s.estado === 'pago_fallido').length;
+  const kpi = (v, l, c) => `<div class="card stat-card"><div class="stat-value text-${c}-400">${v}</div><div class="stat-label">${l}</div></div>`;
   $('content').innerHTML = `
-    <!-- Plans Overview -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      ${plans.map(p => `
-        <div class="card text-center">
-          <div class="text-${p.color}-400 mb-2"><i class="ri-vip-crown-2-line text-2xl"></i></div>
-          <h3 class="text-lg font-bold text-white">${p.nombre}</h3>
-          <p class="text-3xl font-bold text-white my-3">${p.precio === 0 ? 'Gratis' : fmt(p.precio)}<span class="text-sm font-normal text-slate-400">/mes</span></p>
-          <div class="text-sm text-slate-400 space-y-1">
-            <p><i class="ri-team-line mr-1"></i> ${p.usuarios === -1 ? 'Ilimitados' : p.usuarios} usuarios</p>
-            <p><i class="ri-building-line mr-1"></i> ${p.obras === -1 ? 'Ilimitadas' : p.obras} obras</p>
-          </div>
-          <div class="mt-4 text-2xl font-bold text-${p.color}-400">
-            ${platformData.empresas.length} <span class="text-sm font-normal">empresas</span>
-          </div>
-        </div>
-      `).join('')}
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      ${kpi(subsCache.length, 'Empresas', 'white')}${kpi(enPrueba, 'En prueba', 'blue')}${kpi(activas, 'Activas', 'green')}${kpi(fmt(mrr), 'MRR (pagando)', 'green')}${kpi(fallidos, 'Cobros fallidos', 'amber')}
     </div>
-
-    <!-- Subscription List -->
     <div class="card">
-      <div class="card-header">Todas las Suscripciones</div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Empresa</th>
-            <th>Plan</th>
-            <th>Estado</th>
-            <th>Periodo</th>
-            <th>Proxima Facturacion</th>
-            <th class="text-right">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${platformData.empresas.map(e => `
-            <tr>
-              <td class="font-medium text-white">${e.nombre || 'Sin nombre'}</td>
-              <td><span class="badge badge-info">Free</span></td>
-              <td><span class="badge badge-success">Activo</span></td>
-              <td>Mensual</td>
-              <td class="text-slate-400">-</td>
-              <td class="text-right">
-                <button onclick="changePlan('${e.id}')" class="btn btn-s btn-sm text-xs">Cambiar Plan</button>
-              </td>
-            </tr>
-          `).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Sin suscripciones</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `;
+      <div class="card-header flex items-center justify-between"><span>Suscripciones por empresa</span><input id="subsFiltro" class="input text-sm" placeholder="Buscar empresa" oninput="pintarSubs()" style="max-width:240px"></div>
+      <div style="overflow-x:auto"><table class="table"><thead><tr><th>Empresa</th><th>Plan</th><th>Estado</th><th>Fechas</th><th>Uso</th><th>Pagado</th><th class="text-right">Acciones</th></tr></thead><tbody id="subsBody"></tbody></table></div>
+    </div>`;
+  pintarSubs();
+}
+function pintarSubs() {
+  const q = ($('subsFiltro')?.value || '').toLowerCase();
+  const rows = subsCache.filter((s) => !q || String(s.empresa || '').toLowerCase().includes(q) || String(s.admin_email || '').toLowerCase().includes(q));
+  $('subsBody').innerHTML = rows.map((s) => {
+    const u = s.uso || {};
+    const fechas = s.estado === 'trial' ? `Prueba hasta ${fechaCorta(s.trial_ends_at)}` : s.estado === 'activa' ? `Renueva ${fechaCorta(s.current_period_end)}` : (s.gracia_hasta ? `Gracia hasta ${fechaCorta(s.gracia_hasta)}` : fechaCorta(s.creada));
+    const sel = `<select class="input text-xs" style="width:auto" onchange="accionSub(${s.empresa_id}, this.value); this.value='';">
+        <option value="">Acciones</option>
+        <option value="extender_trial:15">Extender prueba 15 días</option>
+        <option value="extender_trial:30">Extender prueba 30 días</option>
+        <option value="beta">Beta 90 días (Constructora)</option>
+        <option value="cortesia:constructora">Cortesía Constructora</option>
+        <option value="cortesia:estudio">Cortesía Estudio</option>
+        <option value="cambiar_plan:estudio">Cambiar a Estudio</option>
+        <option value="cambiar_plan:constructora">Cambiar a Constructora</option>
+        <option value="gratis">Pasar a Gratis</option>
+        <option value="cancelar">Cancelar</option>
+      </select>`;
+    return `<tr>
+      <td><div class="font-medium text-white">${esc(s.empresa)}</div><div class="text-xs text-slate-400">${esc(s.admin_email || '')}${s.baja_programada_at ? ' · <span class="text-red-400">baja ' + fechaCorta(s.baja_programada_at) + '</span>' : ''}</div></td>
+      <td>${esc(s.plan || 'Sin plan')}<div class="text-xs text-slate-400">${esc(s.periodicidad || '')}${s.card_last4 ? ' · ****' + esc(s.card_last4) : ''}</div></td>
+      <td><span class="badge ${ESTADO_BADGE[s.estado] || 'badge-info'}">${esc(s.estado || 'sin suscripción')}</span><div class="text-xs text-slate-400">${esc(s.payment_method || '')}</div></td>
+      <td class="text-sm">${fechas}</td>
+      <td class="text-xs text-slate-300">${u.obras_activas ?? 0} obras · ${u.usuarios ?? 0} usuarios · ${u.storage_mb ?? 0} MB</td>
+      <td class="text-sm">${fmt(s.pagado_total || 0)}<div class="text-xs text-slate-400">${s.ultimo_pago ? 'último ' + fechaCorta(s.ultimo_pago) : ''}</div></td>
+      <td class="text-right">${sel}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="text-center text-slate-400 py-8">Sin empresas</td></tr>';
+}
+async function accionSub(empresaId, valor) {
+  if (!valor) return;
+  const [accion, param] = valor.split(':');
+  const emp = subsCache.find((s) => s.empresa_id === empresaId);
+  if (!confirm(`${accion.replace('_', ' ')}${param ? ' (' + param + ')' : ''} para ${emp?.empresa || empresaId}?`)) return;
+  const { data, error } = await sb.rpc('platform_set_suscripcion', { p_empresa_id: empresaId, p_accion: accion, p_valor: param || null });
+  if (error || !data?.success) { showToast('No se pudo aplicar: ' + (error?.message || data?.error || ''), 'error'); return; }
+  showToast('Aplicado', 'success');
+  renderSubscriptions();
 }
 
-function changePlan(empresaId) {
-  showToast('Funcion de cambio de plan en desarrollo', 'info');
-}
-
-// ========== BILLING ==========
-function renderBilling() {
-  const mrr = platformData.subscriptions.reduce((sum, s) => sum + (s.subscription_plans?.precio_mensual || 0), 0);
-
+// ========== BILLING (US-216/US-217) ==========
+async function renderBilling() {
+  $('content').innerHTML = '<div class="text-center py-12 text-slate-400"><i class="ri-loader-4-line animate-spin text-2xl"></i></div>';
+  const [{ data: pagos, error }, { data: subs }] = await Promise.all([sb.rpc('platform_pagos', { p_limit: 200 }), sb.rpc('platform_suscripciones')]);
+  if (error) { $('content').innerHTML = `<div class="card text-red-400">${esc(error.message)}</div>`; return; }
+  const precios = { estudio: 599, constructora: 1299 };
+  const pagando = (subs || []).filter((s) => s.estado === 'activa' && s.payment_method === 'openpay');
+  const mrr = pagando.reduce((sum, s) => sum + (s.periodicidad === 'anual' ? (precios[s.plan_slug] || 0) * 10 / 12 : (precios[s.plan_slug] || 0)), 0);
+  const mes = new Date(); mes.setDate(1);
+  const cobradoMes = (pagos || []).filter((p) => p.estado === 'pagado' && new Date(p.created_at) >= mes).reduce((a, p) => a + Number(p.monto), 0);
+  const sinCfdi = (pagos || []).filter((p) => p.estado === 'pagado' && !p.cfdi_uuid).length;
+  const kpi = (v, l, c) => `<div class="card stat-card"><div class="stat-value text-${c}-400">${v}</div><div class="stat-label">${l}</div></div>`;
   $('content').innerHTML = `
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <div class="card stat-card">
-        <div class="text-green-400 mb-2"><i class="ri-money-dollar-circle-line text-2xl"></i></div>
-        <div class="stat-value">${fmt(mrr)}</div>
-        <div class="stat-label">MRR Actual</div>
-      </div>
-      <div class="card stat-card">
-        <div class="text-blue-400 mb-2"><i class="ri-calendar-line text-2xl"></i></div>
-        <div class="stat-value">${fmt(mrr * 12)}</div>
-        <div class="stat-label">ARR Proyectado</div>
-      </div>
-      <div class="card stat-card">
-        <div class="text-amber-400 mb-2"><i class="ri-file-list-3-line text-2xl"></i></div>
-        <div class="stat-value">0</div>
-        <div class="stat-label">Facturas Pendientes</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">Facturas Recientes</div>
-      <div class="text-center py-12 text-slate-400">
-        <i class="ri-file-list-3-line text-4xl mb-2"></i>
-        <p>Sistema de facturacion pendiente de configurar</p>
-        <p class="text-sm mt-2">Las empresas estan actualmente en plan gratuito</p>
-      </div>
-    </div>
-  `;
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">${kpi(fmt(mrr), 'MRR', 'green')}${kpi(fmt(mrr * 12), 'ARR proyectado', 'blue')}${kpi(fmt(cobradoMes), 'Cobrado este mes', 'green')}${kpi(sinCfdi, 'Pagos sin CFDI', sinCfdi ? 'amber' : 'slate')}</div>
+    <div class="card"><div class="card-header">Pagos de suscripción</div>
+      <div style="overflow-x:auto"><table class="table"><thead><tr><th>Fecha</th><th>Empresa</th><th>Concepto</th><th class="text-right">Monto</th><th>Estado</th><th>CFDI</th></tr></thead><tbody>
+      ${(pagos || []).map((p) => `<tr><td>${fechaCorta(p.created_at)}</td><td class="text-white">${esc(p.empresa)}</td><td class="text-sm">${esc(p.descripcion || '')}</td><td class="text-right">${fmt(p.monto)}</td><td><span class="badge ${p.estado === 'pagado' ? 'badge-success' : p.estado === 'fallido' ? 'badge-danger' : 'badge-warning'}">${esc(p.estado)}</span></td><td class="text-xs">${p.cfdi_uuid ? esc(p.cfdi_uuid).slice(0, 8) + '…' : (p.cfdi_error ? '<span class="text-amber-400" title="' + esc(p.cfdi_error) + '">pendiente</span>' : '-')}</td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-slate-400 py-8">Sin pagos todavía</td></tr>'}
+      </tbody></table></div></div>`;
 }
 
 // ========== ERRORES ==========

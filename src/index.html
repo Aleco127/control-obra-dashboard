@@ -115,7 +115,7 @@ async function massDeleteNomina(){
 <script src="js/cierre-mensual.js?v=20260829d"></script>
 <script src="js/conciliacion.js?v=20260829d"></script>
 <script src="js/respaldo.js?v=20260830a"></script>
-<script src="js/suscripcion.js?v=20260830a"></script>
+<script src="js/suscripcion.js?v=20260830b"></script>
 </head>
 <body class="text-slate-800">
 <a href="#main" class="skip-link">Saltar al contenido</a>
@@ -966,7 +966,7 @@ function wrapReadOnly(client){
 const from=client.from.bind(client);
 client.from=function(t){const b=from(t);['insert','update','delete','upsert'].forEach(m=>{const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
 const rpc=client.rpc.bind(client);
-client.rpc=function(n,...a){if(window.READ_ONLY&&!READ_ONLY_RPC_OK.has(n)&&!/^get_|^load_|^validar_|^listar_|^calcular_/.test(n))return readOnlyFake();const b=rpc(n,...a);const t=b.then.bind(b);b.then=function(ok,ko){return t(function(r){if(r&&r.error&&typeof Suscripcion!=='undefined')Suscripcion.manejarError(r.error);return ok?ok(r):r;},ko);};return b;};
+client.rpc=function(n,...a){if(window.READ_ONLY&&!READ_ONLY_RPC_OK.has(n)&&!/^get_|^load_|^validar_|^listar_|^calcular_/.test(n))return readOnlyFake();const b=rpc(n,...a);const t=b.then.bind(b);b.then=function(ok,ko){return t(function(r){if(typeof Suscripcion!=='undefined'){if(r&&r.error)Suscripcion.manejarError(r.error);else if(r&&r.data&&r.data.success===false&&typeof r.data.error==='string')Suscripcion.manejarError({message:r.data.error});}return ok?ok(r):r;},ko);};return b;};
 const st=client.storage.from.bind(client.storage);
 client.storage.from=function(bk){const b=st(bk);['upload','remove','update','move','copy'].forEach(m=>{if(!b[m])return;const f=b[m].bind(b);b[m]=function(...a){return window.READ_ONLY?readOnlyFake():f(...a);};});return b;};
 return client;
@@ -8115,6 +8115,7 @@ localStorage.setItem('obra_config',JSON.stringify(configData));
 
 function Cf(c){
 const nivel=currentUser?.nivel||0;
+if(typeof Suscripcion!=='undefined')setTimeout(()=>Suscripcion.facturas(),50);
 const canEdit=nivel>=80; // Solo admin puede editar
 
 c.innerHTML=`
