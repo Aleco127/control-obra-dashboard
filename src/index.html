@@ -16573,7 +16573,7 @@ ${d.obra_id?`<button onclick="toggleDocCliente(${d.id})" class="p-2 hover:bg-sla
 <div class="grid grid-cols-2 gap-4">
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docObra">Obra</label>
-<select id="docObra" class="inp">
+<select id="docObra" class="inp" onchange="pintaHitos('docHito',this.value)">
 <option value="">Sin asignar</option>
 ${D.o.map(o=>`<option value="${o.id}">${o.nombre_obra}</option>`).join('')}
 </select>
@@ -16584,6 +16584,11 @@ ${D.o.map(o=>`<option value="${o.id}">${o.nombre_obra}</option>`).join('')}
 ${DOC_CATEGORIAS.map(cat=>`<option value="${cat}">${cat}</option>`).join('')}
 </select>
 </div>
+</div>
+<div>
+<label class="text-xs text-slate-500 mb-1 block" for="docHito">Entrega del programa</label>
+<select id="docHito" class="inp"><option value="">Sin entrega asignada</option></select>
+<p class="text-xs text-slate-400 mt-1">El cliente ve los documentos agrupados bajo la entrega a la que pertenecen.</p>
 </div>
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docDescripcion">Descripción</label>
@@ -16692,6 +16697,7 @@ $('docTipo').value=d.tipo_archivo||'PDF';
 $('docEstatus').value=d.estatus||'Activo';
 $('docNotas').value=d.notas||'';
 $('docVisibleCliente').checked=!!d.visible_cliente;
+pintaHitos('docHito',d.obra_id,d.actividad_id);
 $('docArchivo').value='';
 $('docArchivoNota').textContent=d.archivo_path?'Ya hay un archivo guardado. Elige otro sólo si quieres reemplazarlo.':'Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 }
@@ -16702,8 +16708,25 @@ $('docEstatus').value='Activo';
 $('docTipo').value='PDF';
 $('docArchivoNota').textContent='Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 if(selectedObra&&selectedObra!=='all')$('docObra').value=selectedObra;
+pintaHitos('docHito',$('docObra').value);
 }
 openMdl('mdlDoc');
+}
+
+// Hitos del programa de una obra, para agrupar entregables en el portal del cliente.
+function hitosDeObra(obraId){
+if(!obraId)return[];
+const progs=(D.pg||[]).filter(p=>String(p.obra_id)===String(obraId)).map(p=>p.id);
+if(!progs.length)return[];
+return (D.ap||[]).filter(a=>progs.includes(a.programa_id)&&a.es_hito&&!a.es_resumen)
+.sort((a,b)=>String(a.fecha_inicio||'').localeCompare(String(b.fecha_inicio||''))||(a.orden||0)-(b.orden||0));
+}
+function pintaHitos(selId,obraId,valor){
+const sel=$(selId);if(!sel)return;
+const hs=hitosDeObra(obraId);
+sel.innerHTML='<option value="">Sin entrega asignada</option>'+hs.map(h=>`<option value="${h.id}">${S(h.nombre)}${h.fecha_inicio?' · '+fechaCortaDs(h.fecha_inicio):''}</option>`).join('');
+sel.value=valor!=null&&hs.some(h=>String(h.id)===String(valor))?String(valor):'';
+if(!hs.length)sel.innerHTML=`<option value="">${obraId?'Esta obra todavía no tiene hitos en el programa':'Elige primero la obra'}</option>`;
 }
 
 // El tipo se deduce de la extensión para no obligar a elegirlo dos veces.
@@ -16730,6 +16753,7 @@ tipo_archivo:$('docTipo').value,
 estatus:$('docEstatus').value,
 notas:$('docNotas').value||null,
 visible_cliente:$('docVisibleCliente').checked,
+actividad_id:$('docHito').value?Number($('docHito').value):null,
 subido_por:currentUser?.nombre||'Sistema',
 updated_at:new Date().toISOString()
 };
@@ -16951,7 +16975,7 @@ ${f.es_destacada?`<div class="absolute top-2 left-2"><span class="bg-amber-500 t
 <div class="grid grid-cols-2 gap-4">
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="fotoObra">Obra</label>
-<select id="fotoObra" class="inp">
+<select id="fotoObra" class="inp" onchange="pintaHitos('fotoHito',this.value)">
 <option value="">Sin asignar</option>
 ${D.o.map(o=>`<option value="${o.id}">${o.nombre_obra}</option>`).join('')}
 </select>
@@ -16975,6 +16999,11 @@ ${FOTO_CATEGORIAS.map(cat=>`<option value="${cat}">${cat}</option>`).join('')}
 ${FOTO_ETAPAS.map(et=>`<option value="${et}">${et}</option>`).join('')}
 </select>
 </div>
+</div>
+<div>
+<label class="text-xs text-slate-500 mb-1 block" for="fotoHito">Entrega del programa</label>
+<select id="fotoHito" class="inp"><option value="">Sin entrega asignada</option></select>
+<p class="text-xs text-slate-400 mt-1">El cliente ve las fotos junto a la entrega que documentan.</p>
 </div>
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="fotoUbicacion">Ubicación</label>
@@ -17062,6 +17091,7 @@ $('fotoEtapa').value=f.etapa_obra||'';
 $('fotoUbicacion').value=f.ubicacion||'';
 $('fotoDescripcion').value=f.descripcion||'';
 $('fotoDestacada').checked=f.es_destacada||false;
+pintaHitos('fotoHito',f.obra_id,f.actividad_id);
 if(f.url_foto){
 previewImg.src=f.url_foto;
 preview.classList.remove('hidden');
@@ -17075,6 +17105,7 @@ $('fotoFecha').value=hoyISO();
 $('fotoCategoria').value='General';
 preview.classList.add('hidden');
 if(selectedObra&&selectedObra!=='all')$('fotoObra').value=selectedObra;
+pintaHitos('fotoHito',$('fotoObra').value);
 }
 openMdl('mdlFoto');
 }
@@ -17093,6 +17124,7 @@ etapa_obra:$('fotoEtapa').value||null,
 ubicacion:$('fotoUbicacion').value||null,
 descripcion:$('fotoDescripcion').value||null,
 es_destacada:$('fotoDestacada').checked,
+actividad_id:$('fotoHito').value?Number($('fotoHito').value):null,
 tomada_por:currentUser?.nombre||'Sistema',
 updated_at:new Date().toISOString()
 };

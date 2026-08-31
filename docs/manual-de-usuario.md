@@ -2139,6 +2139,7 @@ Se crea CxC con monto = monto_periodo, estatus = "Pendiente", vencimiento = fech
 | Liga externa | URL | No |
 | Obra | Selector | No |
 | Categoria | Selector | Si |
+| Entrega del programa | Selector | No |
 | Visible para el cliente | Casilla | No |
 | Fecha del documento | Fecha | No |
 | Descripcion | Textarea | No |
@@ -2153,6 +2154,12 @@ el archivo, se guarda en un almacen privado y solo se abre con una liga firmada 
 **Visible para el cliente:** deja la casilla vacia salvo que quieras que ese documento aparezca en el
 portal del cliente de esa obra. Tambien puedes prenderlo y apagarlo desde la lista con el icono del ojo.
 Los documentos sin obra asignada nunca se publican.
+
+**Entrega del programa:** elige el hito al que pertenece el documento. En el portal, el cliente ve los
+entregables agrupados bajo su entrega, con la fecha y el estado de cada una, y en el programa de obra le
+aparece un boton que lo lleva directo a esa entrega. La lista solo muestra los hitos de la obra elegida;
+si la obra todavia no tiene programa, el selector te lo dice. Lo que dejes sin entrega asignada cae en
+*Otros documentos*, al final de la tarjeta.
 
 **Almacenamiento:** Supabase Storage con acceso controlado por empresa.
 
@@ -2175,8 +2182,13 @@ Los documentos sin obra asignada nunca se publican.
 | Archivo | Upload imagen | Si |
 | Tags | Texto | No |
 | Categoria | Selector | No |
+| Entrega del programa | Selector | No |
 
 **Categorias:** Avance, Incidente, Documento, Otro
+
+**Entrega del programa:** igual que en Documentos. Las fotos que asignes a un hito acompanan a esa
+entrega en el portal del cliente; las demas siguen en la galeria general, que pasa a llamarse *Mas fotos
+de la obra* cuando ya hay fotos repartidas por entrega.
 
 **Limites:** PNG o JPG, maximo 2MB por imagen
 
@@ -2831,6 +2843,12 @@ nuevo (el anterior deja de servir) o desactivarlo.
 **Que documentos ve.** Solo los que marques uno por uno. En el modulo Documentos, prende *Visible para el
 cliente* al guardar, o toca el icono del ojo en la lista. Todo lo demas (contratos con proveedores,
 cotizaciones, precios de costo) se queda de tu lado.
+
+**Como los ve ordenados.** Los entregables se agrupan por entrega. En Documentos y en Fotos hay un campo
+*Entrega del programa*: el hito al que pertenece cada archivo. En el portal, cada entrega es un bloque con
+su fecha, cuantos documentos y fotos trae y si ya se entrego, y en el programa de obra cada hito con
+material publicado muestra un boton que lleva a su bloque. Asi el cliente no busca entre una lista larga:
+entra por la fecha de entrega que le interesa.
 
 **Si el cliente olvida su contrasena** no hay correo de recuperacion: te lo pide a ti y le generas una
 nueva desde la misma pantalla. Si lo que olvido es el usuario, lo ves en la lista de esa obra.

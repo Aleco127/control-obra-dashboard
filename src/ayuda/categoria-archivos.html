@@ -17,21 +17,29 @@ nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap
 <p><strong>Codigo interno:</strong> <code>k</code> | <strong>Icono:</strong> ri-folder-3-line</p>
 <p><strong>Proposito:</strong> Almacenamiento y organizacion de documentos del proyecto.</p>
 <p><strong>Campos:</strong></p>
-<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td></tr><tr><td>Tipo</td><td>Selector</td><td>Si</td></tr><tr><td>Archivo</td><td>Upload</td><td>No</td></tr><tr><td>Liga externa</td><td>URL</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>Si</td></tr><tr><td>Visible para el cliente</td><td>Casilla</td><td>No</td></tr><tr><td>Fecha del documento</td><td>Fecha</td><td>No</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Version</td><td>Numero</td><td>No</td></tr><tr><td>Responsable</td><td>Auto</td><td>Usuario actual</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Nombre</td><td>Texto</td><td>Si</td></tr><tr><td>Tipo</td><td>Selector</td><td>Si</td></tr><tr><td>Archivo</td><td>Upload</td><td>No</td></tr><tr><td>Liga externa</td><td>URL</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>Si</td></tr><tr><td>Entrega del programa</td><td>Selector</td><td>No</td></tr><tr><td>Visible para el cliente</td><td>Casilla</td><td>No</td></tr><tr><td>Fecha del documento</td><td>Fecha</td><td>No</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Version</td><td>Numero</td><td>No</td></tr><tr><td>Responsable</td><td>Auto</td><td>Usuario actual</td></tr></tbody></table></div>
 <p><strong>Tipos de documento:</strong> Planos, Especificaciones, Permisos, Contratos, Reportes, Otro</p>
 <p><strong>Archivo o liga:</strong> puedes subir el archivo (hasta 25 MB) o pegar una liga de Drive o Dropbox. Si subes</p>
 <p>el archivo, se guarda en un almacen privado y solo se abre con una liga firmada que caduca en 5 minutos.</p>
 <p><strong>Visible para el cliente:</strong> deja la casilla vacia salvo que quieras que ese documento aparezca en el</p>
 <p>portal del cliente de esa obra. Tambien puedes prenderlo y apagarlo desde la lista con el icono del ojo.</p>
 <p>Los documentos sin obra asignada nunca se publican.</p>
+<p><strong>Entrega del programa:</strong> elige el hito al que pertenece el documento. En el portal, el cliente ve los</p>
+<p>entregables agrupados bajo su entrega, con la fecha y el estado de cada una, y en el programa de obra le</p>
+<p>aparece un boton que lo lleva directo a esa entrega. La lista solo muestra los hitos de la obra elegida;</p>
+<p>si la obra todavia no tiene programa, el selector te lo dice. Lo que dejes sin entrega asignada cae en</p>
+<p><em>Otros documentos</em>, al final de la tarjeta.</p>
 <p><strong>Almacenamiento:</strong> Supabase Storage con acceso controlado por empresa.</p>
 <p>---</p>
 <h3 id="4-25-fotos">4.25 Fotos</h3>
 <p><strong>Codigo interno:</strong> <code>f</code> | <strong>Icono:</strong> ri-image-line</p>
 <p><strong>Proposito:</strong> Galeria fotografica de avance de obra y documentacion visual.</p>
 <p><strong>Campos:</strong></p>
-<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Titulo</td><td>Texto</td><td>No</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Fecha Foto</td><td>Fecha</td><td>No</td></tr><tr><td>Archivo</td><td>Upload imagen</td><td>Si</td></tr><tr><td>Tags</td><td>Texto</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>No</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Tipo</th><th>Requerido</th></tr></thead><tbody><tr><td>Titulo</td><td>Texto</td><td>No</td></tr><tr><td>Descripcion</td><td>Textarea</td><td>No</td></tr><tr><td>Obra</td><td>Selector</td><td>No</td></tr><tr><td>Fecha Foto</td><td>Fecha</td><td>No</td></tr><tr><td>Archivo</td><td>Upload imagen</td><td>Si</td></tr><tr><td>Tags</td><td>Texto</td><td>No</td></tr><tr><td>Categoria</td><td>Selector</td><td>No</td></tr><tr><td>Entrega del programa</td><td>Selector</td><td>No</td></tr></tbody></table></div>
 <p><strong>Categorias:</strong> Avance, Incidente, Documento, Otro</p>
+<p><strong>Entrega del programa:</strong> igual que en Documentos. Las fotos que asignes a un hito acompanan a esa</p>
+<p>entrega en el portal del cliente; las demas siguen en la galeria general, que pasa a llamarse *Mas fotos</p>
+<p>de la obra* cuando ya hay fotos repartidas por entrega.</p>
 <p><strong>Limites:</strong> PNG o JPG, maximo 2MB por imagen</p>
 <p><strong>Funcionalidades:</strong></p>
 <ul>
