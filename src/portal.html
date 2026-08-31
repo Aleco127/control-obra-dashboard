@@ -30,9 +30,17 @@ footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
 .doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.doc:last-child{border-bottom:0}
 .doc .meta{font-size:12px;color:var(--muted)}
 .login{max-width:380px;margin:6vh auto 0}
-.login .marca{text-align:center;margin-bottom:18px}
+.login .marca{text-align:center;margin-bottom:16px}
+.login .marca h1{font-size:20px;line-height:1.25;margin:0 0 6px;text-wrap:balance}
+.login .marca .sub{margin:0;font-size:14px;text-wrap:balance}
+.login .card{padding:20px 18px;margin-bottom:0}
+.login .campos{display:grid;gap:14px}
+.login .campo label{margin:0 0 6px}
+.login .btn{display:block;width:100%;margin-top:18px;padding:12px 14px;font-size:15px}
+.login .ayuda{margin:14px 0 0;font-size:13px;line-height:1.45;text-align:center;color:var(--muted);text-wrap:balance}
+.login .pie{margin:12px 0 0;text-align:center}
 label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
-input[type=email],input[type=password],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:#fff;color:var(--ink);font-family:inherit}
+input[type=text],input[type=email],input[type=password],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:#fff;color:var(--ink);font-family:inherit}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .err{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:9px 11px;font-size:14px;margin:10px 0 0}
 .barra{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -87,16 +95,18 @@ function pantallaError(titulo,texto){$('#app').innerHTML=`<div class="card" styl
 
 function pantallaLogin(msg){
   $('#app').innerHTML=`<div class="login">
-    <div class="marca"><h1 style="font-size:20px;margin:10px 0 2px">Avance de tu obra</h1><p class="sub" style="margin:0">Entra con el usuario y la contraseña que te dio tu constructor.</p></div>
+    <div class="marca"><h1>Avance de tu obra</h1><p class="sub">Entra con el usuario y la contraseña que te dio tu constructor.</p></div>
     <form class="card" id="formLogin">
-      <label for="lgUsuario">Usuario</label>
-      <input id="lgUsuario" type="text" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required placeholder="tu usuario">
-      <label for="lgPass">Contraseña</label>
-      <input id="lgPass" type="password" autocomplete="current-password" required>
+      <div class="campos">
+        <div class="campo"><label for="lgUsuario">Usuario</label>
+          <input id="lgUsuario" type="text" inputmode="text" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required></div>
+        <div class="campo"><label for="lgPass">Contraseña</label>
+          <input id="lgPass" type="password" autocomplete="current-password" required></div>
+      </div>
       ${msg?`<div class="err">${esc(msg)}</div>`:''}
-      <p style="margin:14px 0 0"><button class="btn" style="width:100%" id="lgBtn" type="submit">Entrar</button></p>
-      <p class="vacio" style="margin:12px 0 0;font-size:13px">¿Olvidaste tu contraseña? Pídele a tu constructor que te la reinicie.</p>
-    </form></div>`;
+      <button class="btn" id="lgBtn" type="submit">Entrar</button>
+    </form>
+    <p class="ayuda">¿Olvidaste tu contraseña? Pídele a tu constructor que te la reinicie.</p></div>`;
   $('#formLogin').addEventListener('submit',async(ev)=>{
     ev.preventDefault();
     const b=$('#lgBtn');b.disabled=true;b.textContent='Entrando…';
@@ -110,17 +120,21 @@ function pantallaLogin(msg){
 
 function pantallaPassword(obligatorio,msg){
   $('#app').innerHTML=`<div class="login">
-    <h1 style="font-size:20px;text-align:center">${obligatorio?'Elige tu contraseña':'Cambiar contraseña'}</h1>
-    ${obligatorio?'<p class="sub" style="text-align:center">Es tu primera vez aquí. Cambia la contraseña que te dieron por una tuya.</p>':''}
+    <div class="marca"><h1>${obligatorio?'Elige tu contraseña':'Cambiar contraseña'}</h1>
+      ${obligatorio?'<p class="sub">Es tu primera vez aquí. Cambia la contraseña que te dieron por una tuya.</p>':''}</div>
     <form class="card" id="formPass">
-      <label for="pwAct">Contraseña actual</label><input id="pwAct" type="password" autocomplete="current-password" required>
-      <label for="pwNue">Contraseña nueva</label><input id="pwNue" type="password" autocomplete="new-password" minlength="8" required>
-      <p class="vacio" style="font-size:12px;margin:6px 0 0">Al menos 8 caracteres.</p>
+      <div class="campos">
+        <div class="campo"><label for="pwAct">Contraseña actual</label>
+          <input id="pwAct" type="password" autocomplete="current-password" required></div>
+        <div class="campo"><label for="pwNue">Contraseña nueva</label>
+          <input id="pwNue" type="password" autocomplete="new-password" minlength="8" required>
+          <p class="vacio" style="font-size:12px;margin:6px 0 0">Al menos 8 caracteres.</p></div>
+      </div>
       ${msg?`<div class="err">${esc(msg)}</div>`:''}
-      <p style="margin:14px 0 0"><button class="btn" style="width:100%" id="pwBtn" type="submit">Guardar</button></p>
-      ${obligatorio?'':'<p style="margin:8px 0 0;text-align:center"><button type="button" class="txt" onclick="volver()">Cancelar</button></p>'}
+      <button class="btn" id="pwBtn" type="submit">Guardar</button>
+      ${obligatorio?'':'<p class="pie"><button type="button" class="txt" onclick="volver()">Cancelar</button></p>'}
     </form>
-    <p style="text-align:center"><button class="txt" onclick="salir()">Cerrar sesión</button></p></div>`;
+    <p class="pie"><button class="txt" onclick="salir()">Cerrar sesión</button></p></div>`;
   $('#formPass').addEventListener('submit',async(ev)=>{
     ev.preventDefault();
     const b=$('#pwBtn');b.disabled=true;b.textContent='Guardando…';
