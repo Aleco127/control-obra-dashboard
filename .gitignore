@@ -36,3 +36,13 @@ tmpclaude-*
 mobile/android/
 mobile/node_modules/
 supabase/.temp/
+
+# Nunca al repo publico: notas internas, auditoria de seguridad y documentos fiscales.
+# El historial ya se reescribio una vez para sacarlos; este bloque evita repetirlo.
+CLAUDE.md
+AGENTS.md
+SECURITY-AUDIT.md
+SKILL-VPS-DEPLOY.md
+.claude/
+SUA/
+*prima de riesgos imss*.pdf
