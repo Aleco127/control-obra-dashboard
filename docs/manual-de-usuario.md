@@ -2742,9 +2742,15 @@ Desde agosto de 2026 los modulos Gastos y Ordenes son uno solo: **Compras y gast
 
 ![Compras y gastos](img/compras-lista.png)
 
-**Registrar gasto.** Cinco datos: que se compro, total pagado (marca *Incluye IVA 16 %* si viene desglosado), destino, proveedor (escribe para buscar o crearlo) y fecha. La categoria se sugiere sola a partir de la descripcion y el proveedor; si el sistema detecta que un gasto capturado como obra parece de oficina (Telmex, Meta, luz) lo propone como indirecto y basta un clic para aceptarlo. En *Mas detalles* estan la partida del catalogo, si ya se pago o queda pendiente con su fecha de vencimiento, el numero de factura y el UUID.
+**Registrar gasto.** Cinco datos: que se compro, total pagado (marca *Incluye IVA 16 %* si viene desglosado), destino, proveedor (escribe para buscar o crearlo) y fecha. La categoria se sugiere sola a partir de la descripcion y el proveedor; si el sistema detecta que un gasto capturado como obra parece de oficina (Telmex, Meta, luz) lo propone como indirecto y basta un clic para aceptarlo. En *Mas detalles* estan la partida del catalogo, el estado de pago con su fecha de vencimiento, el numero de factura y el UUID.
+
+**Todo nace pendiente.** Un gasto recien capturado queda como *Por pagar*, aunque el dinero ya haya salido. Nadie lo da por saldado por ti: alguien tiene que moverlo a *Pagado* a mano. Asi el sistema sabe en todo momento cuanto se debe de verdad, sea al proveedor o a quien puso el dinero de su bolsa. Si el gasto ya estaba pagado al momento de capturarlo, cambia el campo *Pago* a **Ya se pago** en el formulario.
+
+**Cambiar el estado desde la lista.** La burbuja de la columna *Pago* es un selector: tocala y elige *Por aprobar*, *Por pagar* o *Pagado*, sin abrir el gasto. Al marcarlo pagado se da por cubierto el total; al regresarlo a *Por pagar* se limpia lo cobrado. Si el gasto ya tiene pagos capturados en el modulo de Pagos, la burbuja no lo deja regresar a pendiente: primero hay que cancelar el pago, para que las dos cuentas no se contradigan. La misma burbuja aparece en las tarjetas del celular.
 
 **Quien puso el dinero.** Si un socio pago de su bolsa, eligelo en *Quien puso el dinero*: el gasto cuenta para la obra y ademas queda como aportacion en la cuenta corriente del socio, para reembolsarlo o descontarlo en el reparto.
+
+**Dinero por reponer (caja chica).** Arriba de la lista aparece un bloque ambar con lo que cada persona puso de su bolsa y todavia no se le repone: cuantos gastos son y cuanto suman. Es el conteo que sirve al cierre de obra, cuando se devuelve lo que cada quien adelanto. El nombre filtra la lista a sus gastos (quita el filtro con la palomita de la burbuja *Pago...*), y *Marcar repuesto* pasa de un golpe todos sus gastos pendientes a pagados, previa confirmacion con el total. El bloque desaparece solo cuando no queda nada por reponer.
 
 **Foto del ticket desde el celular.** Toca **+** y *Gasto con ticket*: se abre la camara, tomas la foto (se comprime antes de subir), capturas el total y la obra, y listo. Sin senal, el gasto y la foto esperan en el telefono y se envian solos al volver la conexion.
 

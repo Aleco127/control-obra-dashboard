@@ -11,7 +11,7 @@
  */
 const Compras = (() => {
   let tab = 'todos';            // todos | aprobar | pagar | indirectos | comprobante | socios
-  let q = '', fProv = '', fCat = '', fDesde = '', fHasta = '';
+  let q = '', fProv = '', fCat = '', fDesde = '', fHasta = '', fPagador = '';
   let catTocada = false;        // el usuario eligió categoría a mano: no la sobreescribe la sugerencia
   let fotoPendiente = null;     // {dataUrl, size} del ticket capturado en el formulario
   let provQuery = '';
@@ -71,6 +71,7 @@ const Compras = (() => {
     else if (tab === 'indirectos') list = list.filter(g => destinoDe(g) === 'indirecto');
     else if (tab === 'comprobante') list = list.filter(g => ['sin_comprobante', 'ticket', 'factura_pendiente'].includes(g.comprobacion || 'sin_comprobante') && destinoDe(g) !== 'socio');
     else if (tab === 'socios') list = list.filter(g => destinoDe(g) === 'socio' || g.pagado_por_socio_id);
+    if (fPagador) list = list.filter(g => g.pagado_por_socio_id == fPagador);
     if (fProv) list = list.filter(g => g.proveedor_id == fProv);
     if (fCat) list = list.filter(g => GastosRules.norm(g.categoria) === GastosRules.norm(fCat));
     if (fDesde) list = list.filter(g => (g.fecha_solicitud || '') >= fDesde);
@@ -91,6 +92,19 @@ const Compras = (() => {
     return `<span class="chip chip-ind" title="${dist ? 'Se reparte entre ' + dist + ' obra(s)' : 'Indirecto: se prorratea entre las obras'}">Indirecto${dist ? ' · ' + dist : ''}</span>`;
   }
   function chipEstado(g) { const [t, cls] = ESTADO[estado(g)]; return `<span class="px-2 py-0.5 rounded-full text-xs font-medium ${cls}">${t}</span>`; }
+  // El estado de pago se cambia desde la lista: el gasto nace pendiente y alguien lo mueve a pagado
+  // cuando de verdad salió el dinero (o cuando se le repuso a quien lo puso de su bolsa).
+  function selectEstado(g) {
+    const est = estado(g);
+    const [, cls] = ESTADO[est];
+    if (!puedeEditar() || est === 'rechazado') return chipEstado(g);
+    const opts = [];
+    if (puedeAprobar()) opts.push(['solicitado', ESTADO.solicitado[0]]);
+    opts.push(['aprobado', ESTADO.aprobado[0]]);
+    if (est === 'parcial') opts.push(['parcial', ESTADO.parcial[0]]);
+    opts.push(['pagado', ESTADO.pagado[0]]);
+    return `<select class="chip-select font-medium ${cls}" aria-label="Estado de pago de ${S(g.descripcion || g.id)}" onchange="Compras.cambiarEstado(${g.id},this.value)">${opts.map(([k, l]) => `<option value="${k}" ${k === est ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  }
   function selectComprobacion(g) {
     const v = g.comprobacion || 'sin_comprobante';
     const [, cls] = COMPROBACION[v] || COMPROBACION.sin_comprobante;
@@ -139,7 +153,7 @@ ${canEdit ? `<td class="p-2 text-center"><input type="checkbox" class="gastoChec
 <td class="p-2 hidden lg:table-cell"><div class="text-xs">${g.proveedor_id ? `<button type="button" class="link" onclick="Compras.proveedor(${g.proveedor_id})">${S(provNombre(g.proveedor_id))}</button>` : '<span class="text-ink-subtle">-</span>'}</div>${pagadoPor(g)}</td>
 <td class="p-2 text-right font-semibold whitespace-nowrap">${F(g.monto_neto)}${est === 'parcial' ? `<div class="text-[11px] text-ink-subtle">saldo ${F(saldo(g))}</div>` : ''}</td>
 <td class="p-2 hidden sm:table-cell">${selectComprobacion(g)}</td>
-<td class="p-2 text-center">${chipEstado(g)}</td>
+<td class="p-2 text-center">${selectEstado(g)}</td>
 ${canEdit ? `<td class="p-2 text-right whitespace-nowrap">${acciones.join('')}</td>` : ''}
 </tr>`;
     }).join('');
@@ -150,10 +164,10 @@ ${canEdit ? `<td class="p-2 text-right whitespace-nowrap">${acciones.join('')}</
     if (!list.length) return `<div class="g rounded-xl p-4">${vacio('compras', { icon: 'ri-wallet-3-line', body: 'Toca + para registrar un gasto con la foto del ticket.', action: puedeCrear() ? { label: 'Registrar gasto', onClick: 'Compras.nuevo()' } : null })}</div>`;
     const canEdit = puedeEditar();
     return list.slice(0, 200).map(g => {
-      const est = estado(g); const [t, cls] = ESTADO[est];
+      const est = estado(g);
       return `<article class="g rounded-xl p-3" ${canEdit ? `onclick="if(!event.target.closest('button,select,a'))Compras.editar(${g.id})"` : ''}>
 <div class="flex items-start gap-2">${thumbHtml(g)}<div class="flex-1 min-w-0"><p class="font-medium truncate">${S(g.descripcion) || '<span class="text-ink-subtle">Sin descripción</span>'}</p><p class="text-xs text-ink-subtle">${(g.fecha_solicitud || '').slice(0, 10)} · ${S(g.categoria || 'Sin categoría')}${g.proveedor_id ? ' · ' + S(provNombre(g.proveedor_id)) : ''}</p></div><p class="font-bold whitespace-nowrap">${F(g.monto_neto)}</p></div>
-<div class="flex flex-wrap items-center gap-2 mt-2">${chipDestino(g)}<span class="px-2 py-0.5 rounded-full text-xs font-medium ${cls}">${t}</span>${selectComprobacion(g)}
+<div class="flex flex-wrap items-center gap-2 mt-2">${chipDestino(g)}${selectEstado(g)}${selectComprobacion(g)}
 ${est === 'solicitado' && puedeAprobar() ? `<button type="button" class="btn btn-s text-xs ml-auto" onclick="Compras.aprobar([${g.id}])"><i class="ri-check-line" aria-hidden="true"></i> Aprobar</button>` : ''}
 ${['aprobado', 'parcial'].includes(est) && canEdit && destinoDe(g) !== 'socio' ? `<button type="button" class="btn btn-s text-xs ml-auto" onclick="Compras.pagar(${g.id})"><i class="ri-bank-card-line" aria-hidden="true"></i> Pagar</button>` : ''}</div>
 </article>`;
@@ -174,6 +188,28 @@ ${k(F(porPagar.reduce((s, g) => s + saldo(g), 0)), 'Por pagar a proveedores')}
 ${k(sinComp.length, 'Sin factura', sinComp.length ? 'text-warn' : '')}
 ${k(F(ind.reduce((s, g) => s + num(g.monto_neto), 0)), 'Indirectos')}
 </div>`;
+  }
+
+  // Caja chica: lo que alguien puso de su bolsa y todavia no se le repone.
+  function porReponer(all) {
+    const pend = all.filter(g => g.pagado_por_socio_id && !['pagado', 'rechazado'].includes(estado(g)));
+    if (!pend.length) return '';
+    const por = new Map();
+    pend.forEach(g => { const k = g.pagado_por_socio_id; const v = por.get(k) || { n: 0, monto: 0 }; v.n++; v.monto += saldo(g); por.set(k, v); });
+    const filas = [...por.entries()].sort((a, b) => b[1].monto - a[1].monto);
+    const total = filas.reduce((t, [, v]) => t + v.monto, 0);
+    const canEdit = puedeEditar();
+    return `<div class="g rounded-xl p-3 mb-3 border border-amber-200 bg-amber-50">
+<div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+<h2 class="font-bold text-sm"><i class="ri-hand-coin-line" aria-hidden="true"></i> Dinero por reponer</h2>
+<p class="text-xs text-ink-muted">Gastos que alguien pagó de su bolsa y siguen sin saldarse · <strong>${F(total)}</strong></p></div>
+<ul class="divide-y divide-amber-200/70 text-sm">
+${filas.map(([id, v]) => `<li class="flex flex-wrap items-center gap-2 py-1.5">
+<button type="button" class="link font-medium" onclick="Compras.verDe(${id})">${S(socioNombre(id))}</button>
+<span class="text-xs text-ink-subtle">${v.n} ${v.n === 1 ? 'gasto' : 'gastos'}</span>
+<span class="flex-1"></span><span class="font-semibold whitespace-nowrap">${F(v.monto)}</span>
+${canEdit ? `<button type="button" class="btn btn-s text-xs" onclick="Compras.reponer(${id})"><i class="ri-check-double-line" aria-hidden="true"></i> Marcar repuesto</button>` : ''}</li>`).join('')}
+</ul></div>`;
   }
 
   function render(c) {
@@ -199,6 +235,7 @@ ${canEdit ? `<button type="button" onclick="Compras.importarXML()" class="btn bt
 ${puedeAprobar() ? `<button type="button" onclick="Compras.revisarClasificacion()" class="btn btn-s text-sm hidden sm:inline-flex"><i class="ri-magic-line" aria-hidden="true"></i> Revisar clasificación</button>` : ''}
 </div></div>
 ${kpis(all)}
+${porReponer(all)}
 <div class="tabs mb-3" role="tablist" aria-label="Vistas de compras">
 ${tabs.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${tab === k}" class="tab ${tab === k ? 'active' : ''}" onclick="Compras.setTab('${k}')">${l} <span class="tab-n">${n}</span></button>`).join('')}
 </div>
@@ -211,6 +248,7 @@ ${tabs.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${tab
 <select class="inp text-sm py-1.5 w-44" aria-label="Filtrar por categoría" onchange="Compras.filtro('cat',this.value)"><option value="">Todas las categorías</option>${cats().map(x => `<option value="${S(x.nombre)}" ${fCat === x.nombre ? 'selected' : ''}>${S(x.nombre)}</option>`).join('')}</select>
 <input type="date" class="inp text-sm py-1.5 w-36" value="${fDesde}" aria-label="Desde" onchange="Compras.filtro('desde',this.value)"><span class="text-xs text-ink-subtle">a</span>
 <input type="date" class="inp text-sm py-1.5 w-36" value="${fHasta}" aria-label="Hasta" onchange="Compras.filtro('hasta',this.value)">
+${fPagador ? `<button type="button" class="chip chip-socio" onclick="Compras.filtro('pagador','')" title="Quitar el filtro">Pagó ${S(socioNombre(fPagador))} <i class="ri-close-line" aria-hidden="true"></i></button>` : ''}
 <button type="button" class="btn-icon" onclick="Compras.limpiar()" aria-label="Limpiar filtros" title="Limpiar filtros"><i class="ri-refresh-line" aria-hidden="true"></i></button>
 <span class="flex-1"></span>
 <button type="button" class="btn btn-s text-xs" onclick="Compras.exportar()"><i class="ri-file-excel-2-line" aria-hidden="true"></i> Excel</button>
@@ -244,8 +282,9 @@ ${modalHtml()}
   function repintar() { const tb = $('gastosList'); if (tb) { const l = lista(); tb.innerHTML = filas(l); const cd = $('gastosCards'); if (cd) cd.innerHTML = tarjetas(l); cargarMiniaturas(); } else if (M === 'g') R(); }
   function setTab(t) { tab = t; if (M !== 'g') { M = 'g'; R(); } else render($('c')); }
   function buscar(v) { q = v; repintar(); }
-  function filtro(k, v) { if (k === 'prov') fProv = v; if (k === 'cat') fCat = v; if (k === 'desde') fDesde = v; if (k === 'hasta') fHasta = v; render($('c')); }
-  function limpiar() { q = ''; fProv = fCat = fDesde = fHasta = ''; render($('c')); }
+  function filtro(k, v) { if (k === 'prov') fProv = v; if (k === 'cat') fCat = v; if (k === 'desde') fDesde = v; if (k === 'hasta') fHasta = v; if (k === 'pagador') fPagador = v; render($('c')); }
+  function limpiar() { q = ''; fProv = fCat = fDesde = fHasta = fPagador = ''; render($('c')); }
+  function verDe(socioId) { fPagador = String(socioId); tab = 'todos'; render($('c')); }
 
   async function cargarMiniaturas() {
     const els = [...document.querySelectorAll('#gastosList .thumb[data-path], #gastosCards .thumb[data-path]')].filter(b => !thumbs.has(b.dataset.path));
@@ -334,7 +373,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
 <div class="grid grid-cols-2 gap-3 force-2col mt-3">
 <div><label class="text-xs mb-1 block" for="gastoCategoria">Categoría *</label><select id="gastoCategoria" class="inp" required onchange="Compras.catManual()"><option value="">Elegir</option>${cats().map(x => `<option value="${S(x.nombre)}" data-nat="${x.naturaleza}">${S(x.nombre)}</option>`).join('')}</select></div>
 <div id="gastoPartidaContainer"><label class="text-xs mb-1 block" for="gastoPartida">Partida del catálogo</label><select id="gastoPartida" class="inp"><option value="">Sin partida</option></select></div>
-<div><label class="text-xs mb-1 block" for="gastoEstatus">Pago</label><select id="gastoEstatus" class="inp" onchange="Compras.onEstatus()"><option value="Pagado">Ya se pagó</option><option value="Pendiente">Pendiente de pago</option></select></div>
+<div><label class="text-xs mb-1 block" for="gastoEstatus">Pago</label><select id="gastoEstatus" class="inp" onchange="Compras.onEstatus()"><option value="Pendiente">Pendiente de pago</option><option value="Pagado">Ya se pagó</option></select></div>
 <div id="gastoVenceContainer" class="hidden"><label class="text-xs mb-1 block" for="gastoVence">Vence el</label><input type="date" id="gastoVence" class="inp"></div>
 <div><label class="text-xs mb-1 block" for="gastoSolicitante">Quién lo pidió</label><select id="gastoSolicitante" class="inp"><option value="">Elegir</option>${(D.u || []).filter(u => u.activo).map(u => `<option value="${S(u.nombre)}">${S(u.nombre)}</option>`).join('')}</select></div>
 <div><label class="text-xs mb-1 block" for="gastoFactura">Número de factura</label><input type="text" id="gastoFactura" class="inp" placeholder="Serie y folio"></div>
@@ -425,7 +464,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     catTocada = false; fotoPendiente = null; provQuery = '';
     ['gastoId', 'gastoDescripcion', 'gastoMonto', 'gastoFactura', 'gastoFolioFiscal', 'gastoComentarios', 'gastoProveedor', 'gastoProvInput', 'gastoVence'].forEach(id => { const e = $(id); if (e) e.value = ''; });
     $('gastoFecha').value = hoyISO(); $('gastoConIVA').checked = false; $('gastoIVAPreview').textContent = '';
-    $('gastoEstatus').value = 'Pagado'; onEstatus();
+    $('gastoEstatus').value = 'Pendiente'; onEstatus();
     $('gastoCategoria').value = ''; $('gastoSolicitante').value = currentUser?.nombre && [...$('gastoSolicitante').options].some(o => o.value === currentUser.nombre) ? currentUser.nombre : '';
     const pp = $('gastoPagadoPor'); if (pp) pp.value = '';
     $('gastoFotoInfo').textContent = ''; $('gastoFotoPreview').classList.add('hidden'); const fi = $('gastoFotoInput'); if (fi) fi.value = '';
@@ -589,6 +628,50 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
   }
 
   // ---------- acciones en línea ----------
+  async function cambiarEstado(id, val) {
+    const g = D.g.find(x => x.id == id); if (!g) return;
+    const antes = estado(g);
+    if (val === antes) return;
+    if (val === 'parcial') { repintar(); return; }
+    if (val !== 'solicitado' && !g.aprobado_at && !puedeAprobar()) { Toast.warning('Este gasto sigue pendiente de aprobación. Pídeselo a un gerente o administrador.'); repintar(); return; }
+    // Si ya hay pagos capturados, el estado lo manda la cuenta de pagos, no esta burbuja.
+    const pagos = (D.ppv || []).filter(p => p.gasto_id == id);
+    if (pagos.length && val !== 'pagado') { Toast.warning(`Este gasto ya tiene ${pagos.length === 1 ? 'un pago capturado' : pagos.length + ' pagos capturados'}. Cancela el pago para regresarlo a pendiente.`); repintar(); return; }
+    if (typeof Cierres !== 'undefined' && !(await Cierres.verificarEdicion(g.fecha_solicitud))) { repintar(); return; }
+    const now = new Date().toISOString();
+    let upd;
+    if (val === 'solicitado') upd = { aprobado_at: null, aprobado_por: null, estatus_pago: 'Pendiente', monto_pagado: 0, updated_at: now };
+    else if (val === 'aprobado') upd = { aprobado_at: g.aprobado_at || now, aprobado_por: g.aprobado_por || currentUser?.id || null, estatus_pago: 'Pendiente', monto_pagado: 0, updated_at: now };
+    else upd = { aprobado_at: g.aprobado_at || now, aprobado_por: g.aprobado_por || currentUser?.id || null, estatus_pago: 'Pagado', monto_pagado: num(g.monto_neto), updated_at: now };
+    const { error } = await sb.from('gastos').update(upd).eq('id', id);
+    if (error) { Toast.error(humanizeError(error, 'No se pudo cambiar el estado')); repintar(); return; }
+    Object.assign(g, upd);
+    const quien = g.pagado_por_socio_id ? ' a ' + socioNombre(g.pagado_por_socio_id) : '';
+    Toast.success(val === 'pagado' ? `${S(g.descripcion || 'El gasto')} quedó como pagado${quien}.` : `${S(g.descripcion || 'El gasto')} regresó a ${ESTADO[val][0].toLowerCase()}.`);
+    try { Telemetry.track('gasto_estado_manual', { de: antes, a: val }); } catch (e) { }
+    refrescar();
+  }
+
+  // Al cierre de obra se repone de una sola vez lo que alguien puso de su bolsa.
+  async function reponer(socioId) {
+    const ids = base().filter(g => g.pagado_por_socio_id == socioId && !['pagado', 'rechazado'].includes(estado(g))).map(g => g.id);
+    if (!ids.length) { Toast.info('No hay nada por reponer.'); return; }
+    const monto = base().filter(g => ids.includes(g.id)).reduce((t, g) => t + saldo(g), 0);
+    if (!await Dialog.confirm(`¿Marcar como pagados los ${ids.length} gastos que puso ${socioNombre(socioId)}, por ${F(monto)} en total?`)) return;
+    const now = new Date().toISOString();
+    // Los que nunca se aprobaron necesitan además la firma de aprobación; a los demás no se les toca la suya.
+    const sinAprobar = ids.filter(id => !D.g.find(x => x.id == id)?.aprobado_at);
+    for (const [lote, extra] of [[sinAprobar, { aprobado_at: now, aprobado_por: currentUser?.id || null }], [ids.filter(id => !sinAprobar.includes(id)), {}]]) {
+      if (!lote.length) continue;
+      const { error } = await sb.from('gastos').update({ estatus_pago: 'Pagado', updated_at: now, ...extra }).in('id', lote);
+      if (error) { Toast.error(humanizeError(error, 'No se pudo reponer')); refrescar(); return; }
+    }
+    ids.forEach(id => { const g = D.g.find(x => x.id == id); if (g) { g.estatus_pago = 'Pagado'; g.monto_pagado = num(g.monto_neto); g.aprobado_at = g.aprobado_at || now; } });
+    Toast.success(`Se repusieron ${F(monto)} a ${socioNombre(socioId)}.`, 6000);
+    try { Telemetry.track('caja_chica_repuesta', { n: ids.length }); } catch (e) { }
+    refrescar();
+  }
+
   async function cambiarComprobacion(id, val) {
     const g = D.g.find(x => x.id == id); if (!g) return;
     const { error } = await sb.from('gastos').update({ comprobacion: val, updated_at: new Date().toISOString() }).eq('id', id);
@@ -799,5 +882,5 @@ ${sug.map(({ gasto: g, sugerencia: s, cambiaDestino, cambiaCategoria }) => {
     XLSX.writeFile(wb, `Compras_${hoyISO()}.xlsx`);
   }
 
-  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
+  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, cambiarEstado, reponer, verDe, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
 })();
