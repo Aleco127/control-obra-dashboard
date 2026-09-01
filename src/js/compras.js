@@ -10,7 +10,7 @@
  * Telemetry, partidasDeObra, abrirFichaObra, selectedGastos, updateBulkBarGastos, GastosRules, XLSX.
  */
 const Compras = (() => {
-  let tab = 'todos';            // todos | aprobar | pagar | indirectos | comprobante | socios
+  let tab = 'obra';             // obra | oficina | socios | aprobar | pagar | comprobante | todos
   let q = '', fProv = '', fCat = '', fDesde = '', fHasta = '', fPagador = '';
   let catTocada = false;        // el usuario eligió categoría a mano: no la sobreescribe la sugerencia
   let fotoPendiente = null;     // {dataUrl, size} del ticket capturado en el formulario
@@ -59,18 +59,33 @@ const Compras = (() => {
   };
 
   // ---------- filtros ----------
-  function base() {
-    let list = getFilteredGastos();
+  // Todo lo que esta persona puede ver en la empresa, sin el filtro de obra: aqui viven
+  // los indirectos de oficina y los gastos personales de socio, que no cuelgan de ninguna obra.
+  function universo() {
+    const permitidas = getObrasPermitidas().map(o => o.id);
+    let list = filterByEmpresa(D.g || []).filter(g => !g.obra_id || permitidas.includes(g.obra_id));
     if (!esAdmin()) list = list.filter(g => destinoDe(g) !== 'socio' || g.pagado_por_socio_id);
     return list;
   }
+  // Lo que corresponde al contexto: si hay una obra elegida arriba, solo lo de esa obra.
+  // getFilteredGastos deja pasar todo lo que no tiene obra_id, que es justo lo que aqui hay que separar.
+  function base() {
+    const list = universo();
+    return selectedObra ? list.filter(g => g.obra_id == selectedObra) : list;
+  }
+  const esOficina = (g) => destinoDe(g) === 'indirecto';
+  const esPersonal = (g) => destinoDe(g) === 'socio';
+  const sinFactura = (g) => ['sin_comprobante', 'ticket', 'factura_pendiente'].includes(g.comprobacion || 'sin_comprobante');
   function lista() {
-    let list = base();
-    if (tab === 'aprobar') list = list.filter(g => estado(g) === 'solicitado');
-    else if (tab === 'pagar') list = list.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && destinoDe(g) !== 'socio');
-    else if (tab === 'indirectos') list = list.filter(g => destinoDe(g) === 'indirecto');
-    else if (tab === 'comprobante') list = list.filter(g => ['sin_comprobante', 'ticket', 'factura_pendiente'].includes(g.comprobacion || 'sin_comprobante') && destinoDe(g) !== 'socio');
-    else if (tab === 'socios') list = list.filter(g => destinoDe(g) === 'socio' || g.pagado_por_socio_id);
+    // Oficina y personales de socio son de la empresa, no de una obra: no los recorta el selector de arriba.
+    let list;
+    if (tab === 'oficina') list = universo().filter(esOficina);
+    else if (tab === 'socios') list = universo().filter(esPersonal);
+    else list = base();
+    if (tab === 'obra') list = list.filter(g => destinoDe(g) === 'obra');
+    else if (tab === 'aprobar') list = list.filter(g => estado(g) === 'solicitado');
+    else if (tab === 'pagar') list = list.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && !esPersonal(g));
+    else if (tab === 'comprobante') list = list.filter(g => sinFactura(g) && !esPersonal(g));
     if (fPagador) list = list.filter(g => g.pagado_por_socio_id == fPagador);
     if (fProv) list = list.filter(g => g.proveedor_id == fProv);
     if (fCat) list = list.filter(g => GastosRules.norm(g.categoria) === GastosRules.norm(fCat));
@@ -124,12 +139,13 @@ const Compras = (() => {
   function filas(list) {
     if (!list.length) {
       const msgs = {
+        obra: ['ri-wallet-3-line', 'Registra la primera compra de obra: qué se compró, cuánto y para qué obra. La foto del ticket basta para empezar.'],
         todos: ['ri-wallet-3-line', 'Registra la primera compra: qué se compró, cuánto y para qué obra. La foto del ticket basta para empezar.'],
         aprobar: ['ri-check-double-line', 'No hay compras esperando aprobación.'],
         pagar: ['ri-bank-card-line', 'No debes nada a proveedores.'],
-        indirectos: ['ri-building-4-line', 'Sin gastos indirectos en este periodo. Renta, luz, telefonía y contador se registran con destino Indirecto y se reparten entre las obras.'],
+        oficina: ['ri-building-4-line', 'Sin gastos de oficina. Renta, luz, teléfono, contador y dominios se registran con destino Indirecto y se reparten solos entre las obras activas.'],
         comprobante: ['ri-file-text-line', 'Todos los gastos tienen su comprobante.'],
-        socios: ['ri-user-star-line', 'Sin gastos de socios en este periodo.']
+        socios: ['ri-user-star-line', 'Ningún socio ha cargado gastos personales a la empresa.']
       };
       const [icon, body] = msgs[tab] || msgs.todos;
       return `<tr><td colspan="9" class="p-4">${vacio('compras', { icon, body, action: puedeCrear() ? { label: 'Registrar gasto', onClick: 'Compras.nuevo()' } : null })}</td></tr>`;
@@ -174,19 +190,48 @@ ${['aprobado', 'parcial'].includes(est) && canEdit && destinoDe(g) !== 'socio' ?
     }).join('');
   }
 
+  // Los dos apartados de empresa no dependen de la obra elegida: hay que decirlo, o parece un filtro roto.
+  function notaApartado() {
+    const uni = universo();
+    if (tab === 'oficina') {
+      const l = uni.filter(esOficina);
+      const total = l.reduce((t, g) => t + num(g.monto_neto), 0);
+      const repartidos = l.filter(g => (D.gad || []).some(x => x.gasto_id === g.id)).length;
+      return `<div class="g rounded-xl p-3 mb-3 border border-line bg-slate-50 text-sm">
+<p><strong>Gastos de oficina.</strong> Renta, luz, teléfono, contador, dominios, publicidad: lo que sostiene a la empresa y no es de una obra en particular. Suman <strong>${F(total)}</strong> y se reparten entre las obras activas con la regla de Configuración › Finanzas.</p>
+<p class="text-xs text-ink-muted mt-1">${repartidos} de ${l.length} ya están prorrateados${selectedObra ? ' · este apartado no cambia con la obra que elijas arriba' : ''}. El costo que le toca a cada obra se ve en su ficha, en <em>Resultado de la obra</em>.</p></div>`;
+    }
+    if (tab === 'socios') {
+      const l = uni.filter(esPersonal);
+      const total = l.reduce((t, g) => t + num(g.monto_neto), 0);
+      const porSocio = new Map();
+      l.forEach(g => porSocio.set(g.socio_id, (porSocio.get(g.socio_id) || 0) + num(g.monto_neto)));
+      return `<div class="g rounded-xl p-3 mb-3 border border-line bg-slate-50 text-sm">
+<p><strong>Gastos personales de socio.</strong> Lo que la empresa pagó por cuenta de un socio. <strong>No es costo de ninguna obra</strong>: va a su cuenta corriente y se descuenta en el reparto de utilidades.</p>
+<p class="text-xs text-ink-muted mt-1">${[...porSocio.entries()].map(([id, m]) => `${S(socioNombre(id))} ${F(m)}`).join(' · ') || 'Sin movimientos'} · total ${F(total)}${selectedObra ? ' · este apartado no cambia con la obra que elijas arriba' : ''}. La cuenta completa está en Contabilidad › Socios.</p></div>`;
+    }
+    return '';
+  }
+
+  // El tablero es del contexto (la obra elegida, o toda la empresa); oficina y personales
+  // se cuentan aparte porque no son costo de obra.
   function kpis(all) {
+    const uni = universo();
+    const deObra = all.filter(g => destinoDe(g) === 'obra');
     const porAprobar = all.filter(g => estado(g) === 'solicitado');
-    const porPagar = all.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && destinoDe(g) !== 'socio');
-    const sinComp = all.filter(g => ['sin_comprobante', 'ticket', 'factura_pendiente'].includes(g.comprobacion || 'sin_comprobante') && destinoDe(g) !== 'socio');
-    const ind = all.filter(g => destinoDe(g) === 'indirecto');
-    const total = all.filter(g => destinoDe(g) !== 'socio').reduce((s, g) => s + num(g.monto_neto), 0);
+    const porPagar = all.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && !esPersonal(g));
+    const sinComp = all.filter(g => sinFactura(g) && !esPersonal(g));
+    const ofi = uni.filter(esOficina);
+    const pers = uni.filter(esPersonal);
+    const suma = (l) => l.reduce((t, g) => t + num(g.monto_neto), 0);
     const k = (v, l, cls = '') => `<div class="kpi"><p class="kpi-v ${cls}">${v}</p><p class="kpi-l">${l}</p></div>`;
     return `<div class="kpi-strip">
-${k(F(total), 'Total de compras')}
-${k(porAprobar.length, 'Por aprobar' + (porAprobar.length ? ' · ' + F(porAprobar.reduce((s, g) => s + num(g.monto_neto), 0)) : ''), porAprobar.length ? 'text-warn' : '')}
-${k(F(porPagar.reduce((s, g) => s + saldo(g), 0)), 'Por pagar a proveedores')}
+${k(F(suma(deObra)), selectedObra ? 'Compras de esta obra' : 'Compras de obra')}
+${k(porAprobar.length, 'Por aprobar' + (porAprobar.length ? ' · ' + F(suma(porAprobar)) : ''), porAprobar.length ? 'text-warn' : '')}
+${k(F(porPagar.reduce((t, g) => t + saldo(g), 0)), 'Por pagar a proveedores')}
 ${k(sinComp.length, 'Sin factura', sinComp.length ? 'text-warn' : '')}
-${k(F(ind.reduce((s, g) => s + num(g.monto_neto), 0)), 'Indirectos')}
+${k(F(suma(ofi)), 'Oficina · toda la empresa')}
+${esAdmin() ? k(F(suma(pers)), 'Personales de socio') : ''}
 </div>`;
   }
 
@@ -217,14 +262,16 @@ ${canEdit ? `<button type="button" class="btn btn-s text-xs" onclick="Compras.re
     const list = lista();
     const canEdit = puedeEditar();
     const obraTitle = selectedObra ? ` · ${S(getSelectedObraName())}` : '';
+    const uni = universo();
     const tabs = [
-      ['todos', 'Todos', all.length],
+      ['obra', 'De obra', all.filter(g => destinoDe(g) === 'obra').length],
+      ['oficina', 'Oficina (indirectos)', uni.filter(esOficina).length],
       ['aprobar', 'Por aprobar', all.filter(g => estado(g) === 'solicitado').length],
-      ['pagar', 'Por pagar', all.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && destinoDe(g) !== 'socio').length],
-      ['indirectos', 'Indirectos', all.filter(g => destinoDe(g) === 'indirecto').length],
-      ['comprobante', 'Sin comprobante', all.filter(g => ['sin_comprobante', 'ticket', 'factura_pendiente'].includes(g.comprobacion || 'sin_comprobante') && destinoDe(g) !== 'socio').length]
+      ['pagar', 'Por pagar', all.filter(g => ['aprobado', 'parcial'].includes(estado(g)) && !esPersonal(g)).length],
+      ['comprobante', 'Sin factura', all.filter(g => sinFactura(g) && !esPersonal(g)).length],
+      ['todos', 'Todos', all.length]
     ];
-    if (esAdmin()) tabs.push(['socios', 'Socios', all.filter(g => destinoDe(g) === 'socio' || g.pagado_por_socio_id).length]);
+    if (esAdmin()) tabs.splice(2, 0, ['socios', 'Personales de socio', uni.filter(esPersonal).length]);
     c.innerHTML = `
 <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
 <div><h1 class="text-xl font-bold"><i class="ri-wallet-3-line" aria-hidden="true"></i> Compras y gastos${obraTitle}</h1>
@@ -239,6 +286,7 @@ ${porReponer(all)}
 <div class="tabs mb-3" role="tablist" aria-label="Vistas de compras">
 ${tabs.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${tab === k}" class="tab ${tab === k ? 'active' : ''}" onclick="Compras.setTab('${k}')">${l} <span class="tab-n">${n}</span></button>`).join('')}
 </div>
+${notaApartado()}
 <div class="g rounded-xl p-3 mb-3">
 <div class="flex items-center gap-2">
 <input type="search" id="comprasQ" class="inp text-sm flex-1 sm:flex-none sm:w-56" placeholder="Buscar por concepto, proveedor, obra, folio" value="${S(q)}" oninput="Compras.buscar(this.value)" aria-label="Buscar gastos">

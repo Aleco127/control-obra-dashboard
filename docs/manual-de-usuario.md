@@ -2742,6 +2742,20 @@ Desde agosto de 2026 los modulos Gastos y Ordenes son uno solo: **Compras y gast
 
 ![Compras y gastos](img/compras-lista.png)
 
+**Cada destino tiene su apartado.** Las pestanas separan por destino antes que por estado, para que el costo de obra no se mezcle con lo que no lo es:
+
+| Pestana | Que trae | Obedece al selector de obra |
+|---------|----------|------------------------------|
+| **De obra** | Solo compras cargadas a una obra. Es la vista que abre el modulo. | Si |
+| **Oficina (indirectos)** | Renta, luz, telefono, contador, dominios, publicidad. | No: son de la empresa |
+| **Personales de socio** | Lo que la empresa pago por cuenta de un socio. Solo administradores. | No: son de la empresa |
+| Por aprobar / Por pagar / Sin factura | Filtros de estado, sobre lo del contexto. | Si |
+| Todos | Todo junto, para buscar. | Si |
+
+Antes, al elegir una obra arriba, se colaban los indirectos y los gastos personales de socio porque no tienen obra asignada. Ya no: **De obra** muestra unicamente lo de esa obra. Los dos apartados de empresa llevan arriba una nota que explica que son de la empresa y no cambian con la obra que elijas, con su total y a donde va ese dinero (el prorrateo a las obras, o la cuenta corriente del socio).
+
+En el tablero de arriba, *Compras de esta obra* cambia con la obra elegida, mientras que *Oficina* y *Personales de socio* siempre suman toda la empresa; la etiqueta lo dice.
+
 **Registrar gasto.** Cinco datos: que se compro, total pagado (marca *Incluye IVA 16 %* si viene desglosado), destino, proveedor (escribe para buscar o crearlo) y fecha. La categoria se sugiere sola a partir de la descripcion y el proveedor; si el sistema detecta que un gasto capturado como obra parece de oficina (Telmex, Meta, luz) lo propone como indirecto y basta un clic para aceptarlo. En *Mas detalles* estan la partida del catalogo, el estado de pago con su fecha de vencimiento, el numero de factura y el UUID.
 
 **Todo nace pendiente.** Un gasto recien capturado queda como *Por pagar*, aunque el dinero ya haya salido. Nadie lo da por saldado por ti: alguien tiene que moverlo a *Pagado* a mano. Asi el sistema sabe en todo momento cuanto se debe de verdad, sea al proveedor o a quien puso el dinero de su bolsa. Si el gasto ya estaba pagado al momento de capturarlo, cambia el campo *Pago* a **Ya se pago** en el formulario.
@@ -2758,7 +2772,7 @@ Desde agosto de 2026 los modulos Gastos y Ordenes son uno solo: **Compras y gast
 
 **Aprobacion.** Un residente puede registrar hasta $50,000 por gasto y un supervisor hasta $200,000; por arriba, el gasto queda en la pestana *Por aprobar* hasta que un gerente o administrador lo apruebe (uno por uno o en lote). Un rechazo pide motivo y se lo muestra a quien lo pidio en su dashboard.
 
-**Comprobacion.** Cada gasto muestra su estado: *Sin comprobante*, *Ticket*, *Factura pendiente* o *Facturado*. Ya no hace falta el UUID para marcar un gasto como pagado: la factura se pide despues. En la pestana *Sin comprobante* selecciona varios y usa *Pedir factura*: se arma el mensaje de WhatsApp o correo con la lista de tickets y los datos fiscales de la empresa.
+**Comprobacion.** Cada gasto muestra su estado: *Sin comprobante*, *Ticket*, *Factura pendiente* o *Facturado*. Ya no hace falta el UUID para marcar un gasto como pagado: la factura se pide despues. En la pestana *Sin factura* selecciona varios y usa *Pedir factura*: se arma el mensaje de WhatsApp o correo con la lista de tickets y los datos fiscales de la empresa.
 
 **Importar XML.** *Importar XML* acepta uno o varios archivos .xml o un .zip. Cada factura busca sola el gasto que le corresponde (RFC del proveedor, monto y fecha); confirmas y el gasto queda *Facturado* con su UUID, subtotal e IVA. Las facturas emitidas por la empresa se emparejan con los cobros.
 
