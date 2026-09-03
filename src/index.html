@@ -2505,6 +2505,7 @@ console.warn('⚠️ Error actualizando en segundo plano:',e);
 async function autoSyncAllAvances(){
 const updates=[];
 for(const obra of D.o){
+if(obra.avance_manual)continue; // avance fijado a mano desde Obras › Avance
 const programas=(D.pg||[]).filter(p=>p.obra_id==obra.id);
 if(programas.length===0)continue;
 let totalPeso=0;
@@ -3649,7 +3650,10 @@ ${clienteComboHtml('obraCliente')}
 <input type="number" id="avanceObraPct" min="0" max="100" step="1" class="inp w-24 text-right" required oninput="$('avanceObraRange').value=Math.max(0,Math.min(100,parseInt(this.value)||0))">
 <span class="text-sm text-gray-400">%</span>
 </div>
-<p id="avanceObraAviso" class="text-xs text-amber-600 mt-3" hidden></p>
+<div id="avanceObraProg" class="mt-4" hidden>
+<label class="zk-switch"><input type="checkbox" id="avanceObraManual"><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Fijar este avance a mano</span></label>
+<p id="avanceObraAviso" class="text-xs text-gray-500 mt-2"></p>
+</div>
 <div class="flex gap-2 mt-6">
 <button type="button" onclick="closeMdl('mdlAvanceObra')" class="btn btn-s flex-1">Cancelar</button>
 <button type="submit" class="btn btn-p flex-1"><i class="ri-save-line" aria-hidden="true"></i> Guardar avance</button>
@@ -4311,10 +4315,10 @@ $('avanceObraId').value=obra.id;
 $('avanceObraNombre').textContent=`${obra.codigo_obra||'S/C'} - ${obra.nombre_obra}`;
 const v=Math.max(0,Math.min(100,parseInt(obra.avance_porcentaje)||0));
 $('avanceObraPct').value=v;$('avanceObraRange').value=v;
-const aviso=$('avanceObraAviso');
 const auto=obraTieneProgramaConActividades(obra.id);
-aviso.hidden=!auto;
-aviso.innerHTML=auto?'Esta obra tiene un programa con actividades: el avance se recalcula a partir de ellas y este valor manual se sobrescribirá en la siguiente sincronización. Para un cambio permanente, actualiza las actividades en <a href="#w" class="underline font-medium" onclick="closeMdl(\'mdlAvanceObra\')">Programa de obra</a>.':'';
+$('avanceObraProg').hidden=!auto;
+$('avanceObraManual').checked=!!obra.avance_manual;
+$('avanceObraAviso').innerHTML=auto?'Esta obra tiene un programa con actividades. Si no fijas el avance a mano, se recalcula a partir de ellas y este valor se sobrescribirá en la siguiente sincronización. Para cambiarlo desde las actividades ve a <a href="#w" class="underline font-medium" onclick="closeMdl(\'mdlAvanceObra\')">Programa de obra</a>.':'';
 openMdl('mdlAvanceObra');
 setTimeout(()=>$('avanceObraPct').focus(),50);
 }
@@ -4322,10 +4326,11 @@ async function saveAvanceObra(e){
 e.preventDefault();
 const obra=D.o.find(x=>x.id==$('avanceObraId').value);if(!obra)return;
 const nuevo=Math.max(0,Math.min(100,parseInt($('avanceObraPct').value)||0));
+const manual=!$('avanceObraProg').hidden&&$('avanceObraManual').checked;
 try{
-const{error}=await sb.from('obras').update({avance_porcentaje:nuevo,updated_at:new Date().toISOString()}).eq('id',obra.id);
+const{error}=await sb.from('obras').update({avance_porcentaje:nuevo,avance_manual:manual,updated_at:new Date().toISOString()}).eq('id',obra.id);
 if(error)throw error;
-obra.avance_porcentaje=nuevo;
+obra.avance_porcentaje=nuevo;obra.avance_manual=manual;
 closeMdl('mdlAvanceObra');
 Toast.success(`Avance de la obra actualizado a ${nuevo}%`);
 if(typeof Telemetry!=='undefined')Telemetry.track('obra_avance_manual',{obra_id:obra.id,avance:nuevo});
@@ -10209,6 +10214,7 @@ if(typeof Telemetry!=='undefined')Telemetry.track('avance_capturado',{actividad_
 // obras.avance_porcentaje = real ponderado por peso (todas las actividades no hito de sus programas)
 async function recalcAvanceObra(obraId){
 const obra=D.o.find(o=>o.id==obraId);if(!obra)return;
+if(obra.avance_manual)return; // avance fijado a mano desde Obras › Avance
 const progs=(D.pg||[]).filter(p=>p.obra_id==obraId).map(p=>p.id);
 const acts=(D.ap||[]).filter(a=>progs.includes(a.programa_id)&&!a.es_hito);
 let tot=0,acc=0;acts.forEach(a=>{const p=parseFloat(a.peso_porcentual)||1;tot+=p;acc+=(parseFloat(a.porcentaje_avance)||0)*p/100;});
