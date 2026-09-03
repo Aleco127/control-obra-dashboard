@@ -27,7 +27,9 @@ const data = {
     { id: 13, obra_id: null, destino: 'indirecto', fecha_solicitud: '2026-08-01', categoria: 'Telefonía e internet', monto_neto: 399, monto_pagado: 399, estatus_pago: 'Pagado' },
     { id: 14, obra_id: 1, destino: 'obra', fecha_solicitud: '2026-08-10', categoria: 'Combustible', monto_neto: 800, monto_pagado: 800, estatus_pago: 'Pagado', pagado_por_socio_id: 1 },
     { id: 15, obra_id: null, destino: 'socio', socio_id: 2, fecha_solicitud: '2026-08-12', categoria: 'Gasto personal de socio', monto_neto: 5033, monto_pagado: 5033, estatus_pago: 'Pagado' },
-    { id: 16, obra_id: 1, destino: 'obra', fecha_solicitud: '2026-08-11', categoria: 'Materiales', monto_neto: 1000, monto_pagado: 0, estatus_pago: 'Rechazado' }
+    { id: 16, obra_id: 1, destino: 'obra', fecha_solicitud: '2026-08-11', categoria: 'Materiales', monto_neto: 1000, monto_pagado: 0, estatus_pago: 'Rechazado' },
+    // honorarios de un socio con cargo a la utilidad de Luminae (no es costo de la obra)
+    { id: 17, obra_id: 2, destino: 'socio', socio_tipo: 'utilidad', socio_id: 2, fecha_solicitud: '2026-09-01', categoria: 'Honorarios de socio', monto_neto: 5000, monto_pagado: 5000, estatus_pago: 'Pagado' }
   ],
   ppv: [{ id: 1, gasto_id: 12, obra_id: 1, proveedor_id: 7, fecha_pago: '2026-08-25', monto: 500 }],
   gad: [{ gasto_id: 13, obra_id: 1, porcentaje: 100, monto_asignado: 399 }],
@@ -37,7 +39,8 @@ const data = {
   msoc: [
     { id: 1, socio_id: 1, tipo: 'aportacion', gasto_id: 14, fecha: '2026-08-10', monto: 800 },
     { id: 2, socio_id: 2, tipo: 'gasto_personal', gasto_id: 15, fecha: '2026-08-12', monto: 5033 },
-    { id: 3, socio_id: 1, tipo: 'retiro', fecha: '2026-08-20', monto: 10000 }
+    { id: 3, socio_id: 1, tipo: 'retiro', fecha: '2026-08-20', monto: 10000 },
+    { id: 4, socio_id: 2, tipo: 'anticipo_utilidad', gasto_id: 17, obra_id: 2, fecha: '2026-09-01', monto: 5000 }
   ],
   catg: [{ nombre: 'Materiales', naturaleza: 'directo' }, { nombre: 'Telefonía e internet', naturaleza: 'indirecto' }, { nombre: 'Gasto personal de socio', naturaleza: 'personal' }, { nombre: 'Mano de obra', naturaleza: 'directo' }, { nombre: 'Combustible', naturaleza: 'directo' }],
   pv: [{ id: 7, nombre_proveedor: 'Home Depot', dias_credito: 0 }],
@@ -165,4 +168,22 @@ test('baseReparto: lo cobrado en efectivo va exento de la reserva para impuestos
   // regla desactivada → todo gravable
   const b3 = F.baseReparto({ desde: '2026-08-01', hasta: '2026-08-31', reservas: { impuestos: 30, capital: 10, efectivo_exento: false }, data: d2 });
   assert.equal(b3.reservas.pctGravable, 100);
+});
+
+test('honorarios de socio con cargo a la utilidad de una obra: no son costo, restan de la utilidad disponible y se descuentan sólo en el reparto de esa obra', () => {
+  const r = F.resultadoObra(2, { data });
+  assert.equal(r.nGastos, 0);                       // el gasto 17 no entra al costo de la obra
+  assert.equal(r.costoTotal, 0);
+  assert.equal(r.anticiposSocios, 5000);
+  assert.deepEqual(r.anticiposPorSocio, { Daniel: 5000 });
+  assert.equal(r.utilidadDisponible, F.r2(r.utilidadCaja - 5000));
+  assert.equal(r.caja, F.r2(85320.95 - 5000));
+  const b = F.baseReparto({ obraId: 2, reservas: { impuestos: 30, capital: 10 }, data });
+  const ric = b.filas.find(f => f.socio.id === 1), dan = b.filas.find(f => f.socio.id === 2);
+  assert.equal(dan.aCuenta, 5000);                  // se le descuenta a Daniel en el reparto de Luminae
+  assert.equal(ric.aCuenta, 0);                     // el retiro de Ricardo sin obra no se cobra a esta obra
+  assert.equal(dan.aPagar, F.r2(dan.asignado - 5000));
+  const e = F.estadoResultados({ desde: '2026-09-01', hasta: '2026-09-30', data });
+  assert.equal(e.anticipos, 5000);
+  assert.equal(e.personales, 0);
 });

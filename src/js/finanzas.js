@@ -10,6 +10,8 @@
  *    nómina pagada y retiros/utilidades pagadas a socios. Un gasto pagado por un socio NO sale de la caja de la
  *    empresa: es una aportación (deuda con el socio).
  *  - Entra dinero: cobros (pagos_recibidos) y aportaciones de socios en efectivo (movimientos sin gasto ligado).
+ *  - Honorarios / anticipos de utilidad a socios (gastos destino 'socio' con socio_tipo 'utilidad' y obra_id; movimiento
+ *    'anticipo_utilidad' con obra_id) NO son costo de la obra: salen de su utilidad y se descuentan al socio en el reparto de esa obra.
  */
 const Finanzas = (() => {
   const num = (v) => parseFloat(v) || 0;
@@ -134,6 +136,11 @@ const Finanzas = (() => {
     const manoObraNomina = r2((d.nomd || []).filter(x => x.obra_id == obraId).reduce((s, x) => s + num(x.monto), 0));
     const indirectos = r2((d.gad || []).filter(x => x.obra_id == obraId).reduce((s, x) => s + num(x.monto_asignado), 0));
     const costoTotal = r2(directo + manoObraNomina + indirectos);
+    // Honorarios / anticipos de utilidad a socios con cargo a esta obra: NO son costo, salen de la utilidad
+    const anticipos = (d.msoc || []).filter(m => m.tipo === 'anticipo_utilidad' && m.obra_id == obraId && f10(m.fecha) <= h);
+    const anticiposSocios = r2(anticipos.reduce((s, m) => s + num(m.monto), 0));
+    const anticiposPorSocio = {}; anticipos.forEach(m => { const sc = (d.soc || []).find(x => x.id === m.socio_id); const k = sc ? sc.nombre : 'Socio'; anticiposPorSocio[k] = r2((anticiposPorSocio[k] || 0) + num(m.monto)); });
+    const anticiposPagados = r2((d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'socio' && g.socio_tipo === 'utilidad' && g.obra_id == obraId && f10(g.fecha_solicitud) <= h).reduce((s, g) => s + Math.min(num(g.monto_pagado), num(g.monto_neto)), 0));
     let avance = num(obra.avance_porcentaje), avanceFuente = avance > 0 ? 'obra' : 'ninguna';
     try { if (typeof curvaSData === 'function' && !data) { const c = curvaSData(obraId); if (c && !c.sinPrograma && c.realHoy != null && num(c.realHoy) > 0) { avance = num(c.realHoy); avanceFuente = 'programa'; } } } catch (e) { }
     if (avanceFuente === 'ninguna' && contrato > 0 && cobrado > 0) { avance = Math.min(100, cobrado / contrato * 100); avanceFuente = 'cobranza'; }
@@ -158,7 +165,7 @@ const Finanzas = (() => {
     else causa = `Margen ${mRef} % (cotizado ${margenCotizado} %).`;
     if (avanceFuente === 'cobranza') causa += ' Avance estimado por lo cobrado: registra el avance real en Programa.';
     if (semaforo !== 'danger' && vencido > 0) causa += ` Cobranza vencida: ${vencido.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}.`;
-    return { obra, contrato: r2(contrato), cobrado, porCobrar, vencido, avance, avanceFuente, ingresoDevengado, directo, porCategoria, manoObraNomina, indirectos, costoTotal, noDeducible: r2(noDeducible), pagadoEmpresa, caja: r2(cobrado - pagadoEmpresa), utilidadCaja, utilidadDevengada, utilidadProyectada, margenDevengado, margenProyectado, margenCotizado, consumo, semaforo, causa, nGastos: gastos.length };
+    return { obra, contrato: r2(contrato), cobrado, porCobrar, vencido, avance, avanceFuente, ingresoDevengado, directo, porCategoria, manoObraNomina, indirectos, costoTotal, noDeducible: r2(noDeducible), pagadoEmpresa, caja: r2(cobrado - pagadoEmpresa - anticiposPagados), utilidadCaja, utilidadDevengada, utilidadProyectada, anticiposSocios, anticiposPorSocio, utilidadDisponible: r2(utilidadCaja - anticiposSocios), utilidadProyectadaDisponible: r2(utilidadProyectada - anticiposSocios), margenDevengado, margenProyectado, margenCotizado, consumo, semaforo, causa, nGastos: gastos.length };
   }
 
   /** Estado de resultados del periodo: por obra + indirectos + retiros. base: 'caja' (cobrado) o 'devengado' (contrato × avance del periodo). */
@@ -180,14 +187,16 @@ const Finanzas = (() => {
     const indTot = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'indirecto' && enRango(g.fecha_solicitud, desde, hasta));
     const indirectosTotal = r2(indTot.reduce((s, g) => s + num(g.monto_neto), 0));
     const indirectosAsignados = r2(filas.reduce((s, f) => s + f.indirectos, 0));
-    const personales = r2((d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'socio' && enRango(g.fecha_solicitud, desde, hasta)).reduce((s, g) => s + num(g.monto_neto), 0));
+    const deSocio = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'socio' && enRango(g.fecha_solicitud, desde, hasta));
+    const personales = r2(deSocio.filter(g => g.socio_tipo !== 'utilidad').reduce((s, g) => s + num(g.monto_neto), 0));
+    const anticipos = r2(deSocio.filter(g => g.socio_tipo === 'utilidad').reduce((s, g) => s + num(g.monto_neto), 0));
     const retiros = r2((d.msoc || []).filter(m => ['retiro', 'utilidad_pagada'].includes(m.tipo) && enRango(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
     const nominaNoAsignada = r2((d.nom || []).filter(n => enRango(n.fecha_pago || n.periodo_fin, desde, hasta)).reduce((s, n) => s + num(n.total_pagar || n.nomina_total), 0) - (d.nomd || []).filter(x => enRango(x.fecha, desde, hasta)).reduce((s, x) => s + num(x.monto), 0));
     const ingresos = r2(filas.reduce((s, f) => s + f.ingreso, 0));
     const directos = r2(filas.reduce((s, f) => s + f.directo, 0));
     const utilidadBruta = r2(ingresos - directos);
     const utilidadNeta = r2(utilidadBruta - indirectosTotal - Math.max(0, nominaNoAsignada));
-    return { desde, hasta, base, filas: filas.sort((a, b) => a.utilidad - b.utilidad), ingresos, directos, utilidadBruta, indirectosTotal, indirectosAsignados, indirectosSinAsignar: r2(indirectosTotal - indirectosAsignados), nominaNoAsignada: r2(Math.max(0, nominaNoAsignada)), utilidadNeta, margenNeto: ingresos > 0 ? r2(utilidadNeta / ingresos * 100) : null, personales, retiros, disponible: r2(utilidadNeta - personales - retiros) };
+    return { desde, hasta, base, filas: filas.sort((a, b) => a.utilidad - b.utilidad), ingresos, directos, utilidadBruta, indirectosTotal, indirectosAsignados, indirectosSinAsignar: r2(indirectosTotal - indirectosAsignados), nominaNoAsignada: r2(Math.max(0, nominaNoAsignada)), utilidadNeta, margenNeto: ingresos > 0 ? r2(utilidadNeta / ingresos * 100) : null, personales, anticipos, retiros, disponible: r2(utilidadNeta - personales - anticipos - retiros) };
   }
 
   /**
@@ -243,8 +252,11 @@ const Finanzas = (() => {
     const pctTot = socios.reduce((s, x) => s + num(x.porcentaje), 0);
     const filas = socios.map(s => {
       const pct = pctTot > 0 ? num(s.porcentaje) : (socios.length ? 100 / socios.length : 0);
-      const movs = (d.msoc || []).filter(m => m.socio_id === s.id && enRango(m.fecha, desde, hasta));
-      const aCuenta = r2(movs.filter(m => ['retiro', 'gasto_personal', 'utilidad_pagada'].includes(m.tipo)).reduce((x, m) => x + num(m.monto), 0));
+      // Reparto por obra: sólo cuentan los movimientos ligados a esa obra (anticipos de utilidad y aportaciones por gastos de la obra).
+      // Reparto por periodo: todo lo del rango.
+      const gastoDeObra = (gid) => { const g = (d.g || []).find(x => x.id === gid); return !!g && g.obra_id == obraId; };
+      const movs = (d.msoc || []).filter(m => m.socio_id === s.id && (obraId ? (m.obra_id == obraId || (m.tipo === 'aportacion' && gastoDeObra(m.gasto_id))) : enRango(m.fecha, desde, hasta)));
+      const aCuenta = r2(movs.filter(m => ['retiro', 'gasto_personal', 'anticipo_utilidad', 'utilidad_pagada'].includes(m.tipo)).reduce((x, m) => x + num(m.monto), 0));
       const aportado = r2(movs.filter(m => m.tipo === 'aportacion').reduce((x, m) => x + num(m.monto), 0));
       const asignado = r2(distribuible * pct / 100);
       return { socio: s, porcentaje: r2(pct), asignado, aCuenta, aportado, aPagar: r2(asignado - aCuenta + aportado) };

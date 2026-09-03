@@ -102,7 +102,10 @@ const Compras = (() => {
   function chipDestino(g) {
     const d = destinoDe(g);
     if (d === 'obra') { const o = obraDe(g); return `<button type="button" class="chip chip-obra" onclick="abrirFichaObra(${g.obra_id})" title="Abrir ficha de la obra">${S(o?.codigo_obra || o?.nombre_obra || 'Obra')}</button>`; }
-    if (d === 'socio') return `<span class="chip chip-socio" title="Gasto personal del socio">${S(socioNombre(g.socio_id))}</span>`;
+    if (d === 'socio') {
+      if (g.socio_tipo === 'utilidad') { const o = obraDe(g); return `<span class="chip chip-socio" title="Honorarios con cargo a la utilidad de la obra (no es costo de la obra)">${S(socioNombre(g.socio_id))} · utilidad ${S(o?.codigo_obra || o?.nombre_obra || '')}</span>`; }
+      return `<span class="chip chip-socio" title="Gasto personal del socio">${S(socioNombre(g.socio_id))}</span>`;
+    }
     const dist = (D.gad || []).filter(x => x.gasto_id === g.id).length;
     return `<span class="chip chip-ind" title="${dist ? 'Se reparte entre ' + dist + ' obra(s)' : 'Indirecto: se prorratea entre las obras'}">Indirecto${dist ? ' · ' + dist : ''}</span>`;
   }
@@ -203,12 +206,17 @@ ${['aprobado', 'parcial'].includes(est) && canEdit && destinoDe(g) !== 'socio' ?
     }
     if (tab === 'socios') {
       const l = uni.filter(esPersonal);
-      const total = l.reduce((t, g) => t + num(g.monto_neto), 0);
+      const pers = l.filter(g => g.socio_tipo !== 'utilidad'), hon = l.filter(g => g.socio_tipo === 'utilidad');
+      const suma = (xs) => xs.reduce((t, g) => t + num(g.monto_neto), 0);
       const porSocio = new Map();
-      l.forEach(g => porSocio.set(g.socio_id, (porSocio.get(g.socio_id) || 0) + num(g.monto_neto)));
+      pers.forEach(g => porSocio.set(g.socio_id, (porSocio.get(g.socio_id) || 0) + num(g.monto_neto)));
+      const porObra = new Map();
+      hon.forEach(g => { const k = obraDe(g)?.codigo_obra || obraDe(g)?.nombre_obra || 'Sin obra'; porObra.set(k, (porObra.get(k) || 0) + num(g.monto_neto)); });
       return `<div class="g rounded-xl p-3 mb-3 border border-line bg-slate-50 text-sm">
 <p><strong>Gastos personales de socio.</strong> Lo que la empresa pagó por cuenta de un socio. <strong>No es costo de ninguna obra</strong>: va a su cuenta corriente y se descuenta en el reparto de utilidades.</p>
-<p class="text-xs text-ink-muted mt-1">${[...porSocio.entries()].map(([id, m]) => `${S(socioNombre(id))} ${F(m)}`).join(' · ') || 'Sin movimientos'} · total ${F(total)}${selectedObra ? ' · este apartado no cambia con la obra que elijas arriba' : ''}. La cuenta completa está en Contabilidad › Socios.</p></div>`;
+<p class="text-xs text-ink-muted mt-1">${[...porSocio.entries()].map(([id, m]) => `${S(socioNombre(id))} ${F(m)}`).join(' · ') || 'Sin movimientos'} · total ${F(suma(pers))}${selectedObra ? ' · este apartado no cambia con la obra que elijas arriba' : ''}. La cuenta completa está en Contabilidad › Socios.</p>
+<p class="mt-2"><strong>Honorarios con cargo a la utilidad de una obra.</strong> Dinero que un socio se lleva de la utilidad de un proyecto (no es costo de la obra): se resta de su utilidad disponible y se descuenta al socio en el reparto de esa obra.</p>
+<p class="text-xs text-ink-muted mt-1">${[...porObra.entries()].map(([k, m]) => `${S(k)} ${F(m)}`).join(' · ') || 'Ninguno todavía'} · total ${F(suma(hon))}. <button type="button" class="link" onclick="Compras.nuevo({destino:'socio',socioTipo:'utilidad'})">Registrar honorarios</button></p></div>`;
     }
     return '';
   }
@@ -402,6 +410,11 @@ ${esAdmin() && socs.length ? `<button type="button" class="seg-btn" data-d="soci
 <div class="grid grid-cols-2 gap-3 force-2col">
 <div class="col-span-2" id="gastoObraContainer"><label class="text-xs mb-1 block" for="gastoObraId">Obra *</label><select id="gastoObraId" class="inp" onchange="Compras.onObra()"><option value="">Elige la obra</option>${obras.map(o => `<option value="${o.id}">${S(o.codigo_obra ? o.codigo_obra + ' · ' : '')}${S(o.nombre_obra)}</option>`).join('')}</select></div>
 <div class="col-span-2 hidden" id="gastoSocioContainer"><label class="text-xs mb-1 block" for="gastoSocioId">Socio *</label><select id="gastoSocioId" class="inp">${socs.map(s => `<option value="${s.id}">${S(s.nombre)}</option>`).join('')}</select></div>
+<div class="col-span-2 hidden" id="gastoSocioTipoContainer"><p class="text-xs mb-1">Qué es</p><input type="hidden" id="gastoSocioTipo" value="personal">
+<div class="seg" role="radiogroup" aria-label="Tipo de gasto de socio">
+<button type="button" class="seg-btn active" data-st="personal" onclick="Compras.setSocioTipo('personal')" role="radio" aria-checked="true"><i class="ri-user-line" aria-hidden="true"></i> Gasto personal</button>
+<button type="button" class="seg-btn" data-st="utilidad" onclick="Compras.setSocioTipo('utilidad')" role="radio" aria-checked="false"><i class="ri-hand-coin-line" aria-hidden="true"></i> Honorarios de una obra</button>
+</div><p class="text-xs text-ink-subtle mt-1" id="gastoSocioTipoAyuda"></p></div>
 <div class="col-span-2"><label class="text-xs mb-1 block" for="gastoDescripcion">Qué se compró *</label><input type="text" id="gastoDescripcion" class="inp" required placeholder="Ej. 20 bultos de cemento, gasolina vuelta a Delicias" oninput="Compras.sugerir()"></div>
 <div><label class="text-xs mb-1 block" for="gastoMonto">Total pagado *</label><input type="number" id="gastoMonto" class="inp" required inputmode="decimal" placeholder="0.00" step="0.01" min="0" oninput="Compras.calcIVA()"></div>
 <div><label class="text-xs mb-1 block" for="gastoFecha">Fecha *</label><input type="date" id="gastoFecha" class="inp" required></div>
@@ -444,10 +457,25 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     document.querySelectorAll('#mdlGasto .seg-btn').forEach(b => { const on = b.dataset.d === d; b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
     $('gastoObraContainer').classList.toggle('hidden', d !== 'obra');
     $('gastoSocioContainer').classList.toggle('hidden', d !== 'socio');
+    $('gastoSocioTipoContainer')?.classList.toggle('hidden', d !== 'socio');
     $('gastoPartidaContainer').classList.toggle('hidden', d !== 'obra');
     $('gastoDistribucionContainer').classList.toggle('hidden', d !== 'indirecto');
-    if (d === 'socio' && !catTocada) $('gastoCategoria').value = catInfo('Gasto personal de socio')?.nombre || '';
-    $('gastoGuardarBtn').textContent = d === 'socio' ? 'Guardar gasto de socio' : 'Guardar gasto';
+    if (d === 'socio') setSocioTipo($('gastoSocioTipo')?.value || 'personal');
+    else $('gastoGuardarBtn').textContent = 'Guardar gasto';
+  }
+  /** Gasto de socio: 'personal' (se descuenta al socio) o 'utilidad' (honorarios con cargo a la utilidad de una obra). */
+  function setSocioTipo(t) {
+    t = t === 'utilidad' ? 'utilidad' : 'personal';
+    const h = $('gastoSocioTipo'); if (!h) return; h.value = t;
+    document.querySelectorAll('#mdlGasto .seg-btn[data-st]').forEach(b => { const on = b.dataset.st === t; b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
+    const esSocio = $('gastoDestino').value === 'socio';
+    if (esSocio) $('gastoObraContainer').classList.toggle('hidden', t !== 'utilidad');
+    const ayuda = $('gastoSocioTipoAyuda');
+    if (ayuda) ayuda.textContent = t === 'utilidad'
+      ? 'Sale de la utilidad de la obra que elijas (no es costo de la obra) y se descuenta al socio en el reparto de esa obra.'
+      : 'Lo que la empresa pagó por cuenta del socio. Va a su cuenta corriente y se descuenta en el reparto de utilidades.';
+    if (esSocio && !catTocada) $('gastoCategoria').value = catInfo(t === 'utilidad' ? 'Honorarios de socio' : 'Gasto personal de socio')?.nombre || '';
+    if (esSocio) $('gastoGuardarBtn').textContent = t === 'utilidad' ? 'Guardar honorarios' : 'Guardar gasto de socio';
   }
   function onObra() {
     const obraId = parseInt($('gastoObraId').value) || null;
@@ -529,6 +557,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     $('mdlGastoTitle').textContent = opts.rapido ? 'Gasto con ticket' : 'Registrar gasto';
     const obraId = opts.obraId || (selectedObra ? parseInt(selectedObra) : null) || parseInt(localStorage.getItem('brUltimaObra')) || '';
     $('gastoObraId').value = obraId || ''; onObra();
+    if ($('gastoSocioTipo')) $('gastoSocioTipo').value = opts.socioTipo || 'personal';
     setDestino(opts.destino || 'obra');
     if (opts.socioId) $('gastoSocioId').value = opts.socioId;
     openMdl('mdlGasto');
@@ -536,6 +565,11 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     try { Telemetry.track('gasto_form_abierto', { origen: opts.rapido ? 'ticket_movil' : (opts.origen || 'modulo') }); } catch (e) { }
   }
   function rapido() { nuevo({ rapido: true, origen: 'ticket_movil' }); }
+  /** Los movimientos de socio los escribe un trigger al guardar el gasto: se vuelven a leer para que cuenta corriente, resultado por obra y reparto los vean sin recargar. */
+  async function recargarMovimientosSocio() {
+    if (!esAdmin()) return;
+    try { const { data } = await sb.from('movimientos_socio').select('*').eq('empresa_id', currentUser?.empresa_id); if (data) D.msoc = data; } catch (e) { }
+  }
 
   function editar(id) {
     const g = (D.g || []).find(x => x.id == id); if (!g) return;
@@ -544,6 +578,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     $('mdlGastoTitle').textContent = 'Editar gasto';
     $('gastoId').value = g.id;
     $('gastoObraId').value = g.obra_id || ''; onObra();
+    if ($('gastoSocioTipo')) $('gastoSocioTipo').value = g.socio_tipo || 'personal';
     setDestino(destinoDe(g));
     if (g.socio_id && $('gastoSocioId')) $('gastoSocioId').value = g.socio_id;
     $('gastoDescripcion').value = g.descripcion || '';
@@ -571,11 +606,12 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     const conIVA = $('gastoConIVA').checked;
     const subtotal = conIVA ? Math.round(total / 1.16 * 100) / 100 : total;
     const folio = ($('gastoFolioFiscal').value || '').trim().toUpperCase();
-    const obraId = destino === 'obra' ? (parseInt($('gastoObraId').value) || null) : null;
+    const socioTipo = destino === 'socio' && $('gastoSocioTipo')?.value === 'utilidad' ? 'utilidad' : 'personal';
+    const obraId = destino === 'obra' || socioTipo === 'utilidad' ? (parseInt($('gastoObraId').value) || null) : null;
     const socioId = destino === 'socio' ? (parseInt($('gastoSocioId')?.value) || null) : null;
     const pagadoPor = parseInt($('gastoPagadoPor')?.value) || null;
     return {
-      destino, obra_id: obraId, socio_id: socioId,
+      destino, obra_id: obraId, socio_id: socioId, socio_tipo: socioTipo,
       descripcion: ($('gastoDescripcion').value || '').trim() || null,
       monto_neto: total, subtotal, iva: Math.round((total - subtotal) * 100) / 100,
       tipo_comprobante: conIVA || folio ? 'Fiscal' : 'No Fiscal',
@@ -602,6 +638,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     if (!d.fecha_solicitud) { Toast.warning('Falta la fecha.'); $('gastoFecha').focus(); return; }
     if (d.destino === 'obra' && !d.obra_id) { Toast.warning('Elige la obra a la que se carga el gasto.'); $('gastoObraId').focus(); return; }
     if (d.destino === 'socio' && !d.socio_id) { Toast.warning('Elige el socio.'); return; }
+    if (d.socio_tipo === 'utilidad' && !d.obra_id) { Toast.warning('Elige la obra de cuya utilidad salen los honorarios.'); $('gastoObraId').focus(); return; }
     if (!d.categoria) { const sug = GastosRules.sugerirClasificacion(d.descripcion, provNombre(d.proveedor_id), { sinObra: d.destino === 'indirecto' }); d.categoria = catInfo(sug.categoria)?.nombre || sug.categoria; }
     if (d.folio_fiscal && !validarFolioFiscal(d.folio_fiscal)) { Toast.error('El folio fiscal debe ser un UUID de 36 caracteres.'); $('gastoDetalles').open = true; $('gastoFolioFiscal').focus(); return; }
     if (typeof Cierres !== 'undefined' && !(await Cierres.verificarEdicion(d.fecha_solicitud))) return;
@@ -630,7 +667,8 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
           p_tipo_comprobante: d.tipo_comprobante, p_categoria: d.categoria, p_monto_neto: d.monto_neto, p_proveedor_id: d.proveedor_id,
           p_solicitante: d.solicitante, p_comentarios: d.comentarios, p_factura_numero: d.factura_numero, p_folio_fiscal: d.folio_fiscal,
           p_descripcion: d.descripcion, p_destino: d.destino, p_socio_id: d.socio_id, p_subtotal: d.subtotal, p_iva: d.iva,
-          p_comprobacion: comprobacion, p_comprobante_url: comprobante_url, p_fecha_vencimiento: d.fecha_vencimiento, p_partida: d.partida
+          p_comprobacion: comprobacion, p_comprobante_url: comprobante_url, p_fecha_vencimiento: d.fecha_vencimiento, p_partida: d.partida,
+          p_socio_tipo: d.socio_tipo
         };
         if (!navigator.onLine) {
           await Outbox.enqueue({ tipo: 'gasto', tabla: 'gastos', payload: { rpc: params, foto: fotoPendiente ? { ...fotoPendiente, ext: fotoPendiente.ext } : null, pagado_por_socio_id: d.pagado_por_socio_id } });
@@ -647,11 +685,12 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
           D.g.unshift(row);
           if (d.destino === 'indirecto') await distribuirIndirecto(row);
         }
-        const destinoTxt = d.destino === 'obra' ? `en ${obraDe({ obra_id: d.obra_id })?.codigo_obra || 'la obra'}` : d.destino === 'indirecto' ? 'como indirecto' : `a la cuenta de ${socioNombre(d.socio_id)}`;
+        const destinoTxt = d.destino === 'obra' ? `en ${obraDe({ obra_id: d.obra_id })?.codigo_obra || 'la obra'}` : d.destino === 'indirecto' ? 'como indirecto' : d.socio_tipo === 'utilidad' ? `como honorarios de ${socioNombre(d.socio_id)} con cargo a la utilidad de ${obraDe({ obra_id: d.obra_id })?.codigo_obra || 'la obra'}` : `a la cuenta de ${socioNombre(d.socio_id)}`;
         if (result.aprobado === false) Toast.warning(`Gasto de ${F(d.monto_neto)} enviado a aprobación (excede tu límite de ${fmt(limiteRol(nivel()))}).`);
         else Toast.success(`Gasto de ${F(d.monto_neto)} registrado ${destinoTxt}.`);
         try { Telemetry.track('gasto_creado', { destino: d.destino, con_foto: !!fotoPendiente, origen: $('mdlGastoTitle').textContent.includes('ticket') ? 'ticket_movil' : 'modulo', aprobado: result.aprobado !== false }); } catch (e) { }
       }
+      if (d.destino === 'socio' || d.pagado_por_socio_id) await recargarMovimientosSocio();
       try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e) { }
       closeMdl('mdlGasto');
       refrescar();
@@ -919,7 +958,7 @@ ${sug.map(({ gasto: g, sugerencia: s, cambiaDestino, cambiaCategoria }) => {
     const list = lista(); if (!list.length) { Toast.warning('No hay gastos para exportar.'); return; }
     const datos = list.map(g => ({
       'Fecha': (g.fecha_solicitud || '').slice(0, 10), 'Qué': g.descripcion || '', 'Categoría': g.categoria || '',
-      'Destino': destinoDe(g) === 'obra' ? (obraDe(g)?.codigo_obra || obraDe(g)?.nombre_obra || '') : destinoDe(g) === 'socio' ? 'Socio: ' + socioNombre(g.socio_id) : 'Indirecto',
+      'Destino': destinoDe(g) === 'obra' ? (obraDe(g)?.codigo_obra || obraDe(g)?.nombre_obra || '') : destinoDe(g) === 'socio' ? (g.socio_tipo === 'utilidad' ? 'Honorarios de socio: ' + socioNombre(g.socio_id) + ' (utilidad ' + (obraDe(g)?.codigo_obra || '') + ')' : 'Socio: ' + socioNombre(g.socio_id)) : 'Indirecto',
       'Proveedor': provNombre(g.proveedor_id), 'RFC proveedor': (D.pv.find(p => p.id == g.proveedor_id) || {}).rfc || '',
       'Subtotal': num(g.subtotal), 'IVA': num(g.iva), 'Total': num(g.monto_neto), 'Pagado': num(g.monto_pagado), 'Saldo': saldo(g),
       'Estado': ESTADO[estado(g)][0], 'Comprobación': (COMPROBACION[g.comprobacion || 'sin_comprobante'] || [''])[0], 'Folio fiscal': g.folio_fiscal || '', 'No. factura': g.factura_numero || '',
@@ -930,5 +969,5 @@ ${sug.map(({ gasto: g, sugerencia: s, cambiaDestino, cambiaCategoria }) => {
     XLSX.writeFile(wb, `Compras_${hoyISO()}.xlsx`);
   }
 
-  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, cambiarEstado, reponer, verDe, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
+  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, setSocioTipo, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, cambiarEstado, reponer, verDe, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
 })();
