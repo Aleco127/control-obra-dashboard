@@ -3430,7 +3430,9 @@ ${archivadasCount>0?`<button onclick="toggleArchivedObras()" class="px-3 py-1.5 
 ${fo.length?fo.map(x=>{
 const gastosDirectos=D.g.filter(g=>g.obra_id===x.id&&g.destino!=='socio').reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
-const gastosObra=gastosDirectos+gastosAdminDist;
+// Honorarios a socios con cargo a la utilidad de esta obra: dinero que salió de la obra (se refleja en Gastado aunque no sea costo)
+const honorariosObra=D.g.filter(g=>g.obra_id===x.id&&g.destino==='socio'&&g.socio_tipo==='utilidad'&&g.estatus_pago!=='Rechazado').reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0);
+const gastosObra=gastosDirectos+gastosAdminDist+honorariosObra;
 // Modificaciones aprobadas/ejecutadas (helper único)
 const {vigentes:modsObra,adicionales,deductivas}=modsObraResumen(x.id);
 const presupuestoActual=(x.presupuesto_total||0)+adicionales-deductivas;
@@ -3469,7 +3471,7 @@ ${x.cliente_id||x.cliente?`<a href="#l" onclick="event.preventDefault();event.st
 <div class="text-right">
 <p class="text-lg font-bold text-green-400">${fmt(presupuestoActual)}</p>
 ${tieneModificaciones?`<p class="text-[10px] text-amber-400"><i class="ri-arrow-up-line"></i> Original: ${fmt(x.presupuesto_total)} ${adicionales>0?'<span class="text-green-400">+'+fmt(adicionales)+'</span>':''}${deductivas>0?' <span class="text-red-400">-'+fmt(deductivas)+'</span>':''}</p>`:''}
-<p class="text-xs text-gray-500">Gastado: ${fmt(gastosObra)} (${porcentajeGastado}%)${gastosAdminDist>0?` <span class="text-amber-400" title="Incluye ${fmt(gastosAdminDist)} de gastos administrativos"><i class="ri-pie-chart-line"></i></span>`:''}</p>
+<p class="text-xs text-gray-500">Gastado: ${fmt(gastosObra)} (${porcentajeGastado}%)${gastosAdminDist>0?` <span class="text-amber-400" title="Incluye ${fmt(gastosAdminDist)} de gastos administrativos"><i class="ri-pie-chart-line"></i></span>`:''}${honorariosObra>0?` <span class="text-amber-400" title="Incluye ${fmt(honorariosObra)} de honorarios a socios con cargo a la utilidad de la obra"><i class="ri-hand-coin-line"></i></span>`:''}</p>${honorariosObra>0?`<p class="text-xs text-gray-400">Honorarios a socios: ${fmt(honorariosObra)}</p>`:''}
 </div>
 <div class="w-full">
 <div class="flex justify-between text-xs mb-1"><span>Avance</span><span class="n">${x.avance_porcentaje||0}%</span></div>
@@ -3784,7 +3786,9 @@ const canArchive=nivel>=80;
 $('obrasList').innerHTML=fo.length?fo.map(x=>{
 const gastosDirectos=D.g.filter(g=>g.obra_id===x.id&&g.destino!=='socio').reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
-const gastosObra=gastosDirectos+gastosAdminDist;
+// Honorarios a socios con cargo a la utilidad de esta obra: dinero que salió de la obra (se refleja en Gastado aunque no sea costo)
+const honorariosObra=D.g.filter(g=>g.obra_id===x.id&&g.destino==='socio'&&g.socio_tipo==='utilidad'&&g.estatus_pago!=='Rechazado').reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0);
+const gastosObra=gastosDirectos+gastosAdminDist+honorariosObra;
 // Modificaciones aprobadas/ejecutadas (helper único)
 const {vigentes:modsObra,adicionales,deductivas}=modsObraResumen(x.id);
 const presupuestoActual=(x.presupuesto_total||0)+adicionales-deductivas;
@@ -3819,7 +3823,7 @@ ${x.cliente_id||x.cliente?`<a href="#l" onclick="event.preventDefault();event.st
 <div class="text-right">
 <p class="text-lg font-bold text-green-400">${fmt(presupuestoActual)}</p>
 ${tieneModificaciones?`<p class="text-[10px] text-amber-400"><i class="ri-arrow-up-line"></i> Original: ${fmt(x.presupuesto_total)} ${adicionales>0?'<span class="text-green-400">+'+fmt(adicionales)+'</span>':''}${deductivas>0?' <span class="text-red-400">-'+fmt(deductivas)+'</span>':''}</p>`:`<p class="text-[10px] text-gray-500">Subtotal: ${fmt(x.subtotal||x.presupuesto_total/1.16)} + IVA ${x.porcentaje_iva||16}%${x.es_zona_frontera?' <span class="text-amber-400">(Frontera)</span>':''}</p>`}
-<p class="text-xs text-gray-500">Gastado: ${fmt(gastosObra)} (${porcentajeGastado}%)${gastosAdminDist>0?` <span class="text-amber-400" title="Incluye ${fmt(gastosAdminDist)} de gastos administrativos"><i class="ri-pie-chart-line"></i></span>`:''}</p>
+<p class="text-xs text-gray-500">Gastado: ${fmt(gastosObra)} (${porcentajeGastado}%)${gastosAdminDist>0?` <span class="text-amber-400" title="Incluye ${fmt(gastosAdminDist)} de gastos administrativos"><i class="ri-pie-chart-line"></i></span>`:''}${honorariosObra>0?` <span class="text-amber-400" title="Incluye ${fmt(honorariosObra)} de honorarios a socios con cargo a la utilidad de la obra"><i class="ri-hand-coin-line"></i></span>`:''}</p>${honorariosObra>0?`<p class="text-xs text-gray-400">Honorarios a socios: ${fmt(honorariosObra)}</p>`:''}
 </div>
 <div class="w-full">
 <div class="flex justify-between text-xs mb-1"><span>Avance</span><span class="n">${x.avance_porcentaje||0}%</span></div>
