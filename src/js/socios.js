@@ -107,10 +107,20 @@ ${socs.length ? socs.map(s => `<tr class="border-t border-line"><td class="p-2 f
     $('dlgSocio').close(); Toast.success('Socio guardado.'); renderSocios();
   }
 
+  // Los gastos personales de otro socio son privados: en su cuenta sólo se ve un renglón resumen (el monto cuenta para saldo y reparto).
+  const esMio = (s) => !s.usuario_id || s.usuario_id === currentUser?.id;
+  function movsVisibles(s) {
+    let movs = (D.msoc || []).filter(m => m.socio_id === s.id).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || b.id - a.id);
+    if (esMio(s)) return movs;
+    const pers = movs.filter(m => m.tipo === 'gasto_personal');
+    if (!pers.length) return movs;
+    const resumen = { id: 'p' + s.id, socio_id: s.id, tipo: 'gasto_personal', fecha: pers[0].fecha, monto: r2(pers.reduce((x, m) => x + num(m.monto), 0)), concepto: `${pers.length} gasto(s) personal(es) · detalle privado del socio`, gasto_id: -1, resumen: true };
+    return [resumen, ...movs.filter(m => m.tipo !== 'gasto_personal')];
+  }
   function renderCuenta() {
     const c = $('soContent'); if (!c) return;
     const socs = socios();
-    c.innerHTML = `<div class="grid md:grid-cols-2 gap-4">${socs.map(s => { const movs = (D.msoc || []).filter(m => m.socio_id === s.id).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)) || b.id - a.id); const t = totalesSocio(s.id); const saldo = saldoSocio(s.id); return `<section class="g rounded-xl p-4" aria-labelledby="soc${s.id}"><div class="flex items-start justify-between gap-2"><div><h2 id="soc${s.id}" class="font-bold">${S(s.nombre)}</h2><p class="text-xs text-ink-subtle">${s.porcentaje != null ? num(s.porcentaje) + ' % de participación' : 'sin porcentaje'}</p></div><div class="text-right"><p class="text-xl font-bold ${saldo > 0 ? 'text-ok' : saldo < 0 ? 'text-danger' : ''}" title="aportaciones + utilidades asignadas − retiros − gastos personales − utilidades pagadas">${F(saldo)}</p><p class="text-xs text-ink-subtle">${saldo > 0 ? 'la empresa le debe' : saldo < 0 ? 'debe a la empresa' : 'en ceros'}</p></div></div>
+    c.innerHTML = `<div class="grid md:grid-cols-2 gap-4">${socs.map(s => { const movs = movsVisibles(s); const t = totalesSocio(s.id); const saldo = saldoSocio(s.id); return `<section class="g rounded-xl p-4" aria-labelledby="soc${s.id}"><div class="flex items-start justify-between gap-2"><div><h2 id="soc${s.id}" class="font-bold">${S(s.nombre)}</h2><p class="text-xs text-ink-subtle">${s.porcentaje != null ? num(s.porcentaje) + ' % de participación' : 'sin porcentaje'}</p></div><div class="text-right"><p class="text-xl font-bold ${saldo > 0 ? 'text-ok' : saldo < 0 ? 'text-danger' : ''}" title="aportaciones + utilidades asignadas − retiros − gastos personales − utilidades pagadas">${F(saldo)}</p><p class="text-xs text-ink-subtle">${saldo > 0 ? 'la empresa le debe' : saldo < 0 ? 'debe a la empresa' : 'en ceros'}</p></div></div>
 <dl class="grid grid-cols-3 gap-2 text-xs mt-3"><div><dt class="text-ink-subtle">Aportó</dt><dd class="font-medium">${F(t.aportacion)}</dd></div><div><dt class="text-ink-subtle">Retiró</dt><dd class="font-medium">${F(t.retiro + t.utilidad_pagada + t.anticipo_utilidad)}</dd></div><div><dt class="text-ink-subtle">Gastos personales</dt><dd class="font-medium">${F(t.gasto_personal)}</dd></div></dl>
 <div class="flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-s text-xs" onclick="Socios.nuevoMovimiento(${s.id})"><i class="ri-add-line" aria-hidden="true"></i> Movimiento</button><button type="button" class="btn btn-s text-xs" onclick="Socios.estadoCuentaPDF(${s.id})"><i class="ri-file-pdf-line" aria-hidden="true"></i> Estado de cuenta</button></div>
 <ul class="divide-y divide-slate-100 text-sm mt-3">${movs.slice(0, 12).map(m => `<li class="flex items-center gap-2 py-1.5"><span class="text-xs text-ink-subtle w-16 shrink-0">${fechaCorta(m.fecha)}</span><span class="chip chip-ind">${TIPOS[m.tipo]?.[0] || m.tipo}${m.obra_id ? ' · ' + S((D.o || []).find(o => o.id === m.obra_id)?.codigo_obra || 'obra') : ''}</span><span class="flex-1 min-w-0 truncate" title="${S(m.concepto || '')}">${S(m.concepto || '')}</span><span class="font-medium ${TIPOS[m.tipo]?.[1] || ''}">${SIGNO[m.tipo] < 0 ? '−' : '+'}${F(m.monto)}</span>${!m.gasto_id && !m.reparto_id ? `<button type="button" class="btn-icon" onclick="Socios.eliminarMovimiento(${m.id})" aria-label="Eliminar movimiento"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>` : ''}</li>`).join('') || '<li class="text-ink-subtle py-2">Sin movimientos.</li>'}</ul>${movs.length > 12 ? `<p class="text-xs text-ink-subtle mt-1">${movs.length - 12} movimientos más en el estado de cuenta.</p>` : ''}</section>`; }).join('') || vacio('socios', { icon: 'ri-user-star-line', body: 'Registra a los socios primero.' })}</div>`;
@@ -148,7 +158,8 @@ ${socs.length ? socs.map(s => `<tr class="border-t border-line"><td class="p-2 f
   }
   async function estadoCuentaPDF(id) {
     const s = (D.soc || []).find(x => x.id === id); if (!s) return;
-    const movs = (D.msoc || []).filter(m => m.socio_id === id).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id);
+    const movs = (D.msoc || []).filter(m => m.socio_id === id).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id)
+      .map(m => (!esMio(s) && m.tipo === 'gasto_personal') ? { ...m, concepto: 'Gasto personal (privado)', referencia: null } : m);
     const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'letter' });
     doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.text(currentUser?.empresa_nombre || 'Empresa', 20, 18);
     doc.setFontSize(12); doc.text(`Estado de cuenta del socio: ${s.nombre}`, 20, 26);

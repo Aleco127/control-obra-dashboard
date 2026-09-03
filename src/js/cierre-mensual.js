@@ -33,7 +33,7 @@ const Cierres = (() => {
     const sinCat = g.filter(x => !x.categoria); if (sinCat.length) items.push({ n: sinCat.length, t: 'gastos sin categoría', a: "Compras.setTab('todos')" });
     const sinFac = g.filter(x => x.tipo_comprobante === 'Fiscal' && x.comprobacion !== 'facturado' && x.destino !== 'socio'); if (sinFac.length) items.push({ n: sinFac.length, t: 'gastos con factura pendiente', a: "Compras.setTab('comprobante')" });
     const porAprobar = g.filter(x => !x.aprobado_at && x.estatus_pago !== 'Rechazado'); if (porAprobar.length) items.push({ n: porAprobar.length, t: 'compras por aprobar', a: "Compras.setTab('aprobar')" });
-    const ind = g.filter(x => (x.destino || (x.obra_id ? 'obra' : 'indirecto')) === 'indirecto' && !(D.gad || []).some(d => d.gasto_id === x.id)); if (ind.length) items.push({ n: ind.length, t: 'indirectos sin repartir entre obras', a: 'Socios.prorratearAhora()' });
+    const ind = g.filter(x => (x.destino || (x.obra_id ? 'obra' : 'indirecto')) === 'indirecto' && !x.obra_id && !(D.gad || []).some(d => d.gasto_id === x.id)); if (ind.length) items.push({ n: ind.length, t: 'indirectos sin repartir entre obras', a: 'Socios.prorratearAhora()' });
     const sinConc = [...(D.prc || []).filter(p => Finanzas.enRango(p.fecha_pago, rg.desde, rg.hasta) && !p.conciliado_at), ...(D.ppv || []).filter(p => Finanzas.enRango(p.fecha_pago, rg.desde, rg.hasta) && !p.conciliado_at)]; if (sinConc.length) items.push({ n: sinConc.length, t: 'cobros y pagos sin conciliar con el banco', a: "pcTab='conciliar';M='pc';R()" });
     return items;
   }

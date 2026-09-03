@@ -3236,7 +3236,7 @@ const partidas=(()=>{const cc=(D.cc||[]).filter(x=>x.obra_id==o.id);if(!cc.lengt
 return`<section class="g rounded-xl p-4 lg:col-span-2" aria-labelledby="fhRes"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h2 id="fhRes" class="font-bold text-sm"><i class="ri-funds-line n" aria-hidden="true"></i> Resultado de la obra</h2><span class="px-2 py-0.5 rounded-full text-xs ${sem[0]}">${sem[1]}</span><button type="button" class="btn btn-s text-xs" onclick="fichaResultadoPDF(${o.id})"><i class="ri-file-pdf-line" aria-hidden="true"></i> PDF</button></div>
 <p class="text-sm text-ink-muted mb-3">${S(r.causa)}</p>
 <div class="grid md:grid-cols-3 gap-4"><dl>${fila('Contrato sin IVA',fmt(r.contrato))}${fila('Cobrado',fmt(r.cobrado),'text-ok')}${fila('Por cobrar',fmt(r.porCobrar)+(r.vencido?` <span class="text-danger text-xs">(${fmt(r.vencido)} vencido)</span>`:''))}${fila('Avance',r.avance+' %','',r.avanceFuente==='cobranza'?'Estimado por lo cobrado; registra el avance real en Programa':'Fuente: '+r.avanceFuente)}${fila('Ingreso devengado',fmt(r.ingresoDevengado),'','Contrato × avance')}</dl>
-<dl>${fila('Costo directo',fmt(r.directo))}${cats.map(([k,v])=>fila('<span class="pl-3 text-xs">'+S(k)+'</span>','<span class="text-xs">'+fmt(v)+'</span>')).join('')}${r.manoObraNomina?fila('<span class="pl-3 text-xs">Nómina asignada</span>','<span class="text-xs">'+fmt(r.manoObraNomina)+'</span>'):''}${fila('Indirectos prorrateados',fmt(r.indirectos))}${fila('Costo total',fmt(r.costoTotal),'font-bold')}</dl>
+<dl>${fila('Costo directo',fmt(r.directo))}${cats.map(([k,v])=>fila('<span class="pl-3 text-xs">'+S(k)+'</span>','<span class="text-xs">'+fmt(v)+'</span>')).join('')}${r.manoObraNomina?fila('<span class="pl-3 text-xs">Nómina asignada</span>','<span class="text-xs">'+fmt(r.manoObraNomina)+'</span>'):''}${fila('Gastos de oficina',fmt(r.indirectos),'',r.indirectosLigados?'Cargados a esta obra: '+fmt(r.indirectosLigados)+(r.indirectosProrrateados?' · prorrateados de la oficina: '+fmt(r.indirectosProrrateados):''):'Prorrateados de la oficina (indirectos sin obra)')}${fila('Costo total',fmt(r.costoTotal),'font-bold')}</dl>
 <dl>${fila('Utilidad a la fecha (devengada)',fmt(r.utilidadDevengada),r.utilidadDevengada<0?'text-danger':'text-ok','Ingreso devengado − costo total')}${r.anticiposSocios?fila('Honorarios a socios (de la utilidad)','−'+fmt(r.anticiposSocios),'text-warn',Object.entries(r.anticiposPorSocio||{}).map(([k,v])=>k+': '+fmt(v)).join(' · ')+'. No es costo de la obra: sale de su utilidad.')+fila('Utilidad disponible en caja',fmt(r.utilidadDisponible),r.utilidadDisponible<0?'text-danger':'text-ok','Cobrado − costo total − honorarios a socios'):''}${fila('Margen a la fecha',r.margenDevengado!=null?r.margenDevengado+' %':'s/d',r.semaforo==='danger'?'text-danger':r.semaforo==='warn'?'text-warn':'text-ok')}${fila('Margen cotizado',r.margenCotizado+' %')}${fila('Utilidad proyectada al cierre',fmt(r.utilidadProyectada),r.utilidadProyectada<0?'text-danger':'','Contrato − costo total a la fecha')}${fila('Caja de la obra',fmt(r.caja),r.caja<0?'text-danger':'text-ok','Cobrado − pagado por la empresa')}</dl></div>
 ${partidas}</section>`;
 }
@@ -3246,7 +3246,7 @@ let emp={nombre:currentUser?.empresa_nombre||''};try{const{data}=await sb.from('
 const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'letter'});
 doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text(emp.razon_social||emp.nombre||'Empresa',20,18);doc.setFontSize(12);doc.text(`Resultado de la obra ${o.codigo_obra||''} ${o.nombre_obra}`,20,26);
 doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(`Al ${hoyISO()} · ${r.causa}`,20,31,{maxWidth:175});
-doc.autoTable({startY:40,theme:'plain',styles:{fontSize:9},body:[['Contrato sin IVA',fmt(r.contrato)],['Cobrado',fmt(r.cobrado)],['Por cobrar',fmt(r.porCobrar)+(r.vencido?' (vencido '+fmt(r.vencido)+')':'')],['Avance',r.avance+' % ('+r.avanceFuente+')'],...(r.anticiposSocios?[['Honorarios a socios (de la utilidad)',fmt(r.anticiposSocios)],['Utilidad disponible en caja',fmt(r.utilidadDisponible)]]:[]),['Ingreso devengado',fmt(r.ingresoDevengado)],['Costo directo',fmt(r.directo)],['Nómina asignada',fmt(r.manoObraNomina)],['Indirectos prorrateados',fmt(r.indirectos)],['Costo total',fmt(r.costoTotal)],['Utilidad devengada',fmt(r.utilidadDevengada)],['Margen a la fecha',(r.margenDevengado!=null?r.margenDevengado:'s/d')+' % (cotizado '+r.margenCotizado+' %)'],['Utilidad proyectada al cierre',fmt(r.utilidadProyectada)],['Caja de la obra',fmt(r.caja)]],columnStyles:{1:{halign:'right'}}});
+doc.autoTable({startY:40,theme:'plain',styles:{fontSize:9},body:[['Contrato sin IVA',fmt(r.contrato)],['Cobrado',fmt(r.cobrado)],['Por cobrar',fmt(r.porCobrar)+(r.vencido?' (vencido '+fmt(r.vencido)+')':'')],['Avance',r.avance+' % ('+r.avanceFuente+')'],...(r.anticiposSocios?[['Honorarios a socios (de la utilidad)',fmt(r.anticiposSocios)],['Utilidad disponible en caja',fmt(r.utilidadDisponible)]]:[]),['Ingreso devengado',fmt(r.ingresoDevengado)],['Costo directo',fmt(r.directo)],['Nómina asignada',fmt(r.manoObraNomina)],['Gastos de oficina',fmt(r.indirectos)],['Costo total',fmt(r.costoTotal)],['Utilidad devengada',fmt(r.utilidadDevengada)],['Margen a la fecha',(r.margenDevengado!=null?r.margenDevengado:'s/d')+' % (cotizado '+r.margenCotizado+' %)'],['Utilidad proyectada al cierre',fmt(r.utilidadProyectada)],['Caja de la obra',fmt(r.caja)]],columnStyles:{1:{halign:'right'}}});
 const cats=Object.entries(r.porCategoria).sort((a,b)=>b[1]-a[1]);
 if(cats.length)doc.autoTable({startY:doc.lastAutoTable.finalY+4,head:[['Costo por categoría','Monto','% del contrato']],body:cats.map(([k,v])=>[k,fmt(v),r.contrato?(Math.round(v/r.contrato*1000)/10)+' %':'-']),styles:{fontSize:8},headStyles:{fillColor:[30,41,59]},columnStyles:{1:{halign:'right'},2:{halign:'right'}}});
 doc.save(`Resultado_${(o.codigo_obra||o.nombre_obra).replace(/[^\w]+/g,'_')}_${hoyISO()}.pdf`);
@@ -3428,7 +3428,7 @@ ${archivadasCount>0?`<button onclick="toggleArchivedObras()" class="px-3 py-1.5 
 </div>
 <div id="obrasList" class="divide-y divide-white/5">
 ${fo.length?fo.map(x=>{
-const gastosDirectos=D.g.filter(g=>g.obra_id===x.id).reduce((s,g)=>s+(g.monto_neto||0),0);
+const gastosDirectos=D.g.filter(g=>g.obra_id===x.id&&g.destino!=='socio').reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
 const gastosObra=gastosDirectos+gastosAdminDist;
 // Modificaciones aprobadas/ejecutadas (helper único)
@@ -3782,7 +3782,7 @@ const nivel=currentUser?.nivel||0;
 const canEdit=nivel>=60;
 const canArchive=nivel>=80;
 $('obrasList').innerHTML=fo.length?fo.map(x=>{
-const gastosDirectos=D.g.filter(g=>g.obra_id===x.id).reduce((s,g)=>s+(g.monto_neto||0),0);
+const gastosDirectos=D.g.filter(g=>g.obra_id===x.id&&g.destino!=='socio').reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
 const gastosObra=gastosDirectos+gastosAdminDist;
 // Modificaciones aprobadas/ejecutadas (helper único)

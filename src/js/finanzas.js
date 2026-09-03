@@ -1,7 +1,7 @@
 /**
  * Finanzas (fase 2: US-113, US-121, US-122, US-123, US-127).
  * Una sola fuente para: flujo de efectivo, cuentas por pagar, resultado por obra, estado de resultados,
- * prorrateo de indirectos y base del reparto de utilidades. Funciones puras sobre un objeto `data`
+ * gastos de oficina por obra (ligados o prorrateados), gastos personales privados y base del reparto de utilidades. Funciones puras sobre un objeto `data`
  * con la misma forma que `D` (o, por defecto, la `D` global) para poder probarlas con node --test.
  *
  * Convenciones:
@@ -49,6 +49,33 @@ const Finanzas = (() => {
   }
   const destinoDe = (g) => g.destino || (g.obra_id ? 'obra' : 'indirecto');
   const gastoValido = (g) => g && g.estatus_pago !== 'Rechazado' && g.estatus_pago !== 'Cancelado';
+  const enPeriodo = (f, desde, hasta) => { const x = f10(f); return !!x && (!desde || x >= desde) && (!hasta || x <= hasta); };
+
+  /**
+   * Gastos de oficina que le tocan a una obra (3-sep-2026): los ligados directamente a ella (destino 'indirecto' con obra_id)
+   * más lo que le corresponde por prorrateo (gastos_admin_distribucion) de los indirectos que NO tienen obra.
+   * Un indirecto con obra nunca se prorratea, así deja de aparecer en todas las obras.
+   */
+  function indirectosDeObra(obraId, { desde, hasta, data } = {}) {
+    const d = data || dataDefault();
+    const porId = new Map((d.g || []).map(g => [g.id, g]));
+    const ligados = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'indirecto' && g.obra_id == obraId && enPeriodo(g.fecha_solicitud, desde, hasta));
+    const prorrateados = (d.gad || []).filter(x => x.obra_id == obraId).filter(x => { const g = porId.get(x.gasto_id); return g && gastoValido(g) && !g.obra_id && enPeriodo(g.fecha_solicitud, desde, hasta); });
+    const montoLigados = r2(ligados.reduce((s, g) => s + num(g.monto_neto), 0));
+    const montoProrrateados = r2(prorrateados.reduce((s, x) => s + num(x.monto_asignado), 0));
+    return { ligados, prorrateados, montoLigados, montoProrrateados, total: r2(montoLigados + montoProrrateados) };
+  }
+
+  /**
+   * Gastos personales de socio del periodo. Cada socio sólo recibe SUS gastos personales en `g` (los ajenos son privados),
+   * pero los movimientos de socio sí traen los montos de todos: con movimientos cargados (nivel ≥ 100) se suman de ahí.
+   */
+  function personalesPeriodo({ desde, hasta, data } = {}) {
+    const d = data || dataDefault();
+    if ((d.msoc || []).length) return r2((d.msoc || []).filter(m => m.tipo === 'gasto_personal' && enPeriodo(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
+    return r2((d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'socio' && g.socio_tipo !== 'utilidad' && enPeriodo(g.fecha_solicitud, desde, hasta)).reduce((s, g) => s + num(g.monto_neto), 0));
+  }
+  const esPersonalSocio = (g) => destinoDe(g) === 'socio' && g.socio_tipo !== 'utilidad';
 
   /** Cuentas por pagar derivadas de los gastos: saldo > 0, no rechazados, no de socios. */
   function cuentasPorPagar({ obraIds, data } = {}) {
@@ -78,13 +105,16 @@ const Finanzas = (() => {
     const pagos = (d.ppv || []).filter(p => obraOk(p.obra_id) && enRango(p.fecha_pago, desde, hasta));
     const pagosProv = r2(pagos.reduce((s, p) => s + num(p.monto), 0));
     const conPago = new Set((d.ppv || []).map(p => p.gasto_id).filter(Boolean));
-    const gastosPag = (d.g || []).filter(g => gastoValido(g) && obraOk(g.obra_id) && num(g.monto_pagado) > 0 && !conPago.has(g.id) && !g.pagado_por_socio_id && enRango(g.fecha_solicitud, desde, hasta));
+    const usaMsoc = (d.msoc || []).length > 0;
+    const gastosPag = (d.g || []).filter(g => gastoValido(g) && obraOk(g.obra_id) && num(g.monto_pagado) > 0 && !conPago.has(g.id) && !g.pagado_por_socio_id && !(usaMsoc && esPersonalSocio(g)) && enRango(g.fecha_solicitud, desde, hasta));
     const gastosPagados = r2(gastosPag.reduce((s, g) => s + Math.min(num(g.monto_pagado), num(g.monto_neto)), 0));
+    // Gastos personales de socio pagados por la empresa: de los movimientos (traen los de todos los socios; en `g` sólo vienen los propios)
+    const personales = obraIds || !usaMsoc ? 0 : personalesPeriodo({ desde, hasta, data: d });
     const porSocios = r2((d.g || []).filter(g => gastoValido(g) && obraOk(g.obra_id) && g.pagado_por_socio_id && enRango(g.fecha_solicitud, desde, hasta)).reduce((s, g) => s + num(g.monto_neto), 0));
     const nomina = obraIds ? 0 : r2((d.nom || []).filter(n => /pagad/i.test(String(n.estatus || '')) && enRango(n.fecha_pago || n.periodo_fin, desde, hasta)).reduce((s, n) => s + num(n.total_pagar || n.nomina_total), 0));
     const retiros = obraIds ? 0 : r2((d.msoc || []).filter(m => ['retiro', 'utilidad_pagada'].includes(m.tipo) && enRango(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
     const aportaciones = obraIds ? 0 : r2((d.msoc || []).filter(m => m.tipo === 'aportacion' && !m.gasto_id && enRango(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
-    const pagado = r2(pagosProv + gastosPagados + nomina + retiros);
+    const pagado = r2(pagosProv + gastosPagados + nomina + retiros + personales);
     const cxc = (d.cxc || []).filter(c => obraOk(c.obra_id) && num(c.monto_pendiente) > 0.005);
     const porCobrar = r2(cxc.reduce((s, c) => s + num(c.monto_pendiente), 0));
     const vencidoCobrar = r2(cxc.filter(c => c.fecha_vencimiento && f10(c.fecha_vencimiento) < h).reduce((s, c) => s + num(c.monto_pendiente), 0));
@@ -94,7 +124,7 @@ const Finanzas = (() => {
     const en30 = sumaDias(h, 30);
     const cxc30 = r2(cxc.filter(c => !c.fecha_vencimiento || f10(c.fecha_vencimiento) <= en30).reduce((s, c) => s + num(c.monto_pendiente), 0));
     const cxp30 = r2(cxp.filter(x => x.vence <= en30).reduce((s, x) => s + x.saldo, 0));
-    return { desde, hasta, cobrado, pagado, pagosProv, gastosPagados, nomina, retiros, aportaciones, porSocios, neto: r2(cobrado + aportaciones - pagado), porCobrar, vencidoCobrar, porPagar, vencidoPagar, proximos30: { cobrar: cxc30, pagar: cxp30, neto: r2(cxc30 - cxp30) }, nCobros: cobros.length, nPagos: pagos.length + gastosPag.length };
+    return { desde, hasta, cobrado, pagado, pagosProv, gastosPagados, personales, nomina, retiros, aportaciones, porSocios, neto: r2(cobrado + aportaciones - pagado), porCobrar, vencidoCobrar, porPagar, vencidoPagar, proximos30: { cobrar: cxc30, pagar: cxp30, neto: r2(cxc30 - cxp30) }, nCobros: cobros.length, nPagos: pagos.length + gastosPag.length };
   }
 
   /** Serie por semana (lunes a domingo) de cobrado vs pagado para la gráfica de flujo. */
@@ -134,7 +164,8 @@ const Finanzas = (() => {
     gastos.forEach(g => { const nat = naturalezaDe(g.categoria, d); const k = g.categoria || 'Sin categoría'; porCategoria[k] = r2((porCategoria[k] || 0) + num(g.monto_neto)); if (nat === 'no_deducible') noDeducible += num(g.monto_neto); directo += num(g.monto_neto); });
     directo = r2(directo);
     const manoObraNomina = r2((d.nomd || []).filter(x => x.obra_id == obraId).reduce((s, x) => s + num(x.monto), 0));
-    const indirectos = r2((d.gad || []).filter(x => x.obra_id == obraId).reduce((s, x) => s + num(x.monto_asignado), 0));
+    const indObra = indirectosDeObra(obraId, { hasta: h, data: d });
+    const indirectos = indObra.total;
     const costoTotal = r2(directo + manoObraNomina + indirectos);
     // Honorarios / anticipos de utilidad a socios con cargo a esta obra: NO son costo, salen de la utilidad
     const anticipos = (d.msoc || []).filter(m => m.tipo === 'anticipo_utilidad' && m.obra_id == obraId && f10(m.fecha) <= h);
@@ -165,7 +196,7 @@ const Finanzas = (() => {
     else causa = `Margen ${mRef} % (cotizado ${margenCotizado} %).`;
     if (avanceFuente === 'cobranza') causa += ' Avance estimado por lo cobrado: registra el avance real en Programa.';
     if (semaforo !== 'danger' && vencido > 0) causa += ` Cobranza vencida: ${vencido.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}.`;
-    return { obra, contrato: r2(contrato), cobrado, porCobrar, vencido, avance, avanceFuente, ingresoDevengado, directo, porCategoria, manoObraNomina, indirectos, costoTotal, noDeducible: r2(noDeducible), pagadoEmpresa, caja: r2(cobrado - pagadoEmpresa - anticiposPagados), utilidadCaja, utilidadDevengada, utilidadProyectada, anticiposSocios, anticiposPorSocio, utilidadDisponible: r2(utilidadCaja - anticiposSocios), utilidadProyectadaDisponible: r2(utilidadProyectada - anticiposSocios), margenDevengado, margenProyectado, margenCotizado, consumo, semaforo, causa, nGastos: gastos.length };
+    return { obra, contrato: r2(contrato), cobrado, porCobrar, vencido, avance, avanceFuente, ingresoDevengado, directo, porCategoria, manoObraNomina, indirectos, indirectosLigados: indObra.montoLigados, indirectosProrrateados: indObra.montoProrrateados, costoTotal, noDeducible: r2(noDeducible), pagadoEmpresa, caja: r2(cobrado - pagadoEmpresa - anticiposPagados), utilidadCaja, utilidadDevengada, utilidadProyectada, anticiposSocios, anticiposPorSocio, utilidadDisponible: r2(utilidadCaja - anticiposSocios), utilidadProyectadaDisponible: r2(utilidadProyectada - anticiposSocios), margenDevengado, margenProyectado, margenCotizado, consumo, semaforo, causa, nGastos: gastos.length };
   }
 
   /** Estado de resultados del periodo: por obra + indirectos + retiros. base: 'caja' (cobrado) o 'devengado' (contrato × avance del periodo). */
@@ -176,19 +207,19 @@ const Finanzas = (() => {
       const cobros = (d.prc || []).filter(p => p.obra_id === o.id && enRango(p.fecha_pago, desde, hasta));
       const gastos = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'obra' && g.obra_id === o.id && enRango(g.fecha_solicitud, desde, hasta));
       const nomina = (d.nomd || []).filter(x => x.obra_id === o.id && enRango(x.fecha, desde, hasta));
-      const ind = (d.gad || []).filter(x => x.obra_id === o.id).filter(x => { const g = (d.g || []).find(y => y.id === x.gasto_id); return g && enRango(g.fecha_solicitud, desde, hasta); });
+      const ind = indirectosDeObra(o.id, { desde, hasta, data: d });
       const contrato = num(o.subtotal) || num(o.presupuesto_total) / 1.16;
       let ingreso = r2(cobros.reduce((s, p) => s + num(p.monto), 0));
       if (base === 'devengado') { const r = resultadoObra(o.id, { data: d, hasta }); ingreso = r ? r.ingresoDevengado : ingreso; }
       const directo = r2(gastos.reduce((s, g) => s + num(g.monto_neto), 0) + nomina.reduce((s, x) => s + num(x.monto), 0));
-      const indirectos = r2(ind.reduce((s, x) => s + num(x.monto_asignado), 0));
+      const indirectos = ind.total;
       return { obra: o, contrato: r2(contrato), ingreso, directo, indirectos, utilidad: r2(ingreso - directo - indirectos), n: gastos.length + cobros.length };
     }).filter(f => f.ingreso || f.directo || f.indirectos);
     const indTot = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'indirecto' && enRango(g.fecha_solicitud, desde, hasta));
     const indirectosTotal = r2(indTot.reduce((s, g) => s + num(g.monto_neto), 0));
     const indirectosAsignados = r2(filas.reduce((s, f) => s + f.indirectos, 0));
     const deSocio = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'socio' && enRango(g.fecha_solicitud, desde, hasta));
-    const personales = r2(deSocio.filter(g => g.socio_tipo !== 'utilidad').reduce((s, g) => s + num(g.monto_neto), 0));
+    const personales = personalesPeriodo({ desde, hasta, data: d });
     const anticipos = r2(deSocio.filter(g => g.socio_tipo === 'utilidad').reduce((s, g) => s + num(g.monto_neto), 0));
     const retiros = r2((d.msoc || []).filter(m => ['retiro', 'utilidad_pagada'].includes(m.tipo) && enRango(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
     const nominaNoAsignada = r2((d.nom || []).filter(n => enRango(n.fecha_pago || n.periodo_fin, desde, hasta)).reduce((s, n) => s + num(n.total_pagar || n.nomina_total), 0) - (d.nomd || []).filter(x => enRango(x.fecha, desde, hasta)).reduce((s, x) => s + num(x.monto), 0));
@@ -207,7 +238,8 @@ const Finanzas = (() => {
     const d = data || dataDefault();
     regla = regla || { tipo: 'iguales' };
     const activas = (d.o || []).filter(o => ['Activa', 'En Proceso', 'En proceso'].includes(o.estatus));
-    const lista = gastos || (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'indirecto' && enRango(g.fecha_solicitud, desde, hasta));
+    // Un indirecto ligado a una obra ya tiene dueña: no se reparte
+    const lista = (gastos || (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'indirecto' && enRango(g.fecha_solicitud, desde, hasta))).filter(g => !g.obra_id);
     const out = [];
     lista.forEach(g => {
       const f = f10(g.fecha_solicitud);
@@ -264,6 +296,6 @@ const Finanzas = (() => {
     return { utilidad: r2(utilidad), reservas: { impuestos: resImp, capital: resCap, pctImpuestos: num(reservas.impuestos), pctCapital: num(reservas.capital), cobrado, efectivo, pctGravable: r2(pctGravable * 100), efectivoExento: exento }, distribuible, filas, pctTotal: r2(pctTot), sinPorcentajes: pctTot <= 0 };
   }
 
-  return { rango, enRango, naturalezaDe, cuentasPorPagar, agingPagar, calcularFlujo, serieSemanal, resultadoObra, estadoResultados, prorratear, baseReparto, num, r2, sumaDias };
+  return { rango, enRango, naturalezaDe, cuentasPorPagar, agingPagar, calcularFlujo, serieSemanal, resultadoObra, estadoResultados, prorratear, baseReparto, indirectosDeObra, personalesPeriodo, num, r2, sumaDias };
 })();
 if (typeof module !== 'undefined') module.exports = Finanzas;

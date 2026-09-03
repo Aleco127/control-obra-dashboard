@@ -70,7 +70,9 @@ test('calcularFlujo agosto 2026: cobrado, pagado (gasto sin pago explícito no s
   assert.equal(f.cobrado, 85320.95);
   // pagosProv 500 (gasto 12 tiene pago explícito → no se suma su monto_pagado 0) + gasto 13 (399) + gasto 15 personal pagado por la empresa (5033); gasto 14 lo pagó un socio (no sale de caja)
   assert.equal(f.pagosProv, 500);
-  assert.equal(f.gastosPagados, 399 + 5033);
+  // el gasto personal 15 (5033) ya no va en gastosPagados: sale de los movimientos de socio (completos para todos los socios)
+  assert.equal(f.gastosPagados, 399);
+  assert.equal(f.personales, 5033);
   assert.equal(f.nomina, 7000);
   assert.equal(f.retiros, 10000);
   assert.equal(f.porSocios, 800);
@@ -186,4 +188,50 @@ test('honorarios de socio con cargo a la utilidad de una obra: no son costo, res
   const e = F.estadoResultados({ desde: '2026-09-01', hasta: '2026-09-30', data });
   assert.equal(e.anticipos, 5000);
   assert.equal(e.personales, 0);
+});
+
+// ---- 3-sep-2026: gastos de oficina ligados a una obra y gastos personales privados ----
+const conOficinaLigada = { ...data, g: [...data.g,
+  { id: 18, obra_id: 2, destino: 'indirecto', fecha_solicitud: '2026-08-15', categoria: 'Telefonía e internet', monto_neto: 250, monto_pagado: 250, estatus_pago: 'Pagado' }
+] };
+
+test('indirecto ligado a una obra: cuenta sólo en esa obra y no se prorratea', () => {
+  const r2 = F.resultadoObra(2, { data: conOficinaLigada, hasta: '2026-08-29' });
+  assert.equal(r2.indirectos, 250);
+  assert.equal(r2.indirectosLigados, 250);
+  assert.equal(r2.indirectosProrrateados, 0);
+  assert.equal(r2.costoTotal, 250);
+  const r1 = F.resultadoObra(1, { data: conOficinaLigada, hasta: '2026-08-29' });
+  assert.equal(r1.indirectos, 399, 'la otra obra no recibe nada del gasto ligado');
+  assert.equal(r1.indirectosLigados, 0);
+  assert.equal(r1.indirectosProrrateados, 399);
+  const pr = F.prorratear({ desde: '2026-08-01', hasta: '2026-08-31', regla: { tipo: 'iguales' }, data: conOficinaLigada });
+  assert.equal(pr.length, 2);
+  assert.ok(!pr.some(x => x.gasto_id === 18), 'el ligado no entra al prorrateo');
+  assert.equal(F.r2(pr.reduce((s, x) => s + x.monto_asignado, 0)), 399);
+  const e = F.estadoResultados({ desde: '2026-08-01', hasta: '2026-08-31', data: conOficinaLigada });
+  assert.equal(e.indirectosTotal, 649);
+  assert.equal(e.indirectosAsignados, 649);
+  assert.equal(e.indirectosSinAsignar, 0);
+  assert.equal(e.filas.find(x => x.obra.id === 2).indirectos, 250);
+  assert.equal(e.utilidadNeta, F.r2(85320.95 - 2300 - 649 - 7000));
+  const ind = F.indirectosDeObra(2, { data: conOficinaLigada, desde: '2026-09-01', hasta: '2026-09-30' });
+  assert.equal(ind.total, 0, 'fuera del periodo no cuenta');
+});
+
+test('gastos personales privados: el socio que no los ve en gastos sigue viendo los totales correctos', () => {
+  // Lo que recibe Ricardo: sin el gasto personal de Daniel (id 15) pero con todos los movimientos de socio
+  const comoRicardo = { ...data, g: data.g.filter(g => g.id !== 15) };
+  const e = F.estadoResultados({ desde: '2026-08-01', hasta: '2026-08-31', data: comoRicardo });
+  assert.equal(e.personales, 5033);
+  assert.equal(e.disponible, F.estadoResultados({ desde: '2026-08-01', hasta: '2026-08-31', data }).disponible);
+  const f = F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data: comoRicardo });
+  assert.equal(f.personales, 5033);
+  assert.equal(f.pagado, F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data }).pagado);
+  // Sin movimientos (nivel < 100) se sigue tomando de los gastos y no se duplica
+  const sinMsoc = { ...data, msoc: [] };
+  const f2 = F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data: sinMsoc });
+  assert.equal(f2.gastosPagados, 399 + 5033);
+  assert.equal(f2.personales, 0);
+  assert.equal(F.estadoResultados({ desde: '2026-08-01', hasta: '2026-08-31', data: sinMsoc }).personales, 5033);
 });
