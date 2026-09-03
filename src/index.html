@@ -2491,6 +2491,7 @@ Cache.saveAppData(D,empId||'global');
 $('sync').textContent='✓ Actualizado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
 console.log('✅ Datos actualizados en segundo plano');
 updateNotifBadge();
+if(!document.querySelector('.modal.ac'))R();
 }else{
 $('sync').textContent='✓ Sync '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
 console.log('✅ Sin cambios nuevos');
@@ -3350,11 +3351,20 @@ const d=renderCurvaS(o.id,'chCurvaFicha');
 const dv=$('fhDesv');if(dv)dv.innerHTML=d?curvaSIndicadorHtml(d):'';
 }
 
+// Modificaciones vigentes de una obra (sólo Aprobada/Ejecutada) y presupuesto actual = original + adicionales - deductivas
+function modsObraResumen(obraId){
+const mods=(D.omod||[]).filter(m=>m.obra_id==obraId);
+const vigentes=mods.filter(m=>m.estatus==='Aprobada'||m.estatus==='Ejecutada');
+const adicionales=vigentes.filter(m=>m.tipo==='Adicional').reduce((s,m)=>s+(parseFloat(m.monto_modificacion)||0),0);
+const deductivas=vigentes.filter(m=>m.tipo==='Deductiva').reduce((s,m)=>s+Math.abs(parseFloat(m.monto_modificacion)||0),0);
+return {mods,vigentes,adicionales,deductivas};
+}
+function presupuestoObraActual(obra){const r=modsObraResumen(obra.id);return (obra.presupuesto_total||0)+r.adicionales-r.deductivas;}
 function Ob(c){
 if(fichaObraId){renderFichaObra(c,fichaObraId);return;}
 const fo=getFilteredObras();
 const obraTitle=selectedObra?` - ${getSelectedObraName()}`:'';
-const totalPres=fo.reduce((s,x)=>s+(x.presupuesto_total||0),0);
+const totalPres=fo.reduce((s,x)=>s+presupuestoObraActual(x),0);
 const totalGastado=fo.reduce((s,x)=>{const gObra=D.g.filter(g=>g.obra_id===x.id);return s+gObra.reduce((a,b)=>a+(b.monto_neto||0),0);},0);
 const promedioAvance=fo.length?Math.round(fo.reduce((s,x)=>s+(x.avance_porcentaje||0),0)/fo.length):0;
 const activas=fo.filter(x=>x.estatus==='En Proceso'||x.estatus==='Activa'||!x.estatus).length;
@@ -3420,10 +3430,8 @@ ${fo.length?fo.map(x=>{
 const gastosDirectos=D.g.filter(g=>g.obra_id===x.id).reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
 const gastosObra=gastosDirectos+gastosAdminDist;
-// Calcular modificaciones aprobadas/ejecutadas
-const modsObra=(D.omod||[]).filter(m=>m.obra_id==x.id&&(m.estatus==='Aprobada'||m.estatus==='Ejecutada'));
-const adicionales=modsObra.filter(m=>m.tipo==='Adicional').reduce((s,m)=>s+(parseFloat(m.monto_modificacion)||0),0);
-const deductivas=modsObra.filter(m=>m.tipo==='Deductiva').reduce((s,m)=>s+Math.abs(parseFloat(m.monto_modificacion)||0),0);
+// Modificaciones aprobadas/ejecutadas (helper único)
+const {vigentes:modsObra,adicionales,deductivas}=modsObraResumen(x.id);
 const presupuestoActual=(x.presupuesto_total||0)+adicionales-deductivas;
 const tieneModificaciones=modsObra.length>0;
 const porcentajeGastado=presupuestoActual?Math.round((gastosObra/presupuestoActual)*100):0;
@@ -3469,6 +3477,7 @@ ${tieneModificaciones?`<p class="text-[10px] text-amber-400"><i class="ri-arrow-
 ${canEdit?`<div class="flex flex-wrap gap-2 mt-2">
 ${isArchived&&canArchive?`<button onclick="desarchivarObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-green-400 text-green-400"><i class="ri-inbox-unarchive-line"></i> Desarchivar</button>`:
 (!isArchived&&canArchive&&(x.estatus==='Completada'||x.estatus==='Cancelada')?`<button onclick="archivarObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-gray-400 text-gray-400"><i class="ri-archive-line"></i> Archivar</button>`:'')}
+${!isArchived?`<button onclick="editAvanceObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-green-400 text-green-400"><i class="ri-percent-line"></i> Avance</button>`:''}
 <button onclick="verModificaciones('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-amber-400 text-amber-400 relative"><i class="ri-file-list-3-line"></i> Modificaciones ${(D.omod||[]).filter(m=>m.obra_id==x.id).length>0?'<span class="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[10px] rounded-full flex items-center justify-center">'+(D.omod||[]).filter(m=>m.obra_id==x.id).length+'</span>':''}</button>
 <button onclick="editObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-sky-400 text-cyan-400"><i class="ri-edit-line"></i> Editar</button>
 <button onclick="deleteObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-red-400 text-red-400" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
@@ -3624,6 +3633,31 @@ ${clienteComboHtml('obraCliente')}
 </div>
 
 <!-- Modal Nueva/Editar Modificación -->
+<!-- Modal: actualizar avance de obra -->
+<div id="mdlAvanceObra" class="modal">
+<div class="g rounded-2xl p-6 w-full max-w-md mx-4">
+<div class="flex justify-between items-center mb-1">
+<h3 class="text-lg font-bold n"><i class="ri-percent-line" aria-hidden="true"></i> Actualizar avance</h3>
+<button onclick="closeMdl('mdlAvanceObra')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
+</div>
+<p class="text-xs text-gray-400 mb-4" id="avanceObraNombre"></p>
+<form id="frmAvanceObra" onsubmit="saveAvanceObra(event)">
+<input type="hidden" id="avanceObraId">
+<label class="text-xs text-gray-400 mb-1 block" for="avanceObraPct">Avance físico de la obra (%)</label>
+<div class="flex items-center gap-3">
+<input type="range" id="avanceObraRange" min="0" max="100" step="1" class="flex-1" aria-label="Avance físico" oninput="$('avanceObraPct').value=this.value">
+<input type="number" id="avanceObraPct" min="0" max="100" step="1" class="inp w-24 text-right" required oninput="$('avanceObraRange').value=Math.max(0,Math.min(100,parseInt(this.value)||0))">
+<span class="text-sm text-gray-400">%</span>
+</div>
+<p id="avanceObraAviso" class="text-xs text-amber-600 mt-3" hidden></p>
+<div class="flex gap-2 mt-6">
+<button type="button" onclick="closeMdl('mdlAvanceObra')" class="btn btn-s flex-1">Cancelar</button>
+<button type="submit" class="btn btn-p flex-1"><i class="ri-save-line" aria-hidden="true"></i> Guardar avance</button>
+</div>
+</form>
+</div>
+</div>
+
 <div id="mdlEditMod" class="modal">
 <div class="g rounded-2xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
 <div class="flex justify-between items-center mb-4">
@@ -3747,10 +3781,8 @@ $('obrasList').innerHTML=fo.length?fo.map(x=>{
 const gastosDirectos=D.g.filter(g=>g.obra_id===x.id).reduce((s,g)=>s+(g.monto_neto||0),0);
 const gastosAdminDist=(D.gad||[]).filter(d=>d.obra_id===x.id).reduce((s,d)=>s+(parseFloat(d.monto_asignado)||0),0);
 const gastosObra=gastosDirectos+gastosAdminDist;
-// Calcular modificaciones aprobadas/ejecutadas
-const modsObra=(D.omod||[]).filter(m=>m.obra_id==x.id&&(m.estatus==='Aprobada'||m.estatus==='Ejecutada'));
-const adicionales=modsObra.filter(m=>m.tipo==='Adicional').reduce((s,m)=>s+(parseFloat(m.monto_modificacion)||0),0);
-const deductivas=modsObra.filter(m=>m.tipo==='Deductiva').reduce((s,m)=>s+Math.abs(parseFloat(m.monto_modificacion)||0),0);
+// Modificaciones aprobadas/ejecutadas (helper único)
+const {vigentes:modsObra,adicionales,deductivas}=modsObraResumen(x.id);
 const presupuestoActual=(x.presupuesto_total||0)+adicionales-deductivas;
 const tieneModificaciones=modsObra.length>0;
 const porcentajeGastado=presupuestoActual?Math.round((gastosObra/presupuestoActual)*100):0;
@@ -3792,6 +3824,7 @@ ${tieneModificaciones?`<p class="text-[10px] text-amber-400"><i class="ri-arrow-
 ${canEdit?`<div class="flex flex-wrap gap-2 mt-2">
 ${isArchived&&canArchive?`<button onclick="desarchivarObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-green-400 text-green-400"><i class="ri-inbox-unarchive-line"></i> Desarchivar</button>`:
 (!isArchived&&canArchive&&(x.estatus==='Completada'||x.estatus==='Cancelada')?`<button onclick="archivarObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-gray-400 text-gray-400"><i class="ri-archive-line"></i> Archivar</button>`:'')}
+${!isArchived?`<button onclick="editAvanceObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-green-400 text-green-400"><i class="ri-percent-line"></i> Avance</button>`:''}
 <button onclick="verModificaciones('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-amber-400 text-amber-400 relative"><i class="ri-file-list-3-line"></i> Modificaciones ${(D.omod||[]).filter(m=>m.obra_id==x.id).length>0?'<span class="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[10px] rounded-full flex items-center justify-center">'+(D.omod||[]).filter(m=>m.obra_id==x.id).length+'</span>':''}</button>
 <button onclick="editObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-sky-400 text-cyan-400"><i class="ri-edit-line"></i> Editar</button>
 <button onclick="deleteObra('${x.id}')" class="px-3 py-1 rounded text-xs g hover:border-red-400 text-red-400" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
@@ -4017,22 +4050,30 @@ function verModificaciones(obraId) {
 
     $('modObraNombre').textContent = `${obra.codigo_obra || 'S/C'} - ${obra.nombre_obra}`;
 
-    // Calcular totales
-    const mods = (D.omod || []).filter(m => m.obra_id == obraId);
-    const presOriginal = obra.presupuesto_total || 0;
-    const totalAdicionales = mods.filter(m => m.tipo === 'Adicional' && m.estatus !== 'Rechazada').reduce((s, m) => s + (parseFloat(m.monto_modificacion) || 0), 0);
-    const totalDeductivas = mods.filter(m => m.tipo === 'Deductiva' && m.estatus !== 'Rechazada').reduce((s, m) => s + Math.abs(parseFloat(m.monto_modificacion) || 0), 0);
-    const presActual = presOriginal + totalAdicionales - totalDeductivas;
-
-    $('modPresOriginal').textContent = fmt(presOriginal);
-    $('modTotalAdicionales').textContent = '+' + fmt(totalAdicionales);
-    $('modTotalDeductivas').textContent = '-' + fmt(totalDeductivas);
-    $('modPresActual').textContent = fmt(presActual);
+    actualizarResumenModificaciones(obraId);
 
     // Renderizar lista de modificaciones
     renderListaModificaciones(obraId);
 
     openMdl('mdlModificaciones');
+}
+
+// Tarjetas de resumen del modal (mismo criterio que el listado de obras: sólo Aprobada/Ejecutada)
+function actualizarResumenModificaciones(obraId) {
+    const obra = D.o.find(x => x.id == obraId);
+    if (!obra) return;
+    const { adicionales, deductivas } = modsObraResumen(obraId);
+    const presOriginal = obra.presupuesto_total || 0;
+    $('modPresOriginal').textContent = fmt(presOriginal);
+    $('modTotalAdicionales').textContent = '+' + fmt(adicionales);
+    $('modTotalDeductivas').textContent = '-' + fmt(deductivas);
+    $('modPresActual').textContent = fmt(presOriginal + adicionales - deductivas);
+}
+
+// Tras cambiar modificaciones o avance: persistir en caché y repintar el módulo visible (el modal vive fuera de #c)
+function refrescarObrasTrasCambio() {
+    Cache.saveAppData(D, currentUser?.empresa_id || 'global');
+    if (M === 'o' || M === 'd' || M === 'p') R();
 }
 
 function renderListaModificaciones(obraId) {
@@ -4096,10 +4137,7 @@ function nuevaModificacion() {
     const numMod = 'MOD-' + String(nextNum).padStart(3, '0');
 
     // Calcular presupuesto actual (original + adicionales - deductivas aprobadas/ejecutadas)
-    const presOriginal = obra.presupuesto_total || 0;
-    const totalAdicionales = mods.filter(m => m.tipo === 'Adicional' && (m.estatus === 'Aprobada' || m.estatus === 'Ejecutada')).reduce((s, m) => s + (parseFloat(m.monto_modificacion) || 0), 0);
-    const totalDeductivas = mods.filter(m => m.tipo === 'Deductiva' && (m.estatus === 'Aprobada' || m.estatus === 'Ejecutada')).reduce((s, m) => s + Math.abs(parseFloat(m.monto_modificacion) || 0), 0);
-    const presActual = presOriginal + totalAdicionales - totalDeductivas;
+    const presActual = presupuestoObraActual(obra);
 
     $('mdlEditModTitle').textContent = 'Nueva Modificacion';
     $('frmModificacion').reset();
@@ -4216,31 +4254,20 @@ async function saveModificacion(e) {
         }
 
         // Recargar datos de modificaciones
-        const { data: newMods, error: loadError } = await sb.from('obra_modificaciones').select('*').order('fecha', { ascending: false });
+        let q = sb.from('obra_modificaciones').select('*').order('fecha', { ascending: false });
+        if (empId) q = q.eq('empresa_id', empId);
+        const { data: newMods, error: loadError } = await q;
         if (loadError) console.error('Error cargando modificaciones:', loadError);
-        D.omod = newMods || [];
-        console.log('Modificaciones cargadas:', D.omod.length);
+        else D.omod = newMods || [];
 
         closeMdl('mdlEditMod');
 
-        // Actualizar vista
+        // Actualizar modal y listado de obras (presupuesto actual, KPI y contador)
         if (currentModObraId) {
             renderListaModificaciones(currentModObraId);
-            // Recalcular resumen
-            const obra = D.o.find(x => x.id == currentModObraId);
-            if (obra) {
-                const mods = D.omod.filter(m => m.obra_id == currentModObraId);
-                const presOriginal = obra.presupuesto_total || 0;
-                const totalAdicionales = mods.filter(m => m.tipo === 'Adicional' && m.estatus !== 'Rechazada').reduce((s, m) => s + (parseFloat(m.monto_modificacion) || 0), 0);
-                const totalDeductivas = mods.filter(m => m.tipo === 'Deductiva' && m.estatus !== 'Rechazada').reduce((s, m) => s + Math.abs(parseFloat(m.monto_modificacion) || 0), 0);
-                const presActual = presOriginal + totalAdicionales - totalDeductivas;
-
-                $('modPresOriginal').textContent = fmt(presOriginal);
-                $('modTotalAdicionales').textContent = '+' + fmt(totalAdicionales);
-                $('modTotalDeductivas').textContent = '-' + fmt(totalDeductivas);
-                $('modPresActual').textContent = fmt(presActual);
-            }
+            actualizarResumenModificaciones(currentModObraId);
         }
+        refrescarObrasTrasCambio();
 
     } catch (err) {
         console.error('Error guardando modificacion:', err);
@@ -4262,15 +4289,52 @@ async function deleteModificacion(id) {
         const { data: newMods } = await sb.from('obra_modificaciones').select('*').eq('empresa_id', empId).order('fecha', { ascending: false });
         D.omod = newMods || [];
 
-        Toast.success('Modificacion eliminada');
+        Toast.success('Modificación eliminada');
         renderListaModificaciones(currentModObraId);
-        verModificaciones(currentModObraId);
+        actualizarResumenModificaciones(currentModObraId);
+        refrescarObrasTrasCambio();
 
     } catch (err) {
         Toast.error(humanizeError(err));
     }
 }
 // ========== FIN FUNCIONES DE MODIFICACIONES ==========
+
+// ========== AVANCE MANUAL DE OBRA ==========
+function obraTieneProgramaConActividades(obraId){
+const progs=(D.pg||[]).filter(p=>p.obra_id==obraId).map(p=>p.id);
+return (D.ap||[]).some(a=>progs.includes(a.programa_id)&&!a.es_hito);
+}
+function editAvanceObra(id){
+const obra=D.o.find(x=>x.id==id);if(!obra)return;
+$('avanceObraId').value=obra.id;
+$('avanceObraNombre').textContent=`${obra.codigo_obra||'S/C'} - ${obra.nombre_obra}`;
+const v=Math.max(0,Math.min(100,parseInt(obra.avance_porcentaje)||0));
+$('avanceObraPct').value=v;$('avanceObraRange').value=v;
+const aviso=$('avanceObraAviso');
+const auto=obraTieneProgramaConActividades(obra.id);
+aviso.hidden=!auto;
+aviso.innerHTML=auto?'Esta obra tiene un programa con actividades: el avance se recalcula a partir de ellas y este valor manual se sobrescribirá en la siguiente sincronización. Para un cambio permanente, actualiza las actividades en <a href="#w" class="underline font-medium" onclick="closeMdl(\'mdlAvanceObra\')">Programa de obra</a>.':'';
+openMdl('mdlAvanceObra');
+setTimeout(()=>$('avanceObraPct').focus(),50);
+}
+async function saveAvanceObra(e){
+e.preventDefault();
+const obra=D.o.find(x=>x.id==$('avanceObraId').value);if(!obra)return;
+const nuevo=Math.max(0,Math.min(100,parseInt($('avanceObraPct').value)||0));
+try{
+const{error}=await sb.from('obras').update({avance_porcentaje:nuevo,updated_at:new Date().toISOString()}).eq('id',obra.id);
+if(error)throw error;
+obra.avance_porcentaje=nuevo;
+closeMdl('mdlAvanceObra');
+Toast.success(`Avance de la obra actualizado a ${nuevo}%`);
+if(typeof Telemetry!=='undefined')Telemetry.track('obra_avance_manual',{obra_id:obra.id,avance:nuevo});
+refrescarObrasTrasCambio();
+}catch(err){
+Toast.error(humanizeError(err,'guardar el avance'));
+}
+}
+// ========== FIN AVANCE MANUAL ==========
 
 function Gs(c){Compras.render(c);}
 
