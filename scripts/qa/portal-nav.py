@@ -109,6 +109,37 @@ with sync_playwright() as pw:
                 check(not t['pass'] and not t['salir'], tag + ': el enlace de token no deberia ofrecer cuenta: ' + str(t))
                 check(t['privado'], tag + ': falta el aviso de enlace privado en Contacto')
 
+            # US-620: avisos de la barra. Los datos de QA vienen en cero, así que se simulan sobre el payload
+            # ya cargado (novedades es sólo lectura para la vista) y se comprueba lo que pinta la barra.
+            av = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(datos.novedades||{}));
+              datos.novedades={fotos:3,documentos:2,pagos_vencidos:1,proximo_pago_dias:2,ultimo_visto_at:'2000-01-01T00:00:00+00:00'};
+              novedadesVistas.clear();seccion='inicio';pintarSeccion();
+              const b=k=>{const el=document.querySelector('#navCliente [data-k="'+k+'"]')||document.querySelector('#navClienteBottom [data-k="'+k+'"]');
+                return el?{badge:(el.querySelector('.nvs-badge')||{}).textContent||'',punto:!!el.querySelector('.nvs-badge.nvs-dot'),aria:el.getAttribute('aria-label')}:null;};
+              const r={pagos:b('pagos'),entregables:b('entregables'),fotos:b('fotos'),
+                       avisoInicio:document.body.innerText.includes('vence en 2 días'),
+                       hayProximo:!!ctx.proximo,
+                       nuevos:document.querySelectorAll('.chip.nuevo').length};
+              seccion='fotos';pintarSeccion();
+              r.fotosTrasVer=b('fotos');
+              r.nuevosEnFotos=document.querySelectorAll('#vista .chip.nuevo').length;
+              seccion='entregables';pintarSeccion();
+              r.entregablesTrasVer=b('entregables');
+              datos.novedades=orig;novedadesVistas.clear();seccion='inicio';pintarSeccion();
+              return r;}""")
+            print(tag, '| avisos:', json.dumps(av, ensure_ascii=False))
+            check(av['pagos'] and av['pagos']['punto'], tag + ': Pagos deberia llevar punto rojo: ' + str(av['pagos']))
+            check(av['pagos'] and '1 pago vencido' in (av['pagos']['aria'] or ''), tag + ': aria-label de Pagos: ' + str(av['pagos']))
+            check(av['entregables'] and av['entregables']['badge'] == '2', tag + ': Entregables deberia marcar 2: ' + str(av['entregables']))
+            check(av['fotos'] and av['fotos']['badge'] == '3', tag + ': Fotos deberia marcar 3: ' + str(av['fotos']))
+            if av['hayProximo']:
+                check(av['avisoInicio'], tag + ': falta la tarjeta «vence en 2 días» en Inicio')
+            else:
+                print(tag, '| (esta obra no tiene un siguiente pago pendiente: sin tarjeta de aviso)')
+                check(not av['avisoInicio'], tag + ': no deberia avisar de un pago que no existe')
+            check(av['fotosTrasVer'] and not av['fotosTrasVer']['badge'], tag + ': el badge de Fotos deberia limpiarse al abrirla: ' + str(av['fotosTrasVer']))
+            check(av['entregablesTrasVer'] and not av['entregablesTrasVer']['badge'], tag + ': el badge de Entregables deberia limpiarse: ' + str(av['entregablesTrasVer']))
+
             # US-618/US-619: layout de dos columnas en escritorio, barra inferior en móvil
             lay = page.evaluate("""()=>{const a=document.getElementById('navCliente'),b=document.getElementById('navClienteBottom');
               const w=document.querySelector('.wrap');

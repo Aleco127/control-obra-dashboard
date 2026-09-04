@@ -10,7 +10,7 @@
  *     modo: 'constructora' | 'cliente',
  *     marca: { nombre, sub, logo },                      // logo: URL http(s), data:image o ruta relativa
  *     contexto: { etiqueta, titulo, tituloCorto, sub, avance, semaforo, vacio, onClick, accion, onAccion },   // obra activa (opcional)
- *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, candado, candadoTexto, secundario }], abierto, suelto, plano, separador, candado }],
+ *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, badgeAria, candado, candadoTexto, secundario }], abierto, suelto, plano, separador, candado }],
  *     fijados: ['g', 'o'],                               // claves de «Mi trabajo»
  *     fijadosTitulo, onEditarFijados,
  *     onFijar: (k, item) => "navFijar('g')",             // US-608: con esto cada ítem lleva una estrella (fijar/quitar)
@@ -142,7 +142,8 @@ const NavShell = (() => {
       const lock = it.candado ? ' nvs-locked' : '';
       // US-610: el candado explica en el aria-label y en el title de qué plan se trata (candadoTexto lo pone el anfitrión)
       const avisoLock = it.candado ? (it.candadoTexto || 'No incluido en tu plan') : '';
-      const aria = t + badgeTexto(it.badge) + (avisoLock ? ' (' + esc(avisoLock) + ')' : '');
+      // badgeAria (US-620) permite decir «, 1 vencido» donde el badge visual es sólo un punto
+      const aria = t + (it.badgeAria ? ', ' + esc(it.badgeAria) : badgeTexto(it.badge)) + (avisoLock ? ' (' + esc(avisoLock) + ')' : '');
       const title = col ? ` title="${aria}"` : (avisoLock ? ` title="${esc(avisoLock)}"` : '');
       const origen = o.origen || (o.fijado ? 'fijado' : o.bottom ? 'bottom' : col ? 'flyout' : 'grupo');
       const btn = `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${o.fijado ? ' data-fijado="1"' : ''}${it.candado ? ' data-candado="1"' : ''} data-origen="${origen}" aria-label="${aria}"${title}${handler(m.onItem, k, it, origen)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
