@@ -260,7 +260,7 @@ async function massDeleteNomina(){
 <button type="button" onclick="closeMobileMenu()" class="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú"><i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i></button>
 </div>
 <!-- US-607: NavShell (js/nav-shell.js) pinta aquí la marca, «Mi trabajo», los grupos y el pie (Buscar, Ayuda, Colapsar, Cerrar sesión). Modelo en navModelo(). -->
-<nav id="nv" class="flex-1 overflow-y-auto" aria-label="Módulos"></nav>
+<nav id="nv" class="flex-1 overflow-y-auto" role="navigation" aria-label="Módulos"></nav>
 </aside>
 <div id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
@@ -2889,6 +2889,75 @@ renderNavFijadosEditor();
 }
 // Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
 function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
+// ---- Teclado de la barra (US-612) ----
+// Roving tabindex sobre los elementos de navegación (ítems, cabeceras de grupo y «Más»): la barra entera es un solo
+// tab stop y las flechas recorren lo que se ve. La tarjeta de obra y el pie quedan fuera, con su tabulación normal;
+// las estrellas de «Mi trabajo» se alcanzan con la flecha derecha desde su ítem.
+const NAV_ROVING='.nvs-item,.nvs-grupo-h,.nvs-mas';
+function navFocusables(){
+const nv=$('nv');if(!nv)return[];
+return[...nv.querySelectorAll(NAV_ROVING)].filter(el=>el.offsetParent!==null&&!el.disabled);
+}
+// Deja un solo tabindex=0 (el módulo activo, si se ve) y saca del orden de tabulación lo demás
+function navRoving(foco){
+const nv=$('nv');if(!nv)return;
+const items=navFocusables();
+if(!items.length)return;
+const sel=(foco&&items.includes(foco)&&foco)||items.find(el=>el.getAttribute('aria-current')==='page')||items[0];
+for(const el of items)el.tabIndex=el===sel?0:-1;
+for(const el of nv.querySelectorAll('.nvs-fijar'))el.tabIndex=-1;
+}
+function navMoverFoco(desde,paso){
+const items=navFocusables();
+if(!items.length)return;
+const i=items.indexOf(desde);
+const j=paso==='inicio'?0:paso==='fin'?items.length-1:Math.min(items.length-1,Math.max(0,(i<0?0:i)+paso));
+const el=items[j];if(!el)return;
+navRoving(el);el.focus();
+}
+function navTeclado(e){
+const el=e.target.closest&&e.target.closest(NAV_ROVING+',.nvs-fijar');
+if(!el)return;
+const esFijar=el.classList.contains('nvs-fijar');
+const esGrupo=el.classList.contains('nvs-grupo-h');
+switch(e.key){
+case 'ArrowDown':e.preventDefault();navMoverFoco(esFijar?el.previousElementSibling:el,1);break;
+case 'ArrowUp':e.preventDefault();navMoverFoco(esFijar?el.previousElementSibling:el,-1);break;
+case 'Home':e.preventDefault();navMoverFoco(el,'inicio');break;
+case 'End':e.preventDefault();navMoverFoco(el,'fin');break;
+case 'ArrowRight':{
+if(esGrupo){e.preventDefault();NavShell.alternarGrupo(el,true);break;}
+if(esFijar)break;
+const est=el.parentElement&&el.parentElement.querySelector('.nvs-fijar');
+if(est){e.preventDefault();est.focus();}
+break;
+}
+case 'ArrowLeft':{
+if(esGrupo){e.preventDefault();NavShell.alternarGrupo(el,false);break;}
+if(esFijar){e.preventDefault();const it=el.previousElementSibling;if(it){navRoving(it);it.focus();}}
+break;
+}
+}
+}
+function navTecladoEventos(){
+const nv=$('nv');if(!nv||nv._nvsTeclado)return;nv._nvsTeclado=true;
+navRegistrarAtajos();   // aquí y no junto al resto de Shortcuts: allá NAV_FIJADOS_MAX aún está en zona muerta
+nv.addEventListener('keydown',navTeclado);
+// Al enfocar con el cursor, ese elemento pasa a ser el tab stop
+nv.addEventListener('focusin',e=>{const el=e.target.closest&&e.target.closest(NAV_ROVING);if(el)navRoving(el);});
+}
+// Alt+1..Alt+6: los módulos de «Mi trabajo» en el orden en que el usuario los dejó
+function navRegistrarAtajos(){
+if(typeof Shortcuts==='undefined'||navRegistrarAtajos.hecho)return;
+navRegistrarAtajos.hecho=true;
+for(let i=1;i<=NAV_FIJADOS_MAX;i++){
+Shortcuts.register('alt+'+i,()=>{
+const k=navFijados()[i-1];
+if(!k){Toast.info('Todavía no tienes un módulo '+i+' en «Mi trabajo»');return;}
+irAModulo(k);
+},'Ir al módulo '+i+' de «Mi trabajo»');
+}
+}
 // ---- Contadores de la barra (US-610) ----
 // Una sola fuente para el aside, la barra inferior y (US-613) la hoja móvil. Sin datos cargados devuelve 0, nunca undefined.
 const NAV_PLAN_AVISO='Disponible en Estudio y Constructora';
@@ -2998,7 +3067,7 @@ const col=navColapsados();
 const badges=navBadges();
 const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>{const lock=navCandado(it.k);return Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:badges[it.k]||0,candado:lock,candadoTexto:lock?NAV_PLAN_AVISO:''});})}));
 const fijados=navFijados();
-const colapsado=barraColapsada();
+const colapsado=barraColapsada()&&window.innerWidth>=768;   // el modo colapsado es de escritorio: en móvil la barra va completa
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
 return{
 modo:'constructora',prefijo:'nv',
@@ -3021,10 +3090,10 @@ function N(){
 const nv=$('nv');if(!nv||typeof NavShell==='undefined'||typeof NAV_GRUPOS==='undefined')return;
 const modelo=navModelo();
 const firma=JSON.stringify([modelo.marca,modelo.contexto,modelo.grupos.map(g=>[g.k,g.items.map(it=>[it.k,it.t,it.badge||0,!!it.candado])]),modelo.fijados,modelo.colapsado,modelo.acciones.map(a=>a.t),NavPrefs.version]);
-if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);return;}
+if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);navRoving();return;}
 nv.innerHTML=NavShell.render(modelo).aside;
 N._firma=firma;N.dirty=false;
-navFlyEventos();
+navFlyEventos();navTecladoEventos();navRoving();
 if(!nv._nvsGrupo){nv._nvsGrupo=true;nv.addEventListener('nvs:grupo',e=>{const k=e.detail&&e.detail.k;if(!k)return;const c=Object.assign({},navColapsados());c[k]=!e.detail.abierto;NavPrefs.guardar({colapsados:c});});}
 }
 N.dirty=true;
