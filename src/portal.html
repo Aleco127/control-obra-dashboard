@@ -60,6 +60,11 @@ label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
 input[type=text],input[type=email],input[type=password],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:#fff;color:var(--ink);font-family:inherit}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .err{background:var(--danger-soft);color:var(--danger);border-radius:8px;padding:9px 11px;font-size:14px;margin:10px 0 0}
+.secciones{display:flex;gap:6px;overflow-x:auto;margin:0 0 14px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+.sec-btn{flex:0 0 auto;min-height:40px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}
+.sec-btn:hover{background:var(--surface-2);color:var(--ink)}
+.sec-btn.activa{background:var(--accent-soft);border-color:var(--accent-soft);color:var(--accent);font-weight:600}
+.sec-btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 .barra{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .barra select{width:auto;flex:1;min-width:200px;padding:8px 10px;font-size:14px}
 .txt{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;padding:4px;font-family:inherit}
@@ -181,9 +186,13 @@ function cambiarObra(sel){abrirObra(Number(sel.value));}
 
 /* ---------- Entregables agrupados por hito ---------- */
 function irA(id){
-  const el=document.getElementById(id);if(!el)return;
-  el.scrollIntoView({behavior:'smooth',block:'start'});
-  el.classList.add('destacado');setTimeout(()=>el.classList.remove('destacado'),1800);
+  // US-617: los entregables viven en su propia sección; primero se cambia de vista y luego se hace scroll
+  if(seccion!=='entregables'){seccion='entregables';if(location.hash!=='#entregables')history.replaceState(null,'','#entregables');pintarSeccion();}
+  setTimeout(()=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.scrollIntoView({behavior:'smooth',block:'start'});
+    el.classList.add('destacado');setTimeout(()=>el.classList.remove('destacado'),1800);
+  },40);
 }
 function etiquetaVer(g){
   const d=g.docs.length,f=g.fotos.length;
@@ -210,51 +219,180 @@ function bloqueEntrega(id,titulo,fch,g,a){
   </section>`;
 }
 
-/* ---------- Vista de la obra ---------- */
-function pintarObra(d){
-  document.title=`${d.obra.nombre} · Avance`;
-  const o=d.obra, e=d.empresa, plan=d.plan_pagos||[], pagos=d.pagos||[], acts=d.actividades||[], fotos=d.fotos||[], ests=d.estimaciones||[], cfdis=d.cfdis||[], docs=d.documentos||[];
-  const cobrado=pagos.reduce((a,p)=>a+Number(p.monto||0),0), contrato=Number(o.contrato||0), saldo=Math.max(0,contrato-cobrado);
-  const hoy=new Date().toISOString().slice(0,10); const proximo=plan.find(x=>!/cobrad/i.test(x.estatus||'')&&Number(x.monto)-Number(x.cobrado||0)>0.5);
-  // Entregables agrupados por el hito del programa al que pertenecen; la llave 0 es lo que no tiene entrega asignada.
-  const porHito={};
-  const cubo=k=>(porHito[k]=porHito[k]||{docs:[],fotos:[]});
-  docs.forEach(x=>cubo(x.actividad_id||0).docs.push(x));
-  fotos.forEach(f=>{if(f.actividad_id)cubo(f.actividad_id).fotos.push(f);});
-  const gruposHito=acts.filter(a=>porHito[a.id]);
-  const sueltos=porHito[0];
-  const fotosSueltas=fotos.filter(f=>!f.actividad_id);
-  const hayFotosEnGrupos=gruposHito.some(a=>porHito[a.id].fotos.length);
-  const dp=e.datos_pago||{};
-  const wa=e.telefono?('https://wa.me/'+String(e.telefono).replace(/\D/g,'').replace(/^(\d{10})$/,'52$1')+'?text='+encodeURIComponent('Hola, tengo una duda sobre la obra '+o.nombre)):'';
-  $('#pie').innerHTML=(sesion?'Tu acceso es personal; no compartas tu contraseña.':'Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.')+'<br>Control de Obra'+(e.nombre?' · '+esc(e.nombre):'');
-  $('#app').innerHTML=`
-  <header>${e.logo_url?`<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">`:''}<div class="emp">${esc(e.nombre)}<small>${(sesion&&usuario)?esc(usuario.nombre):'Avance de tu obra'}</small></div>${sesion?`<button class="txt" onclick="salir()">Salir</button>`:''}</header>
-  ${(sesion&&obras.length>1)?`<div class="barra"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x=>`<option value="${x.id}" ${x.id===obraActual?'selected':''}>${esc(x.nombre)}</option>`).join('')}</select></div>`:''}
-  <h1>${esc(o.nombre)}</h1>
-  <p class="sub">${esc(o.cliente||'')}${o.ubicacion?' · '+esc(o.ubicacion):''}${o.fecha_inicio?' · inicio '+fecha(o.fecha_inicio):''}${o.fecha_fin?' · entrega estimada '+fecha(o.fecha_fin):''}</p>
-  <div class="kpis">
-    <div class="kpi"><b>${Math.round(Number(o.avance||0))}%</b><span>Avance físico</span></div>
-    <div class="kpi"><b>${fmt(contrato)}</b><span>Contrato</span></div>
-    <div class="kpi"><b>${fmt(cobrado)}</b><span>Pagado a la fecha</span></div>
-    <div class="kpi"><b>${fmt(saldo)}</b><span>Saldo por pagar</span></div>
-  </div>
-  <div class="card"><h2>Programa de obra <span class="chip c-info">${esc(o.estatus||'')}</span></h2>
-    <div class="bar" aria-label="Avance ${Math.round(Number(o.avance||0))}%"><i style="width:${Math.min(100,Number(o.avance||0))}%"></i></div>
-    ${acts.length?`<div style="margin-top:10px">${acts.map(a=>`<div class="act"><div><div>${a.hito?'🏁 ':''}${esc(a.nombre)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin?' a '+fecha(a.fin):''}${a.responsable?' · '+esc(a.responsable):''}</div>${porHito[a.id]?`<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(porHito[a.id])}</button>`:''}</div><div><div class="bar"><i style="width:${Math.min(100,Number(a.avance||0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance||0))}%</div></div></div>`).join('')}</div>`:'<p class="vacio">Tu constructor aún no comparte el programa de trabajo.</p>'}
-  </div>
-  ${proximo?`<div class="card" style="border-color:var(--accent)"><h2>Siguiente pago</h2><p style="margin:0 0 8px"><strong>${esc(proximo.concepto)}</strong> · ${fmt(Number(proximo.monto)-Number(proximo.cobrado||0))}${proximo.vence?' · vence '+fecha(proximo.vence):''} ${proximo.vence&&proximo.vence<hoy?'<span class="chip c-bad">vencido</span>':''}</p>
-    ${dp.clabe||dp.cuenta?`<dl class="pago"><dt>Banco</dt><dd>${esc(dp.banco||'')}</dd><dt>Titular</dt><dd>${esc(dp.titular||e.nombre)}</dd>${dp.clabe?`<dt>CLABE</dt><dd>${esc(dp.clabe)} <button class="copy" onclick="copiar('${esc(dp.clabe)}',this)">Copiar</button></dd>`:''}${dp.cuenta?`<dt>Cuenta</dt><dd>${esc(dp.cuenta)} <button class="copy" onclick="copiar('${esc(dp.cuenta)}',this)">Copiar</button></dd>`:''}${dp.referencia?`<dt>Referencia</dt><dd>${esc(dp.referencia)}</dd>`:''}</dl>${dp.instrucciones?`<p style="font-size:13px;color:var(--muted);margin:8px 0 0">${esc(dp.instrucciones)}</p>`:''}`:'<p class="vacio">Pide a tu constructor los datos de pago.</p>'}
-    ${wa?`<p style="margin:10px 0 0"><a class="btn s" href="${wa}" target="_blank" rel="noopener">Avisar que ya pagué por WhatsApp</a></p>`:''}
-  </div>`:''}
-  <div class="card"><h2>Plan de pagos</h2>${plan.length?`<div class="tbl"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${plan.map(x=>`<tr><td>${esc(x.concepto)}</td><td class="n">${fmt(x.monto)}</td><td class="n">${fmt(x.cobrado)}</td><td>${fecha(x.vence)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Sin plan de pagos registrado.</p>'}</div>
-  <div class="card"><h2>Pagos realizados</h2>${pagos.length?`<div class="tbl"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${pagos.map(p=>`<tr><td>${fecha(p.fecha)}</td><td>${esc(p.concepto||p.numero||'')}</td><td>${esc(p.metodo||'')}</td><td class="n">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="vacio">Aún no hay pagos registrados.</p>'}</div>
-  <div class="card"><h2>Entregables de tu obra</h2>${(gruposHito.length||sueltos)?`${gruposHito.map(a=>bloqueEntrega('ent-'+a.id,(a.hito?'🏁 ':'')+esc(a.nombre),fecha(a.inicio),porHito[a.id],a)).join('')}${sueltos?bloqueEntrega('ent-otros','Otros documentos','',sueltos,null):''}`:'<p class="vacio">Todavía no hay entregables publicados para ti.</p>'}</div>
-  ${cfdis.length?`<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${cfdis.map(c=>`<tr><td>${esc((c.serie||'')+(c.folio||''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid||'')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo?`<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`:''}
-  ${ests.length?`<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ests.map(x=>`<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin?' a '+fecha(x.periodo_fin):''}</td><td class="n">${x.avance!=null?Math.round(Number(x.avance))+'%':''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
-  ${(fotosSueltas.length||!fotos.length)?`<div class="card"><h2>${hayFotosEnGrupos?'Más fotos de la obra':'Fotos de la obra'}</h2>${fotosSueltas.length?`<div class="fotos">${fotosSueltas.map(miniatura).join('')}</div>`:'<p class="vacio">Todavía no hay fotos publicadas.</p>'}</div>`:''}
-  <div class="card"><h2>¿Tienes una duda?</h2><p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono?' · '+esc(e.telefono):''}${e.email?' · '+esc(e.email):''}</p>${wa?`<a class="btn" href="${wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>`:''}${sesion?`<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button>${(usuario&&usuario.usuario)?`<span class="vacio" style="font-size:12px"> · entraste como ${esc(usuario.usuario)}</span>`:''}</p>`:''}</div>`;
+// Telemetría del portal (portal_evento, migración 057): nunca debe romper la vista
+async function portalEvento(evento, meta) {
+  try { await rpc('portal_evento', { p_token: sesion || token, p_evento: evento, p_meta: meta || {} }); } catch (e) { }
 }
+function avisoPagoClic() { portalEvento('aviso_pago_clic', { obra_id: obraActual }); }
+
+/* ---------- Vista de la obra: 6 secciones con ruta (US-617) ---------- */
+// El payload de portal_datos se pide UNA vez por obra y se guarda aquí; cambiar de sección no vuelve a la red.
+const SECCIONES = ['inicio', 'avance', 'pagos', 'entregables', 'fotos', 'contacto'];
+const SEC_TITULO = { inicio: 'Inicio', avance: 'Avance', pagos: 'Pagos', entregables: 'Entregables', fotos: 'Fotos', contacto: 'Contacto' };
+let datos = null;      // respuesta de portal_datos de la obra abierta
+let ctx = null;        // todo lo derivado (totales, agrupaciones) calculado una sola vez
+let seccion = 'inicio';
+
+function seccionDeHash() {
+  const h = String(location.hash || '').replace(/^#/, '').split('?')[0];
+  return SECCIONES.includes(h) ? h : 'inicio';
+}
+function irASeccion(s, empujar) {
+  const nueva = SECCIONES.includes(s) ? s : 'inicio';
+  if (empujar !== false && seccionDeHash() !== nueva) { location.hash = '#' + nueva; return; }  // el hashchange repinta
+  seccion = nueva;
+  pintarSeccion();
+}
+// Aviso en línea dentro de la sección (sustituye los alert() del portal)
+function aviso(msg) {
+  const el = $('#vistaAviso');
+  if (!el) return;
+  el.innerHTML = msg ? `<div class="err">${esc(msg)}</div>` : '';
+  if (msg) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Prepara todo lo que las vistas necesitan (se recalcula sólo al cambiar de obra)
+function prepararCtx(d) {
+  const o = d.obra, e = d.empresa;
+  const plan = d.plan_pagos || [], pagos = d.pagos || [], acts = d.actividades || [];
+  const fotos = d.fotos || [], ests = d.estimaciones || [], cfdis = d.cfdis || [], docs = d.documentos || [];
+  const cobrado = pagos.reduce((a, p) => a + Number(p.monto || 0), 0);
+  const contrato = Number(o.contrato || 0);
+  const saldo = Math.max(0, contrato - cobrado);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const proximo = plan.find(x => !/cobrad/i.test(x.estatus || '') && Number(x.monto) - Number(x.cobrado || 0) > 0.5);
+  // Entregables agrupados por el hito del programa al que pertenecen; la llave 0 es lo que no tiene entrega asignada.
+  const porHito = {};
+  const cubo = k => (porHito[k] = porHito[k] || { docs: [], fotos: [] });
+  docs.forEach(x => cubo(x.actividad_id || 0).docs.push(x));
+  fotos.forEach(f => { if (f.actividad_id) cubo(f.actividad_id).fotos.push(f); });
+  const gruposHito = acts.filter(a => porHito[a.id]);
+  const dp = e.datos_pago || {};
+  const wa = e.telefono ? ('https://wa.me/' + String(e.telefono).replace(/\D/g, '').replace(/^(\d{10})$/, '52$1') + '?text=' + encodeURIComponent('Hola, tengo una duda sobre la obra ' + o.nombre)) : '';
+  return {
+    o, e, plan, pagos, acts, fotos, ests, cfdis, docs, cobrado, contrato, saldo, hoy, proximo,
+    porHito, gruposHito, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
+    hayFotosEnGrupos: gruposHito.some(a => porHito[a.id].fotos.length), dp, wa,
+    avance: Math.round(Number(o.avance || 0)),
+  };
+}
+
+/* ---------- Las seis vistas ---------- */
+function kpisHtml() {
+  return `<div class="kpis">
+    <div class="kpi"><b>${ctx.avance}%</b><span>Avance físico</span></div>
+    <div class="kpi"><b>${fmt(ctx.contrato)}</b><span>Contrato</span></div>
+    <div class="kpi"><b>${fmt(ctx.cobrado)}</b><span>Pagado a la fecha</span></div>
+    <div class="kpi"><b>${fmt(ctx.saldo)}</b><span>Saldo por pagar</span></div>
+  </div>`;
+}
+function tarjetaSiguientePago(resumida) {
+  const p = ctx.proximo;
+  if (!p) return '';
+  const falta = Number(p.monto) - Number(p.cobrado || 0);
+  const vencido = p.vence && p.vence < ctx.hoy;
+  const cab = `<h2>Siguiente pago</h2><p style="margin:0 0 8px"><strong>${esc(p.concepto)}</strong> · ${fmt(falta)}${p.vence ? ' · vence ' + fecha(p.vence) : ''} ${vencido ? '<span class="chip c-bad">vencido</span>' : ''}</p>`;
+  if (resumida) return `<div class="card" style="border-color:var(--accent)">${cab}<p style="margin:8px 0 0"><button class="btn s" onclick="irASeccion('pagos')">Ver pagos</button></p></div>`;
+  const datosPago = (ctx.dp.clabe || ctx.dp.cuenta)
+    ? `<dl class="pago"><dt>Banco</dt><dd>${esc(ctx.dp.banco || '')}</dd><dt>Titular</dt><dd>${esc(ctx.dp.titular || ctx.e.nombre)}</dd>${ctx.dp.clabe ? `<dt>CLABE</dt><dd>${esc(ctx.dp.clabe)} <button class="copy" onclick="copiar('${esc(ctx.dp.clabe)}',this)">Copiar</button></dd>` : ''}${ctx.dp.cuenta ? `<dt>Cuenta</dt><dd>${esc(ctx.dp.cuenta)} <button class="copy" onclick="copiar('${esc(ctx.dp.cuenta)}',this)">Copiar</button></dd>` : ''}${ctx.dp.referencia ? `<dt>Referencia</dt><dd>${esc(ctx.dp.referencia)}</dd>` : ''}</dl>${ctx.dp.instrucciones ? `<p style="font-size:13px;color:var(--muted);margin:8px 0 0">${esc(ctx.dp.instrucciones)}</p>` : ''}`
+    : '<p class="vacio">Pide a tu constructor los datos de pago.</p>';
+  const avisar = ctx.wa ? `<p style="margin:10px 0 0"><a class="btn s" href="${ctx.wa}" target="_blank" rel="noopener" onclick="avisoPagoClic()">Avisar que ya pagué por WhatsApp</a></p>` : '';
+  return `<div class="card" style="border-color:var(--accent)">${cab}${datosPago}${avisar}</div>`;
+}
+function vistaInicio() {
+  const a = ctx.acts;
+  const hechas = a.filter(x => Number(x.avance || 0) >= 100).length;
+  const sigHito = a.find(x => x.hito && Number(x.avance || 0) < 100);
+  const linea = a.length
+    ? `${hechas} de ${a.length} ${a.length === 1 ? 'actividad terminada' : 'actividades terminadas'}${sigHito ? ' · siguiente hito: ' + esc(sigHito.nombre) + (sigHito.fin ? ', ' + fecha(sigHito.fin) : '') : ''}`
+    : 'Tu constructor aún no comparte el programa de trabajo.';
+  const ultimas = ctx.fotos.slice(0, 3);
+  const ultimoDoc = ctx.docs[0];
+  return kpisHtml()
+    + `<div class="card"><h2>Cómo va tu obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
+      <div class="bar" aria-label="Avance ${ctx.avance}%"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
+      <p style="margin:10px 0 0;font-size:14px">${linea}</p>
+      <p style="margin:8px 0 0"><button class="btn s" onclick="irASeccion('avance')">Ver el programa</button></p></div>`
+    + tarjetaSiguientePago(true)
+    + (ultimas.length ? `<div class="card"><h2>Últimas fotos</h2><div class="fotos">${ultimas.map(miniatura).join('')}</div><p style="margin:10px 0 0"><button class="btn s" onclick="irASeccion('fotos')">Ver todas</button></p></div>` : '')
+    + (ultimoDoc ? `<div class="card"><h2>Último entregable</h2>${filaDoc(ultimoDoc)}<p style="margin:10px 0 0"><button class="btn s" onclick="irASeccion('entregables')">Ver entregables</button></p></div>` : '');
+}
+function vistaAvance() {
+  return `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
+    <div class="bar" aria-label="Avance ${ctx.avance}%"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
+    ${ctx.acts.length ? `<div style="margin-top:10px">${ctx.acts.map(a => `<div class="act"><div><div>${a.hito ? '🏁 ' : ''}${esc(a.nombre)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin ? ' a ' + fecha(a.fin) : ''}${a.responsable ? ' · ' + esc(a.responsable) : ''}</div>${ctx.porHito[a.id] ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(ctx.porHito[a.id])}</button>` : ''}</div><div><div class="bar"><i style="width:${Math.min(100, Number(a.avance || 0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance || 0))}%</div></div></div>`).join('')}</div>` : '<p class="vacio">Tu constructor aún no comparte el programa de trabajo.</p>'}
+  </div>`
+    + (ctx.ests.length ? `<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ctx.ests.map(x => `<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '');
+}
+function vistaPagos() {
+  return tarjetaSiguientePago(false)
+    + `<div class="card"><h2>Plan de pagos</h2>${ctx.plan.length ? `<div class="tbl"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${ctx.plan.map(x => `<tr><td>${esc(x.concepto)}</td><td class="n">${fmt(x.monto)}</td><td class="n">${fmt(x.cobrado)}</td><td>${fecha(x.vence)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Sin plan de pagos registrado.</p>'}</div>`
+    + `<div class="card"><h2>Pagos realizados</h2>${ctx.pagos.length ? `<div class="tbl"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${ctx.pagos.map(p => `<tr><td>${fecha(p.fecha)}</td><td>${esc(p.concepto || p.numero || '')}</td><td>${esc(p.metodo || '')}</td><td class="n">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Aún no hay pagos registrados.</p>'}</div>`
+    + (ctx.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${ctx.cfdis.map(c => `<tr><td>${esc((c.serie || '') + (c.folio || ''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid || '')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo ? `<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
+}
+function vistaEntregables() {
+  return `<div class="card"><h2>Entregables de tu obra</h2>${(ctx.gruposHito.length || ctx.sueltos)
+    ? `${ctx.gruposHito.map(a => bloqueEntrega('ent-' + a.id, (a.hito ? '🏁 ' : '') + esc(a.nombre), fecha(a.inicio), ctx.porHito[a.id], a)).join('')}${ctx.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', ctx.sueltos, null) : ''}`
+    : '<p class="vacio">Todavía no hay entregables publicados para ti.</p>'}</div>`;
+}
+function vistaFotos() {
+  if (!ctx.fotos.length) return `<div class="card"><h2>Fotos de la obra</h2><p class="vacio">Todavía no hay fotos publicadas.</p></div>`;
+  // La galería completa: primero las de cada entrega (con su etiqueta) y al final las sueltas
+  const porEntrega = ctx.gruposHito.filter(a => ctx.porHito[a.id].fotos.length)
+    .map(a => `<div class="card"><h2>${a.hito ? '🏁 ' : ''}${esc(a.nombre)}</h2><div class="fotos">${ctx.porHito[a.id].fotos.map(miniatura).join('')}</div></div>`).join('');
+  const sueltas = ctx.fotosSueltas.length ? `<div class="card"><h2>${ctx.hayFotosEnGrupos ? 'Más fotos de la obra' : 'Fotos de la obra'}</h2><div class="fotos">${ctx.fotosSueltas.map(miniatura).join('')}</div></div>` : '';
+  return porEntrega + sueltas;
+}
+function vistaContacto() {
+  const e = ctx.e;
+  return `<div class="card"><h2>¿Tienes una duda?</h2>
+    <p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono ? ' · ' + esc(e.telefono) : ''}${e.email ? ' · ' + esc(e.email) : ''}</p>
+    ${ctx.wa ? `<a class="btn" href="${ctx.wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>` : ''}
+    ${sesion ? `<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button>${(usuario && usuario.usuario) ? `<span class="vacio" style="font-size:12px"> · entraste como ${esc(usuario.usuario)}</span>` : ''}</p>
+    <p style="margin:8px 0 0"><button class="txt" onclick="salir()">Cerrar sesión</button></p>` : '<p class="vacio" style="margin:12px 0 0">Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.</p>'}</div>`;
+}
+
+/* ---------- Marco y despacho ---------- */
+function pintarObra(d) {
+  datos = d;
+  ctx = prepararCtx(d);
+  seccion = seccionDeHash();
+  $('#pie').innerHTML = (sesion ? 'Tu acceso es personal; no compartas tu contraseña.' : 'Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.') + '<br>Control de Obra' + (ctx.e.nombre ? ' · ' + esc(ctx.e.nombre) : '');
+  const e = ctx.e, o = ctx.o;
+  $('#app').innerHTML = `
+  <header>${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}<div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>${sesion ? `<button class="txt" onclick="salir()">Salir</button>` : ''}</header>
+  ${(sesion && obras.length > 1) ? `<div class="barra"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x => `<option value="${x.id}" ${x.id === obraActual ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>` : ''}
+  <h1>${esc(o.nombre)}</h1>
+  <p class="sub">${esc(o.cliente || '')}${o.ubicacion ? ' · ' + esc(o.ubicacion) : ''}${o.fecha_inicio ? ' · inicio ' + fecha(o.fecha_inicio) : ''}${o.fecha_fin ? ' · entrega estimada ' + fecha(o.fecha_fin) : ''}</p>
+  <nav class="secciones" id="navSecciones" aria-label="Secciones"></nav>
+  <div id="vistaAviso"></div>
+  <div id="vista"></div>`;
+  pintarSeccion();
+}
+function pintarSeccion() {
+  const cont = $('#vista');
+  if (!cont || !ctx) return;
+  const fn = { inicio: vistaInicio, avance: vistaAvance, pagos: vistaPagos, entregables: vistaEntregables, fotos: vistaFotos, contacto: vistaContacto }[seccion] || vistaInicio;
+  cont.innerHTML = fn();
+  aviso('');
+  document.title = `${SEC_TITULO[seccion]} · ${ctx.o.nombre}`;
+  pintarNavSecciones();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  portalEvento('seccion', { seccion: seccion, obra_id: obraActual });
+}
+// Menú de secciones (US-618 y US-619 lo sustituyen por NavShell)
+function pintarNavSecciones() {
+  const n = $('#navSecciones');
+  if (!n) return;
+  n.innerHTML = SECCIONES.map(s => `<button type="button" class="sec-btn${s === seccion ? ' activa' : ''}"${s === seccion ? ' aria-current="page"' : ''} onclick="irASeccion('${s}')">${SEC_TITULO[s]}</button>`).join('');
+}
+window.addEventListener('hashchange', () => {
+  if (!ctx) return;                  // todavía no hay obra abierta: lo resuelve abrirObra
+  const s = seccionDeHash();
+  if (s === seccion) return;
+  seccion = s;
+  pintarSeccion();
+});
 
 async function pedirArchivo(cuerpo){
   try{
@@ -264,14 +402,14 @@ async function pedirArchivo(cuerpo){
 }
 async function archivo(id,tipo){
   const j=await pedirArchivo({token,sesion,cfdi_id:id,tipo});
-  if(!j||!j.url){alert((j&&j.error)||'No se pudo abrir el archivo');return;}
+  if(!j||!j.url){aviso((j&&j.error)||'No se pudo abrir el archivo. Inténtalo de nuevo o escríbele a tu constructor.');return;}
   window.open(j.url,'_blank','noopener');
 }
 async function verDocumento(id,btn){
   if(btn){btn.disabled=true;btn.textContent='Abriendo…';}
   const j=await pedirArchivo({token,sesion,documento_id:id});
   if(btn){btn.disabled=false;btn.textContent='Abrir';}
-  if(!j||!j.url){alert((j&&j.error)||'No se pudo abrir el documento');return;}
+  if(!j||!j.url){aviso((j&&j.error)||'No se pudo abrir el documento. Inténtalo de nuevo o escríbele a tu constructor.');return;}
   window.open(j.url,'_blank','noopener');
 }
 arranca();
