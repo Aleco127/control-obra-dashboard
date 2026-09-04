@@ -1165,6 +1165,19 @@ async function guardarWaAvisos(){
 }
 // ===== Portal del cliente (US-237/238, acceso con contraseña US-248) =====
 const PORTAL_URL=()=>`${location.origin}/portal.html`;
+// US-621: enlaces profundos al portal. El hash va SIEMPRE al final: con el enlace de token la query (?t=…) queda antes.
+const PORTAL_SECCIONES=['inicio','avance','pagos','entregables','fotos','contacto'];
+const PORTAL_SECCION_ETQ={inicio:'Inicio',avance:'Avance',pagos:'Pagos',entregables:'Entregables',fotos:'Fotos',contacto:'Contacto'};
+function portalUrlSeccion(url,seccion){
+const s=PORTAL_SECCIONES.includes(seccion)?seccion:'inicio';
+return String(url||'').split('#')[0]+'#'+s;
+}
+async function copiarPortalSeccion(sec,url,btn){
+const u=portalUrlSeccion(url,sec);
+try{await navigator.clipboard.writeText(u);Toast.success('Enlace de '+(PORTAL_SECCION_ETQ[sec]||sec)+' copiado');}
+catch(e){Toast.info(u,8000);}
+if(btn)btn.blur();
+}
 async function compartirObra(obraId){
   if(typeof Suscripcion!=='undefined'&&!Suscripcion.feature('portal')){await Suscripcion.verificarFeature('portal');return;}
   const{data,error}=await sb.rpc('portal_token_obra',{p_obra_id:obraId});
@@ -1193,6 +1206,11 @@ async function compartirObra(obraId){
     <p class="text-xs text-slate-500 mb-2">Quien tenga la liga entra. Cómodo, pero si se reenvía no hay forma de saber quién la vio.</p>
     <input class="inp text-xs mb-2" readonly value="${S(url)}" onclick="this.select()">
     <div class="flex flex-wrap gap-2"><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}"><i class="ri-whatsapp-line" aria-hidden="true"></i> Enviar por WhatsApp</a><a class="btn btn-s text-xs" target="_blank" rel="noopener" href="${S(url)}"><i class="ri-external-link-line" aria-hidden="true"></i> Ver como cliente</a><button type="button" class="btn btn-s text-xs" onclick="regenerarPortal(${obraId})"><i class="ri-refresh-line" aria-hidden="true"></i> Nuevo enlace</button><button type="button" class="btn btn-s text-xs" style="color:var(--danger)" onclick="revocarPortal(${obraId})"><i class="ri-link-unlink" aria-hidden="true"></i> Desactivar</button></div>
+  </div>
+  <div class="border border-slate-200 rounded-lg p-3">
+    <p class="text-sm font-semibold text-slate-800 mb-1">Enlaces directos a una sección</p>
+    <p class="text-xs text-slate-500 mb-2">Para cuando le escribas por un pago o porque subiste documentos: el cliente cae justo ahí.</p>
+    ${['pagos','entregables','fotos','avance'].map(sec=>`<div class="flex items-center gap-2 mb-1"><span class="text-xs text-slate-500 w-24 shrink-0">${PORTAL_SECCION_ETQ[sec]}</span><input class="inp text-xs" readonly value="${S(portalUrlSeccion(url,sec))}" onclick="this.select()"><button type="button" class="btn btn-s text-xs" onclick="copiarPortalSeccion('${sec}','${S(url)}',this)"><i class="ri-file-copy-line" aria-hidden="true"></i></button></div>`).join('')}
   </div>`;
   const pendiente=Dialog.confirm({title:'Acceso del cliente',icon:'ri-share-forward-line',confirmText:'Copiar enlace',cancelText:'Cerrar',bodyHtml:cuerpo});
   accesoClienteCargar(obraId);
