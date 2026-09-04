@@ -1,0 +1,152 @@
+{
+  "fecha": "2026-09-04",
+  "url": "http://127.0.0.1:8765/index.html?app=1",
+  "static": {
+    "confirm_nativos": 0,
+    "aria_label": 271,
+    "label_for": 681,
+    "onclick_inline": 684,
+    "text_pink_rose": 6,
+    "auto_sync": 0
+  },
+  "runs": [
+    {
+      "viewport": "desktop",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Hoy",
+          "axe": [],
+          "screenshot": "desktop_d.png",
+          "console": []
+        },
+        {
+          "module": "g",
+          "label": "Compras y gastos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Compras y gastos",
+          "axe": [],
+          "screenshot": "desktop_g.png",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de obras",
+          "axe": [],
+          "screenshot": "desktop_o.png",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Pagos y cobranza",
+          "axe": [],
+          "screenshot": "desktop_pc.png",
+          "console": []
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Hoy",
+          "axe": [],
+          "screenshot": "mobile_d.png",
+          "console": []
+        },
+        {
+          "module": "g",
+          "label": "Compras y gastos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Compras y gastos",
+          "axe": [],
+          "screenshot": "mobile_g.png",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de obras",
+          "axe": [],
+          "screenshot": "mobile_o.png",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Pagos y cobranza",
+          "axe": [],
+          "screenshot": "mobile_pc.png",
+          "console": []
+        }
+      ]
+    }
+  ]
+}

@@ -105,10 +105,30 @@ test('candado: clase, marca de datos, ícono y aviso en aria-label', () => {
   const { aside } = NavShell.render({ grupos: GRUPOS(), activo: 'cb' });
   const so = tagDe(aside, 'so')[0];
   assert.ok(so.includes('nvs-locked') && so.includes('data-candado="1"'), so);
-  assert.ok(so.includes('aria-label="Socios (no incluido en tu plan)"'), so);
+  assert.ok(so.includes('aria-label="Socios (No incluido en tu plan)"'), so);   // sin candadoTexto, el aviso por omisión
+  assert.ok(so.includes('title="No incluido en tu plan"'), 'US-610: el candado lleva title aunque la barra no esté colapsada');
   assert.ok(/data-k="so"[^>]*>[\s\S]*?<span class="nvs-lock"/.test(aside));
   const todoLock = NavShell.render({ grupos: [{ k: 'x', t: 'Extras', items: [{ k: 'a', t: 'A', candado: true }, { k: 'b', t: 'B', candado: true }] }] }).aside;
   assert.ok(todoLock.includes('nvs-grupo-locked') && /class="nvs-grupo-h"[^>]*>[\s\S]*?<span class="nvs-lock"/.test(todoLock), 'si todo el grupo está bloqueado la cabecera lleva candado');
+});
+
+test('US-610 candado con texto de plan: title, aria-label y clase; el badge sigue siendo accesible y escapado', () => {
+  const grupos = [{ k: 'conta', t: 'Contabilidad', items: [
+    { k: 'so', t: 'Socios', ic: 'ri-team-line', candado: true, candadoTexto: 'Disponible en Estudio y Constructora' },
+    { k: 'ci', t: 'Cierre mensual', ic: 'ri-lock-line', candado: true, candadoTexto: 'Disponible en Estudio y Constructora', badge: 3 },
+    { k: 'g', t: 'Compras', ic: 'ri-shopping-cart-line', badge: 1 },
+  ] }];
+  const { aside } = NavShell.render({ grupos });
+  const so = tagDe(aside, 'so')[0], ci = tagDe(aside, 'ci')[0], g = tagDe(aside, 'g')[0];
+  assert.ok(so.includes('nvs-locked') && so.includes('data-candado="1"'), so);
+  assert.ok(so.includes('title="Disponible en Estudio y Constructora"'), so);
+  assert.ok(so.includes('aria-label="Socios (Disponible en Estudio y Constructora)"'), so);
+  assert.ok(ci.includes('aria-label="Cierre mensual (3 pendientes) (Disponible en Estudio y Constructora)"'), ci);
+  assert.ok(g.includes('aria-label="Compras (1 pendiente)"') && !g.includes('title='), 'sin candado no hay title ni aviso: ' + g);
+  assert.ok(/data-k="ci"[\s\S]*?<span class="nvs-badge" aria-hidden="true">3<\/span>/.test(aside), 'el badge se pinta aparte del aria-label');
+  // El texto del candado se escapa igual que todo lo demás
+  const malo = NavShell.render({ grupos: [{ k: 'x', t: 'X', items: [{ k: 'so', t: 'Socios', candado: true, candadoTexto: '"><img src=x onerror=alert(1)>' }] }] }).aside;
+  assert.ok(!malo.includes('<img'), malo);
 });
 
 test('secundarios ocultos por defecto detrás de «Más» y visibles si el activo es uno de ellos', () => {
@@ -271,7 +291,9 @@ test('colapsado: clase nvs-col, title en ítems y cabeceras, ítems en flyout si
   assert.ok(/<div class="nvs-grupo-items nvs-fly" id="nvs-g-conta">/.test(a), 'colapsado: el grupo cerrado no lleva hidden porque el flyout lo muestra al pasar el cursor');
   assert.ok(a.includes('data-accion="salir" aria-label="Salir" title="Salir"'));
   const b = NavShell.render({ grupos: GRUPOS() }).aside;
-  assert.ok(!b.includes(' title='), 'expandido: sin title');
+  // Expandida, el único title que queda es el del candado de plan (US-610)
+  assert.equal(count(b, / title=/g), 1, 'expandido: sólo el candado lleva title');
+  assert.ok(tagDe(b, 'so')[0].includes(' title='));
 });
 
 test('modo cliente: íconos SVG inlineados, sin clases ri-, logo por URL', () => {

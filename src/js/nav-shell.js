@@ -10,7 +10,7 @@
  *     modo: 'constructora' | 'cliente',
  *     marca: { nombre, sub, logo },                      // logo: URL http(s), data:image o ruta relativa
  *     contexto: { etiqueta, titulo, tituloCorto, sub, avance, semaforo, vacio, onClick, accion, onAccion },   // obra activa (opcional)
- *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, candado, secundario }], abierto, suelto, plano, separador, candado }],
+ *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, candado, candadoTexto, secundario }], abierto, suelto, plano, separador, candado }],
  *     fijados: ['g', 'o'],                               // claves de «Mi trabajo»
  *     fijadosTitulo, onEditarFijados,
  *     onFijar: (k, item) => "navFijar('g')",             // US-608: con esto cada ítem lleva una estrella (fijar/quitar)
@@ -137,8 +137,10 @@ const NavShell = (() => {
       const cur = esActivo && !currentPuesto ? ' aria-current="page"' : '';
       if (cur) currentPuesto = true;
       const lock = it.candado ? ' nvs-locked' : '';
-      const aria = t + badgeTexto(it.badge) + (it.candado ? ' (no incluido en tu plan)' : '');
-      const title = col ? ` title="${aria}"` : '';
+      // US-610: el candado explica en el aria-label y en el title de qué plan se trata (candadoTexto lo pone el anfitrión)
+      const avisoLock = it.candado ? (it.candadoTexto || 'No incluido en tu plan') : '';
+      const aria = t + badgeTexto(it.badge) + (avisoLock ? ' (' + esc(avisoLock) + ')' : '');
+      const title = col ? ` title="${aria}"` : (avisoLock ? ` title="${esc(avisoLock)}"` : '');
       const btn = `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${o.fijado ? ' data-fijado="1"' : ''}${it.candado ? ' data-candado="1"' : ''} aria-label="${aria}"${title}${handler(m.onItem, k, it)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
       if (!m.onFijar || o.bottom) return btn;
       const etiq = `${fijado ? 'Quitar' : 'Fijar'} ${t} ${fijado ? 'de' : 'en'} ${tituloFij}`;
