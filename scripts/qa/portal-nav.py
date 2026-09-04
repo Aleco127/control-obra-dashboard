@@ -140,6 +140,37 @@ with sync_playwright() as pw:
                 except Exception as ex:
                     fallos.append(tag + ': axe no cargo: ' + str(ex))
 
+            # US-619: menú de cuenta y chip de obra en la cabecera móvil
+            if ancho < 900:
+                page.evaluate("()=>{location.hash='#inicio';}"); page.wait_for_timeout(450)
+                cab = page.evaluate("""()=>({cuenta:!!document.getElementById('btnCuenta'),chip:!!document.getElementById('chipObra'),
+                  texto:(document.getElementById('btnCuenta')||{}).textContent||''})""")
+                check(cab['cuenta'], tag + ': falta el boton de cuenta en la cabecera movil')
+                page.click('#btnCuenta'); page.wait_for_timeout(400)
+                menu = page.evaluate("""()=>{const m=document.getElementById('menuPortal');
+                  return{abierto:!m.hidden,rol:m.getAttribute('role'),exp:document.getElementById('btnCuenta').getAttribute('aria-expanded'),
+                    items:[...m.querySelectorAll('.menu-item')].map(x=>x.textContent.trim()),
+                    altos:[...m.querySelectorAll('.menu-item')].map(x=>Math.round(x.getBoundingClientRect().height))};}""")
+                print(tag, '| menu de cuenta:', menu['items'])
+                check(menu['abierto'] and menu['exp'] == 'true' and menu['rol'] == 'menu', tag + ': el menu de cuenta no abrio: ' + str(menu))
+                check(all(h >= 44 for h in menu['altos']), tag + ': opciones chicas en el menu: ' + str(menu['altos']))
+                esperados = ['Contacto'] + (['Cambiar contraseña', 'Salir'] if modo == 'cuenta' else [])
+                for it in esperados:
+                    check(any(it in x for x in menu['items']), tag + ': falta «' + it + '» en el menu: ' + str(menu['items']))
+                if modo == 'token':
+                    check(not any('contraseña' in x.lower() or x == 'Salir' for x in menu['items']), tag + ': el enlace de token no deberia ofrecer cuenta: ' + str(menu['items']))
+                if args.out: page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-menu-390.png'))
+                page.keyboard.press('Escape'); page.wait_for_timeout(300)
+                check(page.evaluate("()=>document.getElementById('menuPortal').hidden"), tag + ': Esc no cerro el menu')
+                # El chip de obra sólo aparece con sesión y más de una obra
+                nobras = page.evaluate("()=>obras.length")
+                check(cab['chip'] == (modo == 'cuenta' and nobras > 1), tag + ': chip de obra=' + str(cab['chip']) + ' con ' + str(nobras) + ' obras en modo ' + modo)
+                # La barra inferior no tapa el contenido
+                hueco = page.evaluate("()=>{const w=document.querySelector('.wrap');const cs=getComputedStyle(w);return parseInt(cs.paddingBottom);}")
+                check(hueco >= 80, tag + ': el contenido necesita hueco para la barra inferior: ' + str(hueco))
+                page.evaluate("()=>{location.hash='#pagos';}"); page.wait_for_timeout(450)
+                if args.out: page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-pagos-390.png'))
+
             if args.out:
                 page.evaluate("()=>{location.hash='#inicio';}"); page.wait_for_timeout(400)
                 page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-' + str(ancho) + '.png'))
