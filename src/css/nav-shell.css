@@ -165,8 +165,9 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 .nvs-col .nvs-item .nvs-badge{position:absolute;top:4px;right:6px;min-width:8px;width:8px;height:8px;padding:0;font-size:0}
 .nvs-col .nvs-grupo-activo>.nvs-grupo-h::after{content:"";position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
 .nvs-col .nvs-grupo-h{position:relative}
-/* Flyout: los ítems del grupo al lado de la barra; se abre con el cursor, con el foco o con la clase .nvs-abierto (Esc la quita) */
-.nvs-fly{display:none;position:absolute;left:calc(var(--sb-w-col) - 12px);top:0;z-index:var(--z-dropdown);min-width:calc(var(--sb-w) - var(--sp-4));max-width:280px;padding:6px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-3)}
+/* Flyout: los ítems del grupo al lado de la barra; se abre con el cursor, con el foco o con la clase .nvs-abierto (Esc la quita).
+   Va en position:fixed para que el scroll de #nv no lo recorte; el anfitrión le pone el «top» del grupo (navFlyPos). */
+.nvs-fly{display:none;position:fixed;left:calc(var(--sb-w-col) - 12px);top:0;max-height:calc(100vh - 16px);overflow-y:auto;z-index:var(--z-dropdown);min-width:calc(var(--sb-w) - var(--sp-4));max-width:280px;padding:6px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-3)}
 .nvs-col .nvs-grupo:hover>.nvs-fly,.nvs-col .nvs-grupo:focus-within>.nvs-fly,.nvs-fly.nvs-abierto{display:flex;flex-direction:column;gap:2px}
 /* Esc cierra el flyout sin sacar el foco del grupo: esta regla va después para ganar por orden, sin !important.
    El anfitrión quita .nvs-fly-cerrado cuando el foco sale del grupo o cuando vuelve el cursor. */

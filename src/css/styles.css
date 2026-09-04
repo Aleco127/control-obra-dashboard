@@ -100,17 +100,33 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* Sidebar */
-.sb{width:var(--sb-w);transition:width var(--dur-2);scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;background:var(--surface);border-right:1px solid var(--line)}
-.sb::-webkit-scrollbar{width:4px}
-.sb::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
+.sb{width:var(--sb-w);transition:width var(--dur-2);background:var(--surface);border-right:1px solid var(--line)}
+/* La barra de scroll de los módulos no se ve hasta que se usa: el hueco (8 px) se reserva siempre y sólo cambia el color
+   del pulgar, así el contenido nunca salta. .nv-scrolleando la pone el anfitrión al hacer scroll y la quita 900 ms después. */
+#nv{scrollbar-width:thin;scrollbar-color:transparent transparent;transition:scrollbar-color var(--dur-2)}
+#nv.nv-scrolleando{scrollbar-color:var(--line-strong) transparent}
+#nv::-webkit-scrollbar{width:8px}
+#nv::-webkit-scrollbar-track{background:transparent}
+#nv::-webkit-scrollbar-thumb{background-color:transparent;background-clip:content-box;border:2px solid transparent;border-radius:999px;transition:background-color var(--dur-2)}
+#nv.nv-scrolleando::-webkit-scrollbar-thumb{background-color:var(--line-strong)}
+/* «Ver más»: degradado al pie del aside que avisa que quedan módulos abajo (lo muestra nvSombra() sólo si falta scroll) */
+.nv-mas{position:absolute;left:0;right:0;bottom:0;height:62px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;pointer-events:none;background:linear-gradient(to top,var(--surface) 42%,transparent)}
+.nv-mas[hidden]{display:none}
+.nv-mas-btn{pointer-events:auto;display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);color:var(--ink-muted);font-size:var(--fs-xs);font-weight:600;line-height:1.4;cursor:pointer;animation:nvMasEntra var(--dur-2) ease-out}
+.nv-mas-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+.nv-mas-btn i{font-size:13px}
+@keyframes nvMasEntra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.nv-mas-btn{animation:none}}
+html.sb-col .nv-mas-tx{display:none}
+html.sb-col .nv-mas-btn{padding:3px 6px}
 .sb.col,html.sb-col .sb{width:var(--sb-w-col)}
 /* El margen del contenido lo decide la clase de <html>: así el ancho correcto ya está antes de que corra la app (sin parpadeo) */
 .mn{margin-left:var(--sb-w);transition:margin-left var(--dur-2)}
 html.sb-col .mn{margin-left:var(--sb-w-col)}
 .sb.col .tx{display:none}
 .sb.col .lg{justify-content:center}
-/* US-607: el flyout del modo colapsado (NavShell .nvs-fly) no debe recortarse por el scroll de #nv; US-611 completa el modo colapsado */
-.sb.col #nv{overflow:visible}
+/* US-607/US-611: el flyout del modo colapsado ya no se recorta porque va en position:fixed (navFlyPos lo coloca),
+   así que #nv conserva su scroll también colapsado: con ventanas bajas el pie seguía fuera de alcance. */
 /* Badges */
 .badge{font-size:9px;padding:2px 6px;border-radius:var(--radius-pill);font-weight:600;margin-left:auto}
 .badge-red{background:var(--danger-soft);color:var(--danger)}

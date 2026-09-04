@@ -27,6 +27,8 @@ export $(grep -E "^OBRA_QA_TOKEN=" .env | xargs)  # token qa-… de control_obra
 | `scripts/qa/nav-teclado-smoke.py` | US-612: roving tabindex, flechas, Alt+1..6, axe |
 | `scripts/qa/nav-hoja-smoke.py` | US-613: barra inferior y hoja de módulos del móvil |
 | `scripts/qa/nav-empresa-smoke.py` | US-614: personalización por empresa (necesita `OBRA_QA_TOKEN_EMP6`) |
+| `scripts/qa/nav-telemetria-smoke.py` | US-615: `data-origen` por superficie y `nav_click` completo |
+| `scripts/qa/nav-scroll-smoke.py` | scroll del aside: barra sólo al usarla, aviso «Ver más» y flyout con scroll |
 | `python scripts/qa/audit-ui.py --url … --modules d,o,g` | consola + axe por módulo en 1440 y 390 |
 
 Los smokes que escriben `nav_prefs` **fijan su punto de partida y restauran las preferencias al terminar**: el token

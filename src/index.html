@@ -258,6 +258,7 @@ async function massDeleteNomina(){
 <aside id="sb" class="sb hidden md:flex h-screen g fixed p-2 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
 <!-- US-607: NavShell (js/nav-shell.js) pinta aquí la marca, «Mi trabajo», los grupos y el pie (Buscar, Ayuda, Colapsar, Cerrar sesión). Modelo en navModelo(). -->
 <nav id="nv" class="flex-1 overflow-y-auto" role="navigation" aria-label="Módulos"></nav>
+<div id="nvMas" class="nv-mas" hidden aria-hidden="true"><button type="button" class="nv-mas-btn" tabindex="-1" onclick="nvVerMas()"><span class="nv-mas-tx">Ver más</span><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></div>
 </aside>
 
 <div id="mn" class="mn min-h-screen flex flex-col">
@@ -2123,6 +2124,7 @@ const nuevo=typeof col==='boolean'?col:!barraColapsada();
 aplicarBarraColapsada(nuevo);
 if(typeof NavPrefs!=='undefined')NavPrefs.guardar({barra_colapsada:nuevo});
 N.dirty=true;N();
+setTimeout(()=>{if(typeof nvSombra==='function')nvSombra();},300);   // el ancho tarda --dur-2 en asentarse
 if(window.innerWidth<=768)closeMobileMenu();
 }
 // Flyout del modo colapsado: Esc lo cierra sin sacar el foco del grupo; al salir el foco o volver el cursor se reabre.
@@ -2130,8 +2132,21 @@ function navCerrarFly(){
 document.querySelectorAll('#nv .nvs-fly.nvs-abierto').forEach(el=>el.classList.remove('nvs-abierto'));
 document.querySelectorAll('#nv .nvs-fly-cerrado').forEach(el=>el.classList.remove('nvs-fly-cerrado'));
 }
+// El flyout va en position:fixed (si no, el scroll de #nv lo recorta): aquí se le da el «top» de su grupo,
+// pegado a la ventana si el grupo está muy abajo. Se llama antes de pintar, así que no parpadea.
+function navFlyPos(g){
+if(!g||!barraColapsada())return;
+const fly=g.querySelector('.nvs-fly'),cab=g.querySelector('.nvs-grupo-h');
+if(!fly||!cab)return;
+const r=cab.getBoundingClientRect();
+fly.style.top=Math.max(8,r.top)+'px';
+requestAnimationFrame(()=>{const h=fly.offsetHeight;if(!h)return;fly.style.top=Math.max(8,Math.min(r.top,window.innerHeight-8-h))+'px';});
+}
+function navFlyRecolocar(){document.querySelectorAll('#nv .nvs-grupo:hover,#nv .nvs-grupo:focus-within,#nv .nvs-fly.nvs-abierto').forEach(el=>navFlyPos(el.closest('.nvs-grupo')));}
 function navFlyEventos(){
 const nv=$('nv');if(!nv||nv._nvsFly)return;nv._nvsFly=true;
+nv.addEventListener('mouseover',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)navFlyPos(g);});
+nv.addEventListener('focusin',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)navFlyPos(g);});
 nv.addEventListener('keydown',e=>{
 if(e.key!=='Escape'||!barraColapsada())return;
 const g=e.target.closest&&e.target.closest('.nvs-grupo');
@@ -2147,6 +2162,23 @@ if(!g)return;
 setTimeout(()=>{if(!g.contains(document.activeElement))g.classList.remove('nvs-fly-cerrado');},0);
 });
 nv.addEventListener('mouseenter',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)g.classList.remove('nvs-fly-cerrado');},true);
+}
+// Scroll de los módulos: la barra de scroll sólo se ve mientras se usa y, si quedan módulos abajo, sale «Ver más»
+// sobre un degradado (nada de barra permanente). El hueco de 8 px lo reserva el CSS, así que mostrarla no mueve nada.
+let nvScrollT=null;
+function nvSombra(){
+const nv=$('nv'),mas=$('nvMas');if(!nv||!mas)return;
+if(window.innerWidth<768){mas.hidden=true;return;}   // en el móvil no hay aside (manda la barra inferior)
+const falta=nv.scrollHeight-nv.scrollTop-nv.clientHeight;
+mas.hidden=!(nv.scrollHeight-nv.clientHeight>8&&falta>8);
+}
+function nvVerMas(){const nv=$('nv');if(!nv)return;nv.scrollBy({top:Math.round(nv.clientHeight*0.8),behavior:'smooth'});}
+function nvScrollEventos(){
+const nv=$('nv');if(!nv||nv._nvsScroll)return;nv._nvsScroll=true;
+const marcar=()=>{nv.classList.add('nv-scrolleando');clearTimeout(nvScrollT);nvScrollT=setTimeout(()=>nv.classList.remove('nv-scrolleando'),900);};
+nv.addEventListener('scroll',()=>{marcar();nvSombra();navFlyRecolocar();},{passive:true});
+nv.addEventListener('click',()=>requestAnimationFrame(nvSombra));   // abrir/cerrar un grupo cambia el alto sin repintar
+window.addEventListener('resize',nvSombra);
 }
 // US-613: tgMb y closeMobileMenu viven abajo; el aside ya no se abre a pantalla completa en el móvil
 // Preset de relleno de la barra inferior cuando «Mi trabajo» no llega a 4 módulos (US-616)
@@ -3220,7 +3252,7 @@ const firma=JSON.stringify([modelo.marca,modelo.contexto,modelo.grupos.map(g=>[g
 if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);navRoving();return;}
 nv.innerHTML=NavShell.render(modelo).aside;
 N._firma=firma;N.dirty=false;
-navFlyEventos();navTecladoEventos();navRoving();
+navFlyEventos();navTecladoEventos();navRoving();nvScrollEventos();requestAnimationFrame(nvSombra);
 if(!nv._nvsGrupo){nv._nvsGrupo=true;nv.addEventListener('nvs:grupo',e=>{const k=e.detail&&e.detail.k;if(!k)return;const c=Object.assign({},navColapsados());c[k]=!e.detail.abierto;NavPrefs.guardar({colapsados:c});});}
 }
 N.dirty=true;
