@@ -34,12 +34,12 @@ def abrir(pw, ancho, alto, token, tag):
     page.goto(args.app, wait_until='domcontentloaded')
     page.evaluate("t=>{localStorage.clear();localStorage.setItem('obra_session',JSON.stringify({token:t}));}", token)
     page.reload(wait_until='domcontentloaded')
-    page.wait_for_function("()=>typeof D!=='undefined'&&currentUser&&currentUser.nivel!==undefined&&typeof NavRules==='object'&&document.querySelectorAll('#nv .nav-item').length>0&&R._last!==undefined", timeout=90000)
+    page.wait_for_function("()=>typeof D!=='undefined'&&currentUser&&currentUser.nivel!==undefined&&typeof NavRules==='object'&&document.querySelectorAll('#nv .nvs-item').length>0&&R._last!==undefined", timeout=90000)
     page.wait_for_timeout(800)
     return ctx, page
 
 def barra(page):
-    return page.evaluate("()=>[...document.querySelectorAll('#nv .cat-section .nav-item')].map(b=>b.getAttribute('aria-label'))")
+    return page.evaluate("()=>[...document.querySelectorAll('#nv .nvs-grupos .nvs-item')].map(b=>b.getAttribute('aria-label'))")
 def cmdk(page):
     return page.evaluate("()=>sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>x[0]))")
 
@@ -54,7 +54,7 @@ with sync_playwright() as pw:
         # 1) la barra muestra sólo Bitácora, Fotos, Asistencia y Obras
         items = barra(page)
         check(sorted(items) == TRAB_LABELS, f'trab{ancho}: barra muestra {items}')
-        fav = page.evaluate("()=>[...document.querySelectorAll('#nv .nav-item')].map(b=>b.getAttribute('aria-label')).filter(l=>!" + str(TRAB_LABELS) + ".includes(l))")
+        fav = page.evaluate("()=>[...document.querySelectorAll('#nv .nvs-item')].map(b=>b.getAttribute('aria-label')).filter(l=>!" + str(TRAB_LABELS) + ".includes(l))")
         check(fav == [], f'trab{ancho}: favoritos con módulos invisibles {fav}')
         # 2) Ctrl+K y visibles coinciden
         check(sorted(cmdk(page)) == TRAB_VE, f'trab{ancho}: Ctrl+K lista {cmdk(page)}')
@@ -72,7 +72,7 @@ with sync_playwright() as pw:
         for k, label in (('b', 'Bitácora'), ('f', 'Fotos'), ('t', 'Asistencia'), ('o', 'Obras')):
             page.evaluate(f"()=>{{M='{k}';R();}}")
             page.wait_for_timeout(600)
-            act = page.evaluate("()=>[...document.querySelectorAll('#nv .nav-item[aria-current=\"page\"]')].map(b=>b.getAttribute('aria-label'))")
+            act = page.evaluate("()=>[...document.querySelectorAll('#nv [data-k][aria-current=\"page\"]')].map(b=>b.getAttribute('aria-label'))")
             check(label in act, f'trab{ancho} {k}: activo {act}')
         # 5) barra inferior móvil: sólo módulos visibles y se completa hasta 4
         if ancho < 768:
@@ -87,7 +87,7 @@ with sync_playwright() as pw:
 
     # ---- Administrador (nivel 100, empresa 1): ve todo lo habilitado ----
     ctx, page = abrir(pw, 1440, 900, ADMIN, 'admin')
-    n = page.evaluate("()=>({barra:document.querySelectorAll('#nv .cat-section .nav-item').length,hab:sec.flatMap(s=>s.i).filter(x=>isModuloEnabled(x[0])).length,vis:NavRules.visibles(currentUser).length})")
+    n = page.evaluate("()=>({barra:document.querySelectorAll('#nv .nvs-grupos .nvs-item').length,hab:sec.flatMap(s=>s.i).filter(x=>isModuloEnabled(x[0])).length,vis:NavRules.visibles(currentUser).length})")
     check(n['barra'] == n['hab'] and n['vis'] == 34, f'admin: barra {n}')
     check(sorted(cmdk(page)) == sorted(page.evaluate("()=>sec.flatMap(s=>s.i).filter(x=>isModuloEnabled(x[0])).map(x=>x[0])")), 'admin: Ctrl+K no lista todo lo habilitado')
     for k in ['d', 'g', 'o', 'h', 'z', 'cb']:

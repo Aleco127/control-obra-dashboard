@@ -106,6 +106,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sb.col{width:64px}
 .sb.col .tx{display:none}
 .sb.col .lg{justify-content:center}
+/* US-607: el flyout del modo colapsado (NavShell .nvs-fly) no debe recortarse por el scroll de #nv; US-611 completa el modo colapsado */
+.sb.col #nv{overflow:visible}
 /* legado: quitar en US-616 */
 .sb.col .cat-header{justify-content:center;padding:4px}
 .sb.col .cat-header span{display:none}
