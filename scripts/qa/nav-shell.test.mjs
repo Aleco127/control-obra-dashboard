@@ -46,10 +46,59 @@ test('render: cada módulo aparece en su grupo, los fijados se repiten arriba y 
   assert.equal(tagDe(aside, 'b').length, 1);
   assert.equal(count(aside, /aria-current="page"/g), 1, 'un solo aria-current en la barra');
   assert.ok(/class="nvs-item nvs-fijado active"[^>]*aria-current="page"/.test(aside), 'el fijado (primera aparición) lleva aria-current');
-  assert.equal(count(aside, /\bactive\b/g), 2, 'las dos apariciones del activo llevan .active');
+  assert.equal(count(aside, /\bactive\b/g), 1, 'US-608: sólo la copia de «Mi trabajo» se pinta activa, no la del grupo');
   assert.ok(aside.includes('<div class="nvs-fijados" role="group" aria-label="Mi trabajo">'));
   assert.ok(/<section class="nvs-grupo nvs-grupo-activo" data-grupo="dinero">/.test(aside), 'el grupo del activo se marca');
   assert.ok(/<button type="button" class="nvs-item nvs-suelto"[^>]*data-k="d"/.test(aside), 'Inicio va suelto, sin cabecera');
+});
+
+test('US-608 estrella: sólo con onFijar, aria-pressed según fijados, nunca dentro del botón del ítem ni en la barra inferior', () => {
+  const modelo = { grupos: GRUPOS(), fijados: ['g', 'o'], activo: 'g', onItem: "ir('{k}')", onFijar: "navFijar('{k}')", inferior: { items: ['o', 'w', 'g'] } };
+  const { aside, bottom } = NavShell.render(modelo);
+  // 12 módulos en los grupos + 2 copias en «Mi trabajo» = 14 estrellas; la barra inferior no lleva ninguna
+  assert.equal(count(aside, /class="nvs-fijar"/g), 14, 'una estrella por ítem pintado');
+  assert.equal(count(bottom, /nvs-fijar/g), 0, 'la barra inferior no fija nada');
+  assert.equal(count(aside, /<button type="button" class="nvs-item[^"]*"[^>]*>[^<]*<button/g), 0, 'la estrella nunca queda dentro del botón del ítem');
+  assert.ok(/<div class="nvs-fila"><button type="button" class="nvs-item/.test(aside), 'ítem y estrella son hermanos dentro de .nvs-fila');
+  // g y o están fijados (2 copias cada uno) -> 4 estrellas rellenas; el resto vacías
+  assert.equal(count(aside, /aria-pressed="true"/g), 4);
+  assert.ok(/data-fijar="b"[^>]*aria-pressed="false"[^>]*aria-label="Fijar Bitácora en Mi trabajo"/.test(aside), aside);
+  assert.ok(/data-fijar="g"[^>]*aria-pressed="true"[^>]*aria-label="Quitar Compras y gastos de Mi trabajo"/.test(aside));
+  assert.ok(/data-fijar="g"[^>]*onclick="navFijar\(&#39;g&#39;\)"/.test(aside), 'onFijar acepta la plantilla {k} y escapa las comillas');
+  // Sin onFijar (portal del cliente) no hay filas ni estrellas
+  const sin = NavShell.render({ ...modelo, onFijar: null }).aside;
+  assert.equal(count(sin, /nvs-fila|nvs-fijar/g), 0);
+});
+
+test('US-608: el módulo fijado no se pinta activo dos veces, ni al repintar ni con marcarActivo', () => {
+  const modelo = { grupos: GRUPOS(), fijados: ['g', 'o'], activo: 'o', onFijar: "f('{k}')" };
+  const { aside } = NavShell.render(modelo);
+  const [fijado, enGrupo] = tagDe(aside, 'o');
+  assert.ok(fijado.includes('nvs-fijado') && fijado.includes('data-fijado="1"') && fijado.includes('active') && fijado.includes('aria-current="page"'));
+  assert.ok(!enGrupo.includes('active') && !enGrupo.includes('aria-current'), 'la copia del grupo queda limpia: ' + enGrupo);
+  assert.ok(/<section class="nvs-grupo nvs-grupo-activo" data-grupo="obra">/.test(aside), 'el grupo sigue marcándose');
+  // marcarActivo sobre el HTML llega a la misma conclusión
+  const g = NavShell.marcarActivo(aside, 'g');
+  const [gFij, gGrupo] = tagDe(g, 'g');
+  assert.ok(gFij.includes('active') && gFij.includes('aria-current="page"'));
+  assert.ok(!gGrupo.includes('active'), gGrupo);
+  // Un módulo que no está fijado sí se marca en su grupo
+  const b = NavShell.marcarActivo(aside, 'b');
+  assert.ok(tagDe(b, 'b')[0].includes('active'));
+  assert.equal(count(b, /aria-current="page"/g), 1);
+});
+
+test('US-608: marcarActivo sobre Element respeta data-fijado y deja intacta la barra inferior', () => {
+  const fij = nodo('button', { class: 'nvs-item nvs-fijado', 'data-k': 'g', 'data-fijado': '1' });
+  const enGrupo = nodo('button', { class: 'nvs-item', 'data-k': 'g' });
+  const enBottom = nodo('button', { class: 'nvs-item nvs-bottom-item', 'data-k': 'g' });
+  const root = nodo('div', { class: 'nvs' }, [fij, nodo('section', { class: 'nvs-grupo', 'data-grupo': 'dinero' }, [enGrupo]), enBottom]);
+  NavShell.marcarActivo(root, 'g');
+  assert.ok(fij.classList.contains('active'), 'manda la copia fijada');
+  assert.equal(fij.attrs['aria-current'], 'page');
+  assert.ok(!enGrupo.classList.contains('active'), 'la copia del grupo no se marca');
+  assert.ok(enBottom.classList.contains('active'), 'la barra inferior sí se marca (es otra barra)');
+  assert.ok(!('aria-current' in enBottom.attrs), 'un solo aria-current por llamada');
 });
 
 test('candado: clase, marca de datos, ícono y aviso en aria-label', () => {
@@ -137,7 +186,7 @@ test('marcarActivo sobre HTML: mueve active y aria-current, un solo aria-current
   const dos = NavShell.marcarActivo(una, 'o');
   assert.equal(una, dos, 'idempotente');
   assert.equal(count(una, /aria-current="page"/g), 1);
-  assert.equal(count(una, /\bactive\b/g), 2, 'o aparece fijado y en Obra');
+  assert.equal(count(una, /\bactive\b/g), 1, 'US-608: manda la copia fijada, la del grupo ya no se marca');
   assert.ok(/class="nvs-item nvs-fijado active" aria-current="page" data-k="o"/.test(una));
   assert.ok(!/data-k="g"[^>]*aria-current/.test(una) && !/class="[^"]*active[^"]*"[^>]*data-k="g"/.test(una), 'g dejó de estar activo');
   assert.ok(/<section class="nvs-grupo nvs-grupo-activo" data-grupo="obra">/.test(una));
