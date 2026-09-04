@@ -129,14 +129,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .nav-fav-title{font-size:var(--fs-xs);letter-spacing:.02em;color:var(--ink-subtle);padding:6px 12px 2px;font-weight:600}
 
 /* Colores por categoria */ /* legado: quitar en US-616 */
-.cat-principal .cat-icon{background:var(--accent-soft);color:var(--accent)}
-.cat-proyectos .cat-icon{background:var(--info-soft);color:var(--info)}
-.cat-operacion .cat-icon{background:var(--ok-soft);color:var(--ok)}
+.cat-principal .cat-icon,.cat-inicio .cat-icon{background:var(--accent-soft);color:var(--accent)}
+.cat-proyectos .cat-icon,.cat-obra .cat-icon{background:var(--info-soft);color:var(--info)}
+.cat-operacion .cat-icon,.cat-dinero .cat-icon{background:var(--ok-soft);color:var(--ok)}
 .cat-calidad .cat-icon{background:var(--violet-soft);color:var(--violet)}
-.cat-archivos .cat-icon{background:var(--warn-soft);color:var(--warn)}
+.cat-archivos .cat-icon,.cat-contabilidad .cat-icon{background:var(--warn-soft);color:var(--warn)}
 .cat-personal .cat-icon{background:#fce7f3;color:#be185d}
 .cat-externos .cat-icon{background:#e0e7ff;color:#4338ca}
-.cat-sistema .cat-icon{background:var(--surface-2);color:var(--ink-muted)}
+.cat-sistema .cat-icon,.cat-administracion .cat-icon,.cat-equipo .cat-icon{background:var(--surface-2);color:var(--ink-muted)}
 .cat-favoritos .cat-icon{background:var(--warn-soft);color:var(--warn)}
 
 /* Badges */

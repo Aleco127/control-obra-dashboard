@@ -143,19 +143,17 @@ Usa esta opcion si tu empresa ya esta registrada y un administrador te proporcio
 
 ### Menu Lateral (Sidebar)
 
-El menu lateral izquierdo es tu herramienta principal de navegacion. Los 33 modulos estan organizados en **8 categorias**:
+El menu lateral izquierdo es tu herramienta principal de navegacion. Los 34 modulos estan organizados en **7 grupos** segun lo que haces (la obra, el dinero, el equipo), no por departamento:
 
-| Categoria | Icono | Modulos |
-|-----------|-------|---------|
-| **Principal** | Dashboard | Dashboard |
-| **Proyectos** | Edificio | Obras, Presupuesto, Programa, Gastos, Pagos, Ordenes, Cotizaciones, Estimaciones |
-| **Contabilidad** | Grafica | Panel Fiscal, Facturas CFDI, CFDIs Emitidos, Retenciones, Declaraciones, REPSE, SUA |
-| **Operacion** | Engranaje | Subcontratos, Materiales, Bitacora, Calendario |
-| **Calidad** | Check | RFIs, Punch List, Seguridad |
-| **Archivos** | Carpeta | Documentos, Fotos |
-| **Personal** | Usuario | Empleados, Nomina, Asistencia |
-| **Externos** | Tienda | Proveedores, Clientes |
-| **Sistema** | Config | Reportes, Configuracion, Usuarios |
+| Grupo | Icono | Modulos |
+|-------|-------|---------|
+| **Inicio** | Casa | Inicio (tablero) |
+| **Obra** | Edificio | Obras, Programa, Bitacora, Fotos, Documentos, Calendario |
+| **Calidad** | Escudo | RFIs, Punch list, Seguridad |
+| **Dinero** | Moneda | Compras y gastos, Pagos, Presupuesto, Cotizaciones, Estimaciones, Subcontratos, Materiales |
+| **Equipo** | Personas | Empleados, Nomina, Asistencia, Proveedores, Clientes |
+| **Contabilidad** | Lista | Contabilidad, Facturas CFDI, CFDIs emitidos, Cierres, Socios; bajo «Mas»: Retenciones, Declaraciones, REPSE, SUA |
+| **Administracion** | Config | Reportes, Configuracion, Usuarios |
 
 Haz clic en el nombre de una categoria para expandirla y ver sus modulos. Haz clic en un modulo para acceder a el.
 
@@ -447,7 +445,7 @@ El supervisor se encarga de verificar avance, aprobar gastos y asegurar la calid
 
 ## 2.4 Guia del Contador
 
-**Nivel de acceso:** 50 | **Modulos principales:** Panel Fiscal, Facturas CFDI, CFDIs Emitidos, Retenciones, Declaraciones, REPSE, SUA, Nomina
+**Nivel de acceso:** 50 | **Modulos principales:** Contabilidad, Facturas CFDI, CFDIs Emitidos, Retenciones, Declaraciones, REPSE, SUA, Nomina
 
 El contador gestiona toda la operacion fiscal y financiera de la empresa.
 
@@ -721,7 +719,7 @@ Al iniciar sesion, veras el **Dashboard** con los indicadores clave:
 
 **Cobranza a clientes (CxC):**
 1. Las cuentas por cobrar se crean automaticamente al aprobar estimaciones
-2. Ve al modulo **Estimaciones** o revisa el **Panel Fiscal**
+2. Ve al modulo **Estimaciones** o revisa el modulo **Contabilidad**
 3. Da seguimiento a las CxC con los siguientes estatus:
    - **Pendiente:** Factura enviada, esperando pago
    - **Parcial:** Pago parcial recibido
@@ -1045,7 +1043,7 @@ Zona Exenta:  Subtotal x 1.00 = Total (0% IVA)
 
 ### Paso 4: Seguimiento de Cobranza
 
-1. Revisa las CxC pendientes en el **Panel Fiscal**
+1. Revisa las CxC pendientes en el modulo **Contabilidad**
 2. Da seguimiento al cliente
 3. Registra pagos parciales o totales
 4. Actualiza estatus:
@@ -1053,7 +1051,7 @@ Zona Exenta:  Subtotal x 1.00 = Total (0% IVA)
    - **Pendiente/Parcial** → **Cobrada** (pago completo)
 
 **Aging Report (Reporte de Antigüedad):**
-El Panel Fiscal muestra las cuentas por cobrar organizadas por antigüedad para identificar pagos atrasados.
+El modulo Contabilidad muestra las cuentas por cobrar organizadas por antigüedad para identificar pagos atrasados.
 
 ---
 
@@ -1717,7 +1715,7 @@ Se crea CxC con monto = monto_periodo, estatus = "Pendiente", vencimiento = fech
 
 ## Categoria: Contabilidad
 
-### 4.10 Panel Fiscal
+### 4.10 Contabilidad (antes «Panel fiscal»)
 
 **Codigo interno:** `cb` | **Icono:** ri-pie-chart-2-line
 
