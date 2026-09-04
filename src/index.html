@@ -103,6 +103,7 @@ async function massDeleteNomina(){
 <script src="js/data-loader.js?v=20260829d"></script>
 <script src="js/ui-utils.js?v=20260830a"></script>
 <script src="js/nav-grupos.js?v=20260903a"></script>
+<script src="js/nav-rules.js?v=20260904a"></script>
 <script src="js/nav-shell.js?v=20260903a"></script>
 <script src="js/reports.js?v=20260829d"></script>
 <script src="js/security.js?v=20260829d"></script>
@@ -2127,8 +2128,10 @@ const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w']
 function updateMobileBottomNav(){
 const nav=$('mobileBottomNav');if(!nav)return;
 const rol=String(currentUser?.rol||'').toLowerCase();
-const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>isModuloEnabled(k));
 const all=sec.flatMap(x=>x.i);
+// US-606: sólo módulos visibles para el usuario; si el preset del rol se queda corto, se completa en el orden de la barra
+const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>moduloVisibleParaUsuario(k));
+for(const x of all){if(keys.length>=4)break;if(x[0]!=='d'&&!keys.includes(x[0])&&moduloVisibleParaUsuario(x[0]))keys.push(x[0]);}
 const gPend=(D.g||[]).filter(g=>!g.aprobado_at&&g.estatus_pago!=='Rechazado').length;
 const ocPend=(D.oc||[]).filter(o=>o.estatus==='Pendiente').length;
 const hitosHoy=(typeof hitosPendientes==='function')?hitosPendientes(0).length:0;
@@ -2674,7 +2677,7 @@ if(!k)return;const u=moduleUsage();u[k]=(u[k]||0)+1;localStorage.setItem('module
 }
 function modulosFavoritos(n=5){
 const u=moduleUsage();
-const all=sec.flatMap(s=>s.i).filter(x=>isModuloEnabled(x[0])&&x[0]!=='d');
+const all=sec.flatMap(s=>s.i).filter(x=>moduloVisibleParaUsuario(x[0])&&x[0]!=='d');
 return all.filter(x=>u[x[0]]).sort((a,b)=>u[b[0]]-u[a[0]]).slice(0,n);
 }
 // Al iniciar, todas las categorías colapsadas salvo la del módulo activo (preferencia persistente en collapsedCats)
@@ -2700,7 +2703,7 @@ function abrirCmdk(){ensureCmdk();$('cmdk').classList.add('ac');const i=$('cmdkI
 function cerrarCmdk(){$('cmdk')?.classList.remove('ac');}
 function renderCmdk(q){
 q=normTxt(q);
-const mods=sec.flatMap(s=>s.i.filter(x=>isModuloEnabled(x[0])).map(x=>({t:'Módulos',l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>{fichaObraId=null;localStorage.removeItem('fichaObraId');M=x[0];R();}})));
+const mods=sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>({t:'Módulos',l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>{fichaObraId=null;localStorage.removeItem('fichaObraId');M=x[0];R();}})));
 const obras=getObrasPermitidas().map(o=>({t:'Obras',l:[o.codigo_obra,o.nombre_obra].filter(Boolean).join(' · '),sub:o.cliente||'',i:'ri-building-2-line',run:()=>abrirFichaObra(o.id)}));
 const clis=(D.cli||[]).map(c=>({t:'Clientes',l:c.nombre,sub:c.razon_social||c.rfc||'',i:'ri-user-heart-line',run:()=>abrirCliente(c.id)}));
 const acciones=[{t:'Acciones',l:'Nueva obra (asistente)',sub:'',i:'ri-add-line',run:()=>WizardObra.open()},{t:'Acciones',l:'Registrar cobro',sub:'',i:'ri-arrow-down-circle-line',run:()=>newPagoRecibido()},{t:'Acciones',l:'Bitácora rápida',sub:'',i:'ri-book-2-line',run:()=>abrirBitacoraRapida()}];
@@ -2720,26 +2723,23 @@ if(e.key==='Enter'){e.preventDefault();ejecutarCmdk(_cmdkSel);}
 function ejecutarCmdk(i){const x=_cmdkItems[i];if(!x)return;cerrarCmdk();closeMobileMenu();x.run();}
 Shortcuts.register('ctrl+k',abrirCmdk,'Buscar módulo, obra o cliente');
 
+// US-606: una sola regla de visibilidad para la barra, la barra inferior, Ctrl+K y favoritos.
+// isModuloEnabled decide empresa_modulos y los candados por nivel de so/ci; NavRules.moduloVisible aplica la tabla D3 por rol
+// con los permisos del usuario por encima (ver src/js/nav-rules.js). Ninguna clave pasa por omisión.
+function moduloVisibleParaUsuario(key){
+if(!isModuloEnabled(key))return false;
+if(typeof NavRules==='undefined')return false;
+return NavRules.moduloVisible(key,currentUser);
+}
 function N(){
 inicializarColapsoNav();
-const perms=currentUser?.permisos||{};
-const nivel=currentUser?.nivel||0;
 const empId=currentUser?.empresa_id;
-const permMap={g:'gastos',o:'obras',e:'empleados',n:'nomina',p:'presupuesto',q:'reportes',z:'configuracion',h:'usuarios'};
 const ordenesPendientes=(D.oc||[]).filter(x=>x.estatus==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
 const gastosPendientes=(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
 
 $('nv').innerHTML=favoritosHtml()+sec.map(s=>{
-const items=s.i.filter(([key])=>{
-// Verificar si modulo esta habilitado para esta empresa
-if(!isModuloEnabled(key))return false;
-const mod=permMap[key];
-if(!mod)return true;
-// Solo admin_general (nivel 100) tiene acceso total
-if(nivel>=100)return true;
-// Para otros, verificar permisos específicos
-return perms[mod]?.ver===true;
-});
+// US-606: empresa_modulos y candados por nivel (isModuloEnabled) y luego la tabla por rol (NavRules, sustituye a permMap)
+const items=s.i.filter(([key])=>moduloVisibleParaUsuario(key));
 if(items.length===0)return '';
 
 const isCollapsed=collapsedCats[s.k];
@@ -2786,6 +2786,8 @@ break;
 }
 
 function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$('c');
+// US-606: un módulo que el rol no ve (abierto por hash o por currentTab) manda al primero visible en lugar de pintarlo
+if(currentUser&&M!=='x'&&typeof NavRules!=='undefined'&&!moduloVisibleParaUsuario(M)){const dest=NavRules.visibles(currentUser).find(k=>isModuloEnabled(k))||'d';if(dest!==M){M=dest;if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}R();return;}}
 localStorage.setItem('currentTab',M);
 if(R._last!==M){registrarUsoModulo(M);if(typeof Telemetry!=='undefined')Telemetry.track('modulo_abierto',{modulo:M});R._last=M;}
 if(location.hash.slice(1)!==M)history.replaceState(null,null,'#'+M);
