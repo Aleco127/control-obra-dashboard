@@ -1,6 +1,6 @@
 # DESIGN.md · Control de Obra
 
-Guía de estilo verificada contra `src/css/styles.css` (agosto 2026). Cada valor de este documento existe en `:root`; `node scripts/qa/design-tokens-check.mjs` comprueba que no haya tokens sin uso ni valores crudos repetidos. Si cambias el CSS, actualiza esta guía y corre el script.
+Guía de estilo verificada contra `src/css/styles.css` y `src/css/nav-shell.css` (septiembre 2026). Cada valor de este documento existe en `:root`; `node scripts/qa/design-tokens-check.mjs` comprueba que no haya tokens sin uso ni valores crudos repetidos. Si cambias el CSS, actualiza esta guía y corre el script.
 
 ## 1. Registro
 
@@ -73,6 +73,7 @@ Regla: `--ink-subtle` nunca en párrafos ni en texto menor de 12 px. Las clases 
 | Z-index | dropdown 20 · sticky 30 · sidebar 40 · backdrop 50 · drawer 60 · modal 100 · toast 110 · tooltip 120 · loader 130 |
 | Tipografía | `--fs-xs` 11 · `--fs-sm` 13 · `--fs-base` 15 · `--fs-lg` 18; títulos de módulo 20 px (`text-xl` de Tailwind), display en tarjetas 22 a 24 px |
 | Área táctil | `--tap` 44 px (botones, inputs, ítems de bottom nav) |
+| Barra de módulos | `--sb-w` 224 (ancho expandido; 240 en el portal) · `--sb-w-col` 64 (colapsado) · `--backdrop` rgba(15,23,42,.5) (fondo de hojas) · `--dur-1` 150 ms · `--dur-2` 250 ms |
 
 Familia tipográfica: la del sistema (Tailwind `font-sans`). Una sola familia con contraste de peso (400 cuerpo, 500 botones, 600 nav activo, 700 títulos y cifras).
 
@@ -99,6 +100,28 @@ Estados: reposo · hover · foco · deshabilitado. El foco siempre es `outline:2
 | Matriz semanal | `.wk` | celda 44 px; programada `--accent-soft`; hito externo `--warn-soft` con borde discontinuo; terminada `--ok-soft`; semana actual con línea `--accent` | | |
 | Línea de tiempo de cobranza | `.cob-track .cob-mark` | marcador 18 px: ok `--ok`, parcial `--warn`, en ventana `--accent-fill`, vencida `--danger` | escala 1.25 | |
 | Paleta de comandos | `.cmdk` (Ctrl+K) | caja 620 px, lista con grupos; ítem seleccionado `--accent-soft` | | |
+| Barra de módulos (NavShell) | `.nvs` y derivadas, ver §3.1 | ítem `--ink-muted` 40 px (44 en móvil); grupo `<button aria-expanded>` con chevrón | `--surface-2` + `--ink` | candado `.nvs-locked`: `--ink-subtle` + ícono `.nvs-lock` |
+
+### 3.1 Barra de módulos: `src/css/nav-shell.css` (US-604)
+
+Un solo archivo de estilos para la barra que pinta `js/nav-shell.js` en la constructora (`index.html`, `.nvs-constructora`) y en el portal del cliente (`portal.html`, `.nvs-cliente`). Sólo usa tokens: `design-tokens-check.mjs` falla si aparece un color crudo o si el portal no declara en su `:root` algún token que el archivo consume (el portal no carga `styles.css`, por eso repite los nombres con sus propios valores). Contraste anotado en la cabecera del archivo: activo `--accent` sobre `--accent-soft` 5.2:1; reposo `--ink-muted` sobre `--surface` 7.6:1; badge blanco sobre `--danger` 6.5:1; `--ink-subtle` sólo sobre `--surface` (sobre `--surface-2` baja a 4.3:1).
+
+| Pieza | Clase | Reposo | Activo / abierto | Notas |
+|---|---|---|---|---|
+| Contenedor | `.nvs` (`.nvs-col` colapsado) | columna, `--fs-sm`, gap 8 | | en `< 768` sube a `--fs-base` y todo botón mide ≥ `--tap` |
+| Marca | `.nvs-marca` + `.nvs-marca-nombre` / `.nvs-marca-sub` | logo 36 px en `--surface-2`; nombre `--primary` 700 hasta 2 líneas; sub `--ink-muted` 11 px | | sin «Control de Obra v3» |
+| Obra activa | `.nvs-ctx` (`.nvs-ctx-btn`, `.nvs-ctx-bar`, `.nvs-sem-ok/warn/danger`) | tarjeta `--bg` con borde `--line`, radio md; barra de avance 4 px `--accent-fill` | título a `--accent` al pasar el cursor | acción «Cambiar» `.nvs-ctx-accion` en `--accent` |
+| Eyebrow | `.nvs-eyebrow` | 11 px 700 mayúsculas `--ink-subtle` | | «Mi trabajo», títulos de la hoja |
+| Ítem | `.nvs-item` (`.nvs-ic`, `.nvs-tx`) | `--ink-muted` 500, 40 px, radio sm | `.active`: `--accent-soft` + `--accent` 600 y `aria-current="page"` | hover `--surface-2` + `--ink`; dentro de un grupo mide 36 px |
+| Badge | `.nvs-badge` / `.nvs-badge.nvs-dot` | píldora `--danger` con texto `--primary-ink` 11 px 700; punto de 8 px | | colapsado y barra inferior: punto en la esquina |
+| Candado | `.nvs-item.nvs-locked` + `.nvs-lock` | texto `--ink-subtle`, ícono 14 px | | el grupo entero: `.nvs-grupo-locked` |
+| Grupo | `section.nvs-grupo` > `button.nvs-grupo-h[aria-expanded]` + `.nvs-grupo-items` | cabecera `--ink` 600 con chevrón `--ink-subtle` | cerrado: chevrón a -90°; si contiene el activo, punto `--accent` (`.nvs-grupo-punto`) | `.nvs-sep` dibuja un divisor arriba; `.nvs-mas` muestra los secundarios |
+| Pie | `.nvs-pie` > `.nvs-accion` (`.nvs-danger`, `.nvs-kbd`) | acciones `--ink-muted`; atajo en `kbd` con borde `--line-strong` | | «Salir» en `--danger` con hover `--danger-soft` |
+| Colapsado | `.nvs-col` | sólo íconos centrados a 44 px; nombres en `title`/`aria-label` | grupo con activo: punto `--accent` arriba a la derecha | flyout `.nvs-fly` (surface, `--shadow-3`, z dropdown) al pasar el cursor, con foco (`:focus-within`) o con `.nvs-abierto`; el anfitrión debe dejar `overflow:visible` en `#nv` |
+| Barra inferior | `.nvs-bottom` > `.nvs-item.nvs-bottom-item`, `.nvs-bottom-plus`, `.nvs-bottom-mas` | fija abajo, `--surface`, borde `--line`, ítems ≥ 44 px con etiqueta 11 px `--ink-muted` | activo `--accent` | `+` de 52 px en `--primary`; se oculta a partir de 768 px (constructora) o 900 px (cliente); dentro de `#mobileBottomNav` pierde posición y borde propios |
+| Hoja de módulos | `.nvs-sheet-backdrop` + `.nvs-sheet` (`.nvs-sheet-grupo`, `.nvs-sheet-grid`, `.nvs-sheet-pie`) | hoja inferior con asa, radio lg arriba, `--shadow-3`, rejilla de 3 columnas con celdas de 72 px | celda activa `--accent-soft`; fijados con ★ `--warn` | reemplaza el sidebar a pantalla completa (US-613); `.ac` la abre |
+
+Foco: `outline 2px var(--ring)` hacia dentro (`outline-offset:-2px`) para que el scroll del aside no lo recorte. Movimiento: 150/250 ms; `prefers-reduced-motion` pone `transition:none` en todo lo que se anima. Las reglas viejas de `styles.css` (`.cat-*`, `.nav-item`, `.sb.col .cat-*`) están marcadas `/* legado: quitar en US-616 */`.
 
 ## 4. Reglas
 

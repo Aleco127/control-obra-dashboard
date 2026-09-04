@@ -75,6 +75,11 @@
 
   /* Área táctil */
   --tap:44px;
+
+  /* Barra de módulos (nav-shell.css): ancho expandido / colapsado, fondo de hojas y duraciones */
+  --sb-w:224px;--sb-w-col:64px;
+  --backdrop:rgba(15,23,42,.5);
+  --dur-1:150ms;--dur-2:250ms;
 }
 
 /* ===== BASE ===== */
@@ -101,11 +106,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sb.col{width:64px}
 .sb.col .tx{display:none}
 .sb.col .lg{justify-content:center}
+/* legado: quitar en US-616 */
 .sb.col .cat-header{justify-content:center;padding:4px}
 .sb.col .cat-header span{display:none}
 .sb.col .cat-items{padding-left:0}
 
-/* Categorias colapsables */
+/* Categorias colapsables */ /* legado: quitar en US-616 (la barra nueva vive en nav-shell.css) */
 .cat-section{margin-bottom:8px}
 .cat-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;border-radius:10px;transition:all .2s;background:var(--bg);border-bottom:1px solid var(--line);margin-bottom:4px;color:var(--ink-muted)}
 .cat-header:hover{background:var(--surface-2)}
@@ -115,14 +121,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .cat-items{overflow:hidden;transition:max-height .3s ease;padding-left:12px;margin-left:8px;border-left:1px solid var(--line)}
 .cat-items.collapsed{max-height:0!important}
 
-/* Items de navegacion */
+/* Items de navegacion */ /* legado: quitar en US-616 */
 .nav-item{display:flex;align-items:center;gap:10px;padding:12px 14px;margin:4px 0;border-radius:10px;font-size:var(--fs-base);transition:all .2s;position:relative;color:var(--ink-muted);text-align:left}
 .nav-item:hover{background:var(--surface-2);color:var(--ink)}
 .nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .nav-item i{font-size:18px;width:24px;text-align:center}
 .nav-fav-title{font-size:var(--fs-xs);letter-spacing:.02em;color:var(--ink-subtle);padding:6px 12px 2px;font-weight:600}
 
-/* Colores por categoria */
+/* Colores por categoria */ /* legado: quitar en US-616 */
 .cat-principal .cat-icon{background:var(--accent-soft);color:var(--accent)}
 .cat-proyectos .cat-icon{background:var(--info-soft);color:var(--info)}
 .cat-operacion .cat-icon{background:var(--ok-soft);color:var(--ok)}
@@ -439,12 +445,13 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
   .sb.mobile-open{display:flex!important;flex-direction:column!important}
   .sb.col{width:100%!important}
   .sb.col .tx{display:block!important}
-  .sb.col .cat-header span{display:inline!important}
+  .sb.col .cat-header span{display:inline!important} /* legado: quitar en US-616 */
   .sb.col .lg{justify-content:flex-start!important}
   .mn{margin-left:0!important;overflow-x:hidden!important}
   main{padding:12px!important;padding-bottom:96px!important}
   #mobileOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:var(--z-backdrop)}
   #mobileOverlay.ac{display:block}
+  /* legado: quitar en US-616 */
   .cat-header{padding:14px 16px!important;margin-bottom:6px!important;background:var(--bg)!important;border-radius:12px!important}
   .cat-header .cat-icon{width:36px!important;height:36px!important;font-size:18px!important}
   .cat-header span{font-size:16px!important}

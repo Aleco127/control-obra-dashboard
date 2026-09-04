@@ -22,6 +22,15 @@ const tw = readFileSync(join(DIST, 'css', 'tw.css'));
 const twName = `tw.${hash(tw)}.css`; writeFileSync(join(DIST, 'css', twName), tw); rmSync(join(DIST, 'css', 'tw.css'));
 const stylesSrc = readFileSync(join(SRC, 'css', 'styles.css'));
 const stylesName = `styles.${hash(stylesSrc)}.css`; writeFileSync(join(DIST, 'css', stylesName), stylesSrc);
+// US-604: nav-shell.css (barra de módulos) con hash; lo enlazan index.html y portal.html
+const navCssSrc = readFileSync(join(SRC, 'css', 'nav-shell.css'));
+const navCssName = `nav-shell.${hash(navCssSrc)}.css`; writeFileSync(join(DIST, 'css', navCssName), navCssSrc);
+const conHashCss = (html, pagina) => {
+  let n = 0;
+  html = html.replace(/<link href="css\/nav-shell\.css\?v=[^"]*" rel="stylesheet">/g, () => { n++; return `<link href="css/${navCssName}" rel="stylesheet">`; });
+  if (n !== 1) throw new Error(`build: ${pagina} debe enlazar css/nav-shell.css?v= exactamente una vez (encontrado ${n})`);
+  return html;
+};
 
 // 2) JS externos minificados con hash
 const jsMap = {};
@@ -37,7 +46,10 @@ let html = readFileSync(join(SRC, 'index.html'), 'utf8');
 html = html.replace(/<script src="https:\/\/cdn\.tailwindcss\.com[^"]*"[^>]*>\s*<\/script>/, '');
 html = html.replace(/<script>tailwind\.config=\{[\s\S]*?\}<\/script>/, '');
 // El CSS compilado va DESPUÉS de styles.css: el CDN inyectaba sus reglas al final del head y así ganaban a .btn/.inp
-html = html.replace(/<link href="css\/styles\.css\?v=[^"]*" rel="stylesheet">/, `<link href="css/${stylesName}" rel="stylesheet"><link href="css/${twName}" rel="stylesheet">`);
+html = conHashCss(html, 'index.html');
+// styles.css → styles con hash; el Tailwind compilado va justo después de nav-shell.css (que sigue a styles.css en el head)
+html = html.replace(/<link href="css\/styles\.css\?v=[^"]*" rel="stylesheet">/, `<link href="css/${stylesName}" rel="stylesheet">`);
+html = html.replace(`<link href="css/${navCssName}" rel="stylesheet">`, `<link href="css/${navCssName}" rel="stylesheet"><link href="css/${twName}" rel="stylesheet">`);
 html = html.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => jsMap[f] ? `<script src="js/${jsMap[f]}"></script>` : m);
 // 3b) US-227: módulos hoja del script principal salen a js/mod-<clave>.<hash>.js y se cargan bajo demanda
 //     (por marcador "// ========== NOMBRE ==========" en src/index.html; src sigue siendo una sola fuente).
@@ -119,7 +131,7 @@ writeFileSync(join(DIST, 'admin.html'), adminHtml);
 
 // 4b) portal.html (US-603): página autónoma sin Tailwind; sólo se reemplazan sus <script src="js/…?v="> por la versión con hash
 {
-  let portalHtml = readFileSync(join(SRC, 'portal.html'), 'utf8');
+  let portalHtml = conHashCss(readFileSync(join(SRC, 'portal.html'), 'utf8'), 'portal.html');
   let n = 0;
   portalHtml = portalHtml.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => { if (!jsMap[f]) return m; n++; return `<script src="js/${jsMap[f]}"></script>`; });
   if (!n) throw new Error('build: portal.html no enlaza ningún js/*.js con hash (se esperaba nav-shell.js)');
@@ -133,7 +145,7 @@ if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), joi
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));
 
 // 6) Service worker: precache del app shell (US-226)
-const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'landing.html', 'img/icon-192.png', 'img/icon-512.png'];
+const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, `css/${navCssName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'landing.html', 'img/icon-192.png', 'img/icon-512.png'];
 const sw = `// Service worker de Control de Obra · build ${BUILD_ID} (generado por scripts/build.mjs; no editar)
 // Estrategia: red primero para todo; la caché sólo entra cuando no hay red. Las respuestas se guardan sin
 // Content-Encoding (el cuerpo ya viene descomprimido) para que Chrome no falle al servirlas desde caché.
@@ -175,6 +187,6 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window.__in
 // 7) Reporte
 const size = (p) => statSync(p).size;
 const totalJs = Object.values(jsMap).reduce((a, n) => a + size(join(DIST, 'js', n)), 0);
-writeFileSync(join(DIST, 'build.json'), JSON.stringify({ build: BUILD_ID, css: [twName, stylesName], js: jsMap, lazy: lazyMap, inline: { antes: inlineBytes, despues: inlineMin, scripts: k } }, null, 2));
+writeFileSync(join(DIST, 'build.json'), JSON.stringify({ build: BUILD_ID, css: [twName, stylesName, navCssName], js: jsMap, lazy: lazyMap, inline: { antes: inlineBytes, despues: inlineMin, scripts: k } }, null, 2));
 console.log(`build ${BUILD_ID} en ${Date.now() - t0} ms`);
-console.log(`  index.html ${(size(join(DIST, 'index.html')) / 1024).toFixed(0)} KB (scripts inline ${(inlineBytes / 1024).toFixed(0)} → ${(inlineMin / 1024).toFixed(0)} KB) · css ${(tw.length / 1024).toFixed(0)} + ${(stylesSrc.length / 1024).toFixed(0)} KB · js ${(totalJs / 1024).toFixed(0)} KB (${Object.keys(jsMap).length} archivos) · sw precache ${precache.length}`);
+console.log(`  index.html ${(size(join(DIST, 'index.html')) / 1024).toFixed(0)} KB (scripts inline ${(inlineBytes / 1024).toFixed(0)} → ${(inlineMin / 1024).toFixed(0)} KB) · css ${(tw.length / 1024).toFixed(0)} + ${(stylesSrc.length / 1024).toFixed(0)} + ${(navCssSrc.length / 1024).toFixed(0)} KB · js ${(totalJs / 1024).toFixed(0)} KB (${Object.keys(jsMap).length} archivos) · sw precache ${precache.length}`);
