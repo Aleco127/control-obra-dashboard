@@ -262,7 +262,6 @@ async function massDeleteNomina(){
 <!-- US-607: NavShell (js/nav-shell.js) pinta aquí la marca, «Mi trabajo», los grupos y el pie (Buscar, Ayuda, Colapsar, Cerrar sesión). Modelo en navModelo(). -->
 <nav id="nv" class="flex-1 overflow-y-auto" role="navigation" aria-label="Módulos"></nav>
 </aside>
-<div id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
 <div id="mn" class="mn min-h-screen flex flex-col">
 <header class="g sticky top-0 px-4 py-3 flex items-center justify-between" style="z-index:var(--z-sticky)">
@@ -2127,42 +2126,71 @@ setTimeout(()=>{if(!g.contains(document.activeElement))g.classList.remove('nvs-f
 });
 nv.addEventListener('mouseenter',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)g.classList.remove('nvs-fly-cerrado');},true);
 }
-function tgMb(){
-const sb=$('sb'),ov=$('mobileOverlay');
-if(window.innerWidth<=768){
-const isOpen=sb.classList.contains('mobile-open');
-if(isOpen){closeMobileMenu();}
-else{
-sb.classList.remove('hidden');
-sb.classList.add('mobile-open','flex');
-sb.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;width:100vw;height:100vh;z-index:9999;background:#0a0a12;';
-if(ov)ov.classList.add('ac');
-}
-}
-}
-function closeMobileMenu(){
-const sb=$('sb'),ov=$('mobileOverlay');
-if(sb){
-sb.style.cssText='';
-sb.classList.remove('mobile-open','flex');
-sb.classList.add('hidden');
-}
-if(ov)ov.classList.remove('ac');
-}
+// US-613: tgMb y closeMobileMenu viven abajo; el aside ya no se abre a pantalla completa en el móvil
 const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],contador_externo:['pc','g','cb','q'],_:['d','o','g','pc']};
 function updateMobileBottomNav(){
-const nav=$('mobileBottomNav');if(!nav)return;
+const nav=$('mobileBottomNav');if(!nav||typeof NavShell==='undefined')return;
 const rol=String(currentUser?.rol||'').toLowerCase();
-const all=sec.flatMap(x=>x.i);
-// US-606: sólo módulos visibles para el usuario; si el preset del rol se queda corto, se completa en el orden de la barra
+// US-606: sólo módulos visibles; si el preset del rol se queda corto, se completa en el orden de la barra
 const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>moduloVisibleParaUsuario(k));
-for(const x of all){if(keys.length>=4)break;if(x[0]!=='d'&&!keys.includes(x[0])&&moduloVisibleParaUsuario(x[0]))keys.push(x[0]);}
-const badges=navBadges();   // US-610: los mismos contadores que el aside
-const items=keys.map(k=>{const it=all.find(x=>x[0]===k)||[k,'ri-apps-line',k];const label=getModuloLabel(k,it[2]);const b=badges[k]||0;return`<button type="button" class="mbn-item ${M===k?'active':''}" ${M===k?'aria-current="page"':''} aria-label="${S(label)}${b?' ('+b+(b===1?' pendiente':' pendientes')+')':''}" onclick="if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M='${k}';R()"><i class="${it[1]}" aria-hidden="true"></i>${b?`<span class="mbn-badge" aria-hidden="true">${b}</span>`:''}<span>${S(label)}</span></button>`;});
-const plus=`<button type="button" class="mbn-plus" onclick="abrirSheet()" aria-label="Captura rápida" aria-haspopup="dialog"><span><i class="ri-add-line" aria-hidden="true"></i></span></button>`;
-const more=`<button type="button" class="mbn-item" onclick="tgMb()" aria-label="Más módulos"><i class="ri-menu-2-line" aria-hidden="true"></i><span>Más</span></button>`;
-nav.innerHTML=items.slice(0,2).join('')+plus+items.slice(2,4).join('')+more;
+for(const g of NAV_GRUPOS){for(const it of g.items){if(keys.length>=4)break;if(it.k!=='d'&&!keys.includes(it.k)&&moduloVisibleParaUsuario(it.k))keys.push(it.k);}}
+const m=navModelo();
+m.inferior={items:keys.slice(0,4),plus:{t:'Captura rápida',onClick:'abrirSheet()'},mas:{t:'Más',ic:'ri-menu-2-line',onClick:'tgMb()'}};
+m.onItem=k=>"irAModulo('"+k+"','bottom')";
+nav.innerHTML=NavShell.render(m).bottom;
 }
+// ---- Hoja de módulos (US-613): sustituye al sidebar a pantalla completa en el móvil ----
+let _hojaFoco=null;
+function navHojaAbierta(){return !!document.querySelector('#navHoja .nvs-sheet.ac');}
+function abrirHojaModulos(){
+if(navHojaAbierta())return;
+let cont=$('navHoja');
+if(!cont){cont=document.createElement('div');cont.id='navHoja';document.body.appendChild(cont);}
+const m=navModelo();
+m.colapsado=false;
+m.onItem=k=>"irAModulo('"+k+"','hoja')";
+cont.innerHTML=NavShell.hoja(m);
+const hoja=cont.querySelector('.nvs-sheet'),fondo=cont.querySelector('.nvs-sheet-backdrop');
+_hojaFoco=document.activeElement;
+requestAnimationFrame(()=>{hoja.classList.add('ac');fondo.classList.add('ac');});
+if(!cont._nvsHoja){
+cont._nvsHoja=true;
+cont.addEventListener('click',e=>{
+const a=e.target.closest&&e.target.closest('[data-accion]');
+if(a&&(a.dataset.accion==='sheet-cerrar'||a.dataset.accion==='sheet-fondo'))cerrarHojaModulos();
+});
+cont.addEventListener('keydown',navHojaTeclado);
+}
+// Arrastrar hacia abajo para cerrar
+let y0=null;
+hoja.addEventListener('touchstart',e=>{if(hoja.querySelector('.nvs-sheet-cuerpo').scrollTop<=0)y0=e.touches[0].clientY;},{passive:true});
+hoja.addEventListener('touchmove',e=>{if(y0===null)return;const d=e.touches[0].clientY-y0;if(d>0)hoja.style.transform='translateY('+d+'px)';},{passive:true});
+hoja.addEventListener('touchend',()=>{const t=hoja.style.transform;hoja.style.transform='';if(t&&parseFloat(t.replace(/[^0-9.]/g,''))>90)cerrarHojaModulos();y0=null;},{passive:true});
+setTimeout(()=>{const f=hoja.querySelector('.nvs-item,.nvs-sheet-cerrar');if(f)f.focus();},60);
+if(typeof Telemetry!=='undefined')Telemetry.track('nav_hoja_abierta',{modulo:M});
+}
+function cerrarHojaModulos(){
+const cont=$('navHoja');if(!cont)return;
+const hoja=cont.querySelector('.nvs-sheet'),fondo=cont.querySelector('.nvs-sheet-backdrop');
+if(hoja)hoja.classList.remove('ac');
+if(fondo)fondo.classList.remove('ac');
+setTimeout(()=>{if(!navHojaAbierta())cont.innerHTML='';},260);
+if(_hojaFoco&&document.contains(_hojaFoco))_hojaFoco.focus();
+_hojaFoco=null;
+}
+// Foco atrapado dentro de la hoja mientras está abierta
+function navHojaTeclado(e){
+if(e.key==='Escape'){e.preventDefault();cerrarHojaModulos();return;}
+if(e.key!=='Tab')return;
+const hoja=e.currentTarget.querySelector('.nvs-sheet');if(!hoja)return;
+const f=[...hoja.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(el=>el.offsetParent!==null);
+if(!f.length)return;
+const primero=f[0],ultimo=f[f.length-1];
+if(e.shiftKey&&document.activeElement===primero){e.preventDefault();ultimo.focus();}
+else if(!e.shiftKey&&document.activeElement===ultimo){e.preventDefault();primero.focus();}
+}
+function tgMb(){if(navHojaAbierta())cerrarHojaModulos();else abrirHojaModulos();}
+function closeMobileMenu(){cerrarHojaModulos();}
 // Hoja de acciones del botón "+" (según permisos)
 function abrirSheet(){
 const nivel=currentUser?.nivel||0;
@@ -2183,7 +2211,11 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarSheet();});
 // US-109: refresco al volver a la pestaña (máximo una vez por minuto), sin intervalos
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||!currentUser)return;const t=Date.now();if(t-(window._visRef||0)<60000)return;window._visRef=t;if(typeof refreshLiveData==='function'){refreshLiveData().catch(()=>{});}});
 function openMdl(id){$(id).classList.add('ac');}
-function closeMdl(id){$(id).classList.remove('ac');}
+// Sin id cierra todos los modales abiertos: el atajo global de Escape la llama así y reventaba con $(undefined)
+function closeMdl(id){
+if(!id){document.querySelectorAll('.modal.ac').forEach(el=>el.classList.remove('ac'));return;}
+const el=$(id);if(el)el.classList.remove('ac');
+}
 
 // ========== CAMBIO DE CONTRASEÑA ==========
 function openCambiarPasswordModal(){
@@ -2888,7 +2920,11 @@ navGuardarFijados(navFijados().filter(x=>x!==k),'quitar',k);
 renderNavFijadosEditor();
 }
 // Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
-function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
+function irAModulo(k,origen){
+if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}
+if(typeof Telemetry!=='undefined')Telemetry.track('nav_click',{modulo:k,origen:origen||'grupo',colapsado:barraColapsada(),grupo:(NAV_GRUPOS.find(g=>g.items.some(i=>i.k===k))||{}).k||''});
+M=k;R();closeMobileMenu();
+}
 // ---- Teclado de la barra (US-612) ----
 // Roving tabindex sobre los elementos de navegación (ítems, cabeceras de grupo y «Más»): la barra entera es un solo
 // tab stop y las flechas recorren lo que se ve. La tarjeta de obra y el pie quedan fuera, con su tabulación normal;

@@ -136,14 +136,14 @@ with sync_playwright() as pw:
     page.evaluate("()=>cerrarFichaObra()"); page.wait_for_timeout(300)
     ctx.close()
 
-    # 8) Móvil 390: el sidebar a pantalla completa muestra la barra nueva con objetivos ≥ 44 px; tocar un módulo cierra el menú
+    # 8) Móvil 390: desde US-613 el menú móvil es la hoja (.nvs-sheet), no el aside a pantalla completa
     ctx, page = abrir(pw, 390, 844, 'app390', limpiar=False)
-    page.evaluate("()=>tgMb()"); page.wait_for_timeout(400)
-    mv = page.evaluate("()=>{const vis=[...document.querySelectorAll('#nv .nvs-item, #nv .nvs-grupo-h, #nv .nvs-accion')].filter(b=>b.getClientRects().length);return{abierto:document.querySelector('#sb').classList.contains('mobile-open'),n:vis.length,chicos:vis.filter(b=>b.getBoundingClientRect().height<44).map(b=>b.dataset.k||b.textContent.trim()),v3:document.querySelector('#sb').textContent.includes('Control de Obra v3')}}")
-    check(mv['abierto'] and mv['n'] > 10 and mv['chicos'] == [] and not mv['v3'], f'móvil: {mv}')
+    page.evaluate("()=>tgMb()"); page.wait_for_timeout(600)
+    mv = page.evaluate("()=>{const vis=[...document.querySelectorAll('#navHoja .nvs-item')].filter(b=>b.getClientRects().length);return{hoja:!!document.querySelector('#navHoja .nvs-sheet.ac'),aside:getComputedStyle(document.getElementById('sb')).display,n:vis.length,chicos:vis.filter(b=>b.getBoundingClientRect().height<44).map(b=>b.dataset.k),v3:document.getElementById('sb').textContent.includes('Control de Obra v3')}}")
+    check(mv['hoja'] and mv['aside'] == 'none' and mv['n'] > 10 and mv['chicos'] == [] and not mv['v3'], f'móvil: {mv}')
     snap(page, 'us607-movil-390.png')
-    page.click('#nv .nvs-grupos [data-k="g"]'); page.wait_for_timeout(600)
-    check(page.evaluate("()=>!document.querySelector('#sb').classList.contains('mobile-open')&&M==='g'"), 'tocar Compras no cerró el menú móvil')
+    page.click('#navHoja [data-k="g"]'); page.wait_for_timeout(700)
+    check(page.evaluate("()=>!document.querySelector('#navHoja .nvs-sheet.ac')&&M==='g'"), 'tocar Compras no cerró la hoja')
 
     # Restaurar las preferencias previas del usuario de QA
     r = guardar_prefs(page, previas or {})
