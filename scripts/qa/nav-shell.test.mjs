@@ -302,6 +302,21 @@ test('contexto (obra activa): tarjeta con avance, semáforo, acción; sin contex
   assert.ok(d.includes('<span class="nvs-ctx-avance">100 %</span>'), 'avance acotado a 100');
 });
 
+test('US-609 contexto colapsado: sin título visible, con title «Obra activa: CÓDIGO» y sin obra el estado vacío', () => {
+  const ctx = { etiqueta: 'Obra activa', titulo: 'Casa Lomas del Santuario', tituloCorto: 'ICHIFE-035', sub: 'ICHIFE-035', avance: 42, semaforo: 'warn', onClick: 'abrirFichaObra(1)', accion: 'Cambiar', onAccion: 'navObrasPopover()' };
+  const abierta = NavShell.render({ grupos: GRUPOS(), contexto: ctx }).aside;
+  assert.ok(!/class="nvs-ctx-btn"[^>]*title=/.test(abierta), 'sin colapsar no hace falta el title');
+  assert.ok(abierta.includes('<span class="nvs-ctx-titulo">Casa Lomas del Santuario</span>'));
+  assert.ok(/data-accion="ctx-accion"[^>]*onclick="navObrasPopover\(\)"/.test(abierta), 'el botón Cambiar lleva su acción');
+  const col = NavShell.render({ grupos: GRUPOS(), contexto: ctx, colapsado: true }).aside;
+  assert.ok(/class="nvs-ctx-btn"[^>]*title="Obra activa: ICHIFE-035"/.test(col), col.slice(0, 400));
+  // Sin obra elegida: sólo el texto de vacío y el botón «Elegir»
+  const vacio = NavShell.render({ grupos: GRUPOS(), contexto: { etiqueta: 'Obra activa', vacio: 'Todas las obras · 7 activas', accion: 'Elegir', onAccion: 'navObrasPopover()' } }).aside;
+  assert.ok(vacio.includes('<span class="nvs-ctx-sub">Todas las obras · 7 activas</span>'));
+  assert.ok(!vacio.includes('nvs-ctx-titulo') && !vacio.includes('nvs-sem'), 'sin obra no hay título ni semáforo');
+  assert.ok(vacio.includes('>Elegir</button>'));
+});
+
 test('acciones del pie con data-accion, atajo y tono; onItem como plantilla {k}', () => {
   const a = NavShell.render({ grupos: GRUPOS(), onItem: "irA('{k}')", acciones: [{ k: 'buscar', t: 'Buscar', ic: 'ri-search-line', onClick: 'abrirCmdk()', atajo: 'Ctrl+K' }, { k: 'salir', t: 'Cerrar sesión', ic: 'ri-logout-box-line', onClick: 'doLogout()', tono: 'peligro' }] }).aside;
   assert.ok(a.includes('<button type="button" class="nvs-accion" data-accion="buscar" aria-label="Buscar (Ctrl+K)" onclick="abrirCmdk()">'));

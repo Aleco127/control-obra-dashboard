@@ -1996,6 +1996,7 @@ return;
 }
 selectedObra=obraId;
 localStorage.setItem('selectedObra',selectedObra||'');
+if(typeof navCerrarObras==='function')navCerrarObras();   // US-609: el popover de la barra muestra otra selección
 R();
 }
 
@@ -2839,6 +2840,76 @@ renderNavFijadosEditor();
 }
 // Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
 function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
+// ---- Obra activa en la barra (US-609) ----
+// La tarjeta y el selector #obraFilter del header son el mismo dato (selectedObra): cambiar en cualquiera de los dos
+// actualiza el otro. En móvil la tarjeta no se pinta: manda el chip del header.
+function seleccionarObraGlobal(id){
+const obraId=id?parseInt(id):null;
+if(obraId&&!getObrasPermitidas().some(o=>o.id===obraId)){Toast.error('No tienes acceso a esta obra');return false;}
+selectedObra=obraId;
+localStorage.setItem('selectedObra',selectedObra||'');
+const sel=$('obraFilter');if(sel)sel.value=selectedObra||'';
+if(typeof invalidateFilterCache==='function')invalidateFilterCache();
+return true;
+}
+function navObrasActivas(){return getObrasPermitidas().filter(o=>o.estatus!=='Archivada');}
+function navContexto(){
+if(window.innerWidth<768)return null;   // en móvil el control es el chip del header
+const activas=navObrasActivas();
+const o=selectedObra?activas.find(x=>x.id==selectedObra):null;
+if(!o)return{etiqueta:'Obra activa',vacio:'Todas las obras · '+activas.length+(activas.length===1?' activa':' activas'),accion:'Elegir',onAccion:'navObrasPopover()'};
+let semaforo='';
+try{const r=Finanzas.resultadoObra(o.id);if(r&&['ok','warn','danger'].includes(r.semaforo))semaforo=r.semaforo;}catch(e){}
+return{
+etiqueta:'Obra activa',
+titulo:o.nombre_obra||o.codigo_obra||'Obra',
+tituloCorto:o.codigo_obra||o.nombre_obra||'',
+sub:o.codigo_obra||'',
+avance:Number(o.avance_porcentaje)||0,
+semaforo:semaforo,
+onClick:'abrirFichaObra('+o.id+')',
+ariaLabel:'Abrir la ficha de '+(o.codigo_obra?o.codigo_obra+' ':'')+(o.nombre_obra||''),
+accion:'Cambiar',onAccion:'navObrasPopover()'
+};
+}
+// Popover de cambio de obra: vive en el body (position:fixed) para que no lo recorte el scroll del aside
+// ni lo borre un repintado de N(). Buscador a partir de 8 obras.
+function navCerrarObras(){const p=$('navObrasPop');if(p)p.remove();document.removeEventListener('keydown',navObrasEsc,true);}
+function navObrasEsc(e){if(e.key==='Escape'){e.stopPropagation();navCerrarObras();const b=document.querySelector('#nv .nvs-ctx [data-accion="ctx-accion"]');if(b)b.focus();}}
+function navObrasPopover(){
+if($('navObrasPop')){navCerrarObras();return;}
+const activas=navObrasActivas();
+const btn=document.querySelector('#nv .nvs-ctx [data-accion="ctx-accion"]');
+const r=btn?btn.getBoundingClientRect():{left:16,bottom:120};
+const pop=document.createElement('div');
+pop.id='navObrasPop';pop.className='nvs-pop';
+pop.setAttribute('role','dialog');pop.setAttribute('aria-label','Cambiar de obra');
+pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-330))+'px';
+pop.style.top=Math.min(r.bottom+6,window.innerHeight-120)+'px';
+pop.innerHTML=(activas.length>=8?'<input type="search" id="navObrasBuscar" class="nvs-pop-buscar" placeholder="Buscar obra..." aria-label="Buscar obra" autocomplete="off">':'')
++'<div class="nvs-pop-lista" id="navObrasLista" role="listbox" aria-label="Obras"></div>';
+document.body.appendChild(pop);
+navObrasLista('');
+const bus=$('navObrasBuscar');
+if(bus)bus.addEventListener('input',()=>navObrasLista(bus.value));
+pop.addEventListener('click',e=>{
+const b=e.target.closest&&e.target.closest('[data-obra]');if(!b)return;
+const v=b.getAttribute('data-obra');
+if(seleccionarObraGlobal(v)){navCerrarObras();N.dirty=true;R();}
+});
+document.addEventListener('keydown',navObrasEsc,true);
+setTimeout(()=>{const f=$('navObrasBuscar')||pop.querySelector('[data-obra]');if(f)f.focus();
+const fuera=ev=>{if(!pop.contains(ev.target)&&!(btn&&btn.contains(ev.target))){document.removeEventListener('mousedown',fuera,true);navCerrarObras();}};
+document.addEventListener('mousedown',fuera,true);},0);
+}
+function navObrasLista(q){
+const cont=$('navObrasLista');if(!cont)return;
+const t=normTxt(q||'');
+const activas=navObrasActivas().filter(o=>!t||normTxt((o.codigo_obra||'')+' '+(o.nombre_obra||'')+' '+(o.cliente||'')).includes(t));
+const fila=o=>'<button type="button" class="nvs-pop-item" role="option" data-obra="'+o.id+'" aria-current="'+(selectedObra==o.id?'true':'false')+'"><span class="nvs-pop-tx">'+S(o.nombre_obra||'')+'</span><span class="nvs-pop-cod">'+S(o.codigo_obra||'')+'</span></button>';
+cont.innerHTML=(t?'':'<button type="button" class="nvs-pop-item" role="option" data-obra="" aria-current="'+(selectedObra?'false':'true')+'"><span class="nvs-pop-tx">Todas las obras</span></button>')
++(activas.length?activas.map(fila).join(''):'<p class="nvs-pop-vacio">Ninguna obra coincide con la b&uacute;squeda.</p>');
+}
 // Modelo de NavShell.render para la constructora. Marca desde EMPRESA_INFO (nombre completo, hasta 2 líneas) con el usuario y su rol debajo;
 // visibilidad por empresa_modulos + NavRules (moduloVisibleParaUsuario); «Mi trabajo» = los módulos que el usuario fijó (navFijados, US-608).
 function navModelo(){
@@ -2851,6 +2922,7 @@ const colapsado=!!($('sb')&&$('sb').classList.contains('col'));
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
 return{
 modo:'constructora',prefijo:'nv',
+contexto:navContexto(),
 marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logo)?EMPRESA_INFO.logo:''},
 grupos,fijados,fijadosTitulo:'Mi trabajo',onEditarFijados:'navEditarFijados()',onFijar:"navFijar('{k}')",activo:M==='x'?'g':M,colapsado,
 acciones:[
@@ -2868,7 +2940,7 @@ onItem:"irAModulo('{k}')"
 function N(){
 const nv=$('nv');if(!nv||typeof NavShell==='undefined'||typeof NAV_GRUPOS==='undefined')return;
 const modelo=navModelo();
-const firma=JSON.stringify([modelo.marca,modelo.grupos.map(g=>[g.k,g.items.map(it=>[it.k,it.t,it.badge||0,!!it.candado])]),modelo.fijados,modelo.colapsado,modelo.acciones.map(a=>a.t),NavPrefs.version]);
+const firma=JSON.stringify([modelo.marca,modelo.contexto,modelo.grupos.map(g=>[g.k,g.items.map(it=>[it.k,it.t,it.badge||0,!!it.candado])]),modelo.fijados,modelo.colapsado,modelo.acciones.map(a=>a.t),NavPrefs.version]);
 if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);return;}
 nv.innerHTML=NavShell.render(modelo).aside;
 N._firma=firma;N.dirty=false;
@@ -3326,10 +3398,7 @@ if(typeof Telemetry!=='undefined')Telemetry.track('ficha_obra_abierta',{obra_id:
 function cerrarFichaObra(){fichaObraId=null;localStorage.removeItem('fichaObraId');R();}
 // Navega a un módulo con el filtro global de obra aplicado
 function irAModuloConObra(mod,obraId){
-selectedObra=parseInt(obraId)||null;
-localStorage.setItem('selectedObra',selectedObra||'');
-const sel=$('obraFilter');if(sel)sel.value=selectedObra||'';
-if(typeof invalidateFilterCache==='function')invalidateFilterCache();
+seleccionarObraGlobal(obraId);
 fichaObraId=null;localStorage.removeItem('fichaObraId');
 M=mod;R();
 }
