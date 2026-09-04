@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control de Obra</title><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="img/icon-192.png"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231e3a5f'/%3E%3Crect x='20' y='35' width='25' height='45' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3Crect x='55' y='20' width='25' height='60' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E"><meta name="theme-color" content="#1e3a5f"><meta name="mobile-web-app-capable" content="yes"><script src="https://cdn.tailwindcss.com/3.4.1"></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Control de Obra</title><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="img/icon-192.png"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231e3a5f'/%3E%3Crect x='20' y='35' width='25' height='45' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3Crect x='55' y='20' width='25' height='60' rx='2' fill='%23ffffff' opacity='0.9'/%3E%3C/svg%3E"><meta name="theme-color" content="#1e3a5f"><meta name="mobile-web-app-capable" content="yes"><script>/* US-611: la barra colapsada se aplica antes de pintar (espejo de nav_prefs.barra_colapsada; aquí todavía no hay usuario) */try{if(localStorage.getItem('nav_barra_col')==='1')document.documentElement.classList.add('sb-col');}catch(e){}</script><script src="https://cdn.tailwindcss.com/3.4.1"></script>
 <script>
 
 // === Funciones de Selección en Masa para Nómina ===
@@ -255,7 +255,7 @@ async function massDeleteNomina(){
 
 <!-- ========== APP SCREEN ========== -->
 <div id="appScreen">
-<aside id="sb" class="sb hidden md:flex md:w-56 h-screen g fixed p-2 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
+<aside id="sb" class="sb hidden md:flex h-screen g fixed p-2 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
 <div class="md:hidden flex justify-end">
 <button type="button" onclick="closeMobileMenu()" class="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú"><i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i></button>
 </div>
@@ -264,7 +264,7 @@ async function massDeleteNomina(){
 </aside>
 <div id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
-<div id="mn" class="mn ml-0 md:ml-56 min-h-screen flex flex-col transition-all">
+<div id="mn" class="mn min-h-screen flex flex-col">
 <header class="g sticky top-0 px-4 py-3 flex items-center justify-between" style="z-index:var(--z-sticky)">
 <div class="flex items-center gap-4">
 <button onclick="tgMb()" class="md:hidden btn-icon" aria-label="Abrir menú" aria-controls="sb"><i class="ri-menu-line text-xl n" aria-hidden="true"></i></button>
@@ -2085,7 +2085,48 @@ if($('tm'))$('tm').textContent=now.toLocaleTimeString('es-MX',{hour:'2-digit',mi
 }
 let updTimeInterval=setInterval(updTime,1000);updTime();
 
-function tgSb(){const s=$('sb'),m=$('mn');s.classList.toggle('col');const col=s.classList.contains('col');m.style.marginLeft=col?'64px':'224px';N.dirty=true;N();if(window.innerWidth<=768)closeMobileMenu();}
+// US-611: colapsar la barra. El ancho de #sb y el margen de #mn salen de --sb-w/--sb-w-col con la clase html.sb-col,
+// que además se aplica desde el <head> para que no parpadee. La preferencia vive en nav_prefs.barra_colapsada y se
+// espeja en localStorage['nav_barra_col'] porque en el <head> todavía no se sabe qué usuario entrará.
+const NAV_BARRA_KEY='nav_barra_col';
+function barraColapsada(){return document.documentElement.classList.contains('sb-col');}
+function aplicarBarraColapsada(col){
+const c=!!col;
+document.documentElement.classList.toggle('sb-col',c);
+const s=$('sb');if(s)s.classList.toggle('col',c);
+try{localStorage.setItem(NAV_BARRA_KEY,c?'1':'0');}catch(e){}
+if(!c)navCerrarFly();
+}
+function tgSb(col){
+const nuevo=typeof col==='boolean'?col:!barraColapsada();
+aplicarBarraColapsada(nuevo);
+if(typeof NavPrefs!=='undefined')NavPrefs.guardar({barra_colapsada:nuevo});
+N.dirty=true;N();
+if(window.innerWidth<=768)closeMobileMenu();
+}
+// Flyout del modo colapsado: Esc lo cierra sin sacar el foco del grupo; al salir el foco o volver el cursor se reabre.
+function navCerrarFly(){
+document.querySelectorAll('#nv .nvs-fly.nvs-abierto').forEach(el=>el.classList.remove('nvs-abierto'));
+document.querySelectorAll('#nv .nvs-fly-cerrado').forEach(el=>el.classList.remove('nvs-fly-cerrado'));
+}
+function navFlyEventos(){
+const nv=$('nv');if(!nv||nv._nvsFly)return;nv._nvsFly=true;
+nv.addEventListener('keydown',e=>{
+if(e.key!=='Escape'||!barraColapsada())return;
+const g=e.target.closest&&e.target.closest('.nvs-grupo');
+document.querySelectorAll('#nv .nvs-fly.nvs-abierto').forEach(el=>el.classList.remove('nvs-abierto'));
+if(!g)return;
+e.stopPropagation();
+g.classList.add('nvs-fly-cerrado');
+const cab=g.querySelector('.nvs-grupo-h');if(cab)cab.focus();
+});
+nv.addEventListener('focusout',e=>{
+const g=e.target.closest&&e.target.closest('.nvs-grupo');
+if(!g)return;
+setTimeout(()=>{if(!g.contains(document.activeElement))g.classList.remove('nvs-fly-cerrado');},0);
+});
+nv.addEventListener('mouseenter',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)g.classList.remove('nvs-fly-cerrado');},true);
+}
 function tgMb(){
 const sb=$('sb'),ov=$('mobileOverlay');
 if(window.innerWidth<=768){
@@ -2339,7 +2380,7 @@ else secData=data;
 
 // Asignar datos principales
 D.o=mainData.obras||[];
-if(typeof NavPrefs!=='undefined'){NavPrefs.setServidor(mainData.nav_prefs);navSembrarFijados();}
+if(typeof NavPrefs!=='undefined'){NavPrefs.setServidor(mainData.nav_prefs);navAplicarPrefs();}
 if(typeof Suscripcion!=='undefined')Suscripcion.cargar().then(()=>{if(typeof Onboarding!=='undefined')setTimeout(()=>Onboarding.iniciar(),800);});
 D.e=mainData.empleados||[];
 D.g=mainData.gastos||[];
@@ -2432,7 +2473,7 @@ hideLoader();
 populateObraFilter();
 restoreObraFilter();
 updateNotifBadge();
-navSembrarFijados();   // US-608: primera vez sin preferencias -> se fijan los 4 más usados (o d/o/g/w)
+navAplicarPrefs();   // US-608/US-611: fijados sembrados la primera vez y barra colapsada según la preferencia
 // US-610: el badge de «Cierre mensual» necesita D.cierres; se pide en segundo plano para no retrasar el pintado
 if((currentUser?.nivel||0)>=45&&typeof Cierres!=='undefined')Cierres.cargar().then(()=>{if($('nv')){N.dirty=true;N();}}).catch(()=>{});
 R();
@@ -2455,7 +2496,7 @@ console.warn('⚠️ Error en refresh:',error||mainData?.error);
 return;
 }
 let hasChanges=false;
-if(typeof NavPrefs!=='undefined'){const cambio=NavPrefs.setServidor(mainData.nav_prefs);navSembrarFijados();if(cambio&&$('nv')){N.dirty=true;N();}}
+if(typeof NavPrefs!=='undefined'){const cambio=NavPrefs.setServidor(mainData.nav_prefs);navAplicarPrefs();if(cambio&&$('nv')){N.dirty=true;N();}}
 if(mainData.obras&&mainData.obras.length!==D.o.length){D.o=mainData.obras;hasChanges=true;}
 if(mainData.gastos&&mainData.gastos.length!==D.g.length){D.g=mainData.gastos;hasChanges=true;}
 if(mainData.ordenes_compra&&mainData.ordenes_compra.length!==D.oc.length){D.oc=mainData.ordenes_compra;hasChanges=true;}
@@ -2767,6 +2808,15 @@ const p=NavPrefs.get();
 const lista=Array.isArray(p.fijados)?p.fijados:navFijadosSemilla();
 return lista.filter(k=>NAV_CLAVE_OK.test(k)&&moduloVisibleParaUsuario(k)).slice(0,NAV_FIJADOS_MAX);
 }
+// Todo lo que hay que aplicar cuando llegan (o no llegan) las preferencias del servidor: fijados y barra colapsada.
+// Se llama junto a cada NavPrefs.setServidor, en las dos rutas de arranque.
+function navAplicarPrefs(){
+navSembrarFijados();
+const p=NavPrefs.get();
+const col=typeof p.barra_colapsada==='boolean'?p.barra_colapsada:barraColapsada();
+const sb=$('sb');
+if(col!==barraColapsada()||(sb&&sb.classList.contains('col')!==col)){aplicarBarraColapsada(col);N.dirty=true;}
+}
 // Al entrar por primera vez se persiste la semilla para que la lista deje de moverse con el uso
 function navSembrarFijados(){
 if(Array.isArray(NavPrefs.get().fijados))return;
@@ -2948,7 +2998,7 @@ const col=navColapsados();
 const badges=navBadges();
 const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>{const lock=navCandado(it.k);return Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:badges[it.k]||0,candado:lock,candadoTexto:lock?NAV_PLAN_AVISO:''});})}));
 const fijados=navFijados();
-const colapsado=!!($('sb')&&$('sb').classList.contains('col'));
+const colapsado=barraColapsada();
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
 return{
 modo:'constructora',prefijo:'nv',
@@ -2974,6 +3024,7 @@ const firma=JSON.stringify([modelo.marca,modelo.contexto,modelo.grupos.map(g=>[g
 if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);return;}
 nv.innerHTML=NavShell.render(modelo).aside;
 N._firma=firma;N.dirty=false;
+navFlyEventos();
 if(!nv._nvsGrupo){nv._nvsGrupo=true;nv.addEventListener('nvs:grupo',e=>{const k=e.detail&&e.detail.k;if(!k)return;const c=Object.assign({},navColapsados());c[k]=!e.detail.abierto;NavPrefs.guardar({colapsados:c});});}
 }
 N.dirty=true;
