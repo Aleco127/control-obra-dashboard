@@ -9,7 +9,7 @@
  *   {
  *     modo: 'constructora' | 'cliente',
  *     marca: { nombre, sub, logo },                      // logo: URL http(s), data:image o ruta relativa
- *     contexto: { etiqueta, titulo, sub, avance, semaforo, onClick, accion, onAccion },   // obra activa (opcional)
+ *     contexto: { etiqueta, titulo, tituloCorto, sub, avance, semaforo, vacio, onClick, accion, onAccion },   // obra activa (opcional)
  *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, candado, secundario }], abierto, suelto, plano, separador, candado }],
  *     fijados: ['g', 'o'],                               // claves de «Mi trabajo»
  *     fijadosTitulo, onEditarFijados,
@@ -160,9 +160,11 @@ const NavShell = (() => {
         ? `<span class="nvs-ctx-titulo">${esc(c.titulo)}</span>${av !== null || sem ? `<span class="nvs-ctx-estado">${sem ? `<span class="nvs-sem nvs-sem-${sem}" role="img" aria-label="${esc(c.semaforoTexto || SEMAFORO_TXT[sem])}"></span>` : ''}${av !== null ? `<span class="nvs-ctx-avance">${av} %</span>` : ''}</span>` : ''}${c.sub ? `<span class="nvs-ctx-sub">${esc(c.sub)}</span>` : ''}${av !== null ? `<span class="nvs-ctx-bar" aria-hidden="true"><span style="width:${av}%"></span></span>` : ''}`
         : `<span class="nvs-ctx-sub">${esc(c.vacio || 'Sin obra activa')}</span>`;
       const accion = c.onAccion ? `<button type="button" class="nvs-ctx-accion" data-accion="ctx-accion" onclick="${esc(c.onAccion)}">${esc(c.accion || 'Cambiar')}</button>` : '';
+      // Colapsada la tarjeta se reduce al semáforo: el title dice de qué obra se trata
+      const tCol = col ? ` title="${esc(c.tituloCorto ? (c.etiqueta || 'Obra activa') + ': ' + c.tituloCorto : (c.titulo || c.vacio || 'Sin obra activa'))}"` : '';
       const main = c.titulo && c.onClick
-        ? `<button type="button" class="nvs-ctx-btn" data-accion="ctx" onclick="${esc(c.onClick)}" aria-label="${esc(c.ariaLabel || ('Abrir ' + c.titulo))}">${cuerpo}</button>`
-        : `<div class="nvs-ctx-btn">${cuerpo}</div>`;
+        ? `<button type="button" class="nvs-ctx-btn" data-accion="ctx" onclick="${esc(c.onClick)}" aria-label="${esc(c.ariaLabel || ('Abrir ' + c.titulo))}"${tCol}>${cuerpo}</button>`
+        : `<div class="nvs-ctx-btn"${tCol}>${cuerpo}</div>`;
       ctxHtml = `<div class="nvs-ctx"><div class="nvs-ctx-cab"><span class="nvs-eyebrow">${esc(c.etiqueta || 'Obra activa')}</span>${accion}</div>${main}</div>`;
     }
 
