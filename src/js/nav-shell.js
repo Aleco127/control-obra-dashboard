@@ -24,6 +24,7 @@
  *   }
  *
  *   NavShell.render(modelo)            → { aside, bottom }  (strings HTML)
+ *   NavShell.hoja(modelo)              → string HTML de la hoja móvil (fondo + .nvs-sheet, US-613)
  *   NavShell.visibles(grupos, regla)   → grupos filtrados con regla(item, grupo) === true; quita grupos vacíos
  *   NavShell.conFijados(grupos, fijados) → ítems fijados en orden, sin repetidos ni desconocidos
  *   NavShell.marcarActivo(root, clave) → sobre un Element cambia sólo .active / aria-current; sobre un string devuelve el HTML nuevo
@@ -114,16 +115,14 @@ const NavShell = (() => {
     return out;
   }
 
-  function render(modelo) {
-    const m = modelo || {};
-    const modo = m.modo === 'cliente' ? 'cliente' : 'constructora';
-    const pre = CLAVE_OK.test(String(m.prefijo || '')) ? m.prefijo : 'nvs';
-    const grupos = Array.isArray(m.grupos) ? m.grupos : [];
-    const activo = m.activo == null ? '' : String(m.activo);
-    const col = !!m.colapsado;
-    let currentPuesto = false;   // un solo aria-current="page" por barra
-    const fijSet = new Set((Array.isArray(m.fijados) ? m.fijados : []).map((k) => String(k)));
-    const tituloFij = esc(m.fijadosTitulo || 'Mi trabajo');
+  /**
+   * Fábrica del botón de un ítem, compartida por la barra (render) y la hoja móvil (hoja).
+   * `estado` lleva el contador de aria-current de esa barra: cada superficie empieza con el suyo.
+   */
+  function fabricaItem(m, modo, activo, col, fijSet, tituloFij, estado) {
+    let currentPuesto = false;
+    const marca = { get puesto() { return currentPuesto; }, set puesto(v) { currentPuesto = v; } };
+    if (estado) estado.marca = marca;
 
     // opts: {fijado} la copia de «Mi trabajo», {bottom} la barra inferior (sin estrella y sin regla de duplicado)
     const item = (it, extra, opts) => {
@@ -147,6 +146,19 @@ const NavShell = (() => {
       const estrella = `<button type="button" class="nvs-fijar" data-fijar="${k}" aria-pressed="${fijado ? 'true' : 'false'}" aria-label="${etiq}" title="${etiq}"${handler(m.onFijar, k, it)}>${fijado ? ESTRELLA_ON : ESTRELLA_OFF}</button>`;
       return `<div class="nvs-fila">${btn}${estrella}</div>`;
     };
+    return item;
+  }
+
+  function render(modelo) {
+    const m = modelo || {};
+    const modo = m.modo === 'cliente' ? 'cliente' : 'constructora';
+    const pre = CLAVE_OK.test(String(m.prefijo || '')) ? m.prefijo : 'nvs';
+    const grupos = Array.isArray(m.grupos) ? m.grupos : [];
+    const activo = m.activo == null ? '' : String(m.activo);
+    const col = !!m.colapsado;
+    const fijSet = new Set((Array.isArray(m.fijados) ? m.fijados : []).map((k) => String(k)));
+    const tituloFij = esc(m.fijadosTitulo || 'Mi trabajo');
+    let item = fabricaItem(m, modo, activo, col, fijSet, tituloFij);
 
     // Marca
     const marca = m.marca || {};
@@ -216,8 +228,8 @@ const NavShell = (() => {
 
     const aside = `<div class="nvs nvs-${modo}${col ? ' nvs-col' : ''}" data-modo="${modo}">${marcaHtml}${ctxHtml}${fijHtml}<div class="nvs-grupos">${gruposHtml}</div>${pieHtml}</div>`;
 
-    // Barra inferior (móvil)
-    currentPuesto = false;
+    // Barra inferior (móvil): fábrica nueva para que tenga su propio aria-current
+    item = fabricaItem(m, modo, activo, false, fijSet, tituloFij);
     const todos = new Map();
     for (const g of grupos) for (const it of g.items || []) if (!todos.has(it.k)) todos.set(it.k, it);
     const inf = m.inferior && typeof m.inferior === 'object' ? m.inferior : {};
@@ -230,6 +242,47 @@ const NavShell = (() => {
     const bottom = `<div class="nvs-bottom nvs-${modo}" data-modo="${modo}">${plus ? bItems.slice(0, 2).join('') + plus + bItems.slice(2).join('') : bItems.join('')}${mas}</div>`;
 
     return { aside, bottom };
+  }
+
+  /**
+   * Hoja de módulos para el móvil (US-613): «Mi trabajo» y los grupos en rejilla de 3 columnas.
+   * Devuelve el HTML completo (fondo + hoja); el anfitrión lo monta, lo abre y atrapa el foco.
+   * Los ítems son los mismos botones que la barra, sin estrella (la hoja no fija) y sin flyout.
+   */
+  function hoja(modelo) {
+    const m = modelo || {};
+    const modo = m.modo === 'cliente' ? 'cliente' : 'constructora';
+    const grupos = Array.isArray(m.grupos) ? m.grupos : [];
+    const activo = m.activo == null ? '' : String(m.activo);
+    const fijSet = new Set((Array.isArray(m.fijados) ? m.fijados : []).map((k) => String(k)));
+    const tituloFij = esc(m.fijadosTitulo || 'Mi trabajo');
+    const sinEstrella = Object.assign({}, m, { onFijar: null });
+    const item = fabricaItem(sinEstrella, modo, activo, false, fijSet, tituloFij);
+    const titulo = esc(m.hojaTitulo || 'Módulos');
+    const rejilla = (items, opts) => `<div class="nvs-sheet-grid">${items.map((it) => item(it, opts && opts.fijado ? 'nvs-fijado' : '', opts)).join('')}</div>`;
+
+    const fij = conFijados(grupos, m.fijados);
+    // La copia de «Mi trabajo» manda igual que en la barra: lleva aria-current y la del grupo queda limpia
+    let cuerpo = fij.length ? `<section class="nvs-sheet-grupo"><span class="nvs-eyebrow">${tituloFij}</span>${rejilla(fij, { fijado: true })}</section>` : '';
+    cuerpo += grupos.map((g) => {
+      const items = g.items || [];
+      if (!items.length) return '';
+      const gk = clave(g.k || items[0].k);
+      const primarios = items.filter((it) => !it.secundario), secundarios = items.filter((it) => it.secundario);
+      const id = `nvs-sheet-${gk}`;
+      const activoEnSec = secundarios.some((it) => String(it.k) === activo);
+      const mas = secundarios.length
+        ? `<button type="button" class="nvs-mas" data-mas="${gk}" aria-expanded="${activoEnSec ? 'true' : 'false'}" aria-controls="${id}-sec" onclick="NavShell.alternarMas(this)"><span class="nvs-tx">${esc(g.masTexto || 'Más')}</span>${CHEVRON}</button><div class="nvs-sec" id="${id}-sec"${activoEnSec ? '' : ' hidden'}>${rejilla(secundarios)}</div>`
+        : '';
+      return `<section class="nvs-sheet-grupo" data-grupo="${gk}"><span class="nvs-eyebrow">${esc(g.t || gk)}</span>${primarios.length ? rejilla(primarios) : ''}${mas}</section>`;
+    }).join('');
+
+    const cerrar = esc(m.hojaCerrar || 'Cerrar');
+    return `<div class="nvs-sheet-backdrop" data-accion="sheet-fondo"></div>`
+      + `<div class="nvs-sheet nvs-${modo}" role="dialog" aria-modal="true" aria-label="${titulo}">`
+      + `<span class="nvs-sheet-handle" aria-hidden="true"></span>`
+      + `<div class="nvs-sheet-cab"><h2 class="nvs-sheet-titulo">${titulo}</h2><button type="button" class="nvs-sheet-cerrar" data-accion="sheet-cerrar" aria-label="${cerrar}">&times;</button></div>`
+      + `<div class="nvs-sheet-cuerpo">${cuerpo}</div></div>`;
   }
 
   // ---- Operaciones sobre lo ya pintado (sin repintar) ----
@@ -325,6 +378,6 @@ const NavShell = (() => {
     return nuevo;
   }
 
-  return { render, visibles, conFijados, marcarActivo, alternarGrupo, alternarMas, esc, ICONOS_CLIENTE };
+  return { render, hoja, visibles, conFijados, marcarActivo, alternarGrupo, alternarMas, esc, ICONOS_CLIENTE };
 })();
 if (typeof module !== 'undefined') module.exports = NavShell;

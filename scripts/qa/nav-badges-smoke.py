@@ -73,9 +73,11 @@ with sync_playwright() as pw:
             check(d['aria'].endswith('(' + str(n) + palabra), 'aria-label de ' + k + ': ' + str(d['aria']))
 
     # 3) La barra inferior usa los mismos contadores (nada de cálculos duplicados)
+    # US-613: la barra inferior la pinta NavShell (.nvs-bottom-item con data-k)
     inf = page.evaluate("""()=>{updateMobileBottomNav();const o={};
-      for(const el of document.querySelectorAll('#mobileBottomNav .mbn-item')){const m=(el.getAttribute('aria-label')||'').match(/\\((\\d+) pendientes?\\)/);
-        const k=(el.getAttribute('onclick')||'').match(/M='([a-z]+)'/);if(k)o[k[1]]=m?parseInt(m[1]):0;}return o;}""")
+      for(const el of document.querySelectorAll('#mobileBottomNav .nvs-bottom-item[data-k]')){
+        const m=(el.getAttribute('aria-label')||'').match(/[(](\d+) pendientes?[)]/);
+        o[el.dataset.k]=m?parseInt(m[1]):0;}return o;}""")
     print('barra inferior:', inf)
     for k, n in inf.items():
         check(n == b['badges'].get(k, 0), 'la barra inferior pinta ' + str(n) + ' en ' + k + ' y el aside ' + str(b['badges'].get(k, 0)))
