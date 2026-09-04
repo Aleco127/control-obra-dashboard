@@ -2116,11 +2116,8 @@ const all=sec.flatMap(x=>x.i);
 // US-606: sólo módulos visibles para el usuario; si el preset del rol se queda corto, se completa en el orden de la barra
 const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>moduloVisibleParaUsuario(k));
 for(const x of all){if(keys.length>=4)break;if(x[0]!=='d'&&!keys.includes(x[0])&&moduloVisibleParaUsuario(x[0]))keys.push(x[0]);}
-const gPend=(D.g||[]).filter(g=>!g.aprobado_at&&g.estatus_pago!=='Rechazado').length;
-const ocPend=(D.oc||[]).filter(o=>o.estatus==='Pendiente').length;
-const hitosHoy=(typeof hitosPendientes==='function')?hitosPendientes(0).length:0;
-const badges={g:gPend,x:ocPend,w:hitosHoy};
-const items=keys.map(k=>{const it=all.find(x=>x[0]===k)||[k,'ri-apps-line',k];const label=getModuloLabel(k,it[2]);const b=badges[k]||0;return`<button type="button" class="mbn-item ${M===k?'active':''}" ${M===k?'aria-current="page"':''} aria-label="${S(label)}${b?' ('+b+' pendientes)':''}" onclick="if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M='${k}';R()"><i class="${it[1]}" aria-hidden="true"></i>${b?`<span class="mbn-badge" aria-hidden="true">${b}</span>`:''}<span>${S(label)}</span></button>`;});
+const badges=navBadges();   // US-610: los mismos contadores que el aside
+const items=keys.map(k=>{const it=all.find(x=>x[0]===k)||[k,'ri-apps-line',k];const label=getModuloLabel(k,it[2]);const b=badges[k]||0;return`<button type="button" class="mbn-item ${M===k?'active':''}" ${M===k?'aria-current="page"':''} aria-label="${S(label)}${b?' ('+b+(b===1?' pendiente':' pendientes')+')':''}" onclick="if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M='${k}';R()"><i class="${it[1]}" aria-hidden="true"></i>${b?`<span class="mbn-badge" aria-hidden="true">${b}</span>`:''}<span>${S(label)}</span></button>`;});
 const plus=`<button type="button" class="mbn-plus" onclick="abrirSheet()" aria-label="Captura rápida" aria-haspopup="dialog"><span><i class="ri-add-line" aria-hidden="true"></i></span></button>`;
 const more=`<button type="button" class="mbn-item" onclick="tgMb()" aria-label="Más módulos"><i class="ri-menu-2-line" aria-hidden="true"></i><span>Más</span></button>`;
 nav.innerHTML=items.slice(0,2).join('')+plus+items.slice(2,4).join('')+more;
@@ -2436,6 +2433,8 @@ populateObraFilter();
 restoreObraFilter();
 updateNotifBadge();
 navSembrarFijados();   // US-608: primera vez sin preferencias -> se fijan los 4 más usados (o d/o/g/w)
+// US-610: el badge de «Cierre mensual» necesita D.cierres; se pide en segundo plano para no retrasar el pintado
+if((currentUser?.nivel||0)>=45&&typeof Cierres!=='undefined')Cierres.cargar().then(()=>{if($('nv')){N.dirty=true;N();}}).catch(()=>{});
 R();
 // Guardar en caché para próxima carga
 Cache.saveAppData(D, empId||'global');
@@ -2840,6 +2839,38 @@ renderNavFijadosEditor();
 }
 // Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
 function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
+// ---- Contadores de la barra (US-610) ----
+// Una sola fuente para el aside, la barra inferior y (US-613) la hoja móvil. Sin datos cargados devuelve 0, nunca undefined.
+const NAV_PLAN_AVISO='Disponible en Estudio y Constructora';
+function navBadges(){
+const empId=currentUser?.empresa_id;
+const nivel=currentUser?.nivel||0;
+const mios=x=>!empId||x.empresa_id===empId;
+const g=(D.g||[]).filter(x=>mios(x)&&!x.aprobado_at&&x.estatus_pago!=='Rechazado').length;
+const hoy=new Date().toISOString().slice(0,10);
+const obras=(typeof getObrasPermitidas==='function'?getObrasPermitidas():D.o||[]).map(o=>o.id);
+const pc=(D.cxc||[]).filter(x=>obras.includes(x.obra_id)&&(parseFloat(x.monto_pendiente)||0)>0.009&&x.fecha_vencimiento&&x.fecha_vencimiento<hoy).length;
+const w=(typeof hitosPendientes==='function')?hitosPendientes(0).length:0;
+// ci: meses anteriores al actual (hasta 12 atrás) con movimiento y sin cierre en estado «cerrado». D.cierres lo carga
+// Cierres.cargar(), que en el arranque se dispara en segundo plano para nivel >= 45.
+let ci=0;
+if(nivel>=45&&Array.isArray(D.cierres)){
+const cerrados=new Set(D.cierres.filter(c=>c.estado==='cerrado').map(c=>c.periodo));
+const conMov=new Set([...(D.g||[]).map(x=>String(x.fecha_solicitud||'').slice(0,7)),...(D.prc||[]).map(x=>String(x.fecha_pago||'').slice(0,7))].filter(Boolean));
+const d=new Date();
+for(let i=1;i<=12;i++){
+const m=new Date(d.getFullYear(),d.getMonth()-i,1);
+const p=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0');
+if(conMov.has(p)&&!cerrados.has(p))ci++;
+}
+}
+return{g:g,pc:pc,w:w,ci:ci};
+}
+// Candado por plan (no por rol: eso lo decide NavRules). El clic sigue abriendo el EmptyState de plan de R().
+function navCandado(k){
+if(typeof Suscripcion==='undefined'||!Suscripcion.get())return false;
+try{return !Suscripcion.moduloPermitido(k);}catch(e){return false;}
+}
 // ---- Obra activa en la barra (US-609) ----
 // La tarjeta y el selector #obraFilter del header son el mismo dato (selectedObra): cambiar en cualquiera de los dos
 // actualiza el otro. En móvil la tarjeta no se pinta: manda el chip del header.
@@ -2913,10 +2944,9 @@ cont.innerHTML=(t?'':'<button type="button" class="nvs-pop-item" role="option" d
 // Modelo de NavShell.render para la constructora. Marca desde EMPRESA_INFO (nombre completo, hasta 2 líneas) con el usuario y su rol debajo;
 // visibilidad por empresa_modulos + NavRules (moduloVisibleParaUsuario); «Mi trabajo» = los módulos que el usuario fijó (navFijados, US-608).
 function navModelo(){
-const empId=currentUser?.empresa_id;
-const gastosPendientes=(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
 const col=navColapsados();
-const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:it.k==='g'&&gastosPendientes>0?gastosPendientes:0}))}));
+const badges=navBadges();
+const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>{const lock=navCandado(it.k);return Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:badges[it.k]||0,candado:lock,candadoTexto:lock?NAV_PLAN_AVISO:''});})}));
 const fijados=navFijados();
 const colapsado=!!($('sb')&&$('sb').classList.contains('col'));
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
@@ -3452,7 +3482,7 @@ const secLink=(mod,label)=>`<a href="#${mod}" class="text-xs text-accent hover:u
 c.innerHTML=`
 <div class="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-4">
 <div class="min-w-0">
-<div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-xs text-ink-subtle"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>${(currentUser&&currentUser.nivel>=80)?`<button type="button" class="btn btn-s text-xs" onclick="compartirObra(${o.id})"><i class="ri-share-forward-line" aria-hidden="true"></i> Acceso del cliente</button>`:''}</div>
+<div class="flex flex-wrap items-center justify-between gap-2 mb-1"><p class="text-xs text-ink-subtle"><a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> › ${S(o.codigo_obra||'')}</p>${(currentUser&&currentUser.nivel>=80)?(()=>{const lock=typeof Suscripcion!=='undefined'&&Suscripcion.get()&&!Suscripcion.feature('portal');return `<button type="button" class="btn btn-s text-xs${lock?' nvs-locked':''}" onclick="compartirObra(${o.id})"${lock?` title="${NAV_PLAN_AVISO}"`:''} aria-label="Acceso del cliente${lock?' ('+NAV_PLAN_AVISO+')':''}"><i class="ri-share-forward-line" aria-hidden="true"></i> Acceso del cliente${lock?'<i class="ri-lock-line nvs-lock" aria-hidden="true"></i>':''}</button>`;})():''}</div>
 <h1 class="text-xl font-bold n truncate">${S(o.nombre_obra)}</h1>
 <div class="flex flex-wrap gap-2 mt-2 text-xs">
 <span class="px-2 py-1 rounded-full ${o.estatus==='Completada'?'bg-green-100 text-green-800':o.estatus==='Pausada'?'bg-amber-100 text-amber-800':'bg-sky-100 text-sky-800'}">${S(o.estatus||'En Proceso')}</span>
