@@ -117,8 +117,17 @@ adminHtml = adminHtml.replace('</head>', `<link href="css/${twName}" rel="styles
 adminHtml = adminHtml.replace(/<script>\s*tailwind\.config\s*=\s*\{[\s\S]*?\}\s*<\/script>/, '');
 writeFileSync(join(DIST, 'admin.html'), adminHtml);
 
+// 4b) portal.html (US-603): página autónoma sin Tailwind; sólo se reemplazan sus <script src="js/…?v="> por la versión con hash
+{
+  let portalHtml = readFileSync(join(SRC, 'portal.html'), 'utf8');
+  let n = 0;
+  portalHtml = portalHtml.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => { if (!jsMap[f]) return m; n++; return `<script src="js/${jsMap[f]}"></script>`; });
+  if (!n) throw new Error('build: portal.html no enlaza ningún js/*.js con hash (se esperaba nav-shell.js)');
+  writeFileSync(join(DIST, 'portal.html'), portalHtml);
+}
+
 // 5) Copias tal cual
-for (const f of ['manifest.json', 'privacidad.html', 'terminos.html', 'portal.html', 'landing.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
+for (const f of ['manifest.json', 'privacidad.html', 'terminos.html', 'landing.html']) if (existsSync(join(SRC, f))) cpSync(join(SRC, f), join(DIST, f));
 for (const d of ['img', 'ayuda']) if (existsSync(join(SRC, d))) cpSync(join(SRC, d), join(DIST, d), { recursive: true });
 if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), join(DIST, 'docs', 'img'), { recursive: true });
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));
