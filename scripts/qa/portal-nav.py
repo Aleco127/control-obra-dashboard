@@ -60,12 +60,15 @@ with sync_playwright() as pw:
                 v = page.evaluate("""()=>({sec:seccion,hash:location.hash,titulo:document.title,
                   hijos:document.querySelector('#vista').children.length,
                   texto:document.querySelector('#vista').innerText.trim().length,
-                  activa:(document.querySelector('.sec-btn.activa')||{}).textContent||'',
-                  cur:document.querySelectorAll('#navSecciones [aria-current="page"]').length})""")
+                  cur:[...document.querySelectorAll('#navCliente [aria-current="page"]')].map(b=>b.dataset.k),
+                  curBottom:[...document.querySelectorAll('#navClienteBottom [aria-current="page"]')].map(b=>b.dataset.k),
+                  items:[...document.querySelectorAll('#navCliente .nvs-item')].map(b=>b.dataset.k)})""")
                 vistas[s] = v
                 check(v['sec'] == s, tag + ': #' + s + ' no cambio de seccion: ' + str(v))
                 check(v['hijos'] > 0 and v['texto'] > 40, tag + ': la seccion ' + s + ' quedo vacia: ' + str(v))
-                check(v['cur'] == 1, tag + ': deberia haber un solo aria-current en el menu de secciones (' + s + ')')
+                check(v['cur'] == [s], tag + ': la barra deberia marcar ' + s + ' y marca ' + str(v['cur']))
+                check(len(v['curBottom']) <= 1, tag + ': la barra inferior deberia tener un solo aria-current (' + s + ')')
+                check(v['items'] == SECCIONES, tag + ': la barra del cliente deberia listar las 6 secciones: ' + str(v['items']))
                 check(v['titulo'].split(' · ')[0].lower().startswith(s[:4]) or s == 'entregables' and 'Entregables' in v['titulo'],
                       tag + ': document.title de ' + s + ' = ' + str(v['titulo']))
             print(tag, '| titulos:', [vistas[s]['titulo'] for s in ('inicio', 'pagos')])
@@ -105,6 +108,37 @@ with sync_playwright() as pw:
                 check(not t['sel'], tag + ': el enlace de token no deberia traer selector de obra')
                 check(not t['pass'] and not t['salir'], tag + ': el enlace de token no deberia ofrecer cuenta: ' + str(t))
                 check(t['privado'], tag + ': falta el aviso de enlace privado en Contacto')
+
+            # US-618/US-619: layout de dos columnas en escritorio, barra inferior en móvil
+            lay = page.evaluate("""()=>{const a=document.getElementById('navCliente'),b=document.getElementById('navClienteBottom');
+              const w=document.querySelector('.wrap');
+              return{aside:getComputedStyle(a).display,anchoAside:Math.round(a.getBoundingClientRect().width),
+                bottom:getComputedStyle(b).display,items:[...b.querySelectorAll('.nvs-bottom-item')].map(x=>x.dataset.k),
+                altos:[...b.querySelectorAll('button')].map(x=>Math.round(x.getBoundingClientRect().height)),
+                cols:getComputedStyle(document.querySelector('.shell')).gridTemplateColumns,
+                anchoMain:Math.round(w.getBoundingClientRect().width),
+                overflow:document.documentElement.scrollWidth<=document.documentElement.clientWidth+1};}""")
+            print(tag, '| layout:', lay)
+            check(lay['overflow'], tag + ': desborde horizontal')
+            if ancho >= 900:
+                check(lay['aside'] != 'none' and lay['anchoAside'] == 240, tag + ': el aside deberia medir 240 px: ' + str(lay))
+                check(lay['bottom'] == 'none', tag + ': en escritorio no va la barra inferior')
+                check(len(lay['cols'].split(' ')) == 2, tag + ': el layout deberia ser de dos columnas: ' + str(lay['cols']))
+                check(lay['anchoMain'] <= 780, tag + ': el contenido deberia quedarse en 760 px: ' + str(lay['anchoMain']))
+            else:
+                check(lay['aside'] == 'none', tag + ': en movil el aside no se pinta')
+                check(lay['bottom'] != 'none' and len(lay['items']) == 5, tag + ': la barra inferior deberia traer 5 secciones: ' + str(lay['items']))
+                check(all(h >= 44 for h in lay['altos'] if h > 0), tag + ': objetivos chicos en la barra inferior: ' + str(lay['altos']))
+
+            if ancho >= 900:
+                try:
+                    page.add_script_tag(url='https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js')
+                    page.wait_for_function("()=>typeof axe!=='undefined'", timeout=20000)
+                    v = page.evaluate("async()=>{const r=await axe.run(document.getElementById('navCliente'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa']}});return r.violations.map(x=>({id:x.id,n:x.nodes.length}));}")
+                    print(tag, '| axe aside ->', v)
+                    check(not v, tag + ': axe en la barra del cliente: ' + str(v))
+                except Exception as ex:
+                    fallos.append(tag + ': axe no cargo: ' + str(ex))
 
             if args.out:
                 page.evaluate("()=>{location.hash='#inicio';}"); page.wait_for_timeout(400)
