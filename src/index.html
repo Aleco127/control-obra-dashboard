@@ -2341,7 +2341,7 @@ else secData=data;
 
 // Asignar datos principales
 D.o=mainData.obras||[];
-if(typeof NavPrefs!=='undefined')NavPrefs.setServidor(mainData.nav_prefs);
+if(typeof NavPrefs!=='undefined'){NavPrefs.setServidor(mainData.nav_prefs);navSembrarFijados();}
 if(typeof Suscripcion!=='undefined')Suscripcion.cargar().then(()=>{if(typeof Onboarding!=='undefined')setTimeout(()=>Onboarding.iniciar(),800);});
 D.e=mainData.empleados||[];
 D.g=mainData.gastos||[];
@@ -2434,6 +2434,7 @@ hideLoader();
 populateObraFilter();
 restoreObraFilter();
 updateNotifBadge();
+navSembrarFijados();   // US-608: primera vez sin preferencias -> se fijan los 4 más usados (o d/o/g/w)
 R();
 // Guardar en caché para próxima carga
 Cache.saveAppData(D, empId||'global');
@@ -2454,7 +2455,7 @@ console.warn('⚠️ Error en refresh:',error||mainData?.error);
 return;
 }
 let hasChanges=false;
-if(typeof NavPrefs!=='undefined'&&NavPrefs.setServidor(mainData.nav_prefs)&&$('nv')){N.dirty=true;N();}
+if(typeof NavPrefs!=='undefined'){const cambio=NavPrefs.setServidor(mainData.nav_prefs);navSembrarFijados();if(cambio&&$('nv')){N.dirty=true;N();}}
 if(mainData.obras&&mainData.obras.length!==D.o.length){D.o=mainData.obras;hasChanges=true;}
 if(mainData.gastos&&mainData.gastos.length!==D.g.length){D.g=mainData.gastos;hasChanges=true;}
 if(mainData.ordenes_compra&&mainData.ordenes_compra.length!==D.oc.length){D.oc=mainData.ordenes_compra;hasChanges=true;}
@@ -2688,13 +2689,16 @@ function abrirCmdk(){ensureCmdk();$('cmdk').classList.add('ac');const i=$('cmdkI
 function cerrarCmdk(){$('cmdk')?.classList.remove('ac');}
 function renderCmdk(q){
 q=normTxt(q);
-const mods=sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>({t:'Módulos',l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>{fichaObraId=null;localStorage.removeItem('fichaObraId');M=x[0];R();}})));
+const fijados=navFijados();   // US-608: «Mi trabajo» encabeza la lista, con o sin búsqueda
+const mods=sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>({t:fijados.includes(x[0])?'Mi trabajo':'Módulos',k:x[0],l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>{fichaObraId=null;localStorage.removeItem('fichaObraId');M=x[0];R();}})));
+const mios=mods.filter(x=>x.t==='Mi trabajo').sort((a,b)=>fijados.indexOf(a.k)-fijados.indexOf(b.k));
+const otros=mods.filter(x=>x.t!=='Mi trabajo');
 const obras=getObrasPermitidas().map(o=>({t:'Obras',l:[o.codigo_obra,o.nombre_obra].filter(Boolean).join(' · '),sub:o.cliente||'',i:'ri-building-2-line',run:()=>abrirFichaObra(o.id)}));
 const clis=(D.cli||[]).map(c=>({t:'Clientes',l:c.nombre,sub:c.razon_social||c.rfc||'',i:'ri-user-heart-line',run:()=>abrirCliente(c.id)}));
 const acciones=[{t:'Acciones',l:'Nueva obra (asistente)',sub:'',i:'ri-add-line',run:()=>WizardObra.open()},{t:'Acciones',l:'Registrar cobro',sub:'',i:'ri-arrow-down-circle-line',run:()=>newPagoRecibido()},{t:'Acciones',l:'Bitácora rápida',sub:'',i:'ri-book-2-line',run:()=>abrirBitacoraRapida()}];
-let items=[...acciones,...mods,...obras,...clis];
+let items=[...mios,...acciones,...otros,...obras,...clis];
 if(q)items=items.filter(x=>normTxt(x.l+' '+x.sub+' '+x.t).includes(q));
-else{const fav=modulosFavoritos(5).map(x=>x[0]);items=[...acciones,...mods.filter(m=>fav.includes(sec.flatMap(s=>s.i).find(y=>getModuloLabel(y[0],y[2])===m.l)?.[0])),...obras.slice(0,5)];}
+else items=[...mios,...acciones,...obras.slice(0,5)];
 _cmdkItems=items.slice(0,40);_cmdkSel=0;
 let html='',last='';
 _cmdkItems.forEach((x,i)=>{if(x.t!==last){html+=`<div class="cmdk-group">${x.t}</div>`;last=x.t;}html+=`<div class="cmdk-item ${i===0?'sel':''}" role="option" aria-selected="${i===0}" data-i="${i}" onmousedown="event.preventDefault();ejecutarCmdk(${i})"><i class="${x.i}" aria-hidden="true"></i><span class="truncate">${S(x.l)}</span>${x.sub?`<span class="text-xs text-ink-subtle truncate">${S(x.sub)}</span>`:''}${i===0?'<span class="k">Enter</span>':''}</div>`;});
@@ -2720,19 +2724,24 @@ return NavRules.moduloVisible(key,currentUser);
 // Preferencias de navegación del usuario (obra_usuarios.nav_prefs, migración 056): fijados, colapsados, barra_colapsada.
 // Caché en localStorage por usuario para pintar sin esperar la red; el servidor manda cuando responde load_all_data_seguro.
 const NavPrefs=(()=>{
-let prefs=null,version=0,pendiente=null;
+let prefs=null,version=0,pendiente=null,enVuelo=0,ultimoGuardado=0;
 const KEY=()=>'nav_prefs:'+((currentUser&&currentUser.id)||'anon');
 const limpiar=p=>{const o={};if(!p||typeof p!=='object')return o;if(Array.isArray(p.fijados))o.fijados=p.fijados.filter(k=>typeof k==='string').slice(0,6);if(p.colapsados&&typeof p.colapsados==='object'&&!Array.isArray(p.colapsados))o.colapsados=Object.fromEntries(Object.entries(p.colapsados).filter(([k,v])=>/^[a-z][a-z0-9_]{0,31}$/.test(k)&&typeof v==='boolean'));if(typeof p.barra_colapsada==='boolean')o.barra_colapsada=p.barra_colapsada;return o;};
 function get(){if(prefs)return prefs;try{prefs=limpiar(JSON.parse(localStorage.getItem(KEY())||'{}'));}catch(e){prefs={};}return prefs;}
 // Devuelve true si lo que llegó del servidor difiere de lo que ya se tenía (para repintar)
-function setServidor(p){if(!p||typeof p!=='object')return false;const nuevo=limpiar(p);const cambio=JSON.stringify(nuevo)!==JSON.stringify(get());prefs=nuevo;version++;try{localStorage.setItem(KEY(),JSON.stringify(prefs));}catch(e){}return cambio;}
+function setServidor(p){if(!p||typeof p!=='object')return false;
+// Mientras una preferencia del usuario viaja al servidor (o acaba de llegar), manda la local: el refresco en segundo plano
+// puede traer una respuesta pedida ANTES de esa escritura y borraría lo que el usuario acaba de fijar.
+if(enVuelo>0||Date.now()-ultimoGuardado<5000)return false;
+const nuevo=limpiar(p);const cambio=JSON.stringify(nuevo)!==JSON.stringify(get());prefs=nuevo;version++;try{localStorage.setItem(KEY(),JSON.stringify(prefs));}catch(e){}return cambio;}
 // Guarda el objeto completo (el RPC reemplaza, no parcha) con un reintento si falla la red
 async function guardar(cambios){
 prefs=limpiar(Object.assign({},get(),cambios||{}));
 try{localStorage.setItem(KEY(),JSON.stringify(prefs));}catch(e){}
 if(!currentUser||!currentUser.token||typeof sb==='undefined'||!sb)return prefs;
 const enviar=async()=>{const{data,error}=await sb.rpc('guardar_nav_prefs',{p_prefs:prefs});if(error)throw error;if(data&&data.success===false)throw new Error(data.error||'No se pudo guardar');return data;};
-pendiente=(async()=>{try{await enviar();}catch(e1){try{await new Promise(r=>setTimeout(r,1500));await enviar();}catch(e2){console.warn('[NavPrefs] no se guardó en el servidor:',(e2&&e2.message)||e2);if(typeof Toast!=='undefined'&&typeof humanizeError==='function')Toast.warning(humanizeError(e2,'guardar tus preferencias de la barra'),4000);}}})();
+enVuelo++;
+pendiente=(async()=>{try{await enviar();}catch(e1){try{await new Promise(r=>setTimeout(r,1500));await enviar();}catch(e2){console.warn('[NavPrefs] no se guardó en el servidor:',(e2&&e2.message)||e2);if(typeof Toast!=='undefined'&&typeof humanizeError==='function')Toast.warning(humanizeError(e2,'guardar tus preferencias de la barra'),4000);}}finally{enVuelo--;ultimoGuardado=Date.now();}})();
 return pendiente;
 }
 return{get,guardar,setServidor,get version(){return version;},get pendiente(){return pendiente;}};
@@ -2741,23 +2750,109 @@ const NAV_COLAPSADOS_DEFECTO={contabilidad:true,administracion:true};
 const NAV_ROL_LABEL={admin_general:'Administrador',gerente_obra:'Gerente de obra',supervisor_general:'Supervisor',contador:'Contador',residente_obra:'Residente',contador_externo:'Contador externo',inspector_calidad:'Inspector de calidad',trabajador:'Trabajador'};
 function navColapsados(){const p=NavPrefs.get();return(p.colapsados&&typeof p.colapsados==='object')?p.colapsados:Object.assign({},NAV_COLAPSADOS_DEFECTO);}
 function navRolLabel(){const r=String(currentUser?.rol||'');return NAV_ROL_LABEL[r]||r.replace(/_/g,' ').replace(/^\w/,l=>l.toUpperCase());}
+// ---- «Mi trabajo» (US-608): módulos fijados por el usuario ----
+// Viven en nav_prefs.fijados (hasta 6, en el orden que el usuario decide). La primera vez se siembran con los 4 módulos
+// más usados de localStorage.moduleUsage y, si aún no hay historial, con Inicio/Obras/Compras/Programa; a partir de ahí
+// la lista sólo cambia cuando el usuario toca la estrella o el editor, nunca sola.
+const NAV_FIJADOS_MAX=6;
+const NAV_FIJADOS_SEMILLA=['d','o','g','w'];
+const NAV_CLAVE_OK=/^[a-z][a-z0-9_-]{0,15}$/i;
+function navFijadosSemilla(){
+const usados=modulosFavoritos(4).map(x=>x[0]);
+const base=usados.length>=2?usados:NAV_FIJADOS_SEMILLA;
+return base.filter(k=>moduloVisibleParaUsuario(k)).slice(0,NAV_FIJADOS_MAX);
+}
+function navFijados(){
+const p=NavPrefs.get();
+const lista=Array.isArray(p.fijados)?p.fijados:navFijadosSemilla();
+return lista.filter(k=>NAV_CLAVE_OK.test(k)&&moduloVisibleParaUsuario(k)).slice(0,NAV_FIJADOS_MAX);
+}
+// Al entrar por primera vez se persiste la semilla para que la lista deje de moverse con el uso
+function navSembrarFijados(){
+if(Array.isArray(NavPrefs.get().fijados))return;
+const s=navFijadosSemilla();
+if(s.length)NavPrefs.guardar({fijados:s});
+}
+function navItemDe(k){return NAV_GRUPOS.flatMap(g=>g.items).find(x=>x.k===k)||null;}
+function navEtiqueta(k){const it=navItemDe(k);return it?getModuloLabel(it.k,it.t):k;}
+function navGuardarFijados(lista,accion,k){
+const enEstrella=!!(document.activeElement&&document.activeElement.classList&&document.activeElement.classList.contains('nvs-fijar'));
+NavPrefs.guardar({fijados:lista.slice(0,NAV_FIJADOS_MAX)});
+N.dirty=true;N();
+if(enEstrella&&k&&NAV_CLAVE_OK.test(k)){const b=document.querySelector('#nv [data-fijar="'+k+'"]');if(b)b.focus();}
+if(typeof Telemetry!=='undefined'&&accion)Telemetry.track('nav_fijar',{modulo:k||'',accion:accion});
+}
+// Estrella de la barra: fija o quita
+function navFijar(k){
+if(!k||!NAV_CLAVE_OK.test(k)||!moduloVisibleParaUsuario(k))return;
+const act=navFijados(),i=act.indexOf(k);
+if(i<0&&act.length>=NAV_FIJADOS_MAX){Toast.warning('«Mi trabajo» admite hasta '+NAV_FIJADOS_MAX+' módulos. Quita uno antes de fijar otro.');return;}
+navGuardarFijados(i<0?[...act,k]:act.filter(x=>x!==k),i<0?'fijar':'quitar',k);
+}
+// Editor (botón ✎ de «Mi trabajo»): reordenar y quitar
+function navEditarFijados(){
+if(!$('mdlNavFijados')){
+document.body.insertAdjacentHTML('beforeend','<div id="mdlNavFijados" class="modal"><div id="mdlNavFijadosContent" class="modal-content g rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="navFijTitulo"></div></div>');
+$('mdlNavFijados').addEventListener('click',e=>{
+if(e.target===$('mdlNavFijados')){closeMdl('mdlNavFijados');return;}
+const b=e.target.closest&&e.target.closest('[data-nf]');if(!b)return;
+const p=String(b.getAttribute('data-nf')||'').split(':'),acc=p[0],k=p[1];
+if(acc==='subir')navMoverFijado(k,-1);
+else if(acc==='bajar')navMoverFijado(k,1);
+else if(acc==='quitar')navQuitarFijado(k);
+else if(acc==='listo')closeMdl('mdlNavFijados');
+});
+}
+openMdl('mdlNavFijados');
+renderNavFijadosEditor();
+}
+function renderNavFijadosEditor(foco){
+const el=$('mdlNavFijadosContent');if(!el)return;
+const lista=navFijados();
+const fila=(k,i)=>{
+const it=navItemDe(k),t=S(navEtiqueta(k));
+const btn=(acc,ic,et,off)=>'<button type="button" class="btn btn-s" data-nf="'+acc+':'+k+'"'+(off?' disabled':'')+' aria-label="'+et+' '+t+'"><i class="'+ic+'" aria-hidden="true"></i></button>';
+return '<li class="flex items-center gap-2 p-2 rounded-lg" style="background:var(--surface-2)">'
++'<i class="'+S(it?it.ic:'ri-apps-line')+'" aria-hidden="true"></i>'
++'<span class="flex-1 truncate">'+t+'</span>'
++btn('subir','ri-arrow-up-line','Subir',i===0)
++btn('bajar','ri-arrow-down-line','Bajar',i===lista.length-1)
++btn('quitar','ri-close-line','Quitar de Mi trabajo',false)
++'</li>';
+};
+el.innerHTML='<h2 id="navFijTitulo" class="text-lg font-bold n mb-1"><i class="ri-star-line mr-2"></i>Mi trabajo</h2>'
++'<p class="text-sm text-ink-muted mb-4">Ordena los m&oacute;dulos que usas a diario. Para agregar uno, pasa el cursor sobre &eacute;l en la barra y toca la estrella (hasta '+NAV_FIJADOS_MAX+').</p>'
++(lista.length?'<ul class="space-y-2">'+lista.map(fila).join('')+'</ul>':'<p class="text-sm text-ink-muted">Todav&iacute;a no has fijado ning&uacute;n m&oacute;dulo. Pasa el cursor sobre un m&oacute;dulo de la barra y toca la estrella.</p>')
++'<div class="flex justify-end mt-5"><button type="button" class="btn btn-p" data-nf="listo:">Listo</button></div>';
+if(foco){const b=el.querySelector('[data-nf="'+foco+'"]');if(b&&!b.disabled)b.focus();}
+}
+function navMoverFijado(k,d){
+const l=navFijados(),i=l.indexOf(k);if(i<0)return;
+const j=i+d;if(j<0||j>=l.length)return;
+const n=[...l];n[i]=n[j];n[j]=k;
+navGuardarFijados(n,d<0?'subir':'bajar',k);
+renderNavFijadosEditor((d<0?'subir:':'bajar:')+k);
+}
+function navQuitarFijado(k){
+navGuardarFijados(navFijados().filter(x=>x!==k),'quitar',k);
+renderNavFijadosEditor();
+}
 // Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
 function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
 // Modelo de NavShell.render para la constructora. Marca desde EMPRESA_INFO (nombre completo, hasta 2 líneas) con el usuario y su rol debajo;
-// visibilidad por empresa_modulos + NavRules (moduloVisibleParaUsuario); «Mi trabajo» provisional = los 4 más usados (US-608 lo vuelve fijado por el usuario).
+// visibilidad por empresa_modulos + NavRules (moduloVisibleParaUsuario); «Mi trabajo» = los módulos que el usuario fijó (navFijados, US-608).
 function navModelo(){
 const empId=currentUser?.empresa_id;
 const gastosPendientes=(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
 const col=navColapsados();
 const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:it.k==='g'&&gastosPendientes>0?gastosPendientes:0}))}));
-const fav=modulosFavoritos(4);
-const fijados=fav.length>=2?fav.map(x=>x[0]):[];
+const fijados=navFijados();
 const colapsado=!!($('sb')&&$('sb').classList.contains('col'));
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
 return{
 modo:'constructora',prefijo:'nv',
 marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logo)?EMPRESA_INFO.logo:''},
-grupos,fijados,activo:M==='x'?'g':M,colapsado,
+grupos,fijados,fijadosTitulo:'Mi trabajo',onEditarFijados:'navEditarFijados()',onFijar:"navFijar('{k}')",activo:M==='x'?'g':M,colapsado,
 acciones:[
 {k:'buscar',t:'Buscar',ic:'ri-search-line',onClick:'abrirCmdk()',atajo:'Ctrl+K'},
 {k:'ayuda',t:'Ayuda',ic:'ri-question-line',onClick:'Ayuda.abrir()'},

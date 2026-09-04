@@ -29,6 +29,8 @@
      .nvs[.nvs-col]  > .nvs-marca · .nvs-ctx · .nvs-fijados · .nvs-grupos > (.nvs-item.nvs-suelto | .nvs-grupo.nvs-plano | section.nvs-grupo) · .nvs-pie
      section.nvs-grupo > button.nvs-grupo-h[aria-expanded] + .nvs-grupo-items[.nvs-fly][hidden] > .nvs-item* + button.nvs-mas + .nvs-sec
      .nvs-item > .nvs-ic + .nvs-tx + .nvs-lock? + .nvs-badge?
+     .nvs-fila > .nvs-item + button.nvs-fijar[aria-pressed]   (US-608: sólo si el modelo trae onFijar; la estrella no puede
+                                                               ir dentro del botón del ítem, por eso la fila los hace hermanos)
      .nvs-bottom > .nvs-item.nvs-bottom-item* + .nvs-bottom-plus? + .nvs-bottom-mas?
      .nvs-sheet-backdrop + .nvs-sheet (hoja de módulos móvil, la arma el anfitrión en US-613)
    El aria-expanded vive en la cabecera (button.nvs-grupo-h); se acepta también en la sección por si el anfitrión lo replica.
@@ -84,6 +86,15 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 .nvs-lock svg{width:14px;height:14px}
 .nvs-badge{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:18px;height:18px;padding:0 5px;border-radius:var(--radius-pill);background:var(--danger);color:var(--primary-ink);font-size:var(--fs-xs);font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .nvs-badge.nvs-dot{min-width:8px;width:8px;height:8px;padding:0}
+/* Fila = ítem + estrella (US-608). La estrella reserva su hueco siempre para que no salte el texto al pasar el cursor;
+   sólo se ve al pasar el cursor, al enfocar o cuando el módulo ya está fijado. */
+.nvs-fila{display:flex;align-items:center;gap:2px;width:100%}
+.nvs-fila>.nvs-item{flex:1 1 auto;min-width:0;width:auto}
+.nvs-fijar{display:inline-flex;align-items:center;justify-content:center;flex:0 0 26px;width:26px;height:26px;border-radius:var(--radius-sm);color:var(--ink-subtle);opacity:0;transition:opacity var(--dur-1),color var(--dur-1),background-color var(--dur-1)}
+.nvs-fila:hover .nvs-fijar,.nvs-fijar:focus-visible,.nvs-fijar[aria-pressed="true"]{opacity:1}
+.nvs-fijar:hover{background:var(--surface-2);color:var(--ink)}
+.nvs-fijar[aria-pressed="true"]{color:var(--warn)}
+.nvs-fijar svg{width:16px;height:16px}
 .nvs-fijados{display:flex;flex-direction:column;gap:2px;padding:0 var(--sp-2)}
 .nvs-fijados .nvs-cab{padding-left:var(--sp-3)}
 .nvs-editar{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);color:var(--ink-subtle);font-size:14px}
@@ -130,6 +141,7 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 .nvs-col .nvs-ctx{margin:0 4px;padding:6px;display:flex;justify-content:center}
 .nvs-col .nvs-ctx-btn{align-items:center;padding:0}
 .nvs-col .nvs-ctx-titulo{font-size:var(--fs-xs);max-width:52px}
+.nvs-col .nvs-fijar{display:none}
 .nvs-col .nvs-fijados,.nvs-col .nvs-grupos,.nvs-col .nvs-pie{padding-left:4px;padding-right:4px}
 .nvs-col .nvs-item,.nvs-col .nvs-grupo-h,.nvs-col .nvs-accion{justify-content:center;gap:0;padding:8px 0;min-height:44px}
 .nvs-col .nvs-lock{position:absolute;right:6px;bottom:6px}

@@ -13,6 +13,7 @@
  *     grupos: [{ k, t, ic, items: [{ k, t, ic, badge, candado, secundario }], abierto, suelto, plano, separador, candado }],
  *     fijados: ['g', 'o'],                               // claves de «Mi trabajo»
  *     fijadosTitulo, onEditarFijados,
+ *     onFijar: (k, item) => "navFijar('g')",             // US-608: con esto cada ítem lleva una estrella (fijar/quitar)
  *     activo: 'g',
  *     colapsado: false,
  *     acciones: [{ k, t, ic, onClick, atajo, tono }],    // pie de la barra
@@ -30,6 +31,8 @@
  *
  * Reglas: todo texto se escapa; un solo aria-current="page" por barra (la primera aparición gana, es decir el fijado);
  * los ítems secundarios van detrás de «Más» y sólo se muestran si el activo es uno de ellos.
+ * Un módulo fijado que también sale en su grupo no se pinta activo dos veces (US-608): manda la copia de «Mi trabajo»
+ * (marcada con data-fijado) y la del grupo se queda sin .active; la estrella rellena indica que ya está fijado.
  */
 const NavShell = (() => {
   const escInterno = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,6 +53,8 @@ const NavShell = (() => {
     cuenta: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>',
     mas: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   };
+  const ESTRELLA_ON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4L4.2 9.7l5.4-.8z"/></svg>';
+  const ESTRELLA_OFF = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4L4.2 9.7l5.4-.8z"/></svg>';
   const CHEVRON = '<svg class="nvs-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const CANDADO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
   const LOGO_DEFECTO = '<svg viewBox="0 0 100 100" width="36" height="36" aria-hidden="true"><rect width="100" height="100" rx="16" fill="currentColor" opacity=".12"/><rect x="20" y="35" width="25" height="45" rx="2" fill="currentColor"/><rect x="55" y="20" width="25" height="60" rx="2" fill="currentColor"/></svg>';
@@ -117,17 +122,28 @@ const NavShell = (() => {
     const activo = m.activo == null ? '' : String(m.activo);
     const col = !!m.colapsado;
     let currentPuesto = false;   // un solo aria-current="page" por barra
+    const fijSet = new Set((Array.isArray(m.fijados) ? m.fijados : []).map((k) => String(k)));
+    const tituloFij = esc(m.fijadosTitulo || 'Mi trabajo');
 
-    const item = (it, extra) => {
+    // opts: {fijado} la copia de «Mi trabajo», {bottom} la barra inferior (sin estrella y sin regla de duplicado)
+    const item = (it, extra, opts) => {
+      const o = opts || {};
       const k = clave(it.k);
       const t = esc(it.t || it.k);
-      const esActivo = activo && String(it.k) === activo;
+      const fijado = fijSet.has(String(it.k));
+      // La copia del grupo de un módulo fijado no se pinta activa: manda la de «Mi trabajo»
+      const duplicado = fijado && !o.fijado && !o.bottom;
+      const esActivo = !!activo && String(it.k) === activo && !duplicado;
       const cur = esActivo && !currentPuesto ? ' aria-current="page"' : '';
       if (cur) currentPuesto = true;
       const lock = it.candado ? ' nvs-locked' : '';
       const aria = t + badgeTexto(it.badge) + (it.candado ? ' (no incluido en tu plan)' : '');
       const title = col ? ` title="${aria}"` : '';
-      return `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${it.candado ? ' data-candado="1"' : ''} aria-label="${aria}"${title}${handler(m.onItem, k, it)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
+      const btn = `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${o.fijado ? ' data-fijado="1"' : ''}${it.candado ? ' data-candado="1"' : ''} aria-label="${aria}"${title}${handler(m.onItem, k, it)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
+      if (!m.onFijar || o.bottom) return btn;
+      const etiq = `${fijado ? 'Quitar' : 'Fijar'} ${t} ${fijado ? 'de' : 'en'} ${tituloFij}`;
+      const estrella = `<button type="button" class="nvs-fijar" data-fijar="${k}" aria-pressed="${fijado ? 'true' : 'false'}" aria-label="${etiq}" title="${etiq}"${handler(m.onFijar, k, it)}>${fijado ? ESTRELLA_ON : ESTRELLA_OFF}</button>`;
+      return `<div class="nvs-fila">${btn}${estrella}</div>`;
     };
 
     // Marca
@@ -156,7 +172,7 @@ const NavShell = (() => {
     if (fij.length) {
       const titulo = esc(m.fijadosTitulo || 'Mi trabajo');
       const editar = m.onEditarFijados ? `<button type="button" class="nvs-editar" data-accion="editar-fijados" onclick="${esc(m.onEditarFijados)}" aria-label="Editar ${titulo}" title="Editar ${titulo}"><i class="ri-pencil-line" aria-hidden="true"></i></button>` : '';
-      fijHtml = `<div class="nvs-fijados" role="group" aria-label="${titulo}"><div class="nvs-cab"><span class="nvs-eyebrow">${titulo}</span>${editar}</div>${fij.map((it) => item(it, 'nvs-fijado')).join('')}</div>`;
+      fijHtml = `<div class="nvs-fijados" role="group" aria-label="${titulo}"><div class="nvs-cab"><span class="nvs-eyebrow">${titulo}</span>${editar}</div>${fij.map((it) => item(it, 'nvs-fijado', { fijado: true })).join('')}</div>`;
     }
 
     // Grupos
@@ -204,7 +220,7 @@ const NavShell = (() => {
     let claves = Array.isArray(inf.items) ? inf.items : (fij.length ? fij.map((it) => it.k) : [...todos.keys()]);
     const maxItems = inf.plus || inf.mas ? 4 : 5;
     claves = [...new Set(claves)].filter((k) => todos.has(k)).slice(0, maxItems);
-    const bItems = claves.map((k) => item(todos.get(k), 'nvs-bottom-item'));
+    const bItems = claves.map((k) => item(todos.get(k), 'nvs-bottom-item', { bottom: true }));
     const plus = inf.plus ? `<button type="button" class="nvs-bottom-plus" data-accion="plus" aria-label="${esc(inf.plus.t || 'Captura rápida')}" aria-haspopup="dialog"${inf.plus.onClick ? ` onclick="${esc(inf.plus.onClick)}"` : ''}><span><i class="ri-add-line" aria-hidden="true"></i></span></button>` : '';
     const mas = inf.mas ? `<button type="button" class="nvs-item nvs-bottom-item nvs-bottom-mas" data-accion="mas" aria-label="${esc(inf.mas.t || 'Más módulos')}" aria-haspopup="dialog"${inf.mas.onClick ? ` onclick="${esc(inf.mas.onClick)}"` : ''}>${icono(inf.mas.ic || (modo === 'cliente' ? 'mas' : 'ri-menu-2-line'), modo)}<span class="nvs-tx">${esc(inf.mas.t || 'Más')}</span></button>` : '';
     const bottom = `<div class="nvs-bottom nvs-${modo}" data-modo="${modo}">${plus ? bItems.slice(0, 2).join('') + plus + bItems.slice(2).join('') : bItems.join('')}${mas}</div>`;
@@ -214,14 +230,22 @@ const NavShell = (() => {
 
   // ---- Operaciones sobre lo ya pintado (sin repintar) ----
 
-  /** Sobre un Element: marca .active y un solo aria-current="page" en los [data-k]; sobre un string devuelve el HTML nuevo. */
+  /**
+   * Sobre un Element: marca .active y un solo aria-current="page" en los [data-k]; sobre un string devuelve el HTML nuevo.
+   * Si el módulo está fijado (existe una copia con data-fijado), la copia del grupo no se marca (US-608).
+   */
   function marcarActivo(root, k) {
     const key = k == null ? '' : String(k);
     if (typeof root === 'string') return marcarActivoHtml(root, key);
     if (!root || typeof root.querySelectorAll !== 'function') return root;
     let puesto = false;
-    for (const el of root.querySelectorAll('[data-k]')) {
-      const es = el.getAttribute('data-k') === key;
+    const nodos = Array.prototype.slice.call(root.querySelectorAll('[data-k]'));
+    // Si el módulo está fijado, sólo la copia de «Mi trabajo» (data-fijado) se pinta activa
+    const hayFijado = !!key && nodos.some((el) => el.getAttribute('data-k') === key && el.getAttribute('data-fijado') != null);
+    for (const el of nodos) {
+      const coincide = el.getAttribute('data-k') === key;
+      const dup = coincide && hayFijado && el.getAttribute('data-fijado') == null && !(el.classList && el.classList.contains('nvs-bottom-item'));
+      const es = coincide && !dup;
       if (es) el.classList.add('active'); else el.classList.remove('active');
       if (es && !puesto) { el.setAttribute('aria-current', 'page'); puesto = true; } else el.removeAttribute('aria-current');
     }
@@ -234,9 +258,12 @@ const NavShell = (() => {
 
   function marcarActivoHtml(html, key) {
     let puesto = false;
+    const re = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const hayFijado = !!key && new RegExp(`<button\\b[^>]*\\bdata-k="${re}"[^>]*\\bdata-fijado=`).test(html);
     let out = html.replace(/<button\b[^>]*\bdata-k="([^"]*)"[^>]*>/g, (tag, k) => {
       let t = tag.replace(/\s+aria-current="[^"]*"/g, '');
-      const es = k === key;
+      const dup = k === key && hayFijado && !/\bdata-fijado=/.test(tag) && !/\bnvs-bottom-item\b/.test(tag);
+      const es = k === key && !dup;
       t = t.replace(/\bclass="([^"]*)"/, (m, cls) => {
         const set = cls.split(/\s+/).filter((c) => c && c !== 'active');
         if (es) set.push('active');
