@@ -202,10 +202,47 @@ with sync_playwright() as pw:
                 page.evaluate("()=>{location.hash='#pagos';}"); page.wait_for_timeout(450)
                 if args.out: page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-pagos-390.png'))
 
+            # US-622: con enlace de token las novedades vienen en cero, pero el pago vencido se calcula del plan
+            if modo == 'token':
+                venc = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(datos.novedades||{}));
+                  datos.novedades={fotos:0,documentos:0,pagos_vencidos:0,proximo_pago_dias:null,ultimo_visto_at:null};
+                  novedadesVistas.clear();seccion='inicio';pintarSeccion();
+                  const delPlan=ctx.plan.filter(x=>x.vence&&x.vence<ctx.hoy&&Number(x.monto)-Number(x.cobrado||0)>0.5).length;
+                  const el=document.querySelector('#navCliente [data-k="pagos"]')||document.querySelector('#navClienteBottom [data-k="pagos"]');
+                  const r={delPlan:delPlan,calculado:pagosVencidos(),punto:!!(el&&el.querySelector('.nvs-badge')),
+                           nuevos:document.querySelectorAll('.chip.nuevo').length};
+                  datos.novedades=orig;novedadesVistas.clear();seccion='inicio';pintarSeccion();return r;}""")
+                print(tag, '| token sin novedades:', venc)
+                check(venc['calculado'] == venc['delPlan'], tag + ': los vencidos deberian salir del plan: ' + str(venc))
+                check(venc['punto'] == (venc['delPlan'] > 0), tag + ': el punto de Pagos no coincide con el plan: ' + str(venc))
+                check(venc['nuevos'] == 0, tag + ': sin ultimo_visto_at no deberia haber etiquetas «Nuevo»: ' + str(venc))
+
             if args.out:
                 page.evaluate("()=>{location.hash='#inicio';}"); page.wait_for_timeout(400)
                 page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-' + str(ancho) + '.png'))
             ctx.close()
+
+    # US-622: los enlaces de obra reales de la empresa 1 (uno activo y dos revocados)
+    extra = [t for t in (os.environ.get('PORTAL_QA_TOKENS_EMP1', '') or '').split(',') if t.strip()]
+    for i, tk in enumerate(extra):
+        tk = tk.strip()
+        ctx = pw.chromium.launch().new_context(viewport={'width': 1440, 'height': 900}, locale='es-MX')
+        page = ctx.new_page()
+        tag = 'emp1#' + str(i + 1)
+        page.on('console', lambda m, tg=tag: errores.append(tg + ' console.error: ' + m.text) if m.type == 'error' and 'ERR_CONNECTION' not in m.text else None)
+        page.on('pageerror', lambda e, tg=tag: errores.append(tg + ' pageerror: ' + str(e)))
+        page.goto(args.portal + '?t=' + tk, wait_until='domcontentloaded')
+        page.wait_for_timeout(3500)
+        r = page.evaluate("""()=>({vista:!!document.querySelector('#vista .card'),
+          barra:[...document.querySelectorAll('#navCliente .nvs-item')].map(b=>b.dataset.k),
+          error:(document.querySelector('#app')||{}).innerText||'',
+          texto:document.body.innerText.slice(0,80)})""")
+        print(tag, '->', 'portal abierto' if r['vista'] else 'sin portal', '|', r['texto'].replace(chr(10), ' ')[:60])
+        if r['vista']:
+            check(r['barra'] == SECCIONES, tag + ': el enlace activo deberia traer las 6 secciones: ' + str(r['barra']))
+        else:
+            check(len(r['error'].strip()) > 20, tag + ': un enlace revocado deberia explicar el problema, no quedarse en blanco: ' + repr(r['error'][:60]))
+        ctx.close()
 
 print('')
 print('== errores de consola ==')

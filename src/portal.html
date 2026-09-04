@@ -477,12 +477,21 @@ const SEC_ICONO = { inicio: 'inicio', avance: 'avance', pagos: 'pagos', entregab
 // Secciones cuyo aviso ya se vio en esta sesión (el servidor ya movió ultimo_visto_at al pedir los datos)
 const novedadesVistas = new Set();
 function novedades() { return (datos && datos.novedades) || {}; }
+// Con enlace de token el servidor manda las novedades en cero (no hay visita anterior que comparar), pero el pago
+// vencido no depende de la visita: sale del plan de pagos, así que se cuenta aquí (US-622).
+function pagosVencidos() {
+  const n = Number(novedades().pagos_vencidos);
+  if (n > 0) return n;
+  if (!ctx) return 0;
+  return ctx.plan.filter(x => x.vence && x.vence < ctx.hoy && Number(x.monto) - Number(x.cobrado || 0) > 0.5).length;
+}
 function avisoDeSeccion(s) {
   const n = novedades();
   if (novedadesVistas.has(s)) return {};
-  if (s === 'pagos' && Number(n.pagos_vencidos) > 0) {
-    const v = Number(n.pagos_vencidos);
-    return { badge: true, badgeAria: v + (v === 1 ? ' pago vencido' : ' pagos vencidos') };
+  if (s === 'pagos') {
+    const v = pagosVencidos();
+    if (v > 0) return { badge: true, badgeAria: v + (v === 1 ? ' pago vencido' : ' pagos vencidos') };
+    return {};
   }
   if (s === 'entregables' && Number(n.documentos) > 0) return { badge: Number(n.documentos), badgeAria: n.documentos + ' nuevos' };
   if (s === 'fotos' && Number(n.fotos) > 0) return { badge: Number(n.fotos), badgeAria: n.fotos + ' nuevas' };
