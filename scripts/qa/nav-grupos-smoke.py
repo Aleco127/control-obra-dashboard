@@ -49,7 +49,7 @@ with sync_playwright() as pw:
             bc = page.evaluate("()=>({cat:document.getElementById('breadcrumbCat').textContent.trim(),page:document.getElementById('breadcrumbPage').textContent.trim(),flecha:document.getElementById('breadcrumbCat').nextElementSibling.hidden})")
             check(bc['cat'] == grupo and bc['page'] == label, f'app{ancho} {k}: breadcrumb {bc}')
             check(bc['flecha'] == (grupo == ''), f'app{ancho} {k}: flecha del breadcrumb oculta={bc["flecha"]}')
-            activo = page.evaluate("()=>[...document.querySelectorAll('#nv .nav-item[aria-current=\"page\"]')].map(b=>b.getAttribute('aria-label')||b.textContent.trim())")
+            activo = page.evaluate("()=>[...document.querySelectorAll('#nv [data-k][aria-current=\"page\"]')].map(b=>(b.querySelector('.nvs-tx')||b).textContent.trim())")
             check(label in activo, f'app{ancho} {k}: activo en la barra {activo}')
             if k == 'cb':
                 h1 = page.evaluate("()=>(document.querySelector('#c h1')||{}).textContent||''").strip()

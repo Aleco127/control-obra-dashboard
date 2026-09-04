@@ -255,31 +255,12 @@ async function massDeleteNomina(){
 
 <!-- ========== APP SCREEN ========== -->
 <div id="appScreen">
-<aside id="sb" class="sb hidden md:flex md:w-56 h-screen g fixed p-3 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
-<div class="lg flex items-center gap-3 p-2 mb-4">
-<div id="brandIcon" class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shrink-0 shadow-md overflow-hidden">
-<i class="ri-building-4-fill text-lg text-white"></i>
+<aside id="sb" class="sb hidden md:flex md:w-56 h-screen g fixed p-2 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
+<div class="md:hidden flex justify-end">
+<button type="button" onclick="closeMobileMenu()" class="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú"><i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i></button>
 </div>
-<div class="tx flex-1">
-<span id="brandName" class="font-bold n text-base tracking-tight truncate block max-w-[150px]">Control de Obra</span>
-<p class="text-[10px] text-slate-400 font-medium">Control de Obra v3</p>
-</div>
-<button type="button" onclick="Ayuda.abrir()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Ayuda" title="Ayuda"><i class="ri-question-line text-lg text-slate-600" aria-hidden="true"></i></button>
-<button onclick="closeMobileMenu()" class="md:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú">
-<i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i>
-</button>
-</div>
-<nav id="nv" class="flex-1 overflow-y-auto pr-1" aria-label="Módulos"></nav>
-<div class="border-t border-slate-200 pt-4 mt-2 space-y-2">
-<button onclick="tgSb()" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm md:text-xs text-slate-500 hover:bg-slate-100 transition-colors">
-<i id="cic" class="ri-arrow-left-s-line text-lg md:text-sm"></i>
-<span class="tx">Colapsar menú</span>
-</button>
-<button onclick="doLogout()" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm md:text-xs text-red-500 hover:bg-red-50 transition-colors">
-<i class="ri-logout-box-line text-lg md:text-sm"></i>
-<span class="tx">Cerrar sesión</span>
-</button>
-</div>
+<!-- US-607: NavShell (js/nav-shell.js) pinta aquí la marca, «Mi trabajo», los grupos y el pie (Buscar, Ayuda, Colapsar, Cerrar sesión). Modelo en navModelo(). -->
+<nav id="nv" class="flex-1 overflow-y-auto" aria-label="Módulos"></nav>
 </aside>
 <div id="mobileOverlay" onclick="closeMobileMenu()"></div>
 
@@ -970,7 +951,7 @@ sb=wrapReadOnly(supabase.createClient(SB,SK,{global:{headers:{'x-obra-token':tok
 }
 // ===== MODO LECTURA (baja programada o suscripción vencida): bloquea escrituras desde el cliente =====
 window.READ_ONLY=false;window.READ_ONLY_MOTIVO='';
-const READ_ONLY_RPC_OK=new Set(['validar_sesion','cerrar_sesion','cancelar_baja_empresa','solicitar_baja_empresa','load_all_data_seguro','load_secondary_data_seguro','get_empresa_config','get_email_log','log_client_error','cambiar_password_usuario','update_user_password']);
+const READ_ONLY_RPC_OK=new Set(['validar_sesion','cerrar_sesion','cancelar_baja_empresa','solicitar_baja_empresa','load_all_data_seguro','load_secondary_data_seguro','get_empresa_config','get_email_log','log_client_error','cambiar_password_usuario','update_user_password','guardar_nav_prefs']);
 function readOnlyFake(){const err={message:'La cuenta está en modo lectura: '+(window.READ_ONLY_MOTIVO||'sin cambios permitidos'),code:'MODO_LECTURA'};if(typeof Toast!=='undefined')Toast.warning(err.message,4000);const fake=new Proxy(function(){},{get:(t,p)=>p==='then'?(res)=>res({data:null,error:err,count:null}):()=>fake,apply:()=>fake});return fake;}
 function wrapReadOnly(client){
 const from=client.from.bind(client);
@@ -1333,14 +1314,16 @@ async function loadBrand(){
   configData.empresa=Object.assign({},configData.empresa,{nombre});
   try{aplicarEstadoVerificacion();}catch(e){}
   document.title=nombre+' · Control de Obra';
-  const b=$('brandName');if(b)b.textContent=nombre;
+  if(typeof N==='function'&&$('nv')){N.dirty=true;N();}
   try{
     const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web,baja_programada_at,datos_pago').eq('id',currentUser.empresa_id).maybeSingle();
     if(data){
       currentUser.baja_programada_at=data.baja_programada_at||null;
       aplicarEstadoBaja();
       configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||'',datos_pago:data.datos_pago||null});
-      if(data.logo_url){const ic=$('brandIcon');if(ic){const im=new Image();im.alt='';im.className='w-10 h-10 rounded-xl object-cover';im.onload=()=>{ic.innerHTML='';ic.appendChild(im);};im.onerror=()=>{};im.src=data.logo_url;}}
+      if(typeof N==='function'&&$('nv')){N.dirty=true;N();}
+      // El logo sólo llega a la marca de la barra si de verdad carga (el bucket puede responder 400/ORB); si no, NavShell pinta el ícono por omisión
+      if(data.logo_url){const im=new Image();im.onload=()=>{configData.empresa.logo_ok=data.logo_url;if(typeof N==='function'&&$('nv')){N.dirty=true;N();}};im.onerror=()=>{};im.src=data.logo_url;}
     }
   }catch(e){}
 }
@@ -2101,7 +2084,7 @@ if($('tm'))$('tm').textContent=now.toLocaleTimeString('es-MX',{hour:'2-digit',mi
 }
 let updTimeInterval=setInterval(updTime,1000);updTime();
 
-function tgSb(){const s=$('sb'),m=$('mn'),i=$('cic');s.classList.toggle('col');m.style.marginLeft=s.classList.contains('col')?'64px':'224px';i.className=s.classList.contains('col')?'ri-arrow-right-s-line':'ri-arrow-left-s-line';if(window.innerWidth<=768)closeMobileMenu();}
+function tgSb(){const s=$('sb'),m=$('mn');s.classList.toggle('col');const col=s.classList.contains('col');m.style.marginLeft=col?'64px':'224px';N.dirty=true;N();if(window.innerWidth<=768)closeMobileMenu();}
 function tgMb(){
 const sb=$('sb'),ov=$('mobileOverlay');
 if(window.innerWidth<=768){
@@ -2358,6 +2341,7 @@ else secData=data;
 
 // Asignar datos principales
 D.o=mainData.obras||[];
+if(typeof NavPrefs!=='undefined')NavPrefs.setServidor(mainData.nav_prefs);
 if(typeof Suscripcion!=='undefined')Suscripcion.cargar().then(()=>{if(typeof Onboarding!=='undefined')setTimeout(()=>Onboarding.iniciar(),800);});
 D.e=mainData.empleados||[];
 D.g=mainData.gastos||[];
@@ -2470,6 +2454,7 @@ console.warn('⚠️ Error en refresh:',error||mainData?.error);
 return;
 }
 let hasChanges=false;
+if(typeof NavPrefs!=='undefined'&&NavPrefs.setServidor(mainData.nav_prefs)&&$('nv')){N.dirty=true;N();}
 if(mainData.obras&&mainData.obras.length!==D.o.length){D.o=mainData.obras;hasChanges=true;}
 if(mainData.gastos&&mainData.gastos.length!==D.g.length){D.g=mainData.gastos;hasChanges=true;}
 if(mainData.ordenes_compra&&mainData.ordenes_compra.length!==D.oc.length){D.oc=mainData.ordenes_compra;hasChanges=true;}
@@ -2731,42 +2716,70 @@ if(!isModuloEnabled(key))return false;
 if(typeof NavRules==='undefined')return false;
 return NavRules.moduloVisible(key,currentUser);
 }
-function N(){
-inicializarColapsoNav();
-const empId=currentUser?.empresa_id;
-const ordenesPendientes=(D.oc||[]).filter(x=>x.estatus==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
-const gastosPendientes=(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
-
-$('nv').innerHTML=favoritosHtml()+sec.map(s=>{
-// US-606: empresa_modulos y candados por nivel (isModuloEnabled) y luego la tabla por rol (NavRules, sustituye a permMap)
-const items=s.i.filter(([key])=>moduloVisibleParaUsuario(key));
-if(items.length===0)return '';
-
-const isCollapsed=collapsedCats[s.k];
-const hasActiveItem=items.some(x=>M===x[0]);
-const itemCount=items.length;
-
-return `<div class="cat-section cat-${s.k}">
-<div class="cat-header ${isCollapsed?'collapsed':''}" onclick="toggleCat('${s.k}')">
-<div class="cat-icon"><i class="${s.ic}"></i></div>
-<span class="tx text-sm font-semibold text-white tracking-wide">${s.t}</span>
-${hasActiveItem&&isCollapsed?'<span class="badge badge-new tx">1</span>':''}
-<i class="ri-arrow-down-s-line cat-chevron text-gray-500 tx"></i>
-</div>
-<div class="cat-items ${isCollapsed?'collapsed':''}" style="max-height:${itemCount*70}px">
-${items.map(x=>{
-let badge='';
-if(x[0]==='x'&&ordenesPendientes>0)badge=`<span class="badge badge-red">${ordenesPendientes}</span>`;
-if(x[0]==='g'&&gastosPendientes>0)badge=`<span class="badge badge-amber">${gastosPendientes}</span>`;
-const label=getModuloLabel(x[0],x[2]);
-return `<button onclick="M='${x[0]}';if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}R();closeMobileMenu()" class="nav-item w-full ${M===x[0]?'active':'text-gray-400'}" ${M===x[0]?'aria-current="page"':''} aria-label="${label}">
-<i class="${x[1]}" aria-hidden="true"></i><span class="tx">${label}</span>${badge}
-</button>`;
-}).join('')}
-</div>
-</div>`;
-}).join('');
+// ========== US-607: BARRA DE MÓDULOS CON NavShell ==========
+// Preferencias de navegación del usuario (obra_usuarios.nav_prefs, migración 056): fijados, colapsados, barra_colapsada.
+// Caché en localStorage por usuario para pintar sin esperar la red; el servidor manda cuando responde load_all_data_seguro.
+const NavPrefs=(()=>{
+let prefs=null,version=0,pendiente=null;
+const KEY=()=>'nav_prefs:'+((currentUser&&currentUser.id)||'anon');
+const limpiar=p=>{const o={};if(!p||typeof p!=='object')return o;if(Array.isArray(p.fijados))o.fijados=p.fijados.filter(k=>typeof k==='string').slice(0,6);if(p.colapsados&&typeof p.colapsados==='object'&&!Array.isArray(p.colapsados))o.colapsados=Object.fromEntries(Object.entries(p.colapsados).filter(([k,v])=>/^[a-z][a-z0-9_]{0,31}$/.test(k)&&typeof v==='boolean'));if(typeof p.barra_colapsada==='boolean')o.barra_colapsada=p.barra_colapsada;return o;};
+function get(){if(prefs)return prefs;try{prefs=limpiar(JSON.parse(localStorage.getItem(KEY())||'{}'));}catch(e){prefs={};}return prefs;}
+// Devuelve true si lo que llegó del servidor difiere de lo que ya se tenía (para repintar)
+function setServidor(p){if(!p||typeof p!=='object')return false;const nuevo=limpiar(p);const cambio=JSON.stringify(nuevo)!==JSON.stringify(get());prefs=nuevo;version++;try{localStorage.setItem(KEY(),JSON.stringify(prefs));}catch(e){}return cambio;}
+// Guarda el objeto completo (el RPC reemplaza, no parcha) con un reintento si falla la red
+async function guardar(cambios){
+prefs=limpiar(Object.assign({},get(),cambios||{}));
+try{localStorage.setItem(KEY(),JSON.stringify(prefs));}catch(e){}
+if(!currentUser||!currentUser.token||typeof sb==='undefined'||!sb)return prefs;
+const enviar=async()=>{const{data,error}=await sb.rpc('guardar_nav_prefs',{p_prefs:prefs});if(error)throw error;if(data&&data.success===false)throw new Error(data.error||'No se pudo guardar');return data;};
+pendiente=(async()=>{try{await enviar();}catch(e1){try{await new Promise(r=>setTimeout(r,1500));await enviar();}catch(e2){console.warn('[NavPrefs] no se guardó en el servidor:',(e2&&e2.message)||e2);if(typeof Toast!=='undefined'&&typeof humanizeError==='function')Toast.warning(humanizeError(e2,'guardar tus preferencias de la barra'),4000);}}})();
+return pendiente;
 }
+return{get,guardar,setServidor,get version(){return version;},get pendiente(){return pendiente;}};
+})();
+const NAV_COLAPSADOS_DEFECTO={contabilidad:true,administracion:true};
+const NAV_ROL_LABEL={admin_general:'Administrador',gerente_obra:'Gerente de obra',supervisor_general:'Supervisor',contador:'Contador',residente_obra:'Residente',contador_externo:'Contador externo',inspector_calidad:'Inspector de calidad',trabajador:'Trabajador'};
+function navColapsados(){const p=NavPrefs.get();return(p.colapsados&&typeof p.colapsados==='object')?p.colapsados:Object.assign({},NAV_COLAPSADOS_DEFECTO);}
+function navRolLabel(){const r=String(currentUser?.rol||'');return NAV_ROL_LABEL[r]||r.replace(/_/g,' ').replace(/^\w/,l=>l.toUpperCase());}
+// Clic en un módulo desde la barra (mismo efecto que el onclick de la barra vieja)
+function irAModulo(k){if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}M=k;R();closeMobileMenu();}
+// Modelo de NavShell.render para la constructora. Marca desde EMPRESA_INFO (nombre completo, hasta 2 líneas) con el usuario y su rol debajo;
+// visibilidad por empresa_modulos + NavRules (moduloVisibleParaUsuario); «Mi trabajo» provisional = los 4 más usados (US-608 lo vuelve fijado por el usuario).
+function navModelo(){
+const empId=currentUser?.empresa_id;
+const gastosPendientes=(D.g||[]).filter(x=>x.estatus_pago==='Pendiente'&&(!empId||x.empresa_id===empId)).length;
+const col=navColapsados();
+const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:it.k==='g'&&gastosPendientes>0?gastosPendientes:0}))}));
+const fav=modulosFavoritos(4);
+const fijados=fav.length>=2?fav.map(x=>x[0]):[];
+const colapsado=!!($('sb')&&$('sb').classList.contains('col'));
+const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
+return{
+modo:'constructora',prefijo:'nv',
+marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logo)?EMPRESA_INFO.logo:''},
+grupos,fijados,activo:M==='x'?'g':M,colapsado,
+acciones:[
+{k:'buscar',t:'Buscar',ic:'ri-search-line',onClick:'abrirCmdk()',atajo:'Ctrl+K'},
+{k:'ayuda',t:'Ayuda',ic:'ri-question-line',onClick:'Ayuda.abrir()'},
+{k:'colapsar',t:colapsado?'Expandir menú':'Colapsar menú',ic:colapsado?'ri-arrow-right-s-line':'ri-arrow-left-s-line',onClick:'tgSb()'},
+{k:'salir',t:'Cerrar sesión',ic:'ri-logout-box-line',onClick:'doLogout()',tono:'danger'}
+],
+onItem:"irAModulo('{k}')"
+};
+}
+// N(): repinta completo sólo cuando cambia la firma (marca, módulos visibles y sus etiquetas, badges, fijados, colapsado, acciones,
+// preferencias llegadas del servidor) o si alguien puso N.dirty=true; si sólo cambió M, NavShell.marcarActivo sobre el DOM existente
+// (conserva foco, scroll y grupos abiertos). R() la llama siempre; el build exige que la primera línea de R() no cambie.
+function N(){
+const nv=$('nv');if(!nv||typeof NavShell==='undefined'||typeof NAV_GRUPOS==='undefined')return;
+const modelo=navModelo();
+const firma=JSON.stringify([modelo.marca,modelo.grupos.map(g=>[g.k,g.items.map(it=>[it.k,it.t,it.badge||0,!!it.candado])]),modelo.fijados,modelo.colapsado,modelo.acciones.map(a=>a.t),NavPrefs.version]);
+if(!N.dirty&&N._firma===firma&&nv.querySelector('.nvs')){NavShell.marcarActivo(nv,modelo.activo);return;}
+nv.innerHTML=NavShell.render(modelo).aside;
+N._firma=firma;N.dirty=false;
+if(!nv._nvsGrupo){nv._nvsGrupo=true;nv.addEventListener('nvs:grupo',e=>{const k=e.detail&&e.detail.k;if(!k)return;const c=Object.assign({},navColapsados());c[k]=!e.detail.abierto;NavPrefs.guardar({colapsados:c});});}
+}
+N.dirty=true;
 
 function updateBreadcrumb(){
 const catEl=$('breadcrumbCat'),pageEl=$('breadcrumbPage');
