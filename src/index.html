@@ -1911,23 +1911,23 @@ return data.filter(x=>x[field]===empId);
 // ========== MODULOS CONFIG LOADER ==========
 // Cargar configuracion de modulos personalizada por empresa
 async function loadEmpresaModulosConfig(){
+// US-614: las columnas reales de empresa_modulos son enabled / custom_name / custom_icon / categoria_key / orden.
+// Antes se leían habilitado/label_custom (que no existen) y por eso la personalización de la empresa 6 nunca se aplicaba.
+// Sin fallback por tabla: el RPC ya valida la sesión y la RLS sólo deja ver la empresa propia.
 empresaModulosConfig={};
 if(!currentUser?.empresa_id)return;
-
 try{
-// Intentar cargar con funcion RPC
 const {data,error}=await sb.rpc('get_empresa_config',{p_empresa_id:currentUser.empresa_id});
-if(error){
-// Fallback: consultar directamente la tabla
-const{data:modulos}=await sb.from('empresa_modulos').select('*').eq('empresa_id',currentUser.empresa_id);
-if(modulos&&modulos.length>0){
-modulos.forEach(m=>{empresaModulosConfig[m.modulo_key]={habilitado:m.habilitado,label_custom:m.label_custom};});
-}
-return;
-}
-// Procesar respuesta del RPC
-if(data&&data.modulos){
-data.modulos.forEach(m=>{empresaModulosConfig[m.modulo_key]={habilitado:m.habilitado,label_custom:m.label_custom};});
+if(error){console.warn('[ModulosConfig] get_empresa_config:',error.message);return;}
+for(const m of (data&&data.modulos)||[]){
+if(!m||!m.modulo_key)continue;
+empresaModulosConfig[m.modulo_key]={
+enabled:m.enabled!==false,
+custom_name:m.custom_name||'',
+custom_icon:m.custom_icon||'',
+categoria_key:m.categoria_key||'',
+orden:Number.isFinite(Number(m.orden))?Number(m.orden):null
+};
 }
 }catch(e){
 console.warn('[ModulosConfig] Error cargando config:',e);
@@ -1939,17 +1939,25 @@ function isModuloEnabled(key){
 const _nv=currentUser?.nivel||0;
 if(key==='so'&&_nv<100)return false;
 if(key==='ci'&&_nv<45)return false;
-// Si no hay config, todos habilitados por defecto
-if(!empresaModulosConfig||Object.keys(empresaModulosConfig).length===0)return true;
-const config=empresaModulosConfig[key];
-if(!config)return true; // No configurado = habilitado
-return config.habilitado!==false;
+const config=empresaModulosConfig&&empresaModulosConfig[key];
+if(!config)return true;   // sin fila para la empresa = visible
+return config.enabled!==false;
 }
 
 // Obtener label personalizado de un modulo
 function getModuloLabel(key,defaultLabel){
-if(!empresaModulosConfig||!empresaModulosConfig[key])return defaultLabel;
-return empresaModulosConfig[key].label_custom||defaultLabel;
+const c=empresaModulosConfig&&empresaModulosConfig[key];
+return (c&&c.custom_name)||defaultLabel;
+}
+// Ícono e ítem ordenados por la empresa (US-614): sin fila, lo que diga NAV_GRUPOS
+function getModuloIcono(key,defaultIcon){
+const c=empresaModulosConfig&&empresaModulosConfig[key];
+const ic=c&&c.custom_icon;
+return /^ri-[a-z0-9-]+$/.test(String(ic||''))?ic:defaultIcon;
+}
+function getModuloOrden(key){
+const c=empresaModulosConfig&&empresaModulosConfig[key];
+return c&&Number.isFinite(c.orden)?c.orden:null;
 }
 
 // ========== OBRA FILTER FUNCTIONS ==========
@@ -2925,6 +2933,75 @@ if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('f
 if(typeof Telemetry!=='undefined')Telemetry.track('nav_click',{modulo:k,origen:origen||'grupo',colapsado:barraColapsada(),grupo:(NAV_GRUPOS.find(g=>g.items.some(i=>i.k===k))||{}).k||''});
 M=k;R();closeMobileMenu();
 }
+// ---- Configuración › Barra de módulos (US-614) ----
+// Estado en memoria mientras se edita; se guarda todo junto con guardar_empresa_modulos (nivel >= 100).
+let cfgBarraEstado=null;
+function cfgBarraCargarEstado(){
+cfgBarraEstado=[];
+for(const g of NAV_GRUPOS){
+g.items.forEach((it,i)=>{
+const c=(empresaModulosConfig&&empresaModulosConfig[it.k])||{};
+cfgBarraEstado.push({k:it.k,grupo:g.t||g.k,base:it.t,ic:it.ic,enabled:c.enabled!==false,nombre:c.custom_name||'',orden:Number.isFinite(c.orden)?c.orden:i});
+});
+}
+}
+function cfgBarraRender(){
+const cont=$('cfgBarra');if(!cont)return;
+if(!cfgBarraEstado)cfgBarraCargarEstado();
+const porGrupo={};
+for(const m of cfgBarraEstado)(porGrupo[m.grupo]=porGrupo[m.grupo]||[]).push(m);
+const fila=(m,i,n)=>`<tr data-k="${m.k}">
+<td class="py-1.5 pr-2"><label class="zk-switch"><input type="checkbox" ${m.enabled?'checked':''} onchange="cfgBarraSet('${m.k}','enabled',this.checked)" aria-label="Mostrar ${S(m.base)}"><span class="zk-slider"></span></label></td>
+<td class="py-1.5 pr-2"><i class="${S(m.ic||'ri-apps-line')}" aria-hidden="true"></i></td>
+<td class="py-1.5 pr-2 text-xs text-ink-subtle">${S(m.base)}</td>
+<td class="py-1.5 pr-2"><input class="inp text-sm" style="min-width:150px" value="${S(m.nombre)}" maxlength="40" placeholder="${S(m.base)}" oninput="cfgBarraSet('${m.k}','nombre',this.value)" aria-label="Nombre para ${S(m.base)}"></td>
+<td class="py-1.5 text-right whitespace-nowrap">
+<button type="button" class="btn btn-s" ${i===0?'disabled':''} onclick="cfgBarraMover('${m.k}',-1)" aria-label="Subir ${S(m.base)}"><i class="ri-arrow-up-line" aria-hidden="true"></i></button>
+<button type="button" class="btn btn-s" ${i===n-1?'disabled':''} onclick="cfgBarraMover('${m.k}',1)" aria-label="Bajar ${S(m.base)}"><i class="ri-arrow-down-line" aria-hidden="true"></i></button>
+</td></tr>`;
+cont.innerHTML=Object.entries(porGrupo).map(([g,ms])=>{
+ms.sort((a,b)=>a.orden-b.orden);
+return `<div class="mb-3"><p class="text-xs font-semibold text-ink-subtle uppercase tracking-wide mb-1">${S(g)}</p>
+<div class="table-wrap"><table class="w-full text-sm"><tbody>${ms.map((m,i)=>fila(m,i,ms.length)).join('')}</tbody></table></div></div>`;
+}).join('')
++`<div class="flex items-center gap-2 mt-3"><button type="button" class="btn btn-p text-sm" onclick="cfgBarraGuardar()"><i class="ri-save-line" aria-hidden="true"></i> Guardar la barra</button><span class="text-xs text-ink-subtle">Se aplica a todos los usuarios de la empresa.</span></div>`;
+}
+function cfgBarraSet(k,campo,valor){
+const m=(cfgBarraEstado||[]).find(x=>x.k===k);if(!m)return;
+m[campo]=valor;
+}
+function cfgBarraMover(k,d){
+const m=(cfgBarraEstado||[]).find(x=>x.k===k);if(!m)return;
+const hermanos=cfgBarraEstado.filter(x=>x.grupo===m.grupo).sort((a,b)=>a.orden-b.orden);
+const i=hermanos.indexOf(m),j=i+d;
+if(j<0||j>=hermanos.length)return;
+const o=hermanos[i].orden;hermanos[i].orden=hermanos[j].orden;hermanos[j].orden=o;
+if(hermanos[i].orden===hermanos[j].orden)hermanos.forEach((x,n)=>{x.orden=n;});
+cfgBarraRender();
+}
+async function cfgBarraGuardar(){
+if(!cfgBarraEstado)return;
+const payload=cfgBarraEstado.map(m=>({modulo_key:m.k,enabled:!!m.enabled,custom_name:(m.nombre||'').trim(),orden:m.orden}));
+try{
+const{data,error}=await sb.rpc('guardar_empresa_modulos',{p_modulos:payload});
+if(error)throw error;
+if(data&&data.success===false)throw new Error(data.error||'No se pudo guardar');
+await loadEmpresaModulosConfig();
+cfgBarraEstado=null;
+Cache.clear();
+N.dirty=true;R();
+Toast.success('La barra de módulos se actualizó para toda la empresa');
+if(typeof Telemetry!=='undefined')Telemetry.track('barra_config_guardada',{modulos:payload.length});
+}catch(e){
+Toast.error(humanizeError(e,'guardar la barra de módulos'));
+}
+}
+async function cfgBarraReset(){
+if(!await Dialog.confirm({title:'Volver a los nombres de fábrica',body:'Se quitan los nombres y el orden que hayas puesto, y todos los módulos vuelven a estar visibles. ¿Continuar?',confirmText:'Restablecer'}))return;
+cfgBarraCargarEstado();
+cfgBarraEstado.forEach((m,i)=>{m.enabled=true;m.nombre='';m.orden=i;});
+await cfgBarraGuardar();
+}
 // ---- Teclado de la barra (US-612) ----
 // Roving tabindex sobre los elementos de navegación (ítems, cabeceras de grupo y «Más»): la barra entera es un solo
 // tab stop y las flechas recorren lo que se ve. La tarjeta de obra y el pie quedan fuera, con su tabulación normal;
@@ -3101,7 +3178,12 @@ cont.innerHTML=(t?'':'<button type="button" class="nvs-pop-item" role="option" d
 function navModelo(){
 const col=navColapsados();
 const badges=navBadges();
-const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{abierto:!col[g.k],items:g.items.map(it=>{const lock=navCandado(it.k);return Object.assign({},it,{t:getModuloLabel(it.k,it.t),badge:badges[it.k]||0,candado:lock,candadoTexto:lock?NAV_PLAN_AVISO:''});})}));
+const grupos=NavShell.visibles(NAV_GRUPOS,it=>moduloVisibleParaUsuario(it.k)).map(g=>Object.assign({},g,{
+abierto:!col[g.k],
+// US-614: etiqueta, ícono y orden los puede cambiar la empresa; sin fila manda NAV_GRUPOS (orden natural al final)
+items:g.items.map((it,i)=>{const lock=navCandado(it.k);const o=getModuloOrden(it.k);return Object.assign({},it,{t:getModuloLabel(it.k,it.t),ic:getModuloIcono(it.k,it.ic),badge:badges[it.k]||0,candado:lock,candadoTexto:lock?NAV_PLAN_AVISO:'',_ord:o===null?1000+i:o});})
+.sort((a,b)=>a._ord-b._ord)
+}));
 const fijados=navFijados();
 const colapsado=barraColapsada()&&window.innerWidth>=768;   // el modo colapsado es de escritorio: en móvil la barra va completa
 const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
@@ -8786,6 +8868,7 @@ localStorage.setItem('obra_config',JSON.stringify(configData));
 function Cf(c){
 const nivel=currentUser?.nivel||0;
 if(typeof Suscripcion!=='undefined')setTimeout(()=>Suscripcion.facturas(),50);
+if(nivel>=100)setTimeout(()=>cfgBarraRender(),60);
 const canEdit=nivel>=80; // Solo admin puede editar
 
 c.innerHTML=`
@@ -8829,6 +8912,8 @@ ${renderCategoriasDB()}
 
 <!-- Finanzas (US-121, US-127) -->
 ${nivel>=100?`<div class="g rounded-xl p-4"><h3 class="font-bold text-sm mb-1"><i class="ri-funds-line n"></i> Finanzas</h3><p class="text-xs text-ink-subtle mb-3">Prorrateo de indirectos, reservas antes de repartir utilidades y base del estado de resultados.</p><div id="cfgFinanzas">${typeof Socios!=='undefined'?Socios.configHtml():''}</div></div>`:''}
+<!-- Barra de módulos (US-614) -->
+${nivel>=100?`<div class="g rounded-xl p-4"><div class="flex items-center justify-between mb-1"><h3 class="font-bold text-sm"><i class="ri-layout-left-line n"></i> Barra de módulos</h3><button type="button" class="text-xs text-cyan-400 hover:underline" onclick="cfgBarraReset()"><i class="ri-refresh-line"></i> Volver a los nombres de fábrica</button></div><p class="text-xs text-ink-subtle mb-3">Oculta o renombra los módulos para todo tu equipo y decide en qué orden aparecen dentro de su grupo.</p><div id="cfgBarra"></div></div>`:''}
 <!-- Preferencias -->
 <div class="g rounded-xl p-4">
 <h3 class="font-bold text-sm mb-4"><i class="ri-equalizer-line text-purple-400"></i> Preferencias</h3>
