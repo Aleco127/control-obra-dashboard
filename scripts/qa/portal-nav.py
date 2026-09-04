@@ -1,0 +1,121 @@
+# -*- coding: utf-8 -*-
+"""
+portal-nav.py (US-617, US-622): el portal del cliente en 6 secciones con ruta (build local en dist/).
+Comprueba, con sesión de cuenta y con enlace de token: las 6 rutas (#inicio #avance #pagos #entregables #fotos
+#contacto) pintan contenido, el hash desconocido cae en #inicio, cambiar de sección NO vuelve a pedir portal_datos,
+document.title lleva la sección y el nombre de la obra, «Ver entregables» desde Avance salta a #entregables con
+scroll, y el enlace de token no muestra selector de obra ni acciones de cuenta. Cero errores de consola.
+
+Uso: PORTAL_QA_TOKEN (sesión de cuenta, 64 hex) y PORTAL_QA_OBRA_TOKEN (enlace de obra, 48 hex) en el entorno.
+  PYTHONIOENCODING=utf-8 python scripts/qa/portal-nav.py --portal http://127.0.0.1:8765/portal.html
+"""
+import argparse, json, os, sys
+from playwright.sync_api import sync_playwright
+
+ap = argparse.ArgumentParser()
+ap.add_argument('--portal', default='http://127.0.0.1:8765/portal.html')
+ap.add_argument('--out', default='')
+args = ap.parse_args()
+TS = os.environ.get('PORTAL_QA_TOKEN', '')
+TT = os.environ.get('PORTAL_QA_OBRA_TOKEN', '')
+if not TS and not TT:
+    print('Faltan PORTAL_QA_TOKEN / PORTAL_QA_OBRA_TOKEN en el entorno'); sys.exit(2)
+if args.out: os.makedirs(args.out, exist_ok=True)
+
+SECCIONES = ['inicio', 'avance', 'pagos', 'entregables', 'fotos', 'contacto']
+errores, fallos = [], []
+def check(cond, msg):
+    if not cond: fallos.append(msg)
+
+def abrir(pw, modo, ancho, alto):
+    tag = modo + str(ancho)
+    ctx = pw.chromium.launch().new_context(viewport={'width': ancho, 'height': alto}, locale='es-MX', is_mobile=ancho < 768, has_touch=ancho < 768)
+    page = ctx.new_page()
+    page.on('console', lambda m: errores.append(tag + ' console.error: ' + m.text) if m.type == 'error' and 'ERR_CONNECTION' not in m.text else None)
+    page.on('pageerror', lambda e: errores.append(tag + ' pageerror: ' + str(e)))
+    url = args.portal + ('?t=' + TT if modo == 'token' else '')
+    page.goto(url, wait_until='domcontentloaded')
+    if modo == 'cuenta':
+        page.evaluate("t=>localStorage.setItem('portal_sesion',t)", TS)
+        page.goto(url, wait_until='domcontentloaded')
+    page.wait_for_function("()=>document.querySelector('#vista')&&document.querySelector('#vista').children.length>0", timeout=60000)
+    page.wait_for_timeout(600)
+    return ctx, page
+
+with sync_playwright() as pw:
+    for modo, token in (('cuenta', TS), ('token', TT)):
+        if not token:
+            print('(sin token para el modo ' + modo + ', se omite)'); continue
+        for ancho, alto in ((1440, 900), (390, 844)):
+            ctx, page = abrir(pw, modo, ancho, alto)
+            tag = modo + ' ' + str(ancho)
+
+            # Contar llamadas a portal_datos: cambiar de sección no debe pedir datos otra vez
+            page.evaluate("()=>{window.__rpc=[];const of=window.fetch;window.fetch=(u,o)=>{try{const b=JSON.parse((o&&o.body)||'{}');if(String(u).includes('/rpc/'))window.__rpc.push(String(u).split('/rpc/')[1]);}catch(e){}return of(u,o);};}")
+
+            vistas = {}
+            for s in SECCIONES:
+                page.evaluate("s=>{location.hash='#'+s;}", s)
+                page.wait_for_timeout(450)
+                v = page.evaluate("""()=>({sec:seccion,hash:location.hash,titulo:document.title,
+                  hijos:document.querySelector('#vista').children.length,
+                  texto:document.querySelector('#vista').innerText.trim().length,
+                  activa:(document.querySelector('.sec-btn.activa')||{}).textContent||'',
+                  cur:document.querySelectorAll('#navSecciones [aria-current="page"]').length})""")
+                vistas[s] = v
+                check(v['sec'] == s, tag + ': #' + s + ' no cambio de seccion: ' + str(v))
+                check(v['hijos'] > 0 and v['texto'] > 40, tag + ': la seccion ' + s + ' quedo vacia: ' + str(v))
+                check(v['cur'] == 1, tag + ': deberia haber un solo aria-current en el menu de secciones (' + s + ')')
+                check(v['titulo'].split(' · ')[0].lower().startswith(s[:4]) or s == 'entregables' and 'Entregables' in v['titulo'],
+                      tag + ': document.title de ' + s + ' = ' + str(v['titulo']))
+            print(tag, '| titulos:', [vistas[s]['titulo'] for s in ('inicio', 'pagos')])
+
+            # Hash desconocido cae en inicio
+            page.evaluate("()=>{location.hash='#loquesea';}")
+            page.wait_for_timeout(450)
+            check(page.evaluate("()=>seccion") == 'inicio', tag + ': un hash desconocido deberia caer en inicio')
+
+            # Ninguna de esas navegaciones pidió portal_datos otra vez
+            rpcs = page.evaluate("()=>window.__rpc")
+            datos = [r for r in rpcs if 'portal_datos' in r or 'portal_payload' in r]
+            print(tag, '| rpc durante la navegacion:', sorted(set(rpcs)))
+            check(not datos, tag + ': cambiar de seccion volvio a pedir datos: ' + str(datos))
+
+            # Desde Avance, «ver entregables» salta a #entregables
+            page.evaluate("()=>{location.hash='#avance';}")
+            page.wait_for_timeout(450)
+            tiene = page.evaluate("()=>!!document.querySelector('#vista .ver')")
+            if tiene:
+                page.evaluate("()=>document.querySelector('#vista .ver').click()")
+                page.wait_for_timeout(700)
+                check(page.evaluate("()=>seccion") == 'entregables', tag + ': el boton de entregables no cambio de seccion')
+                check(page.evaluate("()=>!!document.querySelector('#vista .grupo')"), tag + ': no se pinto ningun bloque de entrega')
+            else:
+                print(tag, '| (esta obra no tiene entregables ligados a actividades)')
+
+            # Enlace de token: sin selector de obra ni acciones de cuenta
+            if modo == 'token':
+                page.evaluate("()=>{location.hash='#contacto';}")
+                page.wait_for_timeout(450)
+                t = page.evaluate("""()=>({sel:!!document.querySelector('#selObra'),
+                  pass:document.body.innerText.includes('Cambiar mi contraseña'),
+                  salir:!!document.querySelector('header .txt'),
+                  privado:document.body.innerText.includes('enlace es privado')})""")
+                print(tag, '| token:', t)
+                check(not t['sel'], tag + ': el enlace de token no deberia traer selector de obra')
+                check(not t['pass'] and not t['salir'], tag + ': el enlace de token no deberia ofrecer cuenta: ' + str(t))
+                check(t['privado'], tag + ': falta el aviso de enlace privado en Contacto')
+
+            if args.out:
+                page.evaluate("()=>{location.hash='#inicio';}"); page.wait_for_timeout(400)
+                page.screenshot(path=os.path.join(args.out, 'portal-' + modo + '-' + str(ancho) + '.png'))
+            ctx.close()
+
+print('')
+print('== errores de consola ==')
+for e in errores: print(' -', e)
+print('== fallos ==')
+for f in fallos: print(' -', f)
+print('')
+print('RESULTADO:', 'OK' if not errores and not fallos else 'FALLA')
+sys.exit(0 if not errores and not fallos else 1)
