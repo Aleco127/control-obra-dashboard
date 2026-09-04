@@ -75,10 +75,14 @@ const NavShell = (() => {
     return LOGO_DEFECTO;
   }
 
-  // onclick de un ítem: string con {k} o función (k, item) → string. Sin onItem, el anfitrión delega por [data-k].
-  function handler(on, k, obj) {
-    if (typeof on === 'function') { const r = on(k, obj); return r ? ` onclick="${esc(r)}"` : ''; }
-    if (typeof on === 'string' && on) return ` onclick="${esc(on.split('{k}').join(k))}"`;
+  /**
+   * onclick de un ítem: string con {k} y {origen}, o función (k, item, origen) → string.
+   * Sin onItem, el anfitrión delega por [data-k]. `origen` (US-615) dice desde qué superficie se tocó:
+   * fijado | grupo | flyout | bottom | hoja.
+   */
+  function handler(on, k, obj, origen) {
+    if (typeof on === 'function') { const r = on(k, obj, origen); return r ? ` onclick="${esc(r)}"` : ''; }
+    if (typeof on === 'string' && on) return ` onclick="${esc(on.split('{k}').join(k).split('{origen}').join(origen || 'grupo'))}"`;
     return '';
   }
 
@@ -140,7 +144,8 @@ const NavShell = (() => {
       const avisoLock = it.candado ? (it.candadoTexto || 'No incluido en tu plan') : '';
       const aria = t + badgeTexto(it.badge) + (avisoLock ? ' (' + esc(avisoLock) + ')' : '');
       const title = col ? ` title="${aria}"` : (avisoLock ? ` title="${esc(avisoLock)}"` : '');
-      const btn = `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${o.fijado ? ' data-fijado="1"' : ''}${it.candado ? ' data-candado="1"' : ''} aria-label="${aria}"${title}${handler(m.onItem, k, it)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
+      const origen = o.origen || (o.fijado ? 'fijado' : o.bottom ? 'bottom' : col ? 'flyout' : 'grupo');
+      const btn = `<button type="button" class="nvs-item${extra ? ' ' + extra : ''}${esActivo ? ' active' : ''}${lock}"${cur} data-k="${k}"${o.fijado ? ' data-fijado="1"' : ''}${it.candado ? ' data-candado="1"' : ''} data-origen="${origen}" aria-label="${aria}"${title}${handler(m.onItem, k, it, origen)}>${icono(it.ic, modo)}<span class="nvs-tx">${t}</span>${it.candado ? `<span class="nvs-lock" aria-hidden="true">${CANDADO}</span>` : ''}${badgeHtml(it.badge)}</button>`;
       if (!m.onFijar || o.bottom) return btn;
       const etiq = `${fijado ? 'Quitar' : 'Fijar'} ${t} ${fijado ? 'de' : 'en'} ${tituloFij}`;
       const estrella = `<button type="button" class="nvs-fijar" data-fijar="${k}" aria-pressed="${fijado ? 'true' : 'false'}" aria-label="${etiq}" title="${etiq}"${handler(m.onFijar, k, it)}>${fijado ? ESTRELLA_ON : ESTRELLA_OFF}</button>`;
@@ -222,7 +227,8 @@ const NavShell = (() => {
       ? `<div class="nvs-pie">${acciones.map((a) => {
         const k = clave(a.k || 'accion');
         const t = esc(a.t || a.k);
-        return `<button type="button" class="nvs-accion${a.tono ? ' nvs-' + clave(a.tono) : ''}" data-accion="${k}" aria-label="${t}${a.atajo ? ' (' + esc(a.atajo) + ')' : ''}"${col ? ` title="${t}"` : ''}${a.onClick ? ` onclick="${esc(a.onClick)}"` : ''}>${icono(a.ic, modo)}<span class="nvs-tx">${t}</span>${a.atajo ? `<kbd class="nvs-kbd" aria-hidden="true">${esc(a.atajo)}</kbd>` : ''}</button>`;
+        // `campo: true` la pinta como un campo de búsqueda falso (US-615); sigue siendo un botón
+        return `<button type="button" class="nvs-accion${a.campo ? ' nvs-campo' : ''}${a.tono ? ' nvs-' + clave(a.tono) : ''}" data-accion="${k}" aria-label="${t}${a.atajo ? ' (' + esc(a.atajo) + ')' : ''}"${col ? ` title="${t}"` : ''}${a.onClick ? ` onclick="${esc(a.onClick)}"` : ''}>${icono(a.ic, modo)}<span class="nvs-tx">${t}</span>${a.atajo ? `<kbd class="nvs-kbd" aria-hidden="true">${esc(a.atajo)}</kbd>` : ''}</button>`;
       }).join('')}</div>`
       : '';
 
@@ -259,7 +265,7 @@ const NavShell = (() => {
     const sinEstrella = Object.assign({}, m, { onFijar: null });
     const item = fabricaItem(sinEstrella, modo, activo, false, fijSet, tituloFij);
     const titulo = esc(m.hojaTitulo || 'Módulos');
-    const rejilla = (items, opts) => `<div class="nvs-sheet-grid">${items.map((it) => item(it, opts && opts.fijado ? 'nvs-fijado' : '', opts)).join('')}</div>`;
+    const rejilla = (items, opts) => `<div class="nvs-sheet-grid">${items.map((it) => item(it, opts && opts.fijado ? 'nvs-fijado' : '', Object.assign({ origen: 'hoja' }, opts))).join('')}</div>`;
 
     const fij = conFijados(grupos, m.fijados);
     // La copia de «Mi trabajo» manda igual que en la barra: lleva aria-current y la del grupo queda limpia
