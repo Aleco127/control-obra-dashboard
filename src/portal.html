@@ -28,6 +28,10 @@
 .menu-item.activo{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .menu-item.peligro{color:var(--danger)}
 .menu-item:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+.aviso-pago{border-color:var(--accent)}
+.chip.nuevo{margin-left:6px;font-size:11px}
+.mini{position:relative;display:inline-block}
+.mini .nuevo{position:absolute;top:4px;left:4px;margin:0}
 .pc-obras{padding:0 var(--sp-3) var(--sp-2)}
 .pc-obras label{display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-subtle);margin-bottom:2px}
 .pc-obras select{width:100%;padding:8px 10px;font-size:14px;font-family:inherit;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink)}
@@ -233,10 +237,10 @@ function etiquetaVer(g){
   return f===1?'Ver la foto':'Ver las fotos';
 }
 function miniatura(f){
-  return `<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo||f.descripcion||'')} ${fecha(f.fecha)}"><img src="${esc(f.thumb||f.url)}" alt="${esc(f.titulo||'Foto de obra')}" loading="lazy"></a>`;
+  return `<a class="mini${esNuevo(f)?' es-nueva':''}" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo||f.descripcion||'')} ${fecha(f.fecha)}"><img src="${esc(f.thumb||f.url)}" alt="${esc(f.titulo||'Foto de obra')}" loading="lazy">${esNuevo(f)?'<span class="chip c-ok nuevo">Nuevo</span>':''}</a>`;
 }
 function filaDoc(x){
-  return `<div class="doc"><div><div>${esc(x.nombre)}</div><div class="meta">${esc(x.categoria||'')}${x.fecha?' · '+fecha(x.fecha):''}${(x.version&&Number(x.version)>1)?' · versión '+esc(x.version):''}${x.descripcion?' · '+esc(x.descripcion):''}</div></div><div>${(x.tiene_archivo||x.url)?`<button class="btn s xs" onclick="verDocumento(${x.id},this)">Abrir</button>`:'<span class="vacio">Sin archivo</span>'}</div></div>`;
+  return `<div class="doc"><div><div>${esc(x.nombre)} ${etiquetaNuevo(x)}</div><div class="meta">${esc(x.categoria||'')}${x.fecha?' · '+fecha(x.fecha):''}${(x.version&&Number(x.version)>1)?' · versión '+esc(x.version):''}${x.descripcion?' · '+esc(x.descripcion):''}</div></div><div>${(x.tiene_archivo||x.url)?`<button class="btn s xs" onclick="verDocumento(${x.id},this)">Abrir</button>`:'<span class="vacio">Sin archivo</span>'}</div></div>`;
 }
 function bloqueEntrega(id,titulo,fch,g,a){
   const hoy=new Date().toISOString().slice(0,10);
@@ -340,7 +344,11 @@ function vistaInicio() {
     : 'Tu constructor aún no comparte el programa de trabajo.';
   const ultimas = ctx.fotos.slice(0, 3);
   const ultimoDoc = ctx.docs[0];
-  return kpisHtml()
+  const dias = Number(novedades().proximo_pago_dias);
+  const avisoPago = (Number.isFinite(dias) && dias <= 7 && ctx.proximo)
+    ? `<div class="card aviso-pago"><h2>${dias < 0 ? 'Tienes un pago vencido' : dias === 0 ? 'Tu siguiente pago vence hoy' : 'Siguiente pago: vence en ' + dias + (dias === 1 ? ' día' : ' días')}</h2><p style="margin:0 0 8px"><strong>${esc(ctx.proximo.concepto)}</strong> · ${fmt(Number(ctx.proximo.monto) - Number(ctx.proximo.cobrado || 0))}</p><button class="btn s" onclick="irASeccion('pagos')">Ver pagos</button></div>`
+    : '';
+  return kpisHtml() + avisoPago
     + `<div class="card"><h2>Cómo va tu obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
       <div class="bar" aria-label="Avance ${ctx.avance}%"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
       <p style="margin:10px 0 0;font-size:14px">${linea}</p>
@@ -453,6 +461,7 @@ function pintarObra(d) {
 function pintarSeccion() {
   const cont = $('#vista');
   if (!cont || !ctx) return;
+  if (seccion === 'fotos' || seccion === 'entregables') novedadesVistas.add(seccion);
   const fn = { inicio: vistaInicio, avance: vistaAvance, pagos: vistaPagos, entregables: vistaEntregables, fotos: vistaFotos, contacto: vistaContacto }[seccion] || vistaInicio;
   cont.innerHTML = fn();
   aviso('');
@@ -465,9 +474,31 @@ function pintarSeccion() {
 // Barra del cliente con NavShell (US-618 escritorio, US-619 móvil). El menú de píldoras queda como respaldo
 // si el componente no cargó (el portal no debe quedarse sin navegación por un archivo que falte).
 const SEC_ICONO = { inicio: 'inicio', avance: 'avance', pagos: 'pagos', entregables: 'entregables', fotos: 'fotos', contacto: 'contacto' };
+// Secciones cuyo aviso ya se vio en esta sesión (el servidor ya movió ultimo_visto_at al pedir los datos)
+const novedadesVistas = new Set();
+function novedades() { return (datos && datos.novedades) || {}; }
+function avisoDeSeccion(s) {
+  const n = novedades();
+  if (novedadesVistas.has(s)) return {};
+  if (s === 'pagos' && Number(n.pagos_vencidos) > 0) {
+    const v = Number(n.pagos_vencidos);
+    return { badge: true, badgeAria: v + (v === 1 ? ' pago vencido' : ' pagos vencidos') };
+  }
+  if (s === 'entregables' && Number(n.documentos) > 0) return { badge: Number(n.documentos), badgeAria: n.documentos + ' nuevos' };
+  if (s === 'fotos' && Number(n.fotos) > 0) return { badge: Number(n.fotos), badgeAria: n.fotos + ' nuevas' };
+  return {};
+}
+// ¿Este elemento llegó después de la última visita? (created_at del payload contra ultimo_visto_at)
+function esNuevo(x) {
+  const visto = novedades().ultimo_visto_at;
+  const cuando = x && (x.creada || x.creado || x.created_at);
+  if (!visto || !cuando) return false;
+  return String(cuando) > String(visto);
+}
+function etiquetaNuevo(x) { return esNuevo(x) ? '<span class="chip c-ok nuevo">Nuevo</span>' : ''; }
 function navModeloCliente() {
   const e = ctx.e;
-  const grupos = [{ k: 'secciones', t: 'Tu obra', suelto: false, plano: true, items: SECCIONES.map(s => ({ k: s, t: SEC_TITULO[s], ic: SEC_ICONO[s] })) }];
+  const grupos = [{ k: 'secciones', t: 'Tu obra', suelto: false, plano: true, items: SECCIONES.map(s => Object.assign({ k: s, t: SEC_TITULO[s], ic: SEC_ICONO[s] }, avisoDeSeccion(s))) }];
   const acciones = [];
   if (sesion) {
     acciones.push({ k: 'password', t: 'Cambiar contraseña', ic: 'cuenta', onClick: 'pantallaPassword(false)' });
