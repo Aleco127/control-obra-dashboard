@@ -2771,7 +2771,7 @@ function cerrarCmdk(){$('cmdk')?.classList.remove('ac');}
 function renderCmdk(q){
 q=normTxt(q);
 const fijados=navFijados();   // US-608: «Mi trabajo» encabeza la lista, con o sin búsqueda
-const mods=sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>({t:fijados.includes(x[0])?'Mi trabajo':'Módulos',k:x[0],l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>{fichaObraId=null;localStorage.removeItem('fichaObraId');M=x[0];R();}})));
+const mods=sec.flatMap(s=>s.i.filter(x=>moduloVisibleParaUsuario(x[0])).map(x=>({t:fijados.includes(x[0])?'Mi trabajo':'Módulos',k:x[0],l:getModuloLabel(x[0],x[2]),sub:s.t,i:x[1],run:()=>irAModulo(x[0],'cmdk')})));
 const mios=mods.filter(x=>x.t==='Mi trabajo').sort((a,b)=>fijados.indexOf(a.k)-fijados.indexOf(b.k));
 const otros=mods.filter(x=>x.t!=='Mi trabajo');
 const obras=getObrasPermitidas().map(o=>({t:'Obras',l:[o.codigo_obra,o.nombre_obra].filter(Boolean).join(' · '),sub:o.cliente||'',i:'ri-building-2-line',run:()=>abrirFichaObra(o.id)}));
@@ -3067,7 +3067,7 @@ for(let i=1;i<=NAV_FIJADOS_MAX;i++){
 Shortcuts.register('alt+'+i,()=>{
 const k=navFijados()[i-1];
 if(!k){Toast.info('Todavía no tienes un módulo '+i+' en «Mi trabajo»');return;}
-irAModulo(k);
+irAModulo(k,'atajo');
 },'Ir al módulo '+i+' de «Mi trabajo»');
 }
 }
@@ -3116,6 +3116,11 @@ if(typeof invalidateFilterCache==='function')invalidateFilterCache();
 return true;
 }
 function navObrasActivas(){return getObrasPermitidas().filter(o=>o.estatus!=='Archivada');}
+// Abrir la ficha desde la tarjeta de la barra (US-615: queda registrado con origen ctx_obra)
+function navCtxObra(id){
+if(typeof Telemetry!=='undefined')Telemetry.track('nav_click',{modulo:'o',origen:'ctx_obra',colapsado:barraColapsada(),grupo:'obra'});
+abrirFichaObra(id);
+}
 function navContexto(){
 if(window.innerWidth<768)return null;   // en móvil el control es el chip del header
 const activas=navObrasActivas();
@@ -3130,7 +3135,7 @@ tituloCorto:o.codigo_obra||o.nombre_obra||'',
 sub:o.codigo_obra||'',
 avance:Number(o.avance_porcentaje)||0,
 semaforo:semaforo,
-onClick:'abrirFichaObra('+o.id+')',
+onClick:"navCtxObra("+o.id+")",
 ariaLabel:'Abrir la ficha de '+(o.codigo_obra?o.codigo_obra+' ':'')+(o.nombre_obra||''),
 accion:'Cambiar',onAccion:'navObrasPopover()'
 };
@@ -3193,12 +3198,12 @@ contexto:navContexto(),
 marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logo)?EMPRESA_INFO.logo:''},
 grupos,fijados,fijadosTitulo:'Mi trabajo',onEditarFijados:'navEditarFijados()',onFijar:"navFijar('{k}')",activo:M==='x'?'g':M,colapsado,
 acciones:[
-{k:'buscar',t:'Buscar',ic:'ri-search-line',onClick:'abrirCmdk()',atajo:'Ctrl+K'},
+{k:'buscar',t:'Buscar…',ic:'ri-search-line',onClick:'abrirCmdk()',atajo:'Ctrl+K',campo:true},
 {k:'ayuda',t:'Ayuda',ic:'ri-question-line',onClick:'Ayuda.abrir()'},
 {k:'colapsar',t:colapsado?'Expandir menú':'Colapsar menú',ic:colapsado?'ri-arrow-right-s-line':'ri-arrow-left-s-line',onClick:'tgSb()'},
 {k:'salir',t:'Cerrar sesión',ic:'ri-logout-box-line',onClick:'doLogout()',tono:'danger'}
 ],
-onItem:"irAModulo('{k}')"
+onItem:"irAModulo('{k}','{origen}')"
 };
 }
 // N(): repinta completo sólo cuando cambia la firma (marca, módulos visibles y sus etiquetas, badges, fijados, colapsado, acciones,

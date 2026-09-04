@@ -178,6 +178,11 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 .nvs-col .nvs-fly .nvs-lock svg{width:14px;height:14px}
 .nvs-col .nvs-fly .nvs-mas,.nvs-col .nvs-fly .nvs-mas .nvs-tx,.nvs-col .nvs-fly .nvs-chev{display:flex}
 
+/* Campo falso de búsqueda del pie (US-615): parece un input, es un botón que abre Ctrl+K */
+.nvs-accion.nvs-campo{border:1px solid var(--line);background:var(--surface-2);color:var(--ink-subtle);border-radius:var(--radius-sm)}
+.nvs-accion.nvs-campo:hover{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
+.nvs-col .nvs-accion.nvs-campo{border:0;background:none}
+
 /* ===== Barra inferior (móvil) ===== */
 .nvs-bottom{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-sticky);display:flex;align-items:stretch;background:var(--surface);border-top:1px solid var(--line);padding:4px 0 env(safe-area-inset-bottom,4px);box-shadow:var(--shadow-2)}
 #mobileBottomNav>.nvs-bottom{position:static;border:0;box-shadow:none;padding:0;background:none}
