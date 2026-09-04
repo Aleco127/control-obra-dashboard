@@ -111,39 +111,6 @@ html.sb-col .mn{margin-left:var(--sb-w-col)}
 .sb.col .lg{justify-content:center}
 /* US-607: el flyout del modo colapsado (NavShell .nvs-fly) no debe recortarse por el scroll de #nv; US-611 completa el modo colapsado */
 .sb.col #nv{overflow:visible}
-/* legado: quitar en US-616 */
-.sb.col .cat-header{justify-content:center;padding:4px}
-.sb.col .cat-header span{display:none}
-.sb.col .cat-items{padding-left:0}
-
-/* Categorias colapsables */ /* legado: quitar en US-616 (la barra nueva vive en nav-shell.css) */
-.cat-section{margin-bottom:8px}
-.cat-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;border-radius:10px;transition:all .2s;background:var(--bg);border-bottom:1px solid var(--line);margin-bottom:4px;color:var(--ink-muted)}
-.cat-header:hover{background:var(--surface-2)}
-.cat-header .cat-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:14px}
-.cat-header .cat-chevron{margin-left:auto;transition:transform .2s;font-size:14px;color:var(--ink-subtle)}
-.cat-header.collapsed .cat-chevron{transform:rotate(-90deg)}
-.cat-items{overflow:hidden;transition:max-height .3s ease;padding-left:12px;margin-left:8px;border-left:1px solid var(--line)}
-.cat-items.collapsed{max-height:0!important}
-
-/* Items de navegacion */ /* legado: quitar en US-616 */
-.nav-item{display:flex;align-items:center;gap:10px;padding:12px 14px;margin:4px 0;border-radius:10px;font-size:var(--fs-base);transition:all .2s;position:relative;color:var(--ink-muted);text-align:left}
-.nav-item:hover{background:var(--surface-2);color:var(--ink)}
-.nav-item.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.nav-item i{font-size:18px;width:24px;text-align:center}
-.nav-fav-title{font-size:var(--fs-xs);letter-spacing:.02em;color:var(--ink-subtle);padding:6px 12px 2px;font-weight:600}
-
-/* Colores por categoria */ /* legado: quitar en US-616 */
-.cat-principal .cat-icon,.cat-inicio .cat-icon{background:var(--accent-soft);color:var(--accent)}
-.cat-proyectos .cat-icon,.cat-obra .cat-icon{background:var(--info-soft);color:var(--info)}
-.cat-operacion .cat-icon,.cat-dinero .cat-icon{background:var(--ok-soft);color:var(--ok)}
-.cat-calidad .cat-icon{background:var(--violet-soft);color:var(--violet)}
-.cat-archivos .cat-icon,.cat-contabilidad .cat-icon{background:var(--warn-soft);color:var(--warn)}
-.cat-personal .cat-icon{background:#fce7f3;color:#be185d}
-.cat-externos .cat-icon{background:#e0e7ff;color:#4338ca}
-.cat-sistema .cat-icon,.cat-administracion .cat-icon,.cat-equipo .cat-icon{background:var(--surface-2);color:var(--ink-muted)}
-.cat-favoritos .cat-icon{background:var(--warn-soft);color:var(--warn)}
-
 /* Badges */
 .badge{font-size:9px;padding:2px 6px;border-radius:var(--radius-pill);font-weight:600;margin-left:auto}
 .badge-red{background:var(--danger-soft);color:var(--danger)}
@@ -166,21 +133,7 @@ input[type="range"]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;b
   padding:4px 0 env(safe-area-inset-bottom,4px);
   box-shadow:0 -2px 12px rgba(15,23,42,.08);
 }
-.mbn-item{
-  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;min-height:var(--tap);padding:4px 0;cursor:pointer;color:var(--ink-subtle);transition:color .2s;
-  font-size:10px;font-weight:500;border:none;background:none;position:relative;
-}
-.mbn-item i{font-size:22px;line-height:1}
-.mbn-item.active,.mbn-item:active{color:var(--accent)}
-.mbn-item .mbn-badge{
-  position:absolute;top:2px;right:calc(50% - 18px);
-  background:var(--danger);color:var(--primary-ink);font-size:9px;font-weight:700;
-  min-width:16px;height:16px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;padding:0 3px;
-}
-.mbn-plus{flex:0 0 64px;display:flex;align-items:center;justify-content:center;border:none;background:none}
-.mbn-plus span{width:52px;height:52px;border-radius:50%;background:var(--primary);color:var(--primary-ink);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:var(--shadow-2);margin-top:-22px;border:4px solid var(--surface)}
+/* .mbn-* se retiró en US-616: la barra inferior la pinta NavShell (.nvs-bottom en nav-shell.css) */
 
 /* Hoja de acciones (móvil) */
 .sheet-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:var(--z-backdrop);display:none}
@@ -449,17 +402,9 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
   .sb{position:fixed!important;left:0!important;top:0!important;z-index:var(--z-drawer)!important;width:100%!important;height:100%!important;display:none!important;background:var(--surface)!important;overflow-y:auto!important;border:none!important;padding:16px!important}
   .sb.col{width:100%!important}
   .sb.col .tx{display:block!important}
-  .sb.col .cat-header span{display:inline!important} /* legado: quitar en US-616 */
   .sb.col .lg{justify-content:flex-start!important}
   .mn{margin-left:0!important;overflow-x:hidden!important}
   main{padding:12px!important;padding-bottom:96px!important}
-  /* legado: quitar en US-616 */
-  .cat-header{padding:14px 16px!important;margin-bottom:6px!important;background:var(--bg)!important;border-radius:12px!important}
-  .cat-header .cat-icon{width:36px!important;height:36px!important;font-size:18px!important}
-  .cat-header span{font-size:16px!important}
-  .nav-item{padding:14px 16px!important;font-size:17px!important;margin:6px 0!important}
-  .nav-item i{font-size:20px!important;width:28px!important}
-  .cat-items{padding-left:16px!important;margin-left:12px!important}
   #obraFilter{max-width:110px!important;min-width:70px!important;font-size:12px!important}
   #mobileBottomNav{display:flex}
   .overflow-x-auto{-webkit-overflow-scrolling:touch}
