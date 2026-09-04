@@ -91,4 +91,27 @@ where evento = 'error_ui' and created_at >= now() - interval '48 hours'
 group by 1 order by 2 desc limit 10;
 ```
 
-Medición previa al despliegue de la barra: anotar aquí el conteo por día antes de desplegar y el de 48 h después.
+### Medición antes del despliegue de la barra (4-sep-2026)
+
+Conteo de `error_ui` por día, con la barra vieja todavía en producción:
+
+| Día | error_ui |
+|---|---|
+| 2026-09-04 (parcial) | 48 |
+| 2026-09-03 | 360 |
+| 2026-09-02 | 58 |
+| 2026-09-01 | 123 |
+| 2026-08-31 | 111 |
+| 2026-08-29 | 126 |
+
+Promedio de los días completos: **156/día** (el 3 de septiembre se dispara por el trabajo de fase 2 y 3 de ese día;
+sin él, **104/día**). **Umbral de alarma tras desplegar: 48 h por encima de 187/día** (156 + 20 %). Si se pasa, abrir
+ticket con la consulta de los mensajes más frecuentes de arriba.
+
+### Auditoría integral previa (build local, 4-sep-2026)
+
+`audit-ui.py` sobre 28 módulos × 2 viewports: **0 errores de consola**, 0 `confirm(` nativos y **32 violaciones axe,
+ninguna en la barra** (`grep` por `nvs`/`#sb`/`mobileBottomNav` sobre los targets da 0). Las 32 son deuda previa de
+otros módulos: contraste de `.bg-teal-600`/`.bg-cyan-600`/`.bg-amber-500`, `select-name` en `#calTipoFilter`,
+`#scEstatus` y `#mtCat`, botones de icono sin texto en tablas y `.overflow-x-auto` sin foco de teclado en móvil.
+Reporte completo en `docs/qa/nav/2026-09-04-integral/`.

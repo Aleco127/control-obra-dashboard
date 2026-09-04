@@ -1,0 +1,1068 @@
+{
+  "fecha": "2026-09-04",
+  "url": "http://127.0.0.1:8765/index.html?app=1",
+  "static": {
+    "confirm_nativos": 0,
+    "aria_label": 270,
+    "label_for": 681,
+    "onclick_inline": 684,
+    "text_pink_rose": 6,
+    "auto_sync": 0
+  },
+  "runs": [
+    {
+      "viewport": "desktop",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Hoy",
+          "axe": [],
+          "screenshot": "desktop_d.png",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de obras",
+          "axe": [],
+          "screenshot": "desktop_o.png",
+          "console": []
+        },
+        {
+          "module": "w",
+          "label": "Programa",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Programa de Obra- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-teal-600"
+            }
+          ],
+          "screenshot": "desktop_w.png",
+          "console": []
+        },
+        {
+          "module": "b",
+          "label": "Bitácora",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Bitácora de Obra- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_b.png",
+          "console": []
+        },
+        {
+          "module": "f",
+          "label": "Fotos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Galería de fotos",
+          "axe": [],
+          "screenshot": "desktop_f.png",
+          "console": []
+        },
+        {
+          "module": "k",
+          "label": "Documentos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Documentos",
+          "axe": [],
+          "screenshot": "desktop_k.png",
+          "console": []
+        },
+        {
+          "module": "c",
+          "label": "c",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 2,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Calendario- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-cyan-600"
+            },
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 2,
+              "help": "Select element must have an accessible name",
+              "target": "#calTipoFilter"
+            }
+          ],
+          "screenshot": "desktop_c.png",
+          "console": []
+        },
+        {
+          "module": "r",
+          "label": "r",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " RFIs - Solicitudes de Información- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_r.png",
+          "console": []
+        },
+        {
+          "module": "u",
+          "label": "u",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Punch List- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_u.png",
+          "console": []
+        },
+        {
+          "module": "y",
+          "label": "y",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Seguridad- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_y.png",
+          "console": []
+        },
+        {
+          "module": "g",
+          "label": "Compras y gastos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Compras y gastos · Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_g.png",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Pagos y cobranza · Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_pc.png",
+          "console": []
+        },
+        {
+          "module": "p",
+          "label": "Presupuesto",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Control de Presupuesto - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_p.png",
+          "console": []
+        },
+        {
+          "module": "ct",
+          "label": "ct",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Cotizaciones - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_ct.png",
+          "console": []
+        },
+        {
+          "module": "es",
+          "label": "es",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Estimaciones - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_es.png",
+          "console": []
+        },
+        {
+          "module": "s",
+          "label": "s",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 4,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Subcontratos- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Select element must have an accessible name",
+              "target": "#scEstatus"
+            }
+          ],
+          "screenshot": "desktop_s.png",
+          "console": []
+        },
+        {
+          "module": "m",
+          "label": "m",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 4,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Materiales- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Select element must have an accessible name",
+              "target": "#mtCat"
+            }
+          ],
+          "screenshot": "desktop_m.png",
+          "console": []
+        },
+        {
+          "module": "e",
+          "label": "e",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de Personal - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "desktop_e.png",
+          "console": []
+        },
+        {
+          "module": "n",
+          "label": "Nómina",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Nómina",
+          "axe": [],
+          "screenshot": "desktop_n.png",
+          "console": []
+        },
+        {
+          "module": "t",
+          "label": "t",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Control de Asistencia",
+          "axe": [],
+          "screenshot": "desktop_t.png",
+          "console": []
+        },
+        {
+          "module": "v",
+          "label": "Proveedores",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Proveedores",
+          "axe": [],
+          "screenshot": "desktop_v.png",
+          "console": []
+        },
+        {
+          "module": "l",
+          "label": "Clientes",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Clientes",
+          "axe": [],
+          "screenshot": "desktop_l.png",
+          "console": []
+        },
+        {
+          "module": "cb",
+          "label": "Panel fiscal",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Contabilidad",
+          "axe": [],
+          "screenshot": "desktop_cb.png",
+          "console": []
+        },
+        {
+          "module": "fc",
+          "label": "Facturas",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Facturas recibidas (CFDI)",
+          "axe": [],
+          "screenshot": "desktop_fc.png",
+          "console": []
+        },
+        {
+          "module": "ce",
+          "label": "ce",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "CFDIs Emitidos",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-amber-500"
+            }
+          ],
+          "screenshot": "desktop_ce.png",
+          "console": []
+        },
+        {
+          "module": "q",
+          "label": "Reportes",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Reportes",
+          "axe": [],
+          "screenshot": "desktop_q.png",
+          "console": []
+        },
+        {
+          "module": "z",
+          "label": "Configuración",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Configuración",
+          "axe": [],
+          "screenshot": "desktop_z.png",
+          "console": []
+        },
+        {
+          "module": "h",
+          "label": "h",
+          "overflow_x": false,
+          "scroll_w": [
+            1440,
+            1440
+          ],
+          "icon_buttons_sin_label": [
+            "<button onclick=\"toggleUserStatus('139d3f99-8902-4d7f-bbd1-34ec0181a0d2',true)\" class=\"p-1 hover:bg-slate-100 rounded te",
+            "<button onclick=\"toggleUserStatus('03ed3a34-8863-447f-835d-e309cc2037b9',true)\" class=\"p-1 hover:bg-slate-100 rounded te",
+            "<button onclick=\"toggleUserStatus('f6dbc163-8f00-4438-86df-45322623849a',true)\" class=\"p-1 hover:bg-slate-100 rounded te"
+          ],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de Usuarios",
+          "axe": [
+            {
+              "id": "button-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Buttons must have discernible text",
+              "target": ".border-white\\/5:nth-child(1) > td:nth-child(5) > .text-amber-400.hover\\:bg-slate-100.p-1"
+            }
+          ],
+          "screenshot": "desktop_h.png",
+          "console": []
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "modules": [
+        {
+          "module": "d",
+          "label": "Dashboard",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Hoy",
+          "axe": [],
+          "screenshot": "mobile_d.png",
+          "console": []
+        },
+        {
+          "module": "o",
+          "label": "Obras",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de obras",
+          "axe": [],
+          "screenshot": "mobile_o.png",
+          "console": []
+        },
+        {
+          "module": "w",
+          "label": "Programa",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Programa de Obra- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-teal-600"
+            }
+          ],
+          "screenshot": "mobile_w.png",
+          "console": []
+        },
+        {
+          "module": "b",
+          "label": "Bitácora",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Bitácora de Obra- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_b.png",
+          "console": []
+        },
+        {
+          "module": "f",
+          "label": "Fotos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Galería de fotos",
+          "axe": [],
+          "screenshot": "mobile_f.png",
+          "console": []
+        },
+        {
+          "module": "k",
+          "label": "Documentos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Documentos",
+          "axe": [],
+          "screenshot": "mobile_k.png",
+          "console": []
+        },
+        {
+          "module": "c",
+          "label": "c",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 2,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Calendario- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-cyan-600"
+            },
+            {
+              "id": "scrollable-region-focusable",
+              "impact": "serious",
+              "n": 1,
+              "help": "Scrollable region must have keyboard access",
+              "target": ".overflow-x-auto"
+            },
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 2,
+              "help": "Select element must have an accessible name",
+              "target": "#calTipoFilter"
+            }
+          ],
+          "screenshot": "mobile_c.png",
+          "console": []
+        },
+        {
+          "module": "r",
+          "label": "r",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " RFIs - Solicitudes de Información- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_r.png",
+          "console": []
+        },
+        {
+          "module": "u",
+          "label": "u",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Punch List- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_u.png",
+          "console": []
+        },
+        {
+          "module": "y",
+          "label": "y",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Seguridad- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_y.png",
+          "console": []
+        },
+        {
+          "module": "g",
+          "label": "Compras y gastos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Compras y gastos · Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_g.png",
+          "console": []
+        },
+        {
+          "module": "pc",
+          "label": "Pagos",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Pagos y cobranza · Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_pc.png",
+          "console": []
+        },
+        {
+          "module": "p",
+          "label": "Presupuesto",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Control de Presupuesto - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "scrollable-region-focusable",
+              "impact": "serious",
+              "n": 1,
+              "help": "Scrollable region must have keyboard access",
+              "target": ".overflow-x-auto"
+            }
+          ],
+          "screenshot": "mobile_p.png",
+          "console": []
+        },
+        {
+          "module": "ct",
+          "label": "ct",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Cotizaciones - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_ct.png",
+          "console": []
+        },
+        {
+          "module": "es",
+          "label": "es",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Estimaciones - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_es.png",
+          "console": []
+        },
+        {
+          "module": "s",
+          "label": "s",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 4,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Subcontratos- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Select element must have an accessible name",
+              "target": "#scEstatus"
+            }
+          ],
+          "screenshot": "mobile_s.png",
+          "console": []
+        },
+        {
+          "module": "m",
+          "label": "m",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 4,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Materiales- Remodelación local Luminae Studio (depilación láser)",
+          "axe": [
+            {
+              "id": "select-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Select element must have an accessible name",
+              "target": "#mtCat"
+            }
+          ],
+          "screenshot": "mobile_m.png",
+          "console": []
+        },
+        {
+          "module": "e",
+          "label": "e",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de Personal - Remodelación local Luminae Studio (depilación láser)",
+          "axe": [],
+          "screenshot": "mobile_e.png",
+          "console": []
+        },
+        {
+          "module": "n",
+          "label": "Nómina",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Nómina",
+          "axe": [],
+          "screenshot": "mobile_n.png",
+          "console": []
+        },
+        {
+          "module": "t",
+          "label": "t",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Control de Asistencia",
+          "axe": [],
+          "screenshot": "mobile_t.png",
+          "console": []
+        },
+        {
+          "module": "v",
+          "label": "Proveedores",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Proveedores",
+          "axe": [],
+          "screenshot": "mobile_v.png",
+          "console": []
+        },
+        {
+          "module": "l",
+          "label": "Clientes",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Clientes",
+          "axe": [],
+          "screenshot": "mobile_l.png",
+          "console": []
+        },
+        {
+          "module": "cb",
+          "label": "Panel fiscal",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Contabilidad",
+          "axe": [
+            {
+              "id": "scrollable-region-focusable",
+              "impact": "serious",
+              "n": 1,
+              "help": "Scrollable region must have keyboard access",
+              "target": ".table-wrap"
+            }
+          ],
+          "screenshot": "mobile_cb.png",
+          "console": []
+        },
+        {
+          "module": "fc",
+          "label": "Facturas",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Facturas recibidas (CFDI)",
+          "axe": [],
+          "screenshot": "mobile_fc.png",
+          "console": []
+        },
+        {
+          "module": "ce",
+          "label": "ce",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "CFDIs Emitidos",
+          "axe": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "n": 1,
+              "help": "Elements must meet minimum color contrast ratio thresholds",
+              "target": ".bg-amber-500"
+            },
+            {
+              "id": "scrollable-region-focusable",
+              "impact": "serious",
+              "n": 1,
+              "help": "Scrollable region must have keyboard access",
+              "target": ".overflow-x-auto"
+            }
+          ],
+          "screenshot": "mobile_ce.png",
+          "console": []
+        },
+        {
+          "module": "q",
+          "label": "Reportes",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 0,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": "Reportes",
+          "axe": [],
+          "screenshot": "mobile_q.png",
+          "console": []
+        },
+        {
+          "module": "z",
+          "label": "Configuración",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Configuración",
+          "axe": [],
+          "screenshot": "mobile_z.png",
+          "console": []
+        },
+        {
+          "module": "h",
+          "label": "h",
+          "overflow_x": false,
+          "scroll_w": [
+            390,
+            390
+          ],
+          "icon_buttons_sin_label": [
+            "<button onclick=\"toggleUserStatus('139d3f99-8902-4d7f-bbd1-34ec0181a0d2',true)\" class=\"p-1 hover:bg-slate-100 rounded te",
+            "<button onclick=\"toggleUserStatus('03ed3a34-8863-447f-835d-e309cc2037b9',true)\" class=\"p-1 hover:bg-slate-100 rounded te",
+            "<button onclick=\"toggleUserStatus('f6dbc163-8f00-4438-86df-45322623849a',true)\" class=\"p-1 hover:bg-slate-100 rounded te"
+          ],
+          "inputs_sin_label": 1,
+          "montos_en_alerta_sin_motivo": [],
+          "h1": " Gestión de Usuarios",
+          "axe": [
+            {
+              "id": "button-name",
+              "impact": "critical",
+              "n": 3,
+              "help": "Buttons must have discernible text",
+              "target": ".border-white\\/5:nth-child(1) > td:nth-child(5) > .text-amber-400.hover\\:bg-slate-100.p-1"
+            }
+          ],
+          "screenshot": "mobile_h.png",
+          "console": []
+        }
+      ]
+    }
+  ]
+}
