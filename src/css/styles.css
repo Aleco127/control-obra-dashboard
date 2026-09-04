@@ -100,10 +100,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* Sidebar */
-.sb{transition:width .3s;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;background:var(--surface);border-right:1px solid var(--line)}
+.sb{width:var(--sb-w);transition:width var(--dur-2);scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;background:var(--surface);border-right:1px solid var(--line)}
 .sb::-webkit-scrollbar{width:4px}
 .sb::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}
-.sb.col{width:64px}
+.sb.col,html.sb-col .sb{width:var(--sb-w-col)}
+/* El margen del contenido lo decide la clase de <html>: así el ancho correcto ya está antes de que corra la app (sin parpadeo) */
+.mn{margin-left:var(--sb-w);transition:margin-left var(--dur-2)}
+html.sb-col .mn{margin-left:var(--sb-w-col)}
 .sb.col .tx{display:none}
 .sb.col .lg{justify-content:center}
 /* US-607: el flyout del modo colapsado (NavShell .nvs-fly) no debe recortarse por el scroll de #nv; US-611 completa el modo colapsado */

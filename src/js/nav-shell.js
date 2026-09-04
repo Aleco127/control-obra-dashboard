@@ -287,7 +287,11 @@ const NavShell = (() => {
     return out;
   }
 
-  /** Abre o cierra un grupo (recibe la cabecera o la sección). Emite 'nvs:grupo' {k, abierto} en el .nvs para que el anfitrión guarde la preferencia. */
+  /**
+   * Abre o cierra un grupo (recibe la cabecera o la sección). Emite 'nvs:grupo' {k, abierto} en el .nvs para que el
+   * anfitrión guarde la preferencia. Con la barra colapsada sólo fija o suelta el flyout (.nvs-abierto) y no emite nada:
+   * ahí «abierto» no es una preferencia del usuario, es un menú momentáneo.
+   */
   function alternarGrupo(el, abierto) {
     if (!el || typeof el.closest !== 'function') return null;
     const sec = el.classList && el.classList.contains('nvs-grupo') ? el : el.closest('.nvs-grupo');
@@ -298,6 +302,12 @@ const NavShell = (() => {
     cab.setAttribute('aria-expanded', nuevo ? 'true' : 'false');
     const col = !!sec.closest('.nvs-col');
     if (nuevo || col) cont.removeAttribute('hidden'); else cont.setAttribute('hidden', '');
+    // Colapsada, la cabecera fija o suelta el flyout (US-611) y no toca la preferencia de grupos abiertos
+    if (col) {
+      if (cont.classList) cont.classList.toggle('nvs-abierto', nuevo);
+      if (sec.classList) sec.classList.remove('nvs-fly-cerrado');
+      return nuevo;
+    }
     const root = sec.closest('.nvs') || sec;
     if (typeof CustomEvent === 'function' && typeof root.dispatchEvent === 'function') root.dispatchEvent(new CustomEvent('nvs:grupo', { bubbles: true, detail: { k: sec.getAttribute('data-grupo'), abierto: nuevo } }));
     return nuevo;
