@@ -102,6 +102,7 @@ async function massDeleteNomina(){
 <script src="js/cache.js?v=20260829d"></script>
 <script src="js/data-loader.js?v=20260829d"></script>
 <script src="js/ui-utils.js?v=20260830a"></script>
+<script src="js/nav-grupos.js?v=20260903a"></script>
 <script src="js/nav-shell.js?v=20260903a"></script>
 <script src="js/reports.js?v=20260829d"></script>
 <script src="js/security.js?v=20260829d"></script>
@@ -994,17 +995,9 @@ var showArchived=localStorage.getItem('showArchived')==='true';
 // Routing: actualizar URL al cambiar módulo
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==M){M=h;R();}});
 
-const sec=[
-{t:'Principal',k:'principal',ic:'ri-home-5-line',i:[['d','ri-dashboard-3-line','Dashboard']]},
-{t:'Proyectos',k:'proyectos',ic:'ri-building-line',i:[['o','ri-building-2-line','Obras'],['p','ri-money-dollar-circle-line','Presupuesto'],['w','ri-bar-chart-horizontal-line','Programa'],['g','ri-wallet-3-line','Compras y gastos'],['pc','ri-bank-card-line','Pagos'],['ct','ri-file-list-2-line','Cotizaciones'],['es','ri-calculator-line','Estimaciones']]},
-{t:'Contabilidad',k:'contabilidad',ic:'ri-money-dollar-box-line',i:[['cb','ri-pie-chart-2-line','Panel Fiscal'],['fc','ri-bill-line','Facturas CFDI'],['ce','ri-file-mark-line','CFDIs Emitidos'],['rt','ri-percent-line','Retenciones'],['dc','ri-file-chart-line','Declaraciones'],['rp','ri-government-line','REPSE'],['su','ri-bank-card-line','SUA'],['ci','ri-archive-drawer-line','Cierres'],['so','ri-user-star-line','Socios']]},
-{t:'Operación',k:'operacion',ic:'ri-tools-line',i:[['s','ri-team-line','Subcontratos'],['m','ri-archive-line','Materiales'],['b','ri-book-2-line','Bitácora'],['c','ri-calendar-line','Calendario']]},
-{t:'Calidad',k:'calidad',ic:'ri-shield-check-line',i:[['r','ri-questionnaire-line','RFIs'],['u','ri-checkbox-circle-line','Punch List'],['y','ri-verified-badge-line','Seguridad']]},
-{t:'Archivos',k:'archivos',ic:'ri-folder-line',i:[['k','ri-folder-3-line','Documentos'],['f','ri-image-line','Fotos']]},
-{t:'Personal',k:'personal',ic:'ri-group-line',i:[['e','ri-user-star-line','Empleados'],['n','ri-money-dollar-box-line','Nómina'],['t','ri-time-line','Asistencia']]},
-{t:'Externos',k:'externos',ic:'ri-links-line',i:[['v','ri-store-2-line','Proveedores'],['l','ri-user-heart-line','Clientes']]},
-{t:'Sistema',k:'sistema',ic:'ri-settings-3-line',i:[['q','ri-bar-chart-box-line','Reportes'],['z','ri-settings-4-line','Configuración'],['h','ri-user-settings-line','Usuarios']]}
-];
+// US-605: sec se deriva de NAV_GRUPOS (src/js/nav-grupos.js); no se edita a mano. Conserva la forma {t,k,ic,i:[[k,ic,t]]}
+// para updateBreadcrumb, renderCmdk, updateMobileBottomNav y modulosFavoritos hasta que US-616 los migre a NavShell.
+const sec=NAV_GRUPOS.map(g=>({t:g.t,k:g.k,ic:g.ic,i:g.items.map(x=>[x.k,x.ic,x.t])}));
 const collapsedCats=JSON.parse(localStorage.getItem('collapsedCats')||'{}');
 
 const roleColors={admin_general:'from-red-500 to-orange-500',gerente_obra:'from-purple-500 to-pink-500',supervisor_general:'from-blue-500 to-cyan-500',contador:'from-green-500 to-teal-500',residente_obra:'from-amber-500 to-yellow-500',inspector_calidad:'from-indigo-500 to-violet-500',trabajador:'from-gray-500 to-slate-500'};
@@ -1723,7 +1716,7 @@ function initKeyboardShortcuts(){
 // Navegación rápida
 Shortcuts.register('g', ()=>{M='g';R();}, 'Ir a Gastos');
 Shortcuts.register('o', ()=>{M='p';R();}, 'Ir a Obras');
-Shortcuts.register('d', ()=>{M='d';R();}, 'Ir a Dashboard');
+Shortcuts.register('d', ()=>{M='d';R();}, 'Ir a Inicio');
 Shortcuts.register('e', ()=>{M='e';R();}, 'Ir a Empleados');
 Shortcuts.register('c', ()=>{M='cot';R();}, 'Ir a Cotizaciones');
 Shortcuts.register('x', ()=>{M='x';R();}, 'Ir a Órdenes de Compra');
@@ -2778,12 +2771,15 @@ return `<button onclick="M='${x[0]}';if(typeof fichaObraId!=='undefined'){fichaO
 function updateBreadcrumb(){
 const catEl=$('breadcrumbCat'),pageEl=$('breadcrumbPage');
 if(!catEl||!pageEl)return;
-if(M==='o'&&typeof fichaObraId!=='undefined'&&fichaObraId){const o=D.o.find(x=>x.id==fichaObraId);if(o){catEl.textContent='Proyectos';pageEl.innerHTML=`<a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> <i class="ri-arrow-right-s-line text-slate-300" aria-hidden="true"></i> ${S(o.codigo_obra||'')} ${S(o.nombre_obra)}`;return;}}
+if(M==='o'&&typeof fichaObraId!=='undefined'&&fichaObraId){const o=D.o.find(x=>x.id==fichaObraId);if(o){catEl.textContent=NAV_GRUPOS.find(g=>g.items.some(x=>x.k==='o'))?.t||'Obra';pageEl.innerHTML=`<a href="#o" class="hover:underline" onclick="event.preventDefault();cerrarFichaObra()">Obras</a> <i class="ri-arrow-right-s-line text-slate-300" aria-hidden="true"></i> ${S(o.codigo_obra||'')} ${S(o.nombre_obra)}`;return;}}
+const flecha=catEl.nextElementSibling;
 for(const s of sec){
 const item=s.i.find(x=>x[0]===M);
 if(item){
-catEl.textContent=s.t;
-pageEl.innerHTML=`<i class="${item[1]} mr-1"></i>${item[2]}`;
+const suelto=NAV_GRUPOS.find(g=>g.k===s.k)?.suelto===true;
+catEl.textContent=suelto?'':s.t;
+if(flecha)flecha.hidden=suelto;
+pageEl.innerHTML=`<i class="${item[1]} mr-1"></i>${getModuloLabel(item[0],item[2])}`;
 break;
 }
 }
@@ -15797,7 +15793,7 @@ ${partidas.map(p=>`<tr><td>${p.clave||'-'}</td><td>${p.descripcion}</td><td>${p.
 w.document.close();
 }
 
-// ========== MODULO CONTABILIDAD - PANEL FISCAL ==========
+// ========== MODULO CONTABILIDAD (cb) ==========
 function ContPanel(c){
 const periodo=window._periodoFiscal||hoyISO().slice(0,7);
 const rg=Finanzas.rango(periodo);
@@ -15826,7 +15822,7 @@ const nivel=currentUser?.nivel||0;
 const kpi=(v,l,sub='',cls='')=>`<div class="kpi"><p class="kpi-v ${cls}">${v}</p><p class="kpi-l">${l}</p>${sub?`<p class="text-[11px] text-ink-subtle mt-0.5">${sub}</p>`:''}</div>`;
 const link=(t,tab)=>`<button type="button" class="link" onclick="Compras.setTab('${tab}')">${t}</button>`;
 c.innerHTML=`
-<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4"><div><h1 class="text-xl font-bold"><i class="ri-pie-chart-2-line" aria-hidden="true"></i> Panel fiscal</h1><p class="text-sm text-ink-muted mt-1">IVA, deducibilidad y declaración del periodo, calculados desde los gastos y cobros registrados.</p></div>
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4"><div><h1 class="text-xl font-bold"><i class="ri-pie-chart-2-line" aria-hidden="true"></i> Contabilidad</h1><p class="text-sm text-ink-muted mt-1">IVA, deducibilidad y declaración del periodo, calculados desde los gastos y cobros registrados.</p></div>
 <select id="periodoFiscal" onchange="cambiarPeriodoFiscal()" class="inp text-sm py-1.5" style="width:auto" aria-label="Periodo fiscal">${generarOpcionesPeriodos(periodo)}</select></div>
 <div class="kpi-strip">${kpi(fmt(ivaAcreditable),'IVA acreditable',`de ${facturados.length} gastos facturados`,'text-ok')}${kpi(fmt(ivaTrasladado),'IVA trasladado',fuenteTras)}${kpi(fmt(ivaPagar),'IVA a pagar (estimado)',ivaRet?`menos ${fmt(ivaRet)} retenido`:'trasladado − acreditable',ivaPagar>0?'text-warn':'')}${kpi(fmt(isrRet),'ISR retenido a terceros',`${retenciones.length} retenciones`)}</div>
 <div class="grid lg:grid-cols-2 gap-4 mb-4">
@@ -17269,7 +17265,7 @@ $('viewerInfo').textContent=`${obra?.nombre_obra||'Sin obra'} • ${f.fecha_foto
 
 // Navegación con teclas
 document.addEventListener('keydown',function(e){
-if(!$('fotoViewer').classList.contains('hidden')){
+const fv=$('fotoViewer');if(fv&&!fv.classList.contains('hidden')){
 if(e.key==='Escape')closeFotoViewer();
 if(e.key==='ArrowLeft')navFoto(-1);
 if(e.key==='ArrowRight')navFoto(1);

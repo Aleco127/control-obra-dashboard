@@ -271,3 +271,45 @@ test('claves raras se escapan y un modelo vacío no rompe', () => {
   assert.equal(v.bottom, '<div class="nvs-bottom nvs-constructora" data-modo="constructora"></div>');
   assert.deepEqual(NavShell.render({ grupos: 'no' }).aside.includes('nvs-grupos'), true);
 });
+
+// ---- US-605: NAV_GRUPOS (src/js/nav-grupos.js) es la única fuente de los 27 módulos ----
+const NAV_GRUPOS = require('../../src/js/nav-grupos.js');
+// La lista explícita del PRD (US-605) trae 34 claves aunque el texto diga «27»: la lista manda (el sec anterior también tenía 34).
+const CLAVES_PRD = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h'.split(' ');
+
+test('NAV_GRUPOS carga en Node con los 7 grupos del PRD y exactamente las claves del PRD sin repetir', () => {
+  assert.deepEqual(NAV_GRUPOS.map((g) => g.k), ['inicio', 'obra', 'calidad', 'dinero', 'equipo', 'contabilidad', 'administracion']);
+  const claves = NAV_GRUPOS.flatMap((g) => g.items.map((it) => it.k));
+  assert.equal(CLAVES_PRD.length, 34, 'la lista del PRD tiene 34 claves');
+  assert.equal(claves.length, CLAVES_PRD.length);
+  assert.equal(new Set(claves).size, claves.length, 'ninguna clave se repite');
+  assert.deepEqual([...claves].sort(), [...CLAVES_PRD].sort());
+  for (const g of NAV_GRUPOS) {
+    assert.equal(new Set(g.items.map((it) => it.k)).size, g.items.length, `grupo ${g.k} sin repetidos`);
+    for (const it of g.items) { assert.match(it.ic, /^ri-[a-z0-9-]+$/, `${it.k} lleva ícono Remix`); assert.ok(it.t && it.t.trim(), `${it.k} lleva título`); }
+  }
+});
+
+test('NAV_GRUPOS: Inicio suelto, Administración plana y separada, fiscales sin uso bajo «Más», cb se llama Contabilidad', () => {
+  const por = Object.fromEntries(NAV_GRUPOS.map((g) => [g.k, g]));
+  assert.equal(por.inicio.suelto, true); assert.deepEqual(por.inicio.items.map((it) => it.k), ['d']);
+  assert.equal(por.administracion.plano, true); assert.equal(por.administracion.separador, true);
+  assert.deepEqual(por.obra.items.map((it) => it.k), ['o', 'w', 'b', 'f', 'k', 'c']);
+  assert.deepEqual(por.calidad.items.map((it) => it.k), ['r', 'u', 'y']);
+  assert.deepEqual(por.dinero.items.map((it) => it.k), ['g', 'pc', 'p', 'ct', 'es', 's', 'm']);
+  assert.deepEqual(por.equipo.items.map((it) => it.k), ['e', 'n', 't', 'v', 'l']);
+  assert.deepEqual(por.contabilidad.items.filter((it) => it.secundario).map((it) => it.k), ['rt', 'dc', 'rp', 'su']);
+  assert.deepEqual(por.contabilidad.items.filter((it) => !it.secundario).map((it) => it.k), ['cb', 'fc', 'ce', 'ci', 'so']);
+  assert.equal(por.contabilidad.items.find((it) => it.k === 'cb').t, 'Contabilidad');
+  assert.equal(NAV_GRUPOS.flatMap((g) => g.items).filter((it) => it.secundario).length, 4, 'sólo los 4 fiscales son secundarios');
+});
+
+test('sec derivado de NAV_GRUPOS conserva la forma {t,k,ic,i:[[k,ic,t]]} y NavShell pinta todas las claves', () => {
+  const sec = NAV_GRUPOS.map((g) => ({ t: g.t, k: g.k, ic: g.ic, i: g.items.map((x) => [x.k, x.ic, x.t]) }));
+  assert.equal(sec.flatMap((s) => s.i).length, CLAVES_PRD.length);
+  for (const s of sec) for (const x of s.i) { assert.equal(x.length, 3); assert.equal(typeof x[0], 'string'); }
+  assert.equal(sec.find((s) => s.i.some((x) => x[0] === 'g')).t, 'Dinero', 'breadcrumb: Dinero › Compras y gastos');
+  const r = NavShell.render({ modo: 'constructora', grupos: NAV_GRUPOS, activo: 'cb' });
+  for (const k of CLAVES_PRD) assert.equal(tagDe(r.aside, k).length, 1, `ítem ${k} presente una vez`);
+  assert.equal(count(r.aside, /aria-current="page"/g), 1);
+});

@@ -26,7 +26,7 @@ Este documento describe el plan completo para implementar un sistema de nomina y
 
 ```
 CONTABILIDAD
-├── Panel Fiscal (existente)
+├── Contabilidad (existente)
 ├── Facturas CFDI (existente)
 ├── CFDIs Emitidos (existente)
 ├── Retenciones (existente)
