@@ -14,10 +14,20 @@
 --shadow-2:0 4px 12px rgba(15,23,42,.10);--shadow-3:0 10px 40px rgba(15,23,42,.16);
 --z-dropdown:20;--z-sticky:30;--z-backdrop:50;--z-drawer:60;--fs-xs:11px;--fs-sm:13px;--fs-base:15px;--fs-lg:18px;--tap:44px;--sb-w:240px;--sb-w-col:64px;--dur-1:150ms;--dur-2:250ms}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;font-size:16px}
-.wrap{max-width:760px;margin:0 auto;padding:16px 14px 56px}
+.wrap{max-width:760px;margin:0 auto;padding:16px 14px calc(96px + env(safe-area-inset-bottom,0))}
 /* US-618: de 900 px para arriba, barra del cliente a la izquierda y contenido a la derecha */
 .shell{display:block}
 #navCliente{display:none}
+/* Cabecera móvil: chip de obra, botón de cuenta y su menú (US-619) */
+.chip-obra,.btn-cuenta{flex:0 0 auto;min-height:var(--tap);padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.chip-obra:hover,.btn-cuenta:hover{background:var(--surface-2)}
+.chip-obra:focus-visible,.btn-cuenta:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.menu-portal{position:absolute;right:14px;z-index:var(--z-dropdown);min-width:220px;max-width:calc(100vw - 28px);display:flex;flex-direction:column;gap:2px;padding:6px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-3)}
+.menu-item{display:block;width:100%;min-height:var(--tap);padding:10px 12px;border:0;border-radius:var(--radius-sm);background:none;color:var(--ink);font:inherit;font-size:15px;text-align:left;text-decoration:none;cursor:pointer}
+.menu-item:hover{background:var(--surface-2)}
+.menu-item.activo{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.menu-item.peligro{color:var(--danger)}
+.menu-item:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
 .pc-obras{padding:0 var(--sp-3) var(--sp-2)}
 .pc-obras label{display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-subtle);margin-bottom:2px}
 .pc-obras select{width:100%;padding:8px 10px;font-size:14px;font-family:inherit;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink)}
@@ -27,7 +37,7 @@
   #navClienteBottom{display:none}
   .shell{display:grid;grid-template-columns:var(--sb-w) minmax(0,1fr);align-items:start;gap:0;max-width:1100px;margin:0 auto}
   #navCliente{display:block;position:sticky;top:0;height:100vh;overflow-y:auto;padding:12px 8px;border-right:1px solid var(--line);background:var(--surface)}
-  .shell .wrap{margin:0;padding:16px 24px 56px}
+  .shell .wrap{margin:0;padding:16px 24px 56px}   /* en escritorio no hay barra inferior que esquivar */
   .shell footer{max-width:760px;margin:0 auto;padding-left:24px;padding-right:24px}
 }
 header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
@@ -374,6 +384,50 @@ function vistaContacto() {
     <p style="margin:8px 0 0"><button class="txt" onclick="salir()">Cerrar sesión</button></p>` : '<p class="vacio" style="margin:12px 0 0">Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.</p>'}</div>`;
 }
 
+/* ---------- Menús de la cabecera móvil (US-619) ---------- */
+function cerrarMenuPortal() {
+  const m = $('#menuPortal');
+  if (m) { m.hidden = true; m.innerHTML = ''; }
+  ['btnCuenta', 'chipObra'].forEach(id => { const b = document.getElementById(id); if (b) b.setAttribute('aria-expanded', 'false'); });
+}
+function abrirMenuPortal(html, disparador, rol) {
+  const m = $('#menuPortal');
+  if (!m) return;
+  const abierto = !m.hidden && m.dataset.de === disparador;
+  cerrarMenuPortal();
+  if (abierto) return;                       // segundo toque: cerrar
+  m.dataset.de = disparador;
+  m.setAttribute('role', rol || 'menu');
+  m.innerHTML = html;
+  m.hidden = false;
+  const b = document.getElementById(disparador);
+  if (b) b.setAttribute('aria-expanded', 'true');
+  const primero = m.querySelector('button,select,a');
+  if (primero) primero.focus();
+}
+function menuCuenta() {
+  const items = [];
+  if (ctx.wa) items.push(`<a class="menu-item" href="${ctx.wa}" target="_blank" rel="noopener" onclick="cerrarMenuPortal()">Escribir por WhatsApp</a>`);
+  items.push(`<button type="button" class="menu-item" onclick="cerrarMenuPortal();irASeccion('contacto')">Contacto</button>`);
+  if (sesion) {
+    items.push(`<button type="button" class="menu-item" onclick="cerrarMenuPortal();pantallaPassword(false)">Cambiar contraseña</button>`);
+    items.push(`<button type="button" class="menu-item peligro" onclick="cerrarMenuPortal();salir()">Salir</button>`);
+  }
+  abrirMenuPortal(items.join(''), 'btnCuenta', 'menu');
+}
+function menuObras() {
+  const items = obras.map(x => `<button type="button" class="menu-item${x.id === obraActual ? ' activo' : ''}" ${x.id === obraActual ? 'aria-current="true"' : ''} onclick="cerrarMenuPortal();abrirObra(${x.id})">${esc(x.nombre)}</button>`).join('');
+  abrirMenuPortal(items, 'chipObra', 'listbox');
+}
+document.addEventListener('click', (ev) => {
+  const m = $('#menuPortal');
+  if (!m || m.hidden) return;
+  if (m.contains(ev.target)) return;
+  if (ev.target.closest && ev.target.closest('#btnCuenta,#chipObra')) return;
+  cerrarMenuPortal();
+});
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') cerrarMenuPortal(); });
+
 /* ---------- Marco y despacho ---------- */
 function pintarObra(d) {
   datos = d;
@@ -382,8 +436,13 @@ function pintarObra(d) {
   $('#pie').innerHTML = (sesion ? 'Tu acceso es personal; no compartas tu contraseña.' : 'Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.') + '<br>Control de Obra' + (ctx.e.nombre ? ' · ' + esc(ctx.e.nombre) : '');
   const e = ctx.e, o = ctx.o;
   $('#app').innerHTML = `
-  <header class="solo-movil">${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}<div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>${sesion ? `<button class="txt" onclick="salir()">Salir</button>` : ''}</header>
-  ${(sesion && obras.length > 1) ? `<div class="barra solo-movil"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x => `<option value="${x.id}" ${x.id === obraActual ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>` : ''}
+  <header class="solo-movil">
+    ${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}
+    <div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>
+    ${(sesion && obras.length > 1) ? `<button type="button" class="chip-obra" id="chipObra" aria-haspopup="listbox" aria-expanded="false" onclick="menuObras()">Obra <span aria-hidden="true">▾</span></button>` : ''}
+    <button type="button" class="btn-cuenta" id="btnCuenta" aria-haspopup="menu" aria-expanded="false" aria-label="Tu cuenta" onclick="menuCuenta()">${esc(((sesion && usuario) ? usuario.nombre : 'Menú').split(' ')[0])} <span aria-hidden="true">▾</span></button>
+  </header>
+  <div id="menuPortal" class="menu-portal" hidden></div>
   <h1>${esc(o.nombre)}</h1>
   <p class="sub">${esc(o.cliente || '')}${o.ubicacion ? ' · ' + esc(o.ubicacion) : ''}${o.fecha_inicio ? ' · inicio ' + fecha(o.fecha_inicio) : ''}${o.fecha_fin ? ' · entrega estimada ' + fecha(o.fecha_fin) : ''}</p>
   <nav class="secciones" id="navSecciones" aria-label="Secciones"></nav>
@@ -397,6 +456,7 @@ function pintarSeccion() {
   const fn = { inicio: vistaInicio, avance: vistaAvance, pagos: vistaPagos, entregables: vistaEntregables, fotos: vistaFotos, contacto: vistaContacto }[seccion] || vistaInicio;
   cont.innerHTML = fn();
   aviso('');
+  cerrarMenuPortal();
   document.title = `${SEC_TITULO[seccion]} · ${ctx.o.nombre}`;
   pintarNavSecciones();
   window.scrollTo({ top: 0, behavior: 'auto' });
