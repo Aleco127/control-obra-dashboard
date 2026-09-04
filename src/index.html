@@ -256,9 +256,6 @@ async function massDeleteNomina(){
 <!-- ========== APP SCREEN ========== -->
 <div id="appScreen">
 <aside id="sb" class="sb hidden md:flex h-screen g fixed p-2 flex-col" style="z-index:var(--z-sidebar)" aria-label="Barra lateral">
-<div class="md:hidden flex justify-end">
-<button type="button" onclick="closeMobileMenu()" class="w-11 h-11 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors" aria-label="Cerrar menú"><i class="ri-close-line text-xl text-slate-500" aria-hidden="true"></i></button>
-</div>
 <!-- US-607: NavShell (js/nav-shell.js) pinta aquí la marca, «Mi trabajo», los grupos y el pie (Buscar, Ayuda, Colapsar, Cerrar sesión). Modelo en navModelo(). -->
 <nav id="nv" class="flex-1 overflow-y-auto" role="navigation" aria-label="Módulos"></nav>
 </aside>
@@ -977,9 +974,8 @@ var showArchived=localStorage.getItem('showArchived')==='true';
 window.addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&h!==M){M=h;R();}});
 
 // US-605: sec se deriva de NAV_GRUPOS (src/js/nav-grupos.js); no se edita a mano. Conserva la forma {t,k,ic,i:[[k,ic,t]]}
-// para updateBreadcrumb, renderCmdk, updateMobileBottomNav y modulosFavoritos hasta que US-616 los migre a NavShell.
+// para updateBreadcrumb y renderCmdk, que siguen leyendo la forma antigua {t,k,ic,i:[[k,ic,t]]}.
 const sec=NAV_GRUPOS.map(g=>({t:g.t,k:g.k,ic:g.ic,i:g.items.map(x=>[x.k,x.ic,x.t])}));
-const collapsedCats=JSON.parse(localStorage.getItem('collapsedCats')||'{}');
 
 const roleColors={admin_general:'from-red-500 to-orange-500',gerente_obra:'from-purple-500 to-pink-500',supervisor_general:'from-blue-500 to-cyan-500',contador:'from-green-500 to-teal-500',residente_obra:'from-amber-500 to-yellow-500',inspector_calidad:'from-indigo-500 to-violet-500',trabajador:'from-gray-500 to-slate-500'};
 const roleIcons={admin_general:'ri-shield-star-fill',gerente_obra:'ri-building-4-fill',supervisor_general:'ri-eye-fill',contador:'ri-calculator-fill',residente_obra:'ri-home-gear-fill',inspector_calidad:'ri-checkbox-circle-fill',trabajador:'ri-user-fill'};
@@ -2135,12 +2131,17 @@ setTimeout(()=>{if(!g.contains(document.activeElement))g.classList.remove('nvs-f
 nv.addEventListener('mouseenter',e=>{const g=e.target.closest&&e.target.closest('.nvs-grupo');if(g)g.classList.remove('nvs-fly-cerrado');},true);
 }
 // US-613: tgMb y closeMobileMenu viven abajo; el aside ya no se abre a pantalla completa en el móvil
+// Preset de relleno de la barra inferior cuando «Mi trabajo» no llega a 4 módulos (US-616)
 const MBN_POR_ROL={residente_obra:['b','f','g','w'],trabajador:['b','f','g','w'],inspector_calidad:['b','r','u','y'],gerente_obra:['d','o','pc','w'],admin_general:['d','o','pc','w'],supervisor_general:['d','o','w','g'],contador:['pc','g','n','q'],contador_externo:['pc','g','cb','q'],_:['d','o','g','pc']};
 function updateMobileBottomNav(){
 const nav=$('mobileBottomNav');if(!nav||typeof NavShell==='undefined')return;
+// US-616: la barra inferior sale de «Mi trabajo»; Bitácora va primero para residente y trabajador (D6),
+// y si faltan huecos se rellenan con el preset del rol y luego con el orden de la barra.
 const rol=String(currentUser?.rol||'').toLowerCase();
-// US-606: sólo módulos visibles; si el preset del rol se queda corto, se completa en el orden de la barra
-const keys=(MBN_POR_ROL[rol]||MBN_POR_ROL._).filter(k=>moduloVisibleParaUsuario(k));
+const keys=[];
+if(['residente_obra','trabajador'].includes(rol)&&moduloVisibleParaUsuario('b'))keys.push('b');
+for(const k of navFijados())if(keys.length<4&&!keys.includes(k)&&moduloVisibleParaUsuario(k))keys.push(k);
+for(const k of (MBN_POR_ROL[rol]||MBN_POR_ROL._))if(keys.length<4&&!keys.includes(k)&&moduloVisibleParaUsuario(k))keys.push(k);
 for(const g of NAV_GRUPOS){for(const it of g.items){if(keys.length>=4)break;if(it.k!=='d'&&!keys.includes(it.k)&&moduloVisibleParaUsuario(it.k))keys.push(it.k);}}
 const m=navModelo();
 m.inferior={items:keys.slice(0,4),plus:{t:'Captura rápida',onClick:'abrirSheet()'},mas:{t:'Más',ic:'ri-menu-2-line',onClick:'tgMb()'}};
@@ -2731,33 +2732,12 @@ menu.classList.add('hidden');
 }
 });
 
-function toggleCat(k){
-collapsedCats[k]=!collapsedCats[k];
-localStorage.setItem('collapsedCats',JSON.stringify(collapsedCats));
-N();
-}
-
-// ========== NAVEGACIÓN SEGÚN USO (US-019): favoritos, categorías colapsadas, paleta Ctrl+K ==========
+// ========== NAVEGACIÓN SEGÚN USO (US-019) ==========
+// Queda sólo el contador de uso: alimenta la siembra de «Mi trabajo» la primera vez (US-608).
+// Los favoritos automáticos, las categorías colapsadas y la barra vieja se retiraron en US-616.
 function moduleUsage(){try{return JSON.parse(localStorage.getItem('moduleUsage')||'{}');}catch(e){return{};}}
 function registrarUsoModulo(k){
 if(!k)return;const u=moduleUsage();u[k]=(u[k]||0)+1;localStorage.setItem('moduleUsage',JSON.stringify(u));
-}
-function modulosFavoritos(n=5){
-const u=moduleUsage();
-const all=sec.flatMap(s=>s.i).filter(x=>moduloVisibleParaUsuario(x[0])&&x[0]!=='d');
-return all.filter(x=>u[x[0]]).sort((a,b)=>u[b[0]]-u[a[0]]).slice(0,n);
-}
-// Al iniciar, todas las categorías colapsadas salvo la del módulo activo (preferencia persistente en collapsedCats)
-function inicializarColapsoNav(){
-if(localStorage.getItem('collapsedCatsInit')==='1')return;
-sec.forEach(s=>{collapsedCats[s.k]=!s.i.some(x=>x[0]===M);});
-localStorage.setItem('collapsedCats',JSON.stringify(collapsedCats));
-localStorage.setItem('collapsedCatsInit','1');
-}
-function favoritosHtml(){
-const fav=modulosFavoritos(5);
-if(fav.length<2)return'';
-return`<div class="cat-section cat-favoritos"><div class="cat-header" style="cursor:default"><div class="cat-icon"><i class="ri-star-line" aria-hidden="true"></i></div><span class="tx text-sm font-semibold tracking-wide">Favoritos</span></div><div class="cat-items" style="max-height:${fav.length*70}px">${fav.map(x=>`<button onclick="M='${x[0]}';if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}R();closeMobileMenu()" class="nav-item w-full ${M===x[0]?'active':'text-gray-400'}" ${M===x[0]?'aria-current="page"':''} aria-label="${getModuloLabel(x[0],x[2])}"><i class="${x[1]}" aria-hidden="true"></i><span class="tx">${getModuloLabel(x[0],x[2])}</span></button>`).join('')}</div></div>`;
 }
 
 // ---- Paleta de comandos (Ctrl+K) ----
@@ -2839,7 +2819,11 @@ const NAV_FIJADOS_MAX=6;
 const NAV_FIJADOS_SEMILLA=['d','o','g','w'];
 const NAV_CLAVE_OK=/^[a-z][a-z0-9_-]{0,15}$/i;
 function navFijadosSemilla(){
-const usados=modulosFavoritos(4).map(x=>x[0]);
+// Los 4 módulos más abiertos según localStorage.moduleUsage (sin Inicio, que ya está arriba)
+const u=moduleUsage();
+const usados=NAV_GRUPOS.flatMap(g=>g.items).map(it=>it.k)
+.filter(k=>k!=='d'&&u[k]&&moduloVisibleParaUsuario(k))
+.sort((a,b)=>u[b]-u[a]).slice(0,4);
 const base=usados.length>=2?usados:NAV_FIJADOS_SEMILLA;
 return base.filter(k=>moduloVisibleParaUsuario(k)).slice(0,NAV_FIJADOS_MAX);
 }
@@ -2859,6 +2843,8 @@ if(col!==barraColapsada()||(sb&&sb.classList.contains('col')!==col)){aplicarBarr
 }
 // Al entrar por primera vez se persiste la semilla para que la lista deje de moverse con el uso
 function navSembrarFijados(){
+// US-616: al pasar a nav_prefs se limpian las claves de la barra vieja (una sola vez)
+try{if(localStorage.getItem('collapsedCats')||localStorage.getItem('collapsedCatsInit')){localStorage.removeItem('collapsedCats');localStorage.removeItem('collapsedCatsInit');}}catch(e){}
 if(Array.isArray(NavPrefs.get().fijados))return;
 const s=navFijadosSemilla();
 if(s.length)NavPrefs.guardar({fijados:s});

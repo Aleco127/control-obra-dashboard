@@ -179,7 +179,8 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 .nvs-col .nvs-fly .nvs-mas,.nvs-col .nvs-fly .nvs-mas .nvs-tx,.nvs-col .nvs-fly .nvs-chev{display:flex}
 
 /* Campo falso de búsqueda del pie (US-615): parece un input, es un botón que abre Ctrl+K */
-.nvs-accion.nvs-campo{border:1px solid var(--line);background:var(--surface-2);color:var(--ink-subtle);border-radius:var(--radius-sm)}
+/* --ink-subtle sobre --surface-2 se queda en 4.34:1 (axe): el texto del campo va en --ink-muted (7.0:1) */
+.nvs-accion.nvs-campo{border:1px solid var(--line);background:var(--surface-2);color:var(--ink-muted);border-radius:var(--radius-sm)}
 .nvs-accion.nvs-campo:hover{background:var(--surface);border-color:var(--line-strong);color:var(--ink)}
 .nvs-col .nvs-accion.nvs-campo{border:0;background:none}
 

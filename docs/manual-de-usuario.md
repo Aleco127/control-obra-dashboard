@@ -155,7 +155,30 @@ El menu lateral izquierdo es tu herramienta principal de navegacion. Los 34 modu
 | **Contabilidad** | Lista | Contabilidad, Facturas CFDI, CFDIs emitidos, Cierres, Socios; bajo «Mas»: Retenciones, Declaraciones, REPSE, SUA |
 | **Administracion** | Config | Reportes, Configuracion, Usuarios |
 
-Haz clic en el nombre de una categoria para expandirla y ver sus modulos. Haz clic en un modulo para acceder a el.
+Haz clic en el nombre de un grupo para abrirlo o cerrarlo; el sistema recuerda cuales dejaste abiertos, en
+esta y en cualquier otra computadora donde entres.
+
+**Mi trabajo.** Arriba de los grupos esta "Mi trabajo": hasta 6 modulos que tu eliges. Pasa el cursor sobre
+cualquier modulo (o llega con el teclado) y toca la estrella para fijarlo o quitarlo. El boton del lapiz permite
+reordenarlos y quitarlos. La primera vez el sistema fija por ti los 4 modulos que mas usas; a partir de ahi la
+lista solo cambia cuando tu la cambias. En el celular, esos mismos modulos son los que aparecen en la barra de
+abajo.
+
+**Obra activa.** Debajo del nombre de la empresa ves en que obra estas trabajando, con su avance y un semaforo:
+verde al dia, ambar con atencion, rojo con retraso. Un clic abre su ficha; "Cambiar" abre la lista para saltar a
+otra obra (con buscador si tienes 8 o mas). Es el mismo dato que el selector de obra de la barra superior: lo que
+cambies en uno se ve en el otro.
+
+**Barra angosta.** El boton "Colapsar menu" del pie deja la barra en solo iconos. Al pasar el cursor (o al
+enfocar con el teclado) sobre un grupo se abre un menu flotante con sus modulos; `Esc` lo cierra. Tu eleccion se
+guarda: la proxima vez que entres, la barra aparece como la dejaste.
+
+**Candados.** Un modulo con candado existe pero no esta incluido en tu plan; al abrirlo el sistema te dice en que
+plan si esta.
+
+**En el celular.** La barra lateral no se abre encima de la pantalla: abajo tienes una barra fija con tus modulos
+y el boton "Mas", que abre una hoja con todos los modulos agrupados. El boton de menu de la barra superior abre
+esa misma hoja.
 
 ### Filtro Global de Obra
 
