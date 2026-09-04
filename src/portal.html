@@ -15,6 +15,21 @@
 --z-dropdown:20;--z-sticky:30;--z-backdrop:50;--z-drawer:60;--fs-xs:11px;--fs-sm:13px;--fs-base:15px;--fs-lg:18px;--tap:44px;--sb-w:240px;--sb-w-col:64px;--dur-1:150ms;--dur-2:250ms}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.5;font-size:16px}
 .wrap{max-width:760px;margin:0 auto;padding:16px 14px 56px}
+/* US-618: de 900 px para arriba, barra del cliente a la izquierda y contenido a la derecha */
+.shell{display:block}
+#navCliente{display:none}
+.pc-obras{padding:0 var(--sp-3) var(--sp-2)}
+.pc-obras label{display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-subtle);margin-bottom:2px}
+.pc-obras select{width:100%;padding:8px 10px;font-size:14px;font-family:inherit;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink)}
+#navClienteBottom{display:block}
+@media(min-width:900px){
+  .solo-movil{display:none!important}
+  #navClienteBottom{display:none}
+  .shell{display:grid;grid-template-columns:var(--sb-w) minmax(0,1fr);align-items:start;gap:0;max-width:1100px;margin:0 auto}
+  #navCliente{display:block;position:sticky;top:0;height:100vh;overflow-y:auto;padding:12px 8px;border-right:1px solid var(--line);background:var(--surface)}
+  .shell .wrap{margin:0;padding:16px 24px 56px}
+  .shell footer{max-width:760px;margin:0 auto;padding-left:24px;padding-right:24px}
+}
 header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
 header .emp{font-weight:700;color:var(--primary);flex:1}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
 h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
@@ -70,10 +85,17 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .txt{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;padding:4px;font-family:inherit}
 </style>
 </head>
-<body><div class="wrap">
+<body>
+<div class="shell">
+<nav id="navCliente" aria-label="Secciones de tu obra"></nav>
+<div class="col">
+<div class="wrap">
 <div id="app"><p class="sub">Cargando…</p></div>
 <footer id="pie">Control de Obra</footer>
 </div>
+</div>
+</div>
+<nav id="navClienteBottom" aria-label="Secciones de tu obra"></nav>
 <script src="js/nav-shell.js?v=20260903a"></script>
 <script>
 const SB='https://cpjdlaiarmxojiyhhpxt.supabase.co', ANON='sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
@@ -360,8 +382,8 @@ function pintarObra(d) {
   $('#pie').innerHTML = (sesion ? 'Tu acceso es personal; no compartas tu contraseña.' : 'Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.') + '<br>Control de Obra' + (ctx.e.nombre ? ' · ' + esc(ctx.e.nombre) : '');
   const e = ctx.e, o = ctx.o;
   $('#app').innerHTML = `
-  <header>${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}<div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>${sesion ? `<button class="txt" onclick="salir()">Salir</button>` : ''}</header>
-  ${(sesion && obras.length > 1) ? `<div class="barra"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x => `<option value="${x.id}" ${x.id === obraActual ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>` : ''}
+  <header class="solo-movil">${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}<div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>${sesion ? `<button class="txt" onclick="salir()">Salir</button>` : ''}</header>
+  ${(sesion && obras.length > 1) ? `<div class="barra solo-movil"><label for="selObra" style="margin:0">Obra</label><select id="selObra" onchange="cambiarObra(this)">${obras.map(x => `<option value="${x.id}" ${x.id === obraActual ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>` : ''}
   <h1>${esc(o.nombre)}</h1>
   <p class="sub">${esc(o.cliente || '')}${o.ubicacion ? ' · ' + esc(o.ubicacion) : ''}${o.fecha_inicio ? ' · inicio ' + fecha(o.fecha_inicio) : ''}${o.fecha_fin ? ' · entrega estimada ' + fecha(o.fecha_fin) : ''}</p>
   <nav class="secciones" id="navSecciones" aria-label="Secciones"></nav>
@@ -380,11 +402,44 @@ function pintarSeccion() {
   window.scrollTo({ top: 0, behavior: 'auto' });
   portalEvento('seccion', { seccion: seccion, obra_id: obraActual });
 }
-// Menú de secciones (US-618 y US-619 lo sustituyen por NavShell)
+// Barra del cliente con NavShell (US-618 escritorio, US-619 móvil). El menú de píldoras queda como respaldo
+// si el componente no cargó (el portal no debe quedarse sin navegación por un archivo que falte).
+const SEC_ICONO = { inicio: 'inicio', avance: 'avance', pagos: 'pagos', entregables: 'entregables', fotos: 'fotos', contacto: 'contacto' };
+function navModeloCliente() {
+  const e = ctx.e;
+  const grupos = [{ k: 'secciones', t: 'Tu obra', suelto: false, plano: true, items: SECCIONES.map(s => ({ k: s, t: SEC_TITULO[s], ic: SEC_ICONO[s] })) }];
+  const acciones = [];
+  if (sesion) {
+    acciones.push({ k: 'password', t: 'Cambiar contraseña', ic: 'cuenta', onClick: 'pantallaPassword(false)' });
+    acciones.push({ k: 'salir', t: 'Salir', ic: 'mas', onClick: 'salir()', tono: 'danger' });
+  }
+  return {
+    modo: 'cliente', prefijo: 'pc',
+    marca: { nombre: e.nombre || 'Tu obra', sub: (sesion && usuario) ? usuario.nombre : 'Avance de tu obra', logo: e.logo_url || '' },
+    grupos, activo: seccion, acciones,
+    onItem: "irASeccion('{k}')",
+    inferior: { items: ['inicio', 'avance', 'pagos', 'entregables', 'fotos'] },
+  };
+}
 function pintarNavSecciones() {
-  const n = $('#navSecciones');
-  if (!n) return;
-  n.innerHTML = SECCIONES.map(s => `<button type="button" class="sec-btn${s === seccion ? ' activa' : ''}"${s === seccion ? ' aria-current="page"' : ''} onclick="irASeccion('${s}')">${SEC_TITULO[s]}</button>`).join('');
+  const pill = $('#navSecciones');
+  const aside = $('#navCliente'), bottom = $('#navClienteBottom');
+  if (typeof NavShell === 'undefined' || !ctx) {
+    if (pill) pill.innerHTML = SECCIONES.map(s => `<button type="button" class="sec-btn${s === seccion ? ' activa' : ''}"${s === seccion ? ' aria-current="page"' : ''} onclick="irASeccion('${s}')">${SEC_TITULO[s]}</button>`).join('');
+    return;
+  }
+  const m = navModeloCliente();
+  const r = NavShell.render(m);
+  if (aside) aside.innerHTML = r.aside;
+  if (bottom) bottom.innerHTML = r.bottom;
+  // Con la barra pintada, las píldoras sobran (se quedan sólo si NavShell no cargó)
+  if (pill) pill.innerHTML = '';
+  // Selector de obra: sólo con sesión de cuenta y más de una obra
+  if (aside && sesion && obras.length > 1) {
+    const sel = `<div class="pc-obras"><label for="selObraNav">Obra</label><select id="selObraNav" onchange="cambiarObra(this)">${obras.map(x => `<option value="${x.id}" ${x.id === obraActual ? 'selected' : ''}>${esc(x.nombre)}</option>`).join('')}</select></div>`;
+    const marca = aside.querySelector('.nvs-marca');
+    if (marca) marca.insertAdjacentHTML('afterend', sel);
+  }
 }
 window.addEventListener('hashchange', () => {
   if (!ctx) return;                  // todavía no hay obra abierta: lo resuelve abrirObra
