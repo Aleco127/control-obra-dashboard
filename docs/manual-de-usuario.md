@@ -184,6 +184,24 @@ En la parte superior de la pantalla encontraras un **selector de obra** (dropdow
 | `C` | Ir a Cotizaciones |
 | `X` | Ir a Ordenes de Compra |
 | `N` | Nuevo registro (segun el modulo activo) |
+| `Ctrl+K` | Buscar un modulo, una obra o un cliente |
+| `Alt+1` ... `Alt+6` | Ir a los modulos de "Mi trabajo", en el orden en que los dejaste |
+| `?` | Ver la lista completa de atajos |
+
+### Moverse por la Barra de Modulos con el Teclado
+
+La barra lateral es una sola parada de tabulacion: al llegar con `Tab` el foco cae en el modulo
+activo y desde ahi te mueves con el teclado.
+
+| Tecla | Accion |
+|-------|--------|
+| Flechas arriba / abajo | Recorrer los modulos y los grupos que se ven |
+| `Inicio` / `Fin` | Saltar al primero o al ultimo |
+| `Enter` o `Espacio` | Abrir el modulo, o abrir y cerrar el grupo |
+| Flecha derecha sobre un grupo | Abrir el grupo |
+| Flecha izquierda sobre un grupo | Cerrar el grupo |
+| Flecha derecha sobre un modulo | Ir a su estrella, para fijarlo o quitarlo de "Mi trabajo" |
+| `Esc` con la barra colapsada | Cerrar el menu flotante del grupo |
 
 ### Indicador de Sincronizacion
 
