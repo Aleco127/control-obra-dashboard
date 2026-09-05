@@ -45,7 +45,7 @@
   .shell .wrap{margin:0 auto;padding:24px 32px 56px}   /* en escritorio no hay barra inferior que esquivar */
   .shell footer{max-width:760px;margin:0 auto;padding-left:32px;padding-right:32px}
 }
-header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
+header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:contain;background:#fff;border:1px solid var(--line);padding:3px}
 header .emp{font-weight:700;color:var(--primary);flex:1}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
 h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
@@ -534,7 +534,7 @@ function pintarObra(d) {
   const e = ctx.e, o = ctx.o;
   $('#app').innerHTML = `
   <header class="solo-movil">
-    ${e.logo_url ? `<img src="${esc(e.logo_url)}" alt="" onerror="this.remove()">` : ''}
+    ${(e.logo_iso_url || e.logo_url) ? `<img src="${esc(e.logo_iso_url || e.logo_url)}" alt="" onerror="this.remove()">` : ''}
     <div class="emp">${esc(e.nombre)}<small>${(sesion && usuario) ? esc(usuario.nombre) : 'Avance de tu obra'}</small></div>
     ${(sesion && obras.length > 1) ? `<button type="button" class="chip-obra" id="chipObra" aria-haspopup="listbox" aria-expanded="false" onclick="menuObras()">Obra <span aria-hidden="true">▾</span></button>` : ''}
     <button type="button" class="btn-cuenta" id="btnCuenta" aria-haspopup="menu" aria-expanded="false" aria-label="Tu cuenta" onclick="menuCuenta()">${esc(((sesion && usuario) ? usuario.nombre : 'Menú').split(' ')[0])} <span aria-hidden="true">▾</span></button>
@@ -604,7 +604,7 @@ function navModeloCliente() {
   }
   return {
     modo: 'cliente', prefijo: 'pc',
-    marca: { nombre: e.nombre || 'Tu obra', sub: (sesion && usuario) ? usuario.nombre : 'Avance de tu obra', logo: e.logo_url || '' },
+    marca: { nombre: e.nombre || 'Tu obra', sub: (sesion && usuario) ? usuario.nombre : 'Avance de tu obra', logo: e.logo_iso_url || e.logo_url || '' },
     grupos, activo: seccion, acciones,
     onItem: "irASeccion('{k}')",
     inferior: { items: ['inicio', 'avance', 'pagos', 'entregables', 'fotos'] },

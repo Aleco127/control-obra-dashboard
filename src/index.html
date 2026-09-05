@@ -998,6 +998,7 @@ const EMPRESA_INFO={
   get web(){return (configData&&configData.empresa&&configData.empresa.web)||'';},
   get email(){return (configData&&configData.empresa&&configData.empresa.email)||'';},
   get logo(){return (configData&&configData.empresa&&configData.empresa.logo)||'';},
+  get logoIso(){return (configData&&configData.empresa&&(configData.empresa.logoIso||configData.empresa.logo))||'';},
   get slug(){return String(this.nombre).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'empresa';}
 };
 const SUPERNOVA_INFO=EMPRESA_INFO; // alias de compatibilidad para PDFs viejos
@@ -1334,14 +1335,15 @@ async function loadBrand(){
   document.title=nombre+' · Control de Obra';
   if(typeof N==='function'&&$('nv')){N.dirty=true;N();}
   try{
-    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,sitio_web,baja_programada_at,datos_pago').eq('id',currentUser.empresa_id).maybeSingle();
+    const{data}=await sb.from('empresas').select('nombre,rfc,direccion,telefono,email,logo_url,logo_iso_url,sitio_web,baja_programada_at,datos_pago').eq('id',currentUser.empresa_id).maybeSingle();
     if(data){
       currentUser.baja_programada_at=data.baja_programada_at||null;
       aplicarEstadoBaja();
-      configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',web:data.sitio_web||'',datos_pago:data.datos_pago||null});
+      configData.empresa=Object.assign({},configData.empresa,{nombre:data.nombre||nombre,rfc:data.rfc||'',direccion:data.direccion||'',telefono:data.telefono||'',email:data.email||'',logo:data.logo_url||'',logoIso:data.logo_iso_url||'',web:data.sitio_web||'',datos_pago:data.datos_pago||null});
       if(typeof N==='function'&&$('nv')){N.dirty=true;N();}
       // El logo sólo llega a la marca de la barra si de verdad carga (el bucket puede responder 400/ORB); si no, NavShell pinta el ícono por omisión
-      if(data.logo_url){const im=new Image();im.onload=()=>{configData.empresa.logo_ok=data.logo_url;if(typeof N==='function'&&$('nv')){N.dirty=true;N();}};im.onerror=()=>{};im.src=data.logo_url;}
+      const logoBarra=data.logo_iso_url||data.logo_url;
+      if(logoBarra){const im=new Image();im.onload=()=>{configData.empresa.logo_ok=logoBarra;if(typeof N==='function'&&$('nv')){N.dirty=true;N();}};im.onerror=()=>{};im.src=logoBarra;}
     }
   }catch(e){}
 }
@@ -3235,7 +3237,7 @@ const nombre=String(currentUser?.nombre||'').trim().split(/\s+/)[0];
 return{
 modo:'constructora',prefijo:'nv',
 contexto:navContexto(),
-marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logo)?EMPRESA_INFO.logo:''},
+marca:{nombre:EMPRESA_INFO.nombre,sub:[nombre,navRolLabel()].filter(Boolean).join(' · '),logo:(configData&&configData.empresa&&configData.empresa.logo_ok===EMPRESA_INFO.logoIso)?EMPRESA_INFO.logoIso:''},
 grupos,fijados,fijadosTitulo:'Mi trabajo',onEditarFijados:'navEditarFijados()',onFijar:"navFijar('{k}')",activo:M==='x'?'g':M,colapsado,
 acciones:[
 {k:'buscar',t:'Buscar…',ic:'ri-search-line',onClick:'abrirCmdk()',atajo:'Ctrl+K',campo:true},
@@ -15151,9 +15153,10 @@ if(!EMPRESA_INFO.logo)throw new Error('sin logo');
 const img=new Image();img.crossOrigin='Anonymous';
 img.src=EMPRESA_INFO.logo;
 await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;setTimeout(reject,3000);});
-// Logo centrado - proporcion 2:1 aprox
+// Logo centrado, respetando la proporción real del archivo (antes se estiraba a 2:1)
 const logoWidth=50;
-const logoHeight=25;
+const prop=(img.naturalHeight&&img.naturalWidth)?(img.naturalHeight/img.naturalWidth):0.5;
+const logoHeight=Math.max(10,Math.min(28,logoWidth*prop));
 doc.addImage(img,'PNG',(pageWidth-logoWidth)/2,y,logoWidth,logoHeight);
 y+=logoHeight+5;
 logoLoaded=true;
