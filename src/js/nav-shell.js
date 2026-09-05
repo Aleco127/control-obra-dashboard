@@ -71,7 +71,9 @@ const NavShell = (() => {
   function logoHtml(logo) {
     const u = String(logo ?? '').trim();
     const permitido = /^(https?:\/\/|data:image\/|\.?\/?[\w./-]+$)/i.test(u) && !/^javascript:/i.test(u);
-    if (u && permitido) return `<img class="nvs-logo-img" src="${esc(u)}" alt="">`;
+    // Si la URL del logo no carga (bucket privado, archivo borrado) el navegador deja una imagen rota
+    // dentro de la marca: se cambia por el logo genérico en cuanto falla.
+    if (u && permitido) return `<img class="nvs-logo-img" src="${esc(u)}" alt="" onerror="this.outerHTML=NavShell.LOGO_DEFECTO">`;
     return LOGO_DEFECTO;
   }
 
@@ -385,6 +387,6 @@ const NavShell = (() => {
     return nuevo;
   }
 
-  return { render, hoja, visibles, conFijados, marcarActivo, alternarGrupo, alternarMas, esc, ICONOS_CLIENTE };
+  return { render, hoja, visibles, conFijados, marcarActivo, alternarGrupo, alternarMas, esc, ICONOS_CLIENTE, LOGO_DEFECTO };
 })();
 if (typeof module !== 'undefined') module.exports = NavShell;
