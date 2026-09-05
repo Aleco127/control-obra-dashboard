@@ -302,7 +302,7 @@ test('modo cliente: íconos SVG inlineados, sin clases ri-, logo por URL', () =>
   assert.ok(aside.startsWith('<div class="nvs nvs-cliente" data-modo="cliente">'));
   assert.equal(count(aside, /<span class="nvs-ic"><svg/g), 8, '6 secciones + cabecera del grupo (sin ic cae al genérico SVG) + acción');
   assert.ok(!/class="ri-/.test(aside) && !/class="ri-/.test(bottom), 'el portal no carga Remix Icon');
-  assert.ok(aside.includes('<img class="nvs-logo-img" src="https://x.test/logo.png" alt="">'));
+  assert.ok(aside.includes('<img class="nvs-logo-img" src="https://x.test/logo.png" alt="" onerror="this.outerHTML=NavShell.LOGO_DEFECTO">'), 'el logo cae al genérico si la URL no carga');
   assert.ok(aside.includes('<span class="nvs-marca-nombre">Supernova Arquitectos</span><span class="nvs-marca-sub">Pedro</span>'));
   const raro = NavShell.render({ modo: 'cliente', grupos: [{ k: 's', t: 'S', ic: 'ri-folder-line', items: [{ k: 'a', t: 'A', ic: 'ri-home-line' }, { k: 'b', t: 'B', ic: 'inexistente' }] }] }).aside;
   assert.ok(raro.includes('<i class="ri-home-line nvs-ic" aria-hidden="true"></i>'), 'un ri- explícito se respeta');

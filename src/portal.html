@@ -22,6 +22,7 @@
 .chip-obra,.btn-cuenta{flex:0 0 auto;min-height:var(--tap);padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
 .chip-obra:hover,.btn-cuenta:hover{background:var(--surface-2)}
 .chip-obra:focus-visible,.btn-cuenta:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.menu-portal[hidden]{display:none}
 .menu-portal{position:absolute;right:14px;z-index:var(--z-dropdown);min-width:220px;max-width:calc(100vw - 28px);display:flex;flex-direction:column;gap:2px;padding:6px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-3)}
 .menu-item{display:block;width:100%;min-height:var(--tap);padding:10px 12px;border:0;border-radius:var(--radius-sm);background:none;color:var(--ink);font:inherit;font-size:15px;text-align:left;text-decoration:none;cursor:pointer}
 .menu-item:hover{background:var(--surface-2)}
@@ -41,8 +42,8 @@
   #navClienteBottom{display:none}
   .shell{display:grid;grid-template-columns:var(--sb-w) minmax(0,1fr);align-items:start;gap:0;max-width:1100px;margin:0 auto}
   #navCliente{display:block;position:sticky;top:0;height:100vh;overflow-y:auto;padding:12px 8px;border-right:1px solid var(--line);background:var(--surface)}
-  .shell .wrap{margin:0;padding:16px 24px 56px}   /* en escritorio no hay barra inferior que esquivar */
-  .shell footer{max-width:760px;margin:0 auto;padding-left:24px;padding-right:24px}
+  .shell .wrap{margin:0 auto;padding:24px 32px 56px}   /* en escritorio no hay barra inferior que esquivar */
+  .shell footer{max-width:760px;margin:0 auto;padding-left:32px;padding-right:32px}
 }
 header{display:flex;align-items:center;gap:12px;padding:8px 0 14px}header img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#fff;border:1px solid var(--line)}
 header .emp{font-weight:700;color:var(--primary);flex:1}header .emp small{display:block;font-weight:400;color:var(--muted);font-size:12px}
@@ -52,9 +53,26 @@ h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margi
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}@media(min-width:560px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
 .bar{height:10px;background:#e5eaf0;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
-.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}.c-ok{background:var(--ok-soft);color:var(--ok)}.c-warn{background:var(--warn-soft);color:var(--warn)}.c-bad{background:var(--danger-soft);color:var(--danger)}.c-info{background:#e1eaf6;color:#2f5b8f}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+.chip.hito{background:#e1eaf6;color:#2f5b8f;font-size:11px;letter-spacing:.03em;text-transform:uppercase;margin-right:6px;vertical-align:1px}
+.chip.opc{background:var(--surface-2);color:var(--muted);font-size:11px;letter-spacing:.03em;text-transform:uppercase;margin-right:6px;vertical-align:1px}.c-ok{background:var(--ok-soft);color:var(--ok)}.c-warn{background:var(--warn-soft);color:var(--warn)}.c-bad{background:var(--danger-soft);color:var(--danger)}.c-info{background:#e1eaf6;color:#2f5b8f}
 table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .tbl{overflow-x:auto}
+/* En móvil una tabla de 5 columnas obliga a desplazar y a leer en columnas de 2 palabras: se apila por renglón. */
+.et-movil{display:none}
+@media(max-width:559px){
+  .tbl-cards{overflow-x:visible}
+  .tbl-cards table,.tbl-cards tbody,.tbl-cards tr,.tbl-cards td{display:block;width:100%}
+  .tbl-cards thead{display:none}
+  .tbl-cards tr{border:1px solid var(--line);border-radius:10px;padding:8px 11px;margin-bottom:8px}
+  .tbl-cards tr:last-child{margin-bottom:0}
+  .tbl-cards td{border:0;padding:3px 0;display:flex;align-items:baseline;justify-content:space-between;gap:14px;text-align:right;white-space:normal}
+  .tbl-cards td::before{content:attr(data-et);flex:0 0 auto;color:var(--muted);font-size:12px;text-align:left}
+  .tbl-cards td.titulo{display:block;text-align:left;font-weight:600;margin-bottom:4px}
+  .tbl-cards td.titulo::before{content:none}
+  .tbl-cards td:empty{display:none}
+  .et-movil{display:inline}
+}
 .fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}@media(min-width:560px){.fotos{grid-template-columns:repeat(4,1fr)}}.fotos a{display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#e5eaf0}.fotos img{width:100%;height:100%;object-fit:cover}
 .act{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.act .bar{width:110px}
 .btn{display:inline-block;background:var(--primary);color:#fff;text-decoration:none;padding:10px 14px;border-radius:9px;font-size:14px;font-weight:600;border:0;cursor:pointer}.btn.s{background:#fff;color:var(--primary);border:1px solid var(--line)}.btn:disabled{opacity:.6;cursor:default}
@@ -62,6 +80,22 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 .copy{font-size:12px;color:var(--accent);background:none;border:0;cursor:pointer;padding:0 4px}
 footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
 .vacio{color:var(--muted);font-size:14px}
+.vacio-caja{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 12px;text-align:center;color:var(--muted);font-size:14px;text-wrap:balance}
+.vacio-caja strong{color:var(--ink);font-size:15px}
+.contacto{display:grid;gap:2px;margin:0 0 14px}
+.contacto a{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px;color:var(--ink);text-decoration:none;word-break:break-word}
+.contacto a:last-child{border-bottom:0}
+.contacto a:hover{color:var(--accent)}
+.contacto .et{flex:0 0 auto;font-size:13px;color:var(--muted)}
+.cuenta{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:#fbfcfe}
+.cuenta-cab{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cuenta-cab .banco{font-weight:700;font-size:15px}
+.cuenta dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:14px}
+.cuenta dt{color:var(--muted)}
+.cuenta dd{margin:0;font-weight:600;word-break:break-word}
+.cuenta .clabe{font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.avance-cab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:13px;color:var(--muted)}
+.avance-cab b{font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums}
 .doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.doc:last-child{border-bottom:0}
 .doc .meta{font-size:12px;color:var(--muted)}
 .grupo{border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;margin-bottom:10px;background:#fbfcfe;scroll-margin-top:12px}
@@ -230,6 +264,23 @@ function irA(id){
     el.classList.add('destacado');setTimeout(()=>el.classList.remove('destacado'),1800);
   },40);
 }
+// El hito se marca con una etiqueta de texto: el emoji de bandera no está en todas las fuentes y sale como recuadro.
+// Los nombres del programa vienen con prefijos («HITO · …», «OPCIONAL · …», «ENTREGA · …»); se sacan del texto
+// y se pintan como etiqueta para que el renglón se lea como una frase.
+const PREFIJO_ACT = /^(HITO|ENTREGA|OPCIONAL)\s*[·:–—-]\s*/i;
+const ETIQUETA_ACT = { HITO: 'Hito', ENTREGA: 'Entrega', OPCIONAL: 'Opcional' };
+function partesAct(a) {
+  const nombre = String((a && a.nombre) || '');
+  const m = nombre.match(PREFIJO_ACT);
+  const et = m ? m[1].toUpperCase() : ((a && a.hito) ? 'HITO' : '');
+  return { et, nombre: m ? nombre.slice(m[0].length) : nombre };
+}
+function chipHito(a) {
+  const et = partesAct(a).et;
+  if (!et) return '';
+  return `<span class="chip ${et === 'OPCIONAL' ? 'opc' : 'hito'}">${ETIQUETA_ACT[et]}</span>`;
+}
+function nombreAct(a) { return esc(partesAct(a).nombre); }
 function etiquetaVer(g){
   const d=g.docs.length,f=g.fotos.length;
   if(d&&f)return 'Ver la entrega';
@@ -329,18 +380,40 @@ function tarjetaSiguientePago(resumida) {
   const vencido = p.vence && p.vence < ctx.hoy;
   const cab = `<h2>Siguiente pago</h2><p style="margin:0 0 8px"><strong>${esc(p.concepto)}</strong> · ${fmt(falta)}${p.vence ? ' · vence ' + fecha(p.vence) : ''} ${vencido ? '<span class="chip c-bad">vencido</span>' : ''}</p>`;
   if (resumida) return `<div class="card" style="border-color:var(--accent)">${cab}<p style="margin:8px 0 0"><button class="btn s" onclick="irASeccion('pagos')">Ver pagos</button></p></div>`;
-  const datosPago = (ctx.dp.clabe || ctx.dp.cuenta)
-    ? `<dl class="pago"><dt>Banco</dt><dd>${esc(ctx.dp.banco || '')}</dd><dt>Titular</dt><dd>${esc(ctx.dp.titular || ctx.e.nombre)}</dd>${ctx.dp.clabe ? `<dt>CLABE</dt><dd>${esc(ctx.dp.clabe)} <button class="copy" onclick="copiar('${esc(ctx.dp.clabe)}',this)">Copiar</button></dd>` : ''}${ctx.dp.cuenta ? `<dt>Cuenta</dt><dd>${esc(ctx.dp.cuenta)} <button class="copy" onclick="copiar('${esc(ctx.dp.cuenta)}',this)">Copiar</button></dd>` : ''}${ctx.dp.referencia ? `<dt>Referencia</dt><dd>${esc(ctx.dp.referencia)}</dd>` : ''}</dl>${ctx.dp.instrucciones ? `<p style="font-size:13px;color:var(--muted);margin:8px 0 0">${esc(ctx.dp.instrucciones)}</p>` : ''}`
-    : '<p class="vacio">Pide a tu constructor los datos de pago.</p>';
+  const datosPago = cuentasHtml()
+    + (ctx.dp.referencia ? `<p style="font-size:13px;color:var(--muted);margin:10px 0 0">Referencia: ${esc(ctx.dp.referencia)}</p>` : '')
+    + (ctx.dp.instrucciones ? `<p style="font-size:13px;color:var(--muted);margin:6px 0 0">${esc(ctx.dp.instrucciones)}</p>` : '');
   const avisar = ctx.wa ? `<p style="margin:10px 0 0"><a class="btn s" href="${ctx.wa}" target="_blank" rel="noopener" onclick="avisoPagoClic()">Avisar que ya pagué por WhatsApp</a></p>` : '';
   return `<div class="card" style="border-color:var(--accent)">${cab}${datosPago}${avisar}</div>`;
+}
+// Datos para transferir. `dp.cuentas` permite varias (p. ej. una con factura y otra sin); si no viene,
+// se usan los campos planos de siempre (banco/titular/clabe/cuenta).
+function cuentasDePago() {
+  const lista = Array.isArray(ctx.dp.cuentas) ? ctx.dp.cuentas.filter(c => c && (c.clabe || c.cuenta)) : [];
+  if (lista.length) return lista;
+  if (ctx.dp.clabe || ctx.dp.cuenta) return [{ banco: ctx.dp.banco, titular: ctx.dp.titular, clabe: ctx.dp.clabe, cuenta: ctx.dp.cuenta }];
+  return [];
+}
+function agrupaClabe(v) { return String(v || '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim(); }
+function filaCopiable(et, v) {
+  const plano = String(v || '').replace(/\s+/g, '');
+  return `<dt>${et}</dt><dd><span class="clabe">${esc(agrupaClabe(v))}</span> <button class="copy" onclick="copiar('${esc(plano)}',this)">Copiar</button></dd>`;
+}
+function cuentasHtml() {
+  const lista = cuentasDePago();
+  if (!lista.length) return '<p class="vacio">Pide a tu constructor los datos para transferir.</p>';
+  return lista.map(c => `<div class="cuenta">
+    <div class="cuenta-cab">${c.etiqueta ? `<span class="chip c-info">${esc(c.etiqueta)}</span>` : ''}<span class="banco">${esc(c.banco || '')}</span></div>
+    <dl><dt>Beneficiario</dt><dd>${esc(c.titular || ctx.e.nombre)}</dd>
+    ${c.clabe ? filaCopiable('CLABE', c.clabe) : ''}
+    ${c.cuenta ? filaCopiable('Cuenta', c.cuenta) : ''}</dl></div>`).join('');
 }
 function vistaInicio() {
   const a = ctx.acts;
   const hechas = a.filter(x => Number(x.avance || 0) >= 100).length;
   const sigHito = a.find(x => x.hito && Number(x.avance || 0) < 100);
   const linea = a.length
-    ? `${hechas} de ${a.length} ${a.length === 1 ? 'actividad terminada' : 'actividades terminadas'}${sigHito ? ' · siguiente hito: ' + esc(sigHito.nombre) + (sigHito.fin ? ', ' + fecha(sigHito.fin) : '') : ''}`
+    ? `${hechas} de ${a.length} ${a.length === 1 ? 'actividad terminada' : 'actividades terminadas'}${sigHito ? ' · siguiente hito: ' + nombreAct(sigHito) + (sigHito.fin ? ', ' + fecha(sigHito.fin) : '') : ''}`
     : 'Tu constructor aún no comparte el programa de trabajo.';
   const ultimas = ctx.fotos.slice(0, 3);
   const ultimoDoc = ctx.docs[0];
@@ -350,7 +423,8 @@ function vistaInicio() {
     : '';
   return kpisHtml() + avisoPago
     + `<div class="card"><h2>Cómo va tu obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
-      <div class="bar" aria-label="Avance ${ctx.avance}%"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
+      <div class="avance-cab"><span>Avance de la obra</span><b>${ctx.avance}%</b></div>
+      <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
       <p style="margin:10px 0 0;font-size:14px">${linea}</p>
       <p style="margin:8px 0 0"><button class="btn s" onclick="irASeccion('avance')">Ver el programa</button></p></div>`
     + tarjetaSiguientePago(true)
@@ -359,37 +433,52 @@ function vistaInicio() {
 }
 function vistaAvance() {
   return `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
-    <div class="bar" aria-label="Avance ${ctx.avance}%"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
-    ${ctx.acts.length ? `<div style="margin-top:10px">${ctx.acts.map(a => `<div class="act"><div><div>${a.hito ? '🏁 ' : ''}${esc(a.nombre)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin ? ' a ' + fecha(a.fin) : ''}${a.responsable ? ' · ' + esc(a.responsable) : ''}</div>${ctx.porHito[a.id] ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(ctx.porHito[a.id])}</button>` : ''}</div><div><div class="bar"><i style="width:${Math.min(100, Number(a.avance || 0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance || 0))}%</div></div></div>`).join('')}</div>` : '<p class="vacio">Tu constructor aún no comparte el programa de trabajo.</p>'}
+    <div class="avance-cab"><span>Avance de la obra</span><b>${ctx.avance}%</b></div>
+    <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
+    ${ctx.acts.length ? `<div style="margin-top:10px">${ctx.acts.map(a => `<div class="act"><div><div>${chipHito(a)}${nombreAct(a)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin ? ' a ' + fecha(a.fin) : ''}${a.responsable ? ' · ' + esc(a.responsable) : ''}</div>${ctx.porHito[a.id] ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(ctx.porHito[a.id])}</button>` : ''}</div><div><div class="bar"><i style="width:${Math.min(100, Number(a.avance || 0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance || 0))}%</div></div></div>`).join('')}</div>` : '<div class="vacio-caja"><strong>El programa todavía no está publicado</strong>En cuanto tu constructor lo comparta vas a ver aquí cada etapa con sus fechas.</div>'}
   </div>`
-    + (ctx.ests.length ? `<div class="card"><h2>Estimaciones</h2><div class="tbl"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ctx.ests.map(x => `<tr><td>${esc(x.numero)}</td><td>${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n">${fmt(x.total)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '');
+    + (ctx.ests.length ? `<div class="card"><h2>Estimaciones</h2><div class="tbl tbl-cards"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ctx.ests.map(x => `<tr><td class="titulo"><span class="et-movil">Estimación </span>${esc(x.numero)}</td><td data-et="Periodo">${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n" data-et="Avance">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '');
 }
 function vistaPagos() {
   return tarjetaSiguientePago(false)
-    + `<div class="card"><h2>Plan de pagos</h2>${ctx.plan.length ? `<div class="tbl"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${ctx.plan.map(x => `<tr><td>${esc(x.concepto)}</td><td class="n">${fmt(x.monto)}</td><td class="n">${fmt(x.cobrado)}</td><td>${fecha(x.vence)}</td><td>${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Sin plan de pagos registrado.</p>'}</div>`
-    + `<div class="card"><h2>Pagos realizados</h2>${ctx.pagos.length ? `<div class="tbl"><table><thead><tr><th>Fecha</th><th>Concepto</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${ctx.pagos.map(p => `<tr><td>${fecha(p.fecha)}</td><td>${esc(p.concepto || p.numero || '')}</td><td>${esc(p.metodo || '')}</td><td class="n">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="vacio">Aún no hay pagos registrados.</p>'}</div>`
-    + (ctx.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${ctx.cfdis.map(c => `<tr><td>${esc((c.serie || '') + (c.folio || ''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid || '')}</div></td><td>${fecha(c.fecha)}</td><td class="n">${fmt(c.total)}</td><td>${c.tiene_archivo ? `<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
+    + `<div class="card"><h2>Plan de pagos</h2>${ctx.plan.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${ctx.plan.map(x => `<tr><td class="titulo">${esc(x.concepto)}</td><td class="n" data-et="Monto">${fmt(x.monto)}</td><td class="n" data-et="Pagado">${fmt(x.cobrado)}</td><td data-et="Vence">${fecha(x.vence)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vacio-caja"><strong>Todavía no hay un plan de pagos</strong>Cuando tu constructor lo registre vas a ver aquí cada exhibición con su fecha.</div>'}</div>`
+    + `<div class="card"><h2>Pagos realizados</h2>${ctx.pagos.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th>Fecha</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${ctx.pagos.map(p => `<tr><td class="titulo">${esc(p.concepto || p.numero || '')}</td><td data-et="Fecha">${fecha(p.fecha)}</td><td data-et="Forma">${esc(p.metodo || '')}</td><td class="n" data-et="Monto">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vacio-caja">Aquí van a aparecer tus pagos conforme se registren.</div>'}</div>`
+    + (ctx.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl tbl-cards"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${ctx.cfdis.map(c => `<tr><td class="titulo"><span class="et-movil">Factura </span>${esc((c.serie || '') + (c.folio || ''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid || '')}</div></td><td data-et="Fecha">${fecha(c.fecha)}</td><td class="n" data-et="Total">${fmt(c.total)}</td><td>${c.tiene_archivo ? `<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
 }
 function vistaEntregables() {
   return `<div class="card"><h2>Entregables de tu obra</h2>${(ctx.gruposHito.length || ctx.sueltos)
-    ? `${ctx.gruposHito.map(a => bloqueEntrega('ent-' + a.id, (a.hito ? '🏁 ' : '') + esc(a.nombre), fecha(a.inicio), ctx.porHito[a.id], a)).join('')}${ctx.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', ctx.sueltos, null) : ''}`
-    : '<p class="vacio">Todavía no hay entregables publicados para ti.</p>'}</div>`;
+    ? `${ctx.gruposHito.map(a => bloqueEntrega('ent-' + a.id, chipHito(a) + nombreAct(a), fecha(a.inicio), ctx.porHito[a.id], a)).join('')}${ctx.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', ctx.sueltos, null) : ''}`
+    : '<div class="vacio-caja"><strong>Todavía no hay entregables</strong>Aquí vas a encontrar tus planos, contratos y reportes en cuanto se publiquen.</div>'}</div>`;
 }
 function vistaFotos() {
-  if (!ctx.fotos.length) return `<div class="card"><h2>Fotos de la obra</h2><p class="vacio">Todavía no hay fotos publicadas.</p></div>`;
+  if (!ctx.fotos.length) return `<div class="card"><h2>Fotos de la obra</h2><div class="vacio-caja"><strong>Todavía no hay fotos</strong>Aquí vas a ver las fotos que tu constructor publique conforme avance la obra.</div></div>`;
   // La galería completa: primero las de cada entrega (con su etiqueta) y al final las sueltas
   const porEntrega = ctx.gruposHito.filter(a => ctx.porHito[a.id].fotos.length)
-    .map(a => `<div class="card"><h2>${a.hito ? '🏁 ' : ''}${esc(a.nombre)}</h2><div class="fotos">${ctx.porHito[a.id].fotos.map(miniatura).join('')}</div></div>`).join('');
+    .map(a => `<div class="card"><h2>${chipHito(a)}${nombreAct(a)}</h2><div class="fotos">${ctx.porHito[a.id].fotos.map(miniatura).join('')}</div></div>`).join('');
   const sueltas = ctx.fotosSueltas.length ? `<div class="card"><h2>${ctx.hayFotosEnGrupos ? 'Más fotos de la obra' : 'Fotos de la obra'}</h2><div class="fotos">${ctx.fotosSueltas.map(miniatura).join('')}</div></div>` : '';
   return porEntrega + sueltas;
 }
 function vistaContacto() {
   const e = ctx.e;
-  return `<div class="card"><h2>¿Tienes una duda?</h2>
-    <p style="margin:0 0 8px;font-size:14px">${esc(e.nombre)}${e.telefono ? ' · ' + esc(e.telefono) : ''}${e.email ? ' · ' + esc(e.email) : ''}</p>
-    ${ctx.wa ? `<a class="btn" href="${ctx.wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>` : ''}
-    ${sesion ? `<p style="margin:12px 0 0"><button class="txt" onclick="pantallaPassword(false)">Cambiar mi contraseña</button>${(usuario && usuario.usuario) ? `<span class="vacio" style="font-size:12px"> · entraste como ${esc(usuario.usuario)}</span>` : ''}</p>
-    <p style="margin:8px 0 0"><button class="txt" onclick="salir()">Cerrar sesión</button></p>` : '<p class="vacio" style="margin:12px 0 0">Este enlace es privado; compártelo sólo con quien deba ver el avance de la obra.</p>'}</div>`;
+  const tel = String(e.telefono || '').trim();
+  const telHref = 'tel:+52' + tel.replace(/\D/g, '').replace(/^52/, '');
+  const filas = [];
+  if (ctx.wa) filas.push(`<a href="${ctx.wa}" target="_blank" rel="noopener"><span class="et">WhatsApp</span>${esc(tel)}</a>`);
+  else if (tel) filas.push(`<a href="${esc(telHref)}"><span class="et">Teléfono</span>${esc(tel)}</a>`);
+  if (e.email) filas.push(`<a href="mailto:${esc(e.email)}"><span class="et">Correo</span>${esc(e.email)}</a>`);
+  if (e.sitio_web) filas.push(`<a href="${esc(e.sitio_web)}" target="_blank" rel="noopener"><span class="et">Sitio web</span>${esc(String(e.sitio_web).replace(/^https?:\/\//, ''))}</a>`);
+  const contacto = `<div class="card"><h2>¿Tienes una duda sobre tu obra?</h2>
+    <p style="margin:0 0 12px;font-size:14px;color:var(--muted)">Escríbenos y te contestamos. Menciona el nombre de tu proyecto para atenderte más rápido.</p>
+    <p style="margin:0 0 10px;font-size:15px;font-weight:600">${esc(e.nombre)}</p>
+    ${filas.length ? `<div class="contacto">${filas.join('')}</div>` : '<p class="vacio">Tu constructor todavía no publica sus datos de contacto.</p>'}
+    ${ctx.wa ? `<a class="btn" href="${ctx.wa}" target="_blank" rel="noopener">Escribir por WhatsApp</a>` : ''}</div>`;
+  const cuenta = sesion
+    ? `<div class="card"><h2>Tu cuenta</h2>
+      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">Entraste como <strong>${esc((usuario && usuario.usuario) || '')}</strong>. Tu acceso es personal: no compartas tu contraseña.</p>
+      <p style="margin:0"><button class="btn s" onclick="pantallaPassword(false)">Cambiar mi contraseña</button>
+      <button class="btn s" style="margin-left:6px" onclick="salir()">Cerrar sesión</button></p></div>`
+    : `<div class="card"><h2>Sobre este enlace</h2><p class="vacio" style="margin:0">Este enlace es privado y muestra el avance de tu obra. Compártelo sólo con quien deba verlo.</p></div>`;
+  return contacto + cuenta;
 }
 
 /* ---------- Menús de la cabecera móvil (US-619) ---------- */
@@ -450,7 +539,7 @@ function pintarObra(d) {
     ${(sesion && obras.length > 1) ? `<button type="button" class="chip-obra" id="chipObra" aria-haspopup="listbox" aria-expanded="false" onclick="menuObras()">Obra <span aria-hidden="true">▾</span></button>` : ''}
     <button type="button" class="btn-cuenta" id="btnCuenta" aria-haspopup="menu" aria-expanded="false" aria-label="Tu cuenta" onclick="menuCuenta()">${esc(((sesion && usuario) ? usuario.nombre : 'Menú').split(' ')[0])} <span aria-hidden="true">▾</span></button>
   </header>
-  <div id="menuPortal" class="menu-portal" hidden></div>
+  <div id="menuPortal" class="menu-portal solo-movil" hidden></div>
   <h1>${esc(o.nombre)}</h1>
   <p class="sub">${esc(o.cliente || '')}${o.ubicacion ? ' · ' + esc(o.ubicacion) : ''}${o.fecha_inicio ? ' · inicio ' + fecha(o.fecha_inicio) : ''}${o.fecha_fin ? ' · entrega estimada ' + fecha(o.fecha_fin) : ''}</p>
   <nav class="secciones" id="navSecciones" aria-label="Secciones"></nav>
