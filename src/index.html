@@ -371,22 +371,39 @@ async function massDeleteNomina(){
 <button onclick="closeMdl('mdlEmpresa')" class="text-slate-400 hover:text-slate-600" aria-label="Cerrar"><i class="ri-close-line text-xl" aria-hidden="true"></i></button>
 </div>
 <form id="frmEmpresa" onsubmit="saveEmpresa(event)">
-<!-- Logo Section -->
-<div class="flex items-center gap-4 mb-6 p-4 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-xl">
-<div id="empLogoPreview" class="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-dashed border-slate-300">
+<!-- Logo Section: el logotipo completo (PDF y recibos) y el ícono cuadrado (barra lateral) -->
+<div class="grid sm:grid-cols-2 gap-4 mb-6 p-4 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-xl">
+<div class="flex items-center gap-3">
+<div id="empLogoPreview" class="w-20 h-20 shrink-0 rounded-xl bg-white flex items-center justify-center overflow-hidden border-2 border-dashed border-slate-300 p-1">
 <i class="ri-building-2-line text-3xl text-slate-400"></i>
 </div>
-<div class="flex-1">
-<label class="text-xs text-gray-400 mb-1 block" for="empLogoFile">Logo de la Empresa</label>
-<input type="file" id="empLogoFile" accept="image/*" class="hidden" onchange="previewEmpLogo(this)">
+<div class="flex-1 min-w-0">
+<label class="text-xs text-gray-400 mb-1 block" for="empLogoFile">Logotipo</label>
+<input type="file" id="empLogoFile" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="previewEmpLogo(this,'logo')">
 <div class="flex gap-2">
-<button type="button" onclick="$('empLogoFile').click()" class="btn btn-s text-xs"><i class="ri-upload-2-line mr-1"></i>Subir Logo</button>
-<button type="button" onclick="removeEmpLogo()" class="btn btn-s text-xs text-red-500" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
+<button type="button" onclick="$('empLogoFile').click()" class="btn btn-s text-xs"><i class="ri-upload-2-line mr-1"></i>Subir</button>
+<button type="button" onclick="removeEmpLogo('logo')" class="btn btn-s text-xs text-red-500" aria-label="Quitar el logotipo"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
 </div>
-<p class="text-[10px] text-slate-400 mt-1">PNG, JPG. Max 2MB. Recomendado: 200x200px</p>
+<p class="text-[10px] text-slate-400 mt-1">Sale en tus PDF y recibos. PNG, JPG o WEBP, máximo 2 MB.</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div id="empIsoPreview" class="w-20 h-20 shrink-0 rounded-xl bg-white flex items-center justify-center overflow-hidden border-2 border-dashed border-slate-300 p-1">
+<i class="ri-shapes-line text-3xl text-slate-400"></i>
+</div>
+<div class="flex-1 min-w-0">
+<label class="text-xs text-gray-400 mb-1 block" for="empIsoFile">Ícono cuadrado</label>
+<input type="file" id="empIsoFile" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="previewEmpLogo(this,'iso')">
+<div class="flex gap-2">
+<button type="button" onclick="$('empIsoFile').click()" class="btn btn-s text-xs"><i class="ri-upload-2-line mr-1"></i>Subir</button>
+<button type="button" onclick="removeEmpLogo('iso')" class="btn btn-s text-xs text-red-500" aria-label="Quitar el ícono"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
+</div>
+<p class="text-[10px] text-slate-400 mt-1">El de la barra lateral. Cuadrado (200×200). Si lo dejas vacío se usa el logotipo.</p>
+</div>
 </div>
 </div>
 <input type="hidden" id="empLogoUrl" value="">
+<input type="hidden" id="empIsoUrl" value="">
 <!-- Tabs -->
 <div class="flex border-b border-slate-200 mb-4">
 <button type="button" onclick="switchEmpTab('identidad')" id="tabEmpIdentidad" class="px-3 py-2 text-xs font-medium border-b-2 border-cyan-500 text-cyan-500"><i class="ri-profile-line mr-1"></i>Identidad</button>
@@ -1797,14 +1814,13 @@ $('empWeb').value=data.sitio_web||'';
 $('empFacebook').value=data.facebook||'';
 $('empInstagram').value=data.instagram||'';
 $('empLinkedin').value=data.linkedin||'';
-// Logo
+// Logotipo y ícono cuadrado
 $('empLogoUrl').value=data.logo_url||'';
-const logoPreview=$('empLogoPreview');
-if(data.logo_url){
-logoPreview.innerHTML=`<img src="${data.logo_url}" alt="Logotipo de la empresa" class="w-full h-full object-cover">`;
-}else{
-logoPreview.innerHTML='<i class="ri-building-2-line text-3xl text-slate-400"></i>';
-}
+$('empIsoUrl').value=data.logo_iso_url||'';
+pintarLogoEmp('logo',data.logo_url);
+pintarLogoEmp('iso',data.logo_iso_url);
+$('empLogoFile').value='';$('empIsoFile').value='';
+delete $('empLogoUrl').dataset.quitar;delete $('empIsoUrl').dataset.quitar;
 openMdl('mdlEmpresa');
 }
 
@@ -1826,27 +1842,44 @@ tabBtn?.classList.remove('border-cyan-500','text-cyan-500');
 });
 }
 
-// Preview logo empresa
-function previewEmpLogo(input){
-if(input.files&&input.files[0]){
-const file=input.files[0];
-if(file.size>2*1024*1024){
-Toast.warning('El archivo es muy grande. Máximo 2MB.');
-return;
+// Vista previa de los dos logotipos de la empresa. `slot`: 'logo' (completo, PDF y recibos) o 'iso' (cuadrado, barra).
+const LOGO_SLOTS={logo:{prev:'empLogoPreview',file:'empLogoFile',url:'empLogoUrl',icono:'ri-building-2-line'},
+                  iso:{prev:'empIsoPreview',file:'empIsoFile',url:'empIsoUrl',icono:'ri-shapes-line'}};
+function pintarLogoEmp(slot,src){
+const c=LOGO_SLOTS[slot];if(!c||!$(c.prev))return;
+$(c.prev).innerHTML=src?`<img src="${S(src)}" alt="" class="w-full h-full object-contain">`
+  :`<i class="${c.icono} text-3xl text-slate-400"></i>`;
 }
+function previewEmpLogo(input,slot){
+const c=LOGO_SLOTS[slot]||LOGO_SLOTS.logo;
+const file=input.files&&input.files[0];
+if(!file)return;
+if(file.size>2*1024*1024){Toast.warning('El archivo pesa más de 2 MB. Guárdalo más chico e inténtalo de nuevo.');input.value='';return;}
+if(!/^image\/(png|jpeg|webp)$/.test(file.type)){Toast.warning('El logotipo debe ser PNG, JPG o WEBP.');input.value='';return;}
 const reader=new FileReader();
-reader.onload=function(e){
-$('empLogoPreview').innerHTML=`<img src="${e.target.result}" class="w-full h-full object-cover">`;
-};
+reader.onload=(e)=>{const p=$(c.prev);if(p)p.innerHTML=`<img src="${e.target.result}" alt="" class="w-full h-full object-contain">`;};
 reader.readAsDataURL(file);
 }
+
+// Quitar logo (se aplica al guardar)
+function removeEmpLogo(slot){
+const k=LOGO_SLOTS[slot]?slot:'logo', c=LOGO_SLOTS[k];
+$(c.file).value='';
+$(c.url).value='';
+$(c.url).dataset.quitar='1';
+pintarLogoEmp(k,'');
 }
 
-// Remover logo empresa
-function removeEmpLogo(){
-$('empLogoFile').value='';
-$('empLogoUrl').value='';
-$('empLogoPreview').innerHTML='<i class="ri-building-2-line text-3xl text-slate-400"></i>';
+// La app entra a Supabase como anon, así que la escritura en el bucket la hace la Edge Function
+// `subir-logo`, que valida la sesión y guarda también la columna. Devuelve la URL pública.
+async function subirLogoEmpresa(slot,file){
+const fd=new FormData();
+fd.append('slot',slot);
+if(file)fd.append('archivo',file);
+const r=await fetch(SB+'/functions/v1/subir-logo',{method:'POST',headers:{'x-obra-token':currentUser.token},body:fd});
+const d=await r.json().catch(()=>null);
+if(!r.ok||!d||!d.ok)throw new Error((d&&d.error)||'No se pudo guardar el logotipo.');
+return d.url||'';
 }
 
 // Validar sesión con el servidor
@@ -9128,19 +9161,21 @@ const originalText=submitBtn.innerHTML;
 submitBtn.innerHTML='<i class="ri-loader-4-line animate-spin mr-1"></i>Guardando...';
 submitBtn.disabled=true;
 try{
-let logoUrl=$('empLogoUrl').value;
-// Subir logo si hay archivo nuevo
-const logoFile=$('empLogoFile').files[0];
-if(logoFile){
-const fileExt=logoFile.name.split('.').pop();
-const fileName=`empresa_${currentUser.empresa_id}_${Date.now()}.${fileExt}`;
-const{data:uploadData,error:uploadError}=await sb.storage.from('logos').upload(fileName,logoFile,{upsert:true});
-if(uploadError){
-console.error('Error subiendo logo:',uploadError);
-Toast.error(humanizeError(uploadError,'No se pudo subir el logo'));
-}else{
-const{data:urlData}=sb.storage.from('logos').getPublicUrl(fileName);
-logoUrl=urlData.publicUrl;
+// Logotipo e ícono: los guarda la Edge Function (subir sin archivo = quitar)
+let logoUrl=$('empLogoUrl').value, isoUrl=$('empIsoUrl').value;
+for(const[slot,campo,oculto]of[['logo','empLogoFile','empLogoUrl'],['iso','empIsoFile','empIsoUrl']]){
+const file=$(campo).files[0], quitar=$(oculto).dataset.quitar==='1';
+if(!file&&!quitar)continue;                          // sin cambios en este slot
+try{
+const url=await subirLogoEmpresa(slot,file||null);
+if(slot==='logo')logoUrl=url;else isoUrl=url;
+$(oculto).value=url;
+delete $(oculto).dataset.quitar;
+$(campo).value='';
+}catch(err){
+Toast.error(err.message||'No se pudo guardar el logotipo.');
+submitBtn.innerHTML=originalText;submitBtn.disabled=false;
+return;
 }
 }
 const updateData={
@@ -9165,8 +9200,9 @@ sitio_web:$('empWeb').value||null,
 facebook:$('empFacebook').value||null,
 instagram:$('empInstagram').value||null,
 linkedin:$('empLinkedin').value||null,
-// Logo
+// Logotipo
 logo_url:logoUrl||null,
+logo_iso_url:isoUrl||null,
 updated_at:new Date().toISOString()
 };
 const{error}=await sb.from('empresas').update(updateData).eq('id',currentUser.empresa_id);
