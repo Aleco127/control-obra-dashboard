@@ -61,8 +61,10 @@ begin
     'generado', now());
 end; $function$;
 
--- Supernova: el logotipo horizontal para PDF y recibos, el isotipo para las barras.
+-- Supernova: el logotipo horizontal para PDF y recibos, el isotipo para las barras. Se sembraron con los
+-- archivos de `src/img/marca/`; desde la migración 061 los dos se suben desde Configuración › Datos de la
+-- empresa y quedan en el bucket `logos`, así que esto sólo actúa si la empresa aún no tiene logotipo.
 update control_obra.empresas
-   set logo_url = 'img/marca/empresa-1-horizontal.png',
-       logo_iso_url = 'img/marca/empresa-1.png'
+   set logo_url = coalesce(nullif(logo_url, ''), 'img/marca/empresa-1-horizontal.png'),
+       logo_iso_url = coalesce(nullif(logo_iso_url, ''), 'img/marca/empresa-1.png')
  where id = 1;
