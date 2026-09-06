@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 
 const SB = 'https://cpjdlaiarmxojiyhhpxt.supabase.co';
 const ANON = 'sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
-const A = process.env.QA_TOKEN_A || 'qa-2e92575194312f35c916e55a461118130c5c1a61da6aa08e';
-const B = process.env.QA_TOKEN_B || 'qa-b-7f3a91c2d5e64b08a1f2c3d4e5f60718';
+const A = process.env.QA_TOKEN_A || process.env.OBRA_QA_TOKEN || '';
+const B = process.env.QA_TOKEN_B || '';
+// Sin tokens las pruebas se omiten (control-obra-dashboard/.env: set -a; . ./.env; set +a). Nunca pegarlos aquí: el repo es público.
+const skip = A && B ? false : 'QA_TOKEN_A/OBRA_QA_TOKEN y QA_TOKEN_B no definidos';
 
 const rechazado = (r) => r.status >= 400 || (r.body && r.body.success === false && /No autorizado/.test(String(r.body.error)));
 async function rpc(name, token, args = {}, extra = {}) {
@@ -19,7 +21,7 @@ async function rpc(name, token, args = {}, extra = {}) {
 }
 
 let userA, userB;
-test('validar_sesion devuelve el usuario de cada token', async () => {
+test('validar_sesion devuelve el usuario de cada token', { skip }, async () => {
   const a = await rpc('validar_sesion', null, { p_token: A });
   const b = await rpc('validar_sesion', null, { p_token: B });
   assert.equal(a.status, 200); assert.equal(b.status, 200);
@@ -29,7 +31,7 @@ test('validar_sesion devuelve el usuario de cada token', async () => {
   assert.ok('baja_programada_at' in userA && 'es_admin_empresa' in userA);
 });
 
-test('RPC con sesión de escritura fallan sin token (crear_obra, crear_gasto, get_next_*)', async () => {
+test('RPC con sesión de escritura fallan sin token (crear_obra, crear_gasto, get_next_*)', { skip }, async () => {
   const sin = await rpc('crear_obra', null, { p_user_id: userA.user_id, p_codigo_obra: 'X', p_nombre_obra: 'x' });
   assert.ok(sin.status >= 400 || (sin.body && sin.body.success === false), `crear_obra sin token: ${sin.status} ${JSON.stringify(sin.body).slice(0, 100)}`);
   const n1 = await rpc('get_next_pago_recibido_numero', null);
@@ -38,7 +40,7 @@ test('RPC con sesión de escritura fallan sin token (crear_obra, crear_gasto, ge
   assert.ok(n2.status >= 400, `get_next_cuenta_cobrar_numero sin token debe fallar: ${n2.status}`);
 });
 
-test('B no puede actuar en nombre de A pasando el user_id de A', async () => {
+test('B no puede actuar en nombre de A pasando el user_id de A', { skip }, async () => {
   const r = await rpc('crear_obra', B, { p_user_id: userA.user_id, p_codigo_obra: 'HACK', p_nombre_obra: 'Obra hackeada' });
   assert.ok(rechazado(r), `crear_obra con p_user_id ajeno: ${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
   const g = await rpc('crear_gasto', B, { p_user_id: userA.user_id, p_obra_id: 1, p_fecha_solicitud: '2026-08-29', p_monto_neto: 1 });
@@ -47,7 +49,7 @@ test('B no puede actuar en nombre de A pasando el user_id de A', async () => {
   assert.ok(rechazado(lvl), `get_user_access_level ajeno: ${lvl.status}`);
 });
 
-test('B no puede leer ni cambiar la configuración de la empresa A', async () => {
+test('B no puede leer ni cambiar la configuración de la empresa A', { skip }, async () => {
   const c = await rpc('get_empresa_config', B, { p_empresa_id: 1 });
   assert.ok(rechazado(c), `get_empresa_config de A desde B: ${c.status} ${JSON.stringify(c.body).slice(0, 100)}`);
   const s = await rpc('save_empresa_modulos_config', B, { p_empresa_id: 1, p_modulos: {} });
@@ -58,7 +60,7 @@ test('B no puede leer ni cambiar la configuración de la empresa A', async () =>
   assert.equal(propio.status, 200, 'A sí puede leer su configuración');
 });
 
-test('funciones de plataforma exigen x-platform-token; hash_password y mantenimiento no son públicas', async () => {
+test('funciones de plataforma exigen x-platform-token; hash_password y mantenimiento no son públicas', { skip }, async () => {
   const st = await rpc('get_platform_stats', A);
   assert.ok(st.status >= 400, `get_platform_stats con sesión de empresa: ${st.status}`);
   const an = await rpc('get_platform_analytics', null);
@@ -71,7 +73,7 @@ test('funciones de plataforma exigen x-platform-token; hash_password y mantenimi
   }
 });
 
-test('las funciones públicas siguen funcionando: registrar_usuario valida términos, verificar_login rechaza credenciales malas', async () => {
+test('las funciones públicas siguen funcionando: registrar_usuario valida términos, verificar_login rechaza credenciales malas', { skip }, async () => {
   const reg = await rpc('registrar_usuario', null, { p_nombre: 'x', p_email: 'nadie@example.com', p_password: 'Prueba1234', p_tipo_registro: 'nueva', p_empresa_nombre: 'x', p_acepta_terminos: false });
   assert.equal(reg.status, 200); assert.equal(reg.body.success, false);
   const login = await rpc('verificar_login', null, { p_email: 'nadie@example.com', p_password: 'mala', p_ip_address: '127.0.0.1', p_user_agent: 'test' });

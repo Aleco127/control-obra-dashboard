@@ -3,11 +3,13 @@ recorriendo 34 módulos en escritorio y móvil, más los diálogos principales. 
 tailwind.config.js incluye como safelist exacto: así el CSS compilado cubre también las clases armadas con variables.
 Uso: python scripts/qa/collect-classes.py [--url https://app.supernovarquitectos.com]
 """
-import argparse, json, time, re
+import argparse, json, os, time, re
 from playwright.sync_api import sync_playwright
 
-ap = argparse.ArgumentParser(); ap.add_argument('--url', default='https://app.supernovarquitectos.com'); ap.add_argument('--token', default='qa-2e92575194312f35c916e55a461118130c5c1a61da6aa08e')
+ap = argparse.ArgumentParser(); ap.add_argument('--url', default='https://app.supernovarquitectos.com'); ap.add_argument('--token', default=os.environ.get('OBRA_QA_TOKEN'), help='sesión de QA (o variable OBRA_QA_TOKEN); nunca pegarla en el código')
 args = ap.parse_args()
+if not args.token:
+    raise SystemExit('Falta --token o la variable OBRA_QA_TOKEN')
 MODULOS = ['d','o','p','w','g','pc','ct','es','cb','fc','ce','rt','dc','rp','su','ci','so','s','m','b','c','r','u','y','k','f','e','n','t','v','l','q','z','h']
 ACCIONES = ["typeof newGasto==='function'&&newGasto()", "typeof WizardObra!=='undefined'&&WizardObra.open({})", "typeof Compras!=='undefined'&&Compras.rapido&&Compras.rapido()", "typeof Socios!=='undefined'&&Socios.nuevoReparto&&Socios.nuevoReparto()", "typeof PagosProv!=='undefined'&&PagosProv.abrir&&PagosProv.abrir({})", "typeof Ayuda!=='undefined'&&Ayuda.abrir()", "typeof Suscripcion!=='undefined'&&Suscripcion.irAPlan()"]
 clases = set()
