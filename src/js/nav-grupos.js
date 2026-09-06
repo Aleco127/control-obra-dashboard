@@ -1,7 +1,7 @@
 /**
  * NAV_GRUPOS (US-605): arquitectura de información de la barra de la constructora.
  * Siete grupos por lo que hace la persona (Inicio, Obra, Calidad, Dinero, Equipo, Contabilidad, Administración),
- * no por el nombre del departamento. Es la ÚNICA fuente de los 27 módulos: `sec` (breadcrumb, Ctrl+K, barra
+ * no por el nombre del departamento. Es la ÚNICA fuente de los 34 módulos: `sec` (breadcrumb, Ctrl+K, barra
  * inferior, favoritos) se deriva de aquí en index.html y nunca se edita a mano.
  *
  * Forma (compatible con el modelo de NavShell.render):

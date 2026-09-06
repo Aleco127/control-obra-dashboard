@@ -2927,8 +2927,8 @@ function navAplicarPrefs(){
 navSembrarFijados();
 const p=NavPrefs.get();
 const col=typeof p.barra_colapsada==='boolean'?p.barra_colapsada:barraColapsada();
-const sb=$('sb');
-if(col!==barraColapsada()||(sb&&sb.classList.contains('col')!==col)){aplicarBarraColapsada(col);N.dirty=true;}
+const aside=$('sb');
+if(col!==barraColapsada()||(aside&&aside.classList.contains('col')!==col)){aplicarBarraColapsada(col);N.dirty=true;}
 }
 // Al entrar por primera vez se persiste la semilla para que la lista deje de moverse con el uso
 function navSembrarFijados(){

@@ -243,6 +243,7 @@ async function salir(){await rpc('portal_logout',{p_token:sesion});localStorage.
 
 async function abrirObra(id){
   if(!id)return pantallaError('Todavía no tienes una obra asignada','Escríbele a tu constructor para que te dé acceso.');
+  if(obraActual!==Number(id))novedadesVistas.clear(); // los avisos vistos son por obra
   obraActual=Number(id);
   $('#app').innerHTML='<p class="sub">Cargando…</p>';
   const d=await rpc('portal_datos',{p_token:sesion,p_obra_id:obraActual});
@@ -582,8 +583,8 @@ function avisoDeSeccion(s) {
     if (v > 0) return { badge: true, badgeAria: v + (v === 1 ? ' pago vencido' : ' pagos vencidos') };
     return {};
   }
-  if (s === 'entregables' && Number(n.documentos) > 0) return { badge: Number(n.documentos), badgeAria: n.documentos + ' nuevos' };
-  if (s === 'fotos' && Number(n.fotos) > 0) return { badge: Number(n.fotos), badgeAria: n.fotos + ' nuevas' };
+  if (s === 'entregables' && Number(n.documentos) > 0) { const d = Number(n.documentos); return { badge: d, badgeAria: d + (d === 1 ? ' documento nuevo' : ' documentos nuevos') }; }
+  if (s === 'fotos' && Number(n.fotos) > 0) { const f = Number(n.fotos); return { badge: f, badgeAria: f + (f === 1 ? ' foto nueva' : ' fotos nuevas') }; }
   return {};
 }
 // ¿Este elemento llegó después de la última visita? (created_at del payload contra ultimo_visto_at)
