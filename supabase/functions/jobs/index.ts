@@ -1,5 +1,6 @@
-// Edge Function jobs: tareas diarias de la plataforma. La invoca n8n (cron 8:00 America/Chihuahua) con x-internal-key.
-// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario), whatsapp (avisos urgentes vía Twilio de Zook, US-240), all.
+// Edge Function jobs: tareas diarias de la plataforma. La invoca el cron del VPS (14:00 UTC) con x-internal-key.
+// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario),
+// whatsapp (avisos urgentes vía Twilio de Zook, US-240), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -24,6 +25,24 @@ async function yaEnviado(empresa_id: number, template: string): Promise<boolean>
   const { count } = await admin.from("email_log").select("id", { count: "exact", head: true }).eq("empresa_id", empresa_id).eq("template", template).eq("status", "enviado");
   return (count ?? 0) > 0;
 }
+// Los bytes del Storage sólo se borran por la API (DELETE FROM storage.objects deja el archivo en el bucket): se listan con
+// archivos_de_empresa (service_role) y se quitan por bucket antes de la RPC, que limpia las filas que queden.
+async function borrarArchivosEmpresa(empresa_id: number) {
+  const { data, error } = await admin.rpc("archivos_de_empresa", { p_empresa_id: empresa_id });
+  if (error) return { error: error.message };
+  const porBucket: Record<string, string[]> = {};
+  for (const f of (data ?? []) as Array<{ bucket_id: string; name: string }>) (porBucket[f.bucket_id] ??= []).push(f.name);
+  const out: Record<string, unknown> = {};
+  for (const [bucket, nombres] of Object.entries(porBucket)) {
+    let borrados = 0; const errores: string[] = [];
+    for (let i = 0; i < nombres.length; i += 100) {
+      const { data: r, error: e } = await admin.storage.from(bucket).remove(nombres.slice(i, i + 100));
+      if (e) errores.push(e.message); else borrados += (r ?? []).length;
+    }
+    out[bucket] = errores.length ? { borrados, errores } : borrados;
+  }
+  return out;
+}
 const fmtFecha = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Chihuahua" });
 
 async function jobBajas(internalKey: string) {
@@ -35,8 +54,9 @@ async function jobBajas(internalKey: string) {
     const vence = new Date(b.baja_programada_at).getTime();
     const dias = Math.ceil((vence - now) / 86400000);
     if (vence <= now) {
+      const archivos = await borrarArchivosEmpresa(b.empresa_id);
       const { data: r, error: e } = await admin.rpc("eliminar_empresa_definitivo", { p_empresa_id: b.empresa_id });
-      out.push({ empresa: b.nombre, accion: "eliminada", resultado: e ? e.message : r });
+      out.push({ empresa: b.nombre, accion: "eliminada", archivos, resultado: e ? e.message : r });
     } else if (dias <= 7 && !b.baja_recordatorio_at && b.admin_email) {
       const ok = await enviar(internalKey, b.admin_email, "baja_recordatorio", { nombre: b.admin_nombre, empresa: b.nombre, fecha: fmtFecha(b.baja_programada_at) }, b.empresa_id);
       if (ok) await admin.rpc("marcar_baja_recordatorio", { p_empresa_id: b.empresa_id });

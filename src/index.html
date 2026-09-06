@@ -3056,7 +3056,8 @@ cfgBarraRender();
 }
 async function cfgBarraGuardar(){
 if(!cfgBarraEstado)return;
-const payload=cfgBarraEstado.map(m=>({modulo_key:m.k,enabled:!!m.enabled,custom_name:(m.nombre||'').trim(),orden:m.orden}));
+// custom_icon sólo viaja cuando se quiere limpiar (reset): la RPC conserva lo guardado si la clave no viene
+const payload=cfgBarraEstado.map(m=>{const it={modulo_key:m.k,enabled:!!m.enabled,custom_name:(m.nombre||'').trim(),orden:m.orden};if(m.custom_icon===null)it.custom_icon=null;return it;});
 try{
 const{data,error}=await sb.rpc('guardar_empresa_modulos',{p_modulos:payload});
 if(error)throw error;
@@ -3072,9 +3073,9 @@ Toast.error(humanizeError(e,'guardar la barra de módulos'));
 }
 }
 async function cfgBarraReset(){
-if(!await Dialog.confirm({title:'Volver a los nombres de fábrica',body:'Se quitan los nombres y el orden que hayas puesto, y todos los módulos vuelven a estar visibles. ¿Continuar?',confirmText:'Restablecer'}))return;
+if(!await Dialog.confirm({title:'Volver a los nombres de fábrica',body:'Se quitan los nombres, los íconos y el orden que hayas puesto, y todos los módulos vuelven a estar visibles. ¿Continuar?',confirmText:'Restablecer'}))return;
 cfgBarraCargarEstado();
-cfgBarraEstado.forEach((m,i)=>{m.enabled=true;m.nombre='';m.orden=i;});
+cfgBarraEstado.forEach((m,i)=>{m.enabled=true;m.nombre='';m.orden=i;m.custom_icon=null;});
 await cfgBarraGuardar();
 }
 // ---- Teclado de la barra (US-612) ----

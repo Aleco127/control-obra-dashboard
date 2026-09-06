@@ -65,7 +65,9 @@ Deno.serve(async (req: Request) => {
   const slot = String(form.get("slot") ?? "logo") === "iso" ? "iso" : "logo";
   const columna = COLUMNA[slot];
 
-  const { data: emp } = await admin.schema("control_obra").from("empresas").select("logo_url,logo_iso_url").eq("id", s.empresa_id).maybeSingle();
+  const { data: emp, error: errEmp } = await admin.schema("control_obra").from("empresas").select("logo_url,logo_iso_url").eq("id", s.empresa_id).maybeSingle();
+  // Si no se pudo leer, no se sigue: con `anterior` en nulo el archivo viejo quedaría huérfano en el bucket
+  if (errEmp) return json({ ok: false, error: "No se pudo leer el logotipo actual. Inténtalo de nuevo." }, 500);
   const anterior = rutaDeUrl((emp?.[columna] as string) ?? null);
 
   const archivo = form.get("archivo");
