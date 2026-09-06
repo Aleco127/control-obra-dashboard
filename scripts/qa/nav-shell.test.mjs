@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync, readdirSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const NavShell = require('../../src/js/nav-shell.js');
 
@@ -358,7 +359,7 @@ test('claves raras se escapan y un modelo vacío no rompe', () => {
   assert.deepEqual(NavShell.render({ grupos: 'no' }).aside.includes('nvs-grupos'), true);
 });
 
-// ---- US-605: NAV_GRUPOS (src/js/nav-grupos.js) es la única fuente de los 27 módulos ----
+// ---- US-605: NAV_GRUPOS (src/js/nav-grupos.js) es la única fuente de los 34 módulos ----
 const NAV_GRUPOS = require('../../src/js/nav-grupos.js');
 // La lista explícita del PRD (US-605) trae 34 claves aunque el texto diga «27»: la lista manda (el sec anterior también tenía 34).
 const CLAVES_PRD = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h'.split(' ');
@@ -374,6 +375,20 @@ test('NAV_GRUPOS carga en Node con los 7 grupos del PRD y exactamente las claves
     assert.equal(new Set(g.items.map((it) => it.k)).size, g.items.length, `grupo ${g.k} sin repetidos`);
     for (const it of g.items) { assert.match(it.ic, /^ri-[a-z0-9-]+$/, `${it.k} lleva ícono Remix`); assert.ok(it.t && it.t.trim(), `${it.k} lleva título`); }
   }
+});
+
+// La lista fija v_validas de la RPC guardar_empresa_modulos debe ser exactamente las claves de NAV_GRUPOS: si se agrega un
+// módulo y no se actualiza la migración, «Guardar la barra» falla con «Módulo desconocido» para toda la empresa.
+test('la RPC guardar_empresa_modulos (última migración que la define) valida exactamente las claves de NAV_GRUPOS', () => {
+  const dir = new URL('../../migrations/', import.meta.url);
+  const archivos = readdirSync(dir).filter((f) => /^\d{3}_.*\.sql$/.test(f)).sort();
+  const ultima = [...archivos].reverse().find((f) => readFileSync(new URL(f, dir), 'utf8').includes('FUNCTION public.guardar_empresa_modulos'));
+  assert.ok(ultima, 'hay una migración con guardar_empresa_modulos');
+  const m = readFileSync(new URL(ultima, dir), 'utf8').match(/v_validas\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\]/);
+  assert.ok(m, `${ultima}: v_validas con ARRAY[...]`);
+  const sqlClaves = [...m[1].matchAll(/'([a-z]+)'/g)].map((x) => x[1]);
+  const claves = NAV_GRUPOS.flatMap((g) => g.items.map((it) => it.k));
+  assert.deepEqual([...sqlClaves].sort(), [...claves].sort(), `${ultima}: v_validas = claves de NAV_GRUPOS`);
 });
 
 test('NAV_GRUPOS: Inicio suelto, Administración plana y separada, fiscales sin uso bajo «Más», cb se llama Contabilidad', () => {

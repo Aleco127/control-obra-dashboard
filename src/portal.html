@@ -243,7 +243,7 @@ async function salir(){await rpc('portal_logout',{p_token:sesion});localStorage.
 
 async function abrirObra(id){
   if(!id)return pantallaError('Todavía no tienes una obra asignada','Escríbele a tu constructor para que te dé acceso.');
-  if(obraActual!==Number(id))novedadesVistas.clear(); // los avisos vistos son por obra
+  novedadesVistas.clear(); // cada carga trae novedades nuevas y mueve la marca: el aviso se vuelve a mostrar
   obraActual=Number(id);
   $('#app').innerHTML='<p class="sub">Cargando…</p>';
   const d=await rpc('portal_datos',{p_token:sesion,p_obra_id:obraActual});

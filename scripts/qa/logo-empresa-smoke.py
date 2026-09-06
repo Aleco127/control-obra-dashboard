@@ -50,8 +50,8 @@ with sync_playwright() as pw:
     p.wait_for_selector('#mdlEmpresa.ac', timeout=15000); p.wait_for_timeout(600)
     despues=p.evaluate("()=>[$('empLogoUrl').value,$('empIsoUrl').value]")
     print('despues:', despues)
-    check(despues[0].startswith('https://') and '/logos/empresa_1/logo-' in despues[0], 'logo_url no quedó en el bucket: '+str(despues[0]))
-    check(despues[1].startswith('https://') and '/logos/empresa_1/iso-' in despues[1], 'logo_iso_url no quedó en el bucket: '+str(despues[1]))
+    check(despues[0].startswith('https://') and '/logos/empresa/1/logo-' in despues[0], 'logo_url no quedó en el bucket: '+str(despues[0]))
+    check(despues[1].startswith('https://') and '/logos/empresa/1/iso-' in despues[1], 'logo_iso_url no quedó en el bucket: '+str(despues[1]))
     check(despues[0]!=antes[0] and despues[1]!=antes[1], 'las URLs no cambiaron (¿no subió?)')
     # las dos imágenes cargan de verdad
     for u in despues:
