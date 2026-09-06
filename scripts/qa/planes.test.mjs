@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 
 const SB = 'https://cpjdlaiarmxojiyhhpxt.supabase.co';
 const ANON = 'sb_publishable_4UKToEePHAO3b_IlI8HlcQ_z_hKUa2y';
-const A = process.env.QA_TOKEN_A || 'qa-2e92575194312f35c916e55a461118130c5c1a61da6aa08e';
-const B = process.env.QA_TOKEN_B || 'qa-b-7f3a91c2d5e64b08a1f2c3d4e5f60718';
+const A = process.env.QA_TOKEN_A || process.env.OBRA_QA_TOKEN || '';
+const B = process.env.QA_TOKEN_B || '';
+// Sin tokens las pruebas se omiten (control-obra-dashboard/.env: set -a; . ./.env; set +a). Nunca pegarlos aquí: el repo es público.
+const skip = A && B ? false : 'QA_TOKEN_A/OBRA_QA_TOKEN y QA_TOKEN_B no definidos';
 
 async function rpc(name, token, args = {}) {
   const r = await fetch(`${SB}/rest/v1/rpc/${name}`, { method: 'POST', headers: { apikey: ANON, Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json', ...(token ? { 'x-obra-token': token } : {}) }, body: JSON.stringify(args) });
@@ -20,7 +22,7 @@ async function rest(path, token, opts = {}) {
 }
 
 let userB;
-test('get_mi_plan: A es Constructora por cortesía, B es Gratis con límites', async () => {
+test('get_mi_plan: A es Constructora por cortesía, B es Gratis con límites', { skip }, async () => {
   const a = await rpc('get_mi_plan', A); const b = await rpc('get_mi_plan', B);
   assert.equal(a.status, 200); assert.equal(b.status, 200);
   assert.equal(a.body.plan.slug, 'constructora'); assert.equal(a.body.sub.estado, 'cortesia'); assert.equal(a.body.plan.features.socios, true);
@@ -31,7 +33,7 @@ test('get_mi_plan: A es Constructora por cortesía, B es Gratis con límites', a
   userB = (await rpc('validar_sesion', null, { p_token: B })).body[0];
 });
 
-test('check_plan_limit: recursos y features', async () => {
+test('check_plan_limit: recursos y features', { skip }, async () => {
   const ob = await rpc('check_plan_limit', B, { p_empresa_id: userB.empresa_id, p_resource: 'obras_activas' });
   assert.equal(ob.status, 200); assert.equal(ob.body.limit, 1); assert.equal(ob.body.allowed, true);
   const f = await rpc('check_plan_limit', B, { p_empresa_id: userB.empresa_id, p_resource: 'feature:socios' });
@@ -42,7 +44,7 @@ test('check_plan_limit: recursos y features', async () => {
   assert.equal(ilim.body.limit, null); assert.equal(ilim.body.allowed, true);
 });
 
-test('crear_obra respeta el límite de 1 obra activa en Gratis y devuelve PLAN_LIMIT', async () => {
+test('crear_obra respeta el límite de 1 obra activa en Gratis y devuelve PLAN_LIMIT', { skip }, async () => {
   // limpiar obras previas de B
   await rest('obras?empresa_id=eq.' + userB.empresa_id, B, { method: 'DELETE' });
   const o1 = await rpc('crear_obra', B, { p_user_id: userB.user_id, p_codigo_obra: 'QA-1', p_nombre_obra: 'Obra QA 1', p_presupuesto_total: 1000 });
@@ -54,7 +56,7 @@ test('crear_obra respeta el límite de 1 obra activa en Gratis y devuelve PLAN_L
   await rest('obras?empresa_id=eq.' + userB.empresa_id, B, { method: 'DELETE' });
 });
 
-test('estados de la prueba: trial vencida → vencida (gracia) → lectura bloquea escrituras; luego se restaura', async () => {
+test('estados de la prueba: trial vencida → vencida (gracia) → lectura bloquea escrituras; luego se restaura', { skip }, async () => {
   // Simular con B: poner en trial vencido y correr el job (vía SQL en el runner no es posible; usamos la RPC de estado a través de la Edge Function jobs con llave interna si está disponible)
   const key = process.env.OBRA_INTERNAL_KEY;
   if (!key) { console.log('  (sin OBRA_INTERNAL_KEY: se omite la simulación de estados; se prueba en Playwright/SQL)'); return; }
