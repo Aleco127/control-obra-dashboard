@@ -70,8 +70,10 @@ Deno.serve(async (req: Request) => {
 
   const archivo = form.get("archivo");
   if (!(archivo instanceof File) || archivo.size === 0) {
-    // Sin archivo: quitar el logotipo
-    await admin.schema("control_obra").from("empresas").update({ [columna]: null }).eq("id", s.empresa_id);
+    // Sin archivo: quitar el logotipo. Primero la base; el archivo sólo se borra si la columna ya quedó en nulo,
+    // para no dejar empresas.logo_url apuntando a un objeto que ya no existe.
+    const { error: errQuitar } = await admin.schema("control_obra").from("empresas").update({ [columna]: null }).eq("id", s.empresa_id);
+    if (errQuitar) return json({ ok: false, error: "No se pudo quitar el logotipo. Inténtalo de nuevo." }, 500);
     if (anterior) await admin.storage.from(BUCKET).remove([anterior]);
     return json({ ok: true, slot, url: null });
   }
@@ -81,7 +83,8 @@ Deno.serve(async (req: Request) => {
   const tipo = tipoReal(bytes);
   if (!tipo) return json({ ok: false, error: "El archivo no es una imagen PNG, JPG o WEBP." }, 415);
 
-  const ruta = `empresa_${s.empresa_id}/${slot}-${Date.now()}.${tipo.ext}`;
+  // Misma convención que comprobantes y fotos (empresa/<id>/...): así eliminar_empresa_definitivo también limpia los logotipos.
+  const ruta = `empresa/${s.empresa_id}/${slot}-${Date.now()}.${tipo.ext}`;
   const { error: errSubida } = await admin.storage.from(BUCKET).upload(ruta, bytes, { contentType: tipo.mime, upsert: false, cacheControl: "3600" });
   if (errSubida) return json({ ok: false, error: "No se pudo guardar el logotipo. Inténtalo de nuevo." }, 500);
 
