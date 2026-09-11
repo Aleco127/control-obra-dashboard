@@ -7,7 +7,7 @@
  * Se reintenta al evento `online`, al volver a la pestaña, cada 60 s y cuando el service worker recibe Background Sync.
  * Un error que no es de red (obra cerrada, mes cerrado, validación) deja el elemento en la cola marcado con el motivo
  * para que el usuario decida (reintentar o descartar) en lugar de perderlo en silencio.
- * Depende de: sb (supabase), Toast, D, Cache, currentUser, Dialog (opcional), S.
+ * Depende de: sb (supabase), Toast, D, Cache, currentUser, Dialog (opcional), S, dataUrlABlob (ui-utils).
  */
 const Outbox = (() => {
   const DB = 'obra_outbox', STORE = 'items';
@@ -58,7 +58,7 @@ const Outbox = (() => {
   async function send(item) {
     if (item.tipo === 'foto') {
       // payload: {path, dataUrl, mime, registro:{...fotos_obra}}
-      const blob = await (await fetch(item.payload.dataUrl)).blob();
+      const blob = dataUrlABlob(item.payload.dataUrl);
       const { error: e1 } = await sb.storage.from('fotos').upload(item.payload.path, blob, { contentType: item.payload.mime || 'image/jpeg', upsert: true });
       if (e1) throw e1;
       const { data: u } = sb.storage.from('fotos').getPublicUrl(item.payload.path);
@@ -74,7 +74,7 @@ const Outbox = (() => {
       if (item.payload.foto?.dataUrl) {
         const f = item.payload.foto;
         const path = `empresa/${currentUser?.empresa_id}/gastos/${(crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36))}.${f.ext || 'jpg'}`;
-        const blob = await (await fetch(f.dataUrl)).blob();
+        const blob = dataUrlABlob(f.dataUrl);
         const { error: e1 } = await sb.storage.from('comprobantes').upload(path, blob, { contentType: f.mime || 'image/jpeg', upsert: false });
         if (e1) throw e1;
         p.p_comprobante_url = path; p.p_comprobacion = p.p_folio_fiscal ? 'facturado' : 'ticket';

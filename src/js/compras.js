@@ -554,7 +554,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
   function uuid() { return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)); }
   async function subirComprobante(f) {
     const path = `empresa/${currentUser.empresa_id}/gastos/${uuid()}.${f.ext}`;
-    const blob = await (await fetch(f.dataUrl)).blob();
+    const blob = dataUrlABlob(f.dataUrl);
     const { error } = await sb.storage.from('comprobantes').upload(path, blob, { contentType: f.mime, upsert: false });
     if (error) throw error;
     return path;

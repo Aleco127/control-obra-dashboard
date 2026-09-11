@@ -635,4 +635,21 @@ const UIUtils = {
   }
 };
 
+/**
+ * dataURL -> Blob sin pasar por fetch().
+ * `fetch('data:...')` cuenta como conexion para la CSP y en produccion (connect-src sin `data:`)
+ * revienta con «Failed to fetch», asi que las fotos nunca llegaban a Storage. Se decodifica a mano.
+ */
+function dataUrlABlob(dataUrl) {
+  const s = String(dataUrl || '');
+  const coma = s.indexOf(',');
+  if (coma < 0) throw new Error('dataURL invalida');
+  const cab = s.slice(0, coma), datos = s.slice(coma + 1);
+  const mime = (cab.match(/^data:([^;,]+)/) || [, 'application/octet-stream'])[1];
+  if (!/;base64/i.test(cab)) return new Blob([decodeURIComponent(datos)], { type: mime });
+  const bin = atob(datos), buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
 console.log('UI Utils loaded');

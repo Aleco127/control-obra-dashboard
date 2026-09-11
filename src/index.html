@@ -10570,10 +10570,10 @@ ${programaActivo?`<button onclick="openMdlActividad()" class="px-3 py-1.5 rounde
 <!-- KPIs -->
 <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
 <div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-2"><i class="ri-task-line n"></i></div><p class="text-xl font-bold n">${totalActividades}</p><p class="text-xs text-gray-400">Actividades</p></div>
-<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center mb-2"><i class="ri-check-double-line text-green-400"></i></div><p class="text-xl font-bold text-green-400">${completadas}</p><p class="text-xs text-gray-400">Completadas</p></div>
-<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mb-2"><i class="ri-loader-4-line text-blue-400"></i></div><p class="text-xl font-bold text-blue-400">${enProgreso}</p><p class="text-xs text-gray-400">En Progreso</p></div>
+<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center mb-2"><i class="ri-check-double-line text-green-400"></i></div><p id="pgKpiComp" class="text-xl font-bold text-green-400">${completadas}</p><p class="text-xs text-gray-400">Completadas</p></div>
+<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mb-2"><i class="ri-loader-4-line text-blue-400"></i></div><p id="pgKpiProg" class="text-xl font-bold text-blue-400">${enProgreso}</p><p class="text-xs text-gray-400">En Progreso</p></div>
 <div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center mb-2"><i class="ri-error-warning-line text-red-400"></i></div><p class="text-xl font-bold text-red-400">${atrasadas}</p><p class="text-xs text-gray-400">Atrasadas</p></div>
-<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center mb-2"><i class="ri-percent-line text-purple-400"></i></div><p class="text-xl font-bold text-purple-400">${avancePromedio.toFixed(1)}%</p><p class="text-xs text-gray-400">Avance Prom.</p></div>
+<div class="g rounded-xl p-3"><div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center mb-2"><i class="ri-percent-line text-purple-400"></i></div><p id="pgKpiProm" class="text-xl font-bold text-purple-400">${avancePromedio.toFixed(1)}%</p><p class="text-xs text-gray-400">Avance Prom.</p></div>
 </div>
 
 ${programas.length===0?`
@@ -10700,19 +10700,21 @@ let progHoy=0,real=0;
 const dist={};
 tareas.forEach(a=>{const d=pesoPorSemana(a,weeks);dist[a.id]=d;const p=pesoDe(a);let acc=0;weeks.forEach(w=>{const v=d[w.n]||0;if(!v)return;if(w.we<=hoy)acc+=v;else if(w.ws<=hoy){const dias=(new Date(w.we+'T00:00:00')-new Date(w.ws+'T00:00:00'))/86400000+1;const trans=(new Date(hoy+'T00:00:00')-new Date(w.ws+'T00:00:00'))/86400000+1;acc+=v*Math.min(1,trans/dias);}});progHoy+=p*Math.min(100,acc)/100;real+=p*(parseFloat(a.porcentaje_avance)||0)/100;});
 const desv=Math.round((real-progHoy)*10)/10;
+// Estado de la vista para recalcular los KPIs sin repintar la tabla (real ponderado en vivo)
+_pgSem={progId:prog.id,obraId:prog.obra_id,ids:tareas.map(a=>a.id),pesoTot,progHoy};
 const groups={};tareas.forEach(a=>{const k=partidaDeActividad(a);(groups[k]=groups[k]||[]).push(a);});
 const nowCls=w=>hoy>=w.ws&&hoy<=w.we?' now':'';
 return`<div class="g rounded-xl p-3 mb-3 flex flex-wrap gap-4 items-center text-sm">
 <div><p class="text-xs text-ink-subtle">Programado a hoy</p><p class="text-lg font-bold">${Math.round(progHoy*10)/10} %</p></div>
-<div><p class="text-xs text-ink-subtle">Real ponderado</p><p class="text-lg font-bold text-accent">${Math.round(real*10)/10} %</p></div>
-<div><p class="text-xs text-ink-subtle">Desviación</p><p class="text-lg font-bold ${desv<=-10?'text-danger':desv<=-5?'text-amber-700':'text-ok'}">${desv>0?'+':''}${desv} pts</p></div>
+<div><p class="text-xs text-ink-subtle">Real ponderado</p><p id="pgKpiReal" class="text-lg font-bold text-accent" aria-live="polite">${Math.round(real*10)/10} %</p></div>
+<div><p class="text-xs text-ink-subtle">Desviación</p><p id="pgKpiDesv" class="text-lg font-bold ${pgDesvCls(desv)}">${pgDesvTxt(desv)}</p></div>
 <div class="ml-auto text-xs text-ink-subtle">${weeks.length} semanas · inicia en ${DOW_ES[programaStartDow(prog)]} · captura el % real por concepto; se guarda solo.</div>
 </div>
 <div class="wk-wrap g rounded-xl" style="max-height:62vh;overflow:auto">
 <table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th><th>Peso</th><th>Real %</th>${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
 <tbody>
-${Object.entries(groups).map(([g,list])=>`<tr><td class="part" colspan="${3+weeks.length}">${S(g)}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr>
-<td class="lbl" title="${S(a.nombre)}"><button type="button" class="text-left hover:underline" onclick="openMdlActividad(${a.id})" aria-label="Editar detalle de ${S(a.nombre)}">${a.wbs?`<span class="font-mono text-ink-subtle">${S(a.wbs)}</span> `:''}${S(a.nombre)}</button></td>
+${Object.entries(groups).map(([g,list])=>`<tr><td class="part" colspan="${3+weeks.length}">${S(g)}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
+<td class="lbl" title="${S(a.nombre)}"><div class="lbl-in">${pgCamaraHtml(a)}<button type="button" class="lbl-nm hover:underline" onclick="openMdlActividad(${a.id})" aria-label="Editar detalle de ${S(a.nombre)}">${a.wbs?`<span class="font-mono text-ink-subtle">${S(a.wbs)}</span> `:''}${S(a.nombre)}</button></div></td>
 <td class="text-center text-ink-subtle">${Math.round(pesoDe(a)*10)/10}%</td>
 <td><input type="number" min="0" max="100" step="1" class="inp real" value="${parseFloat(a.porcentaje_avance)||0}" aria-label="Avance real de ${S(a.nombre)}" oninput="pgSetReal(${a.id},this.value)"></td>
 ${weeks.map(w=>{const v=d[w.n];return`<td class="cell${v?' on':''}${v&&done?' done':''}${nowCls(w)}" role="gridcell" title="${v?`S${w.n}: ${v}% programado`:''}">${v?Math.round(v)+'%':''}</td>`;}).join('')}
@@ -10732,6 +10734,7 @@ const a=(D.ap||[]).find(x=>x.id===actId);if(!a)return;
 let v=Math.max(0,Math.min(100,parseFloat(val)||0));
 a.porcentaje_avance=v;
 a.estatus=v>=100?'Completado':v>0?'En Progreso':(a.estatus==='Completado'?'Pendiente':a.estatus||'Pendiente');
+pgRefrescarKpis(actId);
 clearTimeout(_pgRealTimers[actId]);
 _pgRealTimers[actId]=setTimeout(async()=>{
 try{
@@ -10740,13 +10743,140 @@ if(v>=100)upd.fecha_fin_real=hoyISO();
 const{error}=await sb.from('actividades_programa').update(upd).eq('id',actId);
 if(error)throw error;
 const prog=(D.pg||[]).find(p=>p.id===a.programa_id);
-if(prog)await recalcAvanceObra(prog.obra_id);
+if(prog){await recalcAvanceObra(prog.obra_id);if(typeof N==='function')N();}
 Cache.saveAppData(D,currentUser?.empresa_id||'global');
 Toast.info(`Avance guardado: ${S(a.nombre).slice(0,40)} ${v}%`,1800);
 if(typeof Telemetry!=='undefined')Telemetry.track('avance_capturado',{actividad_id:actId,valor:v});
 }catch(err){Toast.error(humanizeError(err,'No se guardó el avance'));}
 },700);
 }
+// ---------- KPIs de la vista Semanas, en vivo (sin repintar la tabla) ----------
+// renderSemanasView deja aquí con qué se calcularon los KPIs para poder rehacerlos al vuelo.
+let _pgSem=null;
+const pgDesvCls=d=>d<=-10?'text-danger':d<=-5?'text-amber-700':'text-ok';
+const pgDesvTxt=d=>`${d>0?'+':''}${d} pts`;
+// Mismo peso con el que se pintó la tabla: si cambian las actividades hay que repintar, no recalcular
+function pgRealPonderado(){
+if(!_pgSem)return 0;
+const tot=_pgSem.pesoTot,n=_pgSem.ids.length;let real=0;
+_pgSem.ids.forEach(id=>{const a=(D.ap||[]).find(x=>x.id===id);if(!a)return;
+const p=tot?((parseFloat(a.peso_porcentual)||(n?1:0))/tot*100):0;
+real+=p*(parseFloat(a.porcentaje_avance)||0)/100;});
+return real;
+}
+function pgRefrescarKpis(actId){
+if(!_pgSem||!$('pgKpiReal'))return;
+const real=Math.round(pgRealPonderado()*10)/10;
+const desv=Math.round((real-_pgSem.progHoy)*10)/10;
+$('pgKpiReal').textContent=real+' %';
+const dv=$('pgKpiDesv');if(dv){dv.textContent=pgDesvTxt(desv);dv.className='text-lg font-bold '+pgDesvCls(desv);}
+const acts=(D.ap||[]).filter(a=>a.programa_id===_pgSem.progId);
+const set=(id,v)=>{const el=$(id);if(el)el.textContent=v;};
+set('pgKpiComp',acts.filter(a=>a.estatus==='Completado').length);
+set('pgKpiProg',acts.filter(a=>a.estatus==='En Progreso').length);
+set('pgKpiProm',(acts.length?acts.reduce((s,a)=>s+(parseFloat(a.porcentaje_avance)||0),0)/acts.length:0).toFixed(1)+'%');
+// el renglón se pinta en verde en cuanto el concepto llega a 100 %
+if(actId!=null){
+const a=(D.ap||[]).find(x=>x.id===actId);
+const tr=document.querySelector('.wk tr[data-act="'+actId+'"]');
+if(tr)tr.querySelectorAll('td.cell.on').forEach(td=>td.classList.toggle('done',(parseFloat(a&&a.porcentaje_avance)||0)>=100));
+}
+}
+
+// ---------- Fotos del avance por concepto (las ve el cliente en su portal) ----------
+// La foto se liga a la actividad del programa (fotos_obra.actividad_id); el portal agrupa por ahí.
+let _pgFotoAct=null,_pgFotoNuevas=[];
+const PG_FOTO_MDL=`<div id="mdlFotoConcepto" class="modal"><div class="modal-content g rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="pgFotoTitulo">
+<div class="flex items-start justify-between gap-3"><div><h3 id="pgFotoTitulo" class="font-bold">Fotos del avance</h3><p id="pgFotoConcepto" class="text-xs text-ink-subtle"></p></div>
+<button type="button" class="p-1.5 rounded hover:bg-slate-100" onclick="closeMdl('mdlFotoConcepto')" aria-label="Cerrar"><i class="ri-close-line" aria-hidden="true"></i></button></div>
+<p class="text-xs text-ink-muted mt-3"><i class="ri-eye-line mr-1" aria-hidden="true"></i>El cliente las ve en su portal, en Fotos, agrupadas bajo este concepto.</p>
+<div class="flex gap-2 mt-3"><label class="btn btn-p flex-1 cursor-pointer justify-center"><i class="ri-camera-line" aria-hidden="true"></i> Tomar foto<input type="file" accept="image/*" capture="environment" class="hidden" onchange="pgAgregarFotos(this.files);this.value=''"></label>
+<label class="btn btn-s flex-1 cursor-pointer justify-center"><i class="ri-image-add-line" aria-hidden="true"></i> Galería<input type="file" accept="image/*" multiple class="hidden" onchange="pgAgregarFotos(this.files);this.value=''"></label></div>
+<div id="pgFotoPend" class="pg-gal mt-3"></div>
+<label class="text-xs text-ink-subtle mt-3 mb-1 block" for="pgFotoNota">Nota para el cliente (opcional)</label>
+<input type="text" id="pgFotoNota" class="inp" maxlength="140" placeholder="Ej: muro terminado y resanado">
+<div id="pgFotoGal" class="mt-4"></div>
+<div class="flex gap-3 pt-4"><button type="button" class="btn btn-s flex-1" onclick="closeMdl('mdlFotoConcepto')">Cerrar</button>
+<button type="button" id="pgFotoSubir" class="btn btn-p flex-1" onclick="pgSubirFotos()" disabled>Subir fotos</button></div>
+</div></div>`;
+function pgFotosDeActividad(actId){return (D.fot||[]).filter(f=>String(f.actividad_id)===String(actId));}
+function pgCamaraHtml(a){
+const n=pgFotosDeActividad(a.id).length;
+const t=n?`${n} ${n===1?'foto del avance':'fotos del avance'}`:'Agregar foto del avance';
+return `<button type="button" class="pg-cam${n?' tiene':''}" data-cam="${a.id}" onclick="pgAbrirFotos(${a.id})" title="${t}" aria-label="${t} de ${S(a.nombre)}"><i class="ri-camera-line" aria-hidden="true"></i>${n?`<b>${n}</b>`:''}</button>`;
+}
+function pgActualizarCamara(actId){
+const b=document.querySelector('.pg-cam[data-cam="'+actId+'"]');if(!b)return;
+const a=(D.ap||[]).find(x=>String(x.id)===String(actId));
+b.outerHTML=pgCamaraHtml(a||{id:actId,nombre:''});
+}
+function pgAbrirFotos(actId){
+const a=(D.ap||[]).find(x=>x.id===actId);if(!a)return;
+const prog=(D.pg||[]).find(p=>p.id===a.programa_id);
+_pgFotoAct={id:actId,nombre:a.nombre,obraId:prog?prog.obra_id:(selectedObra?Number(selectedObra):null)};
+_pgFotoNuevas=[];
+if(!$('mdlFotoConcepto'))document.body.insertAdjacentHTML('beforeend',PG_FOTO_MDL);
+$('pgFotoConcepto').textContent=a.nombre;
+if($('pgFotoNota'))$('pgFotoNota').value='';
+pgRenderFotos();
+openMdl('mdlFotoConcepto');
+if(typeof Telemetry!=='undefined')Telemetry.track('fotos_concepto_abrir',{actividad_id:actId});
+}
+async function pgAgregarFotos(files){
+for(const f of Array.from(files||[])){
+if(!f.type.startsWith('image/'))continue;
+try{const c=await comprimirImagen(f,1600,0.82);_pgFotoNuevas.push({dataUrl:c.dataUrl,mime:'image/jpeg',size:c.size});}
+catch(e){Toast.error('No se pudo procesar la imagen '+f.name);}
+}
+pgRenderFotos();
+}
+function pgRenderFotos(){
+const pend=$('pgFotoPend'),gal=$('pgFotoGal');if(!pend||!gal||!_pgFotoAct)return;
+pend.innerHTML=_pgFotoNuevas.map((f,i)=>`<figure><img src="${f.dataUrl}" alt="Foto por subir ${i+1}"><button type="button" class="quitar" onclick="_pgFotoNuevas.splice(${i},1);pgRenderFotos()" aria-label="Quitar la foto ${i+1}"><i class="ri-close-line" aria-hidden="true"></i></button><figcaption>${Math.round(f.size/1024)} KB</figcaption></figure>`).join('');
+const ya=pgFotosDeActividad(_pgFotoAct.id);
+gal.innerHTML=ya.length
+?`<p class="text-xs text-ink-subtle mb-2">${ya.length} ${ya.length===1?'foto publicada':'fotos publicadas'}</p><div class="pg-gal">`+ya.map(f=>`<figure><a href="${S(f.url_foto)}" target="_blank" rel="noopener"><img src="${S(f.url_thumbnail||f.url_foto)}" alt="${S(f.titulo||'Foto del avance')}" loading="lazy"></a><button type="button" class="quitar" onclick="pgQuitarFoto(${f.id})" aria-label="Quitar esta foto del portal"><i class="ri-delete-bin-line" aria-hidden="true"></i></button><figcaption>${f.fecha_foto?S(fechaCortaDs(f.fecha_foto)):''}</figcaption></figure>`).join('')+'</div>'
+:'<p class="text-xs text-ink-subtle">Todavía no hay fotos de este concepto.</p>';
+const btn=$('pgFotoSubir');
+if(btn){btn.disabled=!_pgFotoNuevas.length;btn.textContent=_pgFotoNuevas.length?`Subir ${_pgFotoNuevas.length} foto${_pgFotoNuevas.length>1?'s':''}`:'Subir fotos';}
+}
+async function pgSubirFotos(){
+if(!_pgFotoAct||!_pgFotoNuevas.length)return;
+const actId=_pgFotoAct.id,nombre=_pgFotoAct.nombre,obraId=_pgFotoAct.obraId;
+if(!obraId){Toast.error('Este concepto no tiene obra asignada.');return;}
+const btn=$('pgFotoSubir');if(btn)btn.disabled=true;
+const fecha=hoyISO(),nota=($('pgFotoNota')?.value||'').trim();
+const pendientes=_pgFotoNuevas.slice();
+let ok=0,cola=0;
+for(let i=0;i<pendientes.length;i++){
+const f=pendientes[i];
+const path=`${currentUser?.empresa_id||0}/${obraId}/${fecha}_${Date.now()}_${i}.jpg`;
+const registro={obra_id:obraId,empresa_id:currentUser?.empresa_id||null,titulo:String(nombre||'Foto de obra').slice(0,80),descripcion:nota||null,fecha_foto:fecha,categoria:'Avance',actividad_id:actId,tomada_por:currentUser?.nombre||'Sistema',es_destacada:false};
+try{const r=await Outbox.enqueue({tipo:'foto',payload:{path,dataUrl:f.dataUrl,mime:f.mime,registro}});if(r.sent)ok++;else cola++;}
+catch(err){Toast.error(humanizeError(err,'No se subió la foto '+(i+1)));}
+}
+_pgFotoNuevas=[];
+if($('pgFotoNota'))$('pgFotoNota').value='';
+Cache.saveAppData(D,currentUser?.empresa_id||'global');
+pgRenderFotos();pgActualizarCamara(actId);
+const partes=[];
+if(ok)partes.push(`${ok} foto${ok>1?'s':''} ${ok>1?'ya están':'ya está'} en el portal del cliente`);
+if(cola)partes.push(`${cola} en cola, ${cola>1?'se suben':'se sube'} al recuperar la señal`);
+if(partes.length)Toast.success(partes.join(' · ')+'.');
+if(typeof Telemetry!=='undefined')Telemetry.track('foto_concepto_subida',{actividad_id:actId,obra_id:obraId,fotos:ok+cola});
+}
+async function pgQuitarFoto(id){
+const f=(D.fot||[]).find(x=>x.id===id);if(!f)return;
+if(!await Dialog.confirm({title:'¿Quitar esta foto?',body:'El cliente dejará de verla en su portal.',confirmText:'Quitar la foto',tone:'danger'}))return;
+try{
+const{error}=await sb.from('fotos_obra').delete().eq('id',id);if(error)throw error;
+D.fot=(D.fot||[]).filter(x=>x.id!==id);
+Cache.saveAppData(D,currentUser?.empresa_id||'global');
+pgRenderFotos();pgActualizarCamara(f.actividad_id);
+Toast.success('Foto quitada del portal.');
+}catch(err){Toast.error(humanizeError(err,'No se pudo quitar la foto'));}
+}
+
 // obras.avance_porcentaje = real ponderado por peso (todas las actividades no hito de sus programas)
 async function recalcAvanceObra(obraId){
 const obra=D.o.find(o=>o.id==obraId);if(!obra)return;
