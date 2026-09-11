@@ -256,9 +256,11 @@ async function abrirObra(id){
 function cambiarObra(sel){abrirObra(Number(sel.value));}
 
 /* ---------- Entregables agrupados por hito ---------- */
-function irA(id){
-  // US-617: los entregables viven en su propia sección; primero se cambia de vista y luego se hace scroll
-  if(seccion!=='entregables'){seccion='entregables';if(location.hash!=='#entregables')history.replaceState(null,'','#entregables');pintarSeccion();}
+function irA(id,sec){
+  // US-617: los entregables (y las fotos por concepto) viven en su propia sección;
+  // primero se cambia de vista y luego se hace scroll
+  const dest=SECCIONES.includes(sec)?sec:'entregables';
+  if(seccion!==dest){seccion=dest;if(location.hash!=='#'+dest)history.replaceState(null,'','#'+dest);pintarSeccion();}
   setTimeout(()=>{
     const el=document.getElementById(id);if(!el)return;
     el.scrollIntoView({behavior:'smooth',block:'start'});
@@ -355,12 +357,16 @@ function prepararCtx(d) {
   docs.forEach(x => cubo(x.actividad_id || 0).docs.push(x));
   fotos.forEach(f => { if (f.actividad_id) cubo(f.actividad_id).fotos.push(f); });
   const gruposHito = acts.filter(a => porHito[a.id]);
+  // Entregables = lo que tiene documentos (más las entregas del programa aunque sólo traigan fotos).
+  // Las fotos de un concepto cualquiera se agrupan aparte, en la galería.
+  const gruposEnt = gruposHito.filter(a => porHito[a.id].docs.length || a.hito);
+  const gruposFoto = gruposHito.filter(a => porHito[a.id].fotos.length);
   const dp = e.datos_pago || {};
   const wa = e.telefono ? ('https://wa.me/' + String(e.telefono).replace(/\D/g, '').replace(/^(\d{10})$/, '52$1') + '?text=' + encodeURIComponent('Hola, tengo una duda sobre la obra ' + o.nombre)) : '';
   return {
     o, e, plan, pagos, acts, fotos, ests, cfdis, docs, cobrado, contrato, saldo, hoy, proximo,
-    porHito, gruposHito, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
-    hayFotosEnGrupos: gruposHito.some(a => porHito[a.id].fotos.length), dp, wa,
+    porHito, gruposHito, gruposEnt, gruposFoto, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
+    hayFotosEnGrupos: gruposFoto.length > 0, dp, wa,
     avance: Math.round(Number(o.avance || 0)),
   };
 }
@@ -436,7 +442,7 @@ function vistaAvance() {
   return `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(ctx.o.estatus || '')}</span></h2>
     <div class="avance-cab"><span>Avance de la obra</span><b>${ctx.avance}%</b></div>
     <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
-    ${ctx.acts.length ? `<div style="margin-top:10px">${ctx.acts.map(a => `<div class="act"><div><div>${chipHito(a)}${nombreAct(a)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin ? ' a ' + fecha(a.fin) : ''}${a.responsable ? ' · ' + esc(a.responsable) : ''}</div>${ctx.porHito[a.id] ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(ctx.porHito[a.id])}</button>` : ''}</div><div><div class="bar"><i style="width:${Math.min(100, Number(a.avance || 0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance || 0))}%</div></div></div>`).join('')}</div>` : '<div class="vacio-caja"><strong>El programa todavía no está publicado</strong>En cuanto tu constructor lo comparta vas a ver aquí cada etapa con sus fechas.</div>'}
+    ${ctx.acts.length ? `<div style="margin-top:10px">${ctx.acts.map(a => `<div class="act"><div><div>${chipHito(a)}${nombreAct(a)}</div><div style="font-size:12px;color:var(--muted)">${fecha(a.inicio)}${a.fin ? ' a ' + fecha(a.fin) : ''}${a.responsable ? ' · ' + esc(a.responsable) : ''}</div>${ctx.porHito[a.id] ? (ctx.porHito[a.id].docs.length || a.hito ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(ctx.porHito[a.id])}</button>` : `<button class="btn s xs ver" onclick="irA('fot-${a.id}','fotos')">${etiquetaVer(ctx.porHito[a.id])}</button>`) : ''}</div><div><div class="bar"><i style="width:${Math.min(100, Number(a.avance || 0))}%"></i></div><div style="font-size:12px;text-align:right;color:var(--muted)">${Math.round(Number(a.avance || 0))}%</div></div></div>`).join('')}</div>` : '<div class="vacio-caja"><strong>El programa todavía no está publicado</strong>En cuanto tu constructor lo comparta vas a ver aquí cada etapa con sus fechas.</div>'}
   </div>`
     + (ctx.ests.length ? `<div class="card"><h2>Estimaciones</h2><div class="tbl tbl-cards"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${ctx.ests.map(x => `<tr><td class="titulo"><span class="et-movil">Estimación </span>${esc(x.numero)}</td><td data-et="Periodo">${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n" data-et="Avance">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '');
 }
@@ -447,17 +453,26 @@ function vistaPagos() {
     + (ctx.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl tbl-cards"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${ctx.cfdis.map(c => `<tr><td class="titulo"><span class="et-movil">Factura </span>${esc((c.serie || '') + (c.folio || ''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid || '')}</div></td><td data-et="Fecha">${fecha(c.fecha)}</td><td class="n" data-et="Total">${fmt(c.total)}</td><td>${c.tiene_archivo ? `<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
 }
 function vistaEntregables() {
-  return `<div class="card"><h2>Entregables de tu obra</h2>${(ctx.gruposHito.length || ctx.sueltos)
-    ? `${ctx.gruposHito.map(a => bloqueEntrega('ent-' + a.id, chipHito(a) + nombreAct(a), fecha(a.inicio), ctx.porHito[a.id], a)).join('')}${ctx.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', ctx.sueltos, null) : ''}`
+  return `<div class="card"><h2>Entregables de tu obra</h2>${(ctx.gruposEnt.length || ctx.sueltos)
+    ? `${ctx.gruposEnt.map(a => bloqueEntrega('ent-' + a.id, chipHito(a) + nombreAct(a), fecha(a.inicio), ctx.porHito[a.id], a)).join('')}${ctx.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', ctx.sueltos, null) : ''}`
     : '<div class="vacio-caja"><strong>Todavía no hay entregables</strong>Aquí vas a encontrar tus planos, contratos y reportes en cuanto se publiquen.</div>'}</div>`;
 }
 function vistaFotos() {
   if (!ctx.fotos.length) return `<div class="card"><h2>Fotos de la obra</h2><div class="vacio-caja"><strong>Todavía no hay fotos</strong>Aquí vas a ver las fotos que tu constructor publique conforme avance la obra.</div></div>`;
-  // La galería completa: primero las de cada entrega (con su etiqueta) y al final las sueltas
-  const porEntrega = ctx.gruposHito.filter(a => ctx.porHito[a.id].fotos.length)
-    .map(a => `<div class="card"><h2>${chipHito(a)}${nombreAct(a)}</h2><div class="fotos">${ctx.porHito[a.id].fotos.map(miniatura).join('')}</div></div>`).join('');
-  const sueltas = ctx.fotosSueltas.length ? `<div class="card"><h2>${ctx.hayFotosEnGrupos ? 'Más fotos de la obra' : 'Fotos de la obra'}</h2><div class="fotos">${ctx.fotosSueltas.map(miniatura).join('')}</div></div>` : '';
-  return porEntrega + sueltas;
+  // La galería completa: primero un bloque por concepto del programa y al final las sueltas
+  const cuenta = n => n + (n === 1 ? ' foto' : ' fotos');
+  const porConcepto = ctx.gruposFoto.map(a => {
+    const fs = ctx.porHito[a.id].fotos, av = Math.round(Number(a.avance || 0));
+    return `<section class="grupo" id="fot-${a.id}">
+      <div class="grupo-cab"><div><strong>${chipHito(a)}${nombreAct(a)}</strong><div class="meta">${cuenta(fs.length)} · ${av}% de avance</div></div>${av >= 100 ? '<span class="chip c-ok">Terminado</span>' : ''}</div>
+      <div class="fotos">${fs.map(miniatura).join('')}</div></section>`;
+  }).join('');
+  const sueltas = ctx.fotosSueltas.length
+    ? (ctx.hayFotosEnGrupos
+      ? `<section class="grupo" id="fot-otras"><div class="grupo-cab"><div><strong>Otras fotos de la obra</strong><div class="meta">${cuenta(ctx.fotosSueltas.length)}</div></div></div><div class="fotos">${ctx.fotosSueltas.map(miniatura).join('')}</div></section>`
+      : `<div class="fotos">${ctx.fotosSueltas.map(miniatura).join('')}</div>`)
+    : '';
+  return `<div class="card"><h2>Fotos de tu obra</h2>${porConcepto}${sueltas}</div>`;
 }
 function vistaContacto() {
   const e = ctx.e;

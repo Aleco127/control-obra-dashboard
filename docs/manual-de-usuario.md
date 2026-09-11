@@ -1418,7 +1418,9 @@ Puedes volver al asistente en cualquier momento desde la ficha de la obra (por e
 
 ![Asistente paso 3](img/asistente-paso3-semanas.png)
 
-**Seguirlo (modulo Programa).** La pestana *Semanas* muestra la misma matriz en modo lectura, con la semana actual resaltada y una columna **Real %** por concepto: escribe el avance y se guarda solo (sin boton). Arriba se comparan el avance programado a la fecha, el real ponderado y la desviacion en puntos. Los hitos que dependen del cliente o de terceros se pintan en ambar con borde discontinuo; se marcan como cumplidos con su casilla. Las pestanas *Gantt* y *Curva S* siguen disponibles; el formulario completo de cada actividad se abre al hacer clic en su nombre.
+**Seguirlo (modulo Programa).** La pestana *Semanas* muestra la misma matriz en modo lectura, con la semana actual resaltada y una columna **Real %** por concepto: escribe el avance y se guarda solo (sin boton). En cuanto cambias un porcentaje, los tres indicadores de arriba (programado a la fecha, **real ponderado** y desviacion en puntos) y las tarjetas de Completadas, En Progreso y Avance Prom. se recalculan al instante, sin recargar ni perder el lugar en la tabla; el renglon se pinta en verde al llegar a 100 %. Los hitos que dependen del cliente o de terceros se pintan en ambar con borde discontinuo; se marcan como cumplidos con su casilla. Las pestanas *Gantt* y *Curva S* siguen disponibles; el formulario completo de cada actividad se abre al hacer clic en su nombre.
+
+**Fotos del avance por concepto.** A la izquierda de cada concepto hay un boton de camara con el numero de fotos que ya tiene. Al pulsarlo se abre una ventana con dos botones (*Tomar foto* y *Galeria*), una nota opcional para el cliente y las fotos ya publicadas, que puedes quitar de una en una. Las fotos se comprimen en el telefono, quedan ligadas a ese concepto y, si no hay senal, se van a la cola y suben solas al recuperarla. **El cliente las ve en su portal, en la seccion Fotos, agrupadas bajo el nombre del concepto y con su porcentaje de avance**, y desde la seccion Avance puede saltar a ellas con el boton *Ver las fotos*.
 
 ![Programa por semanas](img/programa-semanas.png)
 
@@ -2226,8 +2228,10 @@ si la obra todavia no tiene programa, el selector te lo dice. Lo que dejes sin e
 **Categorias:** Avance, Incidente, Documento, Otro
 
 **Entrega del programa:** igual que en Documentos. Las fotos que asignes a un hito acompanan a esa
-entrega en el portal del cliente; las demas siguen en la galeria general, que pasa a llamarse *Mas fotos
-de la obra* cuando ya hay fotos repartidas por entrega.
+entrega en el portal del cliente. Lo mismo pasa con las fotos que subes desde Programa > Semanas con el
+boton de camara de cada concepto: el portal las agrupa bajo el nombre de ese concepto. Las que no estan
+ligadas a nada siguen en la galeria general, que pasa a llamarse *Otras fotos de la obra* cuando ya hay
+fotos repartidas por concepto o entrega.
 
 **Limites:** PNG o JPG, maximo 2MB por imagen
 
