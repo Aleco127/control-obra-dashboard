@@ -8684,7 +8684,7 @@ catch(err){Toast.error(humanizeError(err,'No se subió la foto '+(i+1)));}
 // 3) Avance real de la semana
 const inputs=[...document.querySelectorAll('#brAvance input[data-act]')];
 let avances=0;
-for(const inp of inputs){const a=(D.ap||[]).find(x=>x.id===parseInt(inp.dataset.act));const v=Math.max(0,Math.min(100,parseFloat(inp.value)||0));if(a&&v!==(parseFloat(a.porcentaje_avance)||0)){a.porcentaje_avance=v;a.estatus=v>=100?'Completado':v>0?'En Progreso':a.estatus;try{await sb.from('actividades_programa').update({porcentaje_avance:v,estatus:a.estatus,updated_at:new Date().toISOString()}).eq('id',a.id);avances++;}catch(e){}}}
+for(const inp of inputs){const a=(D.ap||[]).find(x=>x.id===parseInt(inp.dataset.act));const v=Math.max(0,Math.min(100,parseFloat(inp.value)||0));if(a&&v!==(parseFloat(a.porcentaje_avance)||0)){a.porcentaje_avance=v;a.estatus=v>=100?'Completado':v>0?'En Progreso':a.estatus;try{await sb.from('actividades_programa').update({porcentaje_avance:v,estatus:a.estatus,fecha_fin_real:v>=100?hoyISO():null,updated_at:new Date().toISOString()}).eq('id',a.id);avances++;}catch(e){}}}
 if(avances)await recalcAvanceObra(obraId);
 Cache.saveAppData(D,currentUser?.empresa_id||'global');
 const partes=[];
@@ -10739,7 +10739,9 @@ clearTimeout(_pgRealTimers[actId]);
 _pgRealTimers[actId]=setTimeout(async()=>{
 try{
 const upd={porcentaje_avance:v,estatus:a.estatus,updated_at:new Date().toISOString()};
-if(v>=100)upd.fecha_fin_real=hoyISO();
+// Al corregir un 100 % de vuelta hacia abajo hay que soltar la fecha de terminado,
+// si no la actividad queda «terminada el <hoy>» con 80 % de avance.
+upd.fecha_fin_real=v>=100?hoyISO():null;
 const{error}=await sb.from('actividades_programa').update(upd).eq('id',actId);
 if(error)throw error;
 const prog=(D.pg||[]).find(p=>p.id===a.programa_id);
