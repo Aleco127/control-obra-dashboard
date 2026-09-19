@@ -50,11 +50,13 @@ nav.mini{font-size:14px;margin-bottom:12px}</style></head><body><div class="wrap
 <ol>
 <li>Agrega actividades:</li>
 </ol>
-<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Nombre</td><td>Nombre de la actividad</td></tr><tr><td>Descripcion</td><td>Detalle del trabajo</td></tr><tr><td>Fecha Inicio</td><td>Cuando inicia</td></tr><tr><td>Fecha Fin</td><td>Cuando termina</td></tr><tr><td>Duracion (dias)</td><td>Calculada automaticamente de las fechas</td></tr><tr><td>Peso Porcentual</td><td>Importancia relativa (ej: 15%)</td></tr><tr><td>Avance (%)</td><td>Progreso actual de la actividad</td></tr><tr><td>Responsable</td><td>Persona encargada</td></tr><tr><td>Orden</td><td>Posicion en la lista</td></tr><tr><td>Predecesora</td><td>Actividad que debe completarse antes</td></tr></tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Campo</th><th>Descripcion</th></tr></thead><tbody><tr><td>Nombre</td><td>Nombre de la actividad</td></tr><tr><td>Descripcion</td><td>Detalle del trabajo</td></tr><tr><td>Fecha Inicio</td><td>Cuando inicia</td></tr><tr><td>Fecha Fin</td><td>Cuando termina</td></tr><tr><td>Duracion (dias)</td><td>Calculada automaticamente de las fechas</td></tr><tr><td>Costo Planeado</td><td>Lo que cuesta la actividad; si lo dejas en 0 se toma el importe del concepto del catalogo</td></tr><tr><td>Peso Porcentual</td><td>Se calcula solo: costo de la actividad / costo total del programa. El valor a mano solo se usa si ninguna actividad tiene costo</td></tr><tr><td>Avance (%)</td><td>Progreso actual de la actividad</td></tr><tr><td>Responsable</td><td>Persona encargada</td></tr><tr><td>Orden</td><td>Posicion en la lista</td></tr><tr><td>Predecesora</td><td>Actividad que debe completarse antes</td></tr></tbody></table></div>
 <p><strong>Calculo automatico de avance:</strong></p>
 <ul>
 <li>El sistema calcula el avance general de la obra como promedio ponderado:</li>
-<li><strong>Avance de Obra (%) = Suma(Peso x Avance) / Suma(Peso)</strong></li>
+<li><strong>Avance de Obra (%) = Suma(Peso x Avance) / Suma(Peso)</strong>, donde el peso de cada actividad es su costo (los hitos no cuentan)</li>
+<li>Como el peso es dinero, la pestana <em>Semanas</em> muestra tambien lo <strong>Ejecutado</strong> en pesos (costo x avance) junto a lo <strong>Gastado</strong> en la obra, y avisa cuando el gasto va 5 puntos o mas arriba del avance</li>
+<li>Si varias actividades comparten un concepto, el importe se reparte entre ellas; si alguna trae costo planeado, manda ese desglose</li>
 <li>Este valor se sincroniza automaticamente con el campo <code>avance_porcentaje</code> de la obra</li>
 </ul>
 <h3 id="paso-4-ejecucion">Paso 4: Ejecucion</h3>

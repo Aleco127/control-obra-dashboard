@@ -2663,18 +2663,11 @@ for(const obra of D.o){
 if(obra.avance_manual)continue; // avance fijado a mano desde Obras › Avance
 const programas=(D.pg||[]).filter(p=>p.obra_id==obra.id);
 if(programas.length===0)continue;
-let totalPeso=0;
-let avancePonderado=0;
-programas.forEach(prog=>{
-const actividades=(D.ap||[]).filter(a=>a.programa_id===prog.id);
-actividades.forEach(act=>{
-const peso=act.peso_porcentual||1;
-totalPeso+=peso;
-avancePonderado+=(act.porcentaje_avance||0)*peso/100;
-});
-});
-if(totalPeso===0)continue; // programa sin actividades: se respeta el avance capturado a mano
-const nuevoAvance=Math.round(avancePonderado*100/totalPeso);
+// Mismo cálculo que recalcAvanceObra: peso por costo y sin hitos
+const ids=programas.map(p=>p.id);
+const actividades=(D.ap||[]).filter(a=>ids.includes(a.programa_id)&&!a.es_hito);
+if(!actividades.length)continue; // programa sin actividades: se respeta el avance capturado a mano
+const nuevoAvance=Math.round(pgAvanceReal(actividades));
 if(nuevoAvance!==obra.avance_porcentaje){
 updates.push({id:obra.id,avance:nuevoAvance});
 obra.avance_porcentaje=nuevoAvance; // Update local data
@@ -10546,7 +10539,7 @@ const completadas=actividadesPrograma.filter(a=>a.estatus==='Completado').length
 const enProgreso=actividadesPrograma.filter(a=>a.estatus==='En Progreso').length;
 const atrasadas=actividadesPrograma.filter(a=>a.estatus==='Atrasado'||
 (a.estatus!=='Completado'&&new Date(a.fecha_fin)<new Date())).length;
-const avanceGeneral=totalActividades>0?actividadesPrograma.reduce((s,a)=>s+(a.porcentaje_avance||0)*(a.peso_porcentual||1)/100,0):0;
+const avanceGeneral=totalActividades>0?pgAvanceReal(actividadesPrograma):0;
 const avancePromedio=totalActividades>0?actividadesPrograma.reduce((s,a)=>s+(a.porcentaje_avance||0),0)/totalActividades:0;
 
 const obraTitle=`<span class="text-slate-400 text-sm font-normal ml-2">- ${getSelectedObraName()}</span>`;
@@ -10686,6 +10679,31 @@ return pre?pre[1]:'General';
 }
 function esHitoExterno(a){return a.es_hito&&/^(cliente|terceros)$/i.test(String(a.responsable||''));}
 
+// ---------- Peso de cada actividad = lo que cuesta (para medir el avance contra el gasto) ----------
+// Costo de una actividad: su costo planeado; si no trae, el importe de su concepto del catálogo repartido
+// entre las actividades del mismo programa que lo comparten (si alguna de ellas trae costo planeado manda
+// ese desglose y las demás pesan 0). Es la misma regla de control_obra.recalcular_pesos_programa (migración 065),
+// que deja peso_porcentual al día para el portal. Sin ningún costo en el programa se respeta el peso capturado.
+function pgPesos(acts){
+const t=(acts||[]).filter(a=>!a.es_hito);
+const n0=v=>Math.max(0,parseFloat(v)||0);
+const grupos={};
+t.forEach(a=>{if(!a.concepto_id)return;const k=a.programa_id+'|'+a.concepto_id;const g=grupos[k]=grupos[k]||{n:0,cp:0};g.n++;g.cp+=n0(a.costo_planeado);});
+const costo={},peso={};let total=0;
+t.forEach(a=>{let c=n0(a.costo_planeado);
+if(!c&&a.concepto_id){const g=grupos[a.programa_id+'|'+a.concepto_id];if(!g.cp){const cc=(D.cc||[]).find(x=>x.id===a.concepto_id);c=n0(cc?.importe)/g.n;}}
+costo[a.id]=c;total+=c;});
+if(total>0){t.forEach(a=>{peso[a.id]=costo[a.id]/total*100;});return{base:'costo',total,costo,peso,sinCosto:t.filter(a=>!costo[a.id]).length};}
+const pt=t.reduce((s,a)=>s+n0(a.peso_porcentual),0)||t.length;
+t.forEach(a=>{peso[a.id]=pt?((n0(a.peso_porcentual)||1)/pt*100):0;});
+return{base:'peso',total:0,costo,peso,sinCosto:t.length};
+}
+// Avance real ponderado (0 a 100) de un conjunto de actividades; los hitos no cuentan
+function pgAvanceReal(acts,pp){
+pp=pp||pgPesos(acts);
+return(acts||[]).reduce((s,a)=>s+(pp.peso[a.id]||0)*Math.min(100,parseFloat(a.porcentaje_avance)||0)/100,0);
+}
+
 function renderSemanasView(acts,prog){
 if(!prog)return'';
 const weeks=semanasPrograma(prog);
@@ -10693,29 +10711,38 @@ if(!weeks.length)return EmptyState({icon:'ri-calendar-line',title:'El programa n
 const hoy=hoyISO();
 const tareas=acts.filter(a=>!a.es_hito),hitos=acts.filter(a=>a.es_hito);
 if(!tareas.length&&!hitos.length)return EmptyState({icon:'ri-bar-chart-horizontal-line',title:'Este programa no tiene actividades',body:'Genera el programa por semanas desde el catálogo con el asistente, o agrega actividades una por una.',action:{label:'Definir programa por semanas',onClick:`WizardObra.open({obraId:${prog.obra_id},step:3})`,icon:'ri-magic-line'},secondary:{label:'Nueva actividad',onClick:'openMdlActividad()'}});
-const pesoTot=tareas.reduce((s,a)=>s+(parseFloat(a.peso_porcentual)||0),0)||tareas.length;
-const pesoDe=a=>pesoTot?((parseFloat(a.peso_porcentual)||(tareas.length?1:0))/pesoTot*100):0;
+const pp=pgPesos(tareas);
+const pesoDe=a=>pp.peso[a.id]||0;
 // programado acumulado a hoy
 let progHoy=0,real=0;
 const dist={};
 tareas.forEach(a=>{const d=pesoPorSemana(a,weeks);dist[a.id]=d;const p=pesoDe(a);let acc=0;weeks.forEach(w=>{const v=d[w.n]||0;if(!v)return;if(w.we<=hoy)acc+=v;else if(w.ws<=hoy){const dias=(new Date(w.we+'T00:00:00')-new Date(w.ws+'T00:00:00'))/86400000+1;const trans=(new Date(hoy+'T00:00:00')-new Date(w.ws+'T00:00:00'))/86400000+1;acc+=v*Math.min(1,trans/dias);}});progHoy+=p*Math.min(100,acc)/100;real+=p*(parseFloat(a.porcentaje_avance)||0)/100;});
 const desv=Math.round((real-progHoy)*10)/10;
 // Estado de la vista para recalcular los KPIs sin repintar la tabla (real ponderado en vivo)
-_pgSem={progId:prog.id,obraId:prog.obra_id,ids:tareas.map(a=>a.id),pesoTot,progHoy};
+_pgSem={progId:prog.id,obraId:prog.obra_id,ids:tareas.map(a=>a.id),pp,progHoy};
+// Con pesos por costo el avance también se lee en pesos: lo ejecutado contra lo gastado en la obra
+const porCosto=pp.base==='costo';
+const res=porCosto&&typeof Finanzas!=='undefined'?Finanzas.resultadoObra(prog.obra_id):null;
+const gastado=res?res.costoTotal:0;
+const verDinero=porCosto&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('g');
+const pctGasto=pp.total?Math.round(gastado/pp.total*1000)/10:0;
+_pgSem.pctGasto=pctGasto;
 const groups={};tareas.forEach(a=>{const k=partidaDeActividad(a);(groups[k]=groups[k]||[]).push(a);});
 const nowCls=w=>hoy>=w.ws&&hoy<=w.we?' now':'';
 return`<div class="g rounded-xl p-3 mb-3 flex flex-wrap gap-4 items-center text-sm">
 <div><p class="text-xs text-ink-subtle">Programado a hoy</p><p class="text-lg font-bold">${Math.round(progHoy*10)/10} %</p></div>
 <div><p class="text-xs text-ink-subtle">Real ponderado</p><p id="pgKpiReal" class="text-lg font-bold text-accent" aria-live="polite">${Math.round(real*10)/10} %</p></div>
 <div><p class="text-xs text-ink-subtle">Desviación</p><p id="pgKpiDesv" class="text-lg font-bold ${pgDesvCls(desv)}">${pgDesvTxt(desv)}</p></div>
-<div class="ml-auto text-xs text-ink-subtle">${weeks.length} semanas · inicia en ${DOW_ES[programaStartDow(prog)]} · captura el % real por concepto; se guarda solo.</div>
+${verDinero?`<div><p class="text-xs text-ink-subtle">Ejecutado</p><p class="text-lg font-bold"><span id="pgKpiEjec">${fmt(pp.total*real/100)}</span> <span class="text-xs font-normal text-ink-subtle">de ${fmt(pp.total)}</span></p></div>
+<div title="Compras, nómina y gastos de oficina cargados a la obra"><p class="text-xs text-ink-subtle">Gastado</p><p class="text-lg font-bold">${fmt(gastado)} <span id="pgKpiGasto" class="text-xs font-normal ${pgGastoCls(pctGasto,real)}">${pgGastoTxt(pctGasto,real)}</span></p></div>`:''}
+<div class="ml-auto text-xs text-ink-subtle">${weeks.length} semanas · inicia en ${DOW_ES[programaStartDow(prog)]} · captura el % real por concepto; se guarda solo.<br>${porCosto?`El peso de cada concepto es su costo dentro del programa${pp.sinCosto?` · ${pp.sinCosto} sin costo no ${pp.sinCosto===1?'cuenta':'cuentan'} en el avance`:''}.`:'Ningún concepto tiene costo: se usa el peso capturado a mano.'}</div>
 </div>
 <div class="wk-wrap g rounded-xl" style="max-height:62vh;overflow:auto">
 <table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th><th>Peso</th><th>Real %</th>${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
 <tbody>
 ${Object.entries(groups).map(([g,list])=>`<tr><td class="part" colspan="${3+weeks.length}">${S(g)}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
 <td class="lbl" title="${S(a.nombre)}"><div class="lbl-in">${pgCamaraHtml(a)}<button type="button" class="lbl-nm hover:underline" onclick="openMdlActividad(${a.id})" aria-label="Editar detalle de ${S(a.nombre)}">${a.wbs?`<span class="font-mono text-ink-subtle">${S(a.wbs)}</span> `:''}${S(a.nombre)}</button></div></td>
-<td class="text-center text-ink-subtle">${Math.round(pesoDe(a)*10)/10}%</td>
+<td class="text-center text-ink-subtle"${verDinero?` title="${fmt(pp.costo[a.id]||0)} de ${fmt(pp.total)}"`:''}>${Math.round(pesoDe(a)*10)/10}%</td>
 <td><input type="number" min="0" max="100" step="1" class="inp real" value="${parseFloat(a.porcentaje_avance)||0}" aria-label="Avance real de ${S(a.nombre)}" oninput="pgSetReal(${a.id},this.value)"></td>
 ${weeks.map(w=>{const v=d[w.n];return`<td class="cell${v?' on':''}${v&&done?' done':''}${nowCls(w)}" role="gridcell" title="${v?`S${w.n}: ${v}% programado`:''}">${v?Math.round(v)+'%':''}</td>`;}).join('')}
 </tr>`;}).join('')).join('')}
@@ -10760,18 +10787,22 @@ const pgDesvTxt=d=>`${d>0?'+':''}${d} pts`;
 // Mismo peso con el que se pintó la tabla: si cambian las actividades hay que repintar, no recalcular
 function pgRealPonderado(){
 if(!_pgSem)return 0;
-const tot=_pgSem.pesoTot,n=_pgSem.ids.length;let real=0;
+let real=0;
 _pgSem.ids.forEach(id=>{const a=(D.ap||[]).find(x=>x.id===id);if(!a)return;
-const p=tot?((parseFloat(a.peso_porcentual)||(n?1:0))/tot*100):0;
-real+=p*(parseFloat(a.porcentaje_avance)||0)/100;});
+real+=(_pgSem.pp.peso[id]||0)*(parseFloat(a.porcentaje_avance)||0)/100;});
 return real;
 }
+// Gasto contra avance: gastar más de lo que se lleva ejecutado es la señal de alarma
+const pgGastoCls=(g,r)=>g-r>=10?'text-danger':g-r>=5?'text-amber-700':'text-ink-subtle';
+const pgGastoTxt=(g,r)=>`${g} % del programa${g-r>=5?` · ${Math.round((g-r)*10)/10} pts arriba del avance`:''}`;
 function pgRefrescarKpis(actId){
 if(!_pgSem||!$('pgKpiReal'))return;
 const real=Math.round(pgRealPonderado()*10)/10;
 const desv=Math.round((real-_pgSem.progHoy)*10)/10;
 $('pgKpiReal').textContent=real+' %';
 const dv=$('pgKpiDesv');if(dv){dv.textContent=pgDesvTxt(desv);dv.className='text-lg font-bold '+pgDesvCls(desv);}
+const ej=$('pgKpiEjec');if(ej)ej.textContent=fmt(_pgSem.pp.total*real/100);
+const gs=$('pgKpiGasto');if(gs){gs.textContent=pgGastoTxt(_pgSem.pctGasto,real);gs.className='text-xs font-normal '+pgGastoCls(_pgSem.pctGasto,real);}
 const acts=(D.ap||[]).filter(a=>a.programa_id===_pgSem.progId);
 const set=(id,v)=>{const el=$(id);if(el)el.textContent=v;};
 set('pgKpiComp',acts.filter(a=>a.estatus==='Completado').length);
@@ -10885,9 +10916,8 @@ const obra=D.o.find(o=>o.id==obraId);if(!obra)return;
 if(obra.avance_manual)return; // avance fijado a mano desde Obras › Avance
 const progs=(D.pg||[]).filter(p=>p.obra_id==obraId).map(p=>p.id);
 const acts=(D.ap||[]).filter(a=>progs.includes(a.programa_id)&&!a.es_hito);
-let tot=0,acc=0;acts.forEach(a=>{const p=parseFloat(a.peso_porcentual)||1;tot+=p;acc+=(parseFloat(a.porcentaje_avance)||0)*p/100;});
 if(!acts.length)return; // sin actividades no se pisa el avance manual
-const nuevo=Math.round(acc*100/tot);
+const nuevo=Math.round(pgAvanceReal(acts));
 if(nuevo!==obra.avance_porcentaje){obra.avance_porcentaje=nuevo;await sb.from('obras').update({avance_porcentaje:nuevo,updated_at:new Date().toISOString()}).eq('id',obraId);}
 }
 async function marcarHitoCumplido(actId,done=true){
@@ -10930,8 +10960,8 @@ if(!ini||!fin)return null;
 const weeks=WizardObra.weekList(ini,fin,progs[0]?programaStartDow(progs[0]):1);
 if(!weeks.length)return null;
 const hoy=hoyISO();
-const pesoTot=acts.reduce((s,a)=>s+(parseFloat(a.peso_porcentual)||0),0)||acts.length;
-const pesoDe=a=>pesoTot?((parseFloat(a.peso_porcentual)||1)/pesoTot*100):0;
+const pp=pgPesos(acts);
+const pesoDe=a=>pp.peso[a.id]||0;
 const prog=weeks.map(()=>0),real=weeks.map(()=>0),cob=weeks.map(()=>0);
 acts.forEach(a=>{const d=pesoPorSemana(a,weeks);const p=pesoDe(a);weeks.forEach((w,i)=>{prog[i]+=p*(d[w.n]||0)/100;});
 const av=parseFloat(a.porcentaje_avance)||0;if(av>0){const f=(a.updated_at||hoy).slice(0,10);let idx=weeks.findIndex(w=>f>=w.ws&&f<=w.we);if(idx<0)idx=f<weeks[0].ws?0:weeks.length-1;real[idx]+=p*av/100;}});
@@ -11851,7 +11881,7 @@ ${conceptos.map(c=>`<option value="${c.id}" ${conceptoId==c.id?'selected':''}>${
 </div>
 <div>
 <label class="text-xs text-gray-400 mb-1 block" for="actividadPeso">Peso Porcentual (%)</label>
-<input type="number" id="actividadPeso" class="inp" min="0" max="100" step="0.1" value="0">
+<input type="number" id="actividadPeso" class="inp" min="0" max="100" step="0.1" value="0" aria-describedby="actividadPesoAyuda">
 </div>
 <div>
 <label class="text-xs text-gray-400 mb-1 block" for="actividadTrabajoPlan">Trabajo Plan. (hrs)</label>
@@ -11862,6 +11892,7 @@ ${conceptos.map(c=>`<option value="${c.id}" ${conceptoId==c.id?'selected':''}>${
 <input type="number" id="actividadCostoPlan" class="inp" step="0.01" value="0">
 </div>
 </div>
+<p id="actividadPesoAyuda" class="text-xs text-gray-400 mt-2">El peso se calcula solo con el costo: el costo planeado o, si lo dejas en 0, el importe del concepto del catálogo. El peso capturado a mano sólo se usa cuando ninguna actividad del programa tiene costo.</p>
 </div>
 
 <!-- Sección: Estimación PERT (3 puntos) -->

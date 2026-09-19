@@ -918,7 +918,8 @@ Despues de crear la obra, define las partidas presupuestales:
 | Fecha Inicio | Cuando inicia |
 | Fecha Fin | Cuando termina |
 | Duracion (dias) | Calculada automaticamente de las fechas |
-| Peso Porcentual | Importancia relativa (ej: 15%) |
+| Costo Planeado | Lo que cuesta la actividad; si lo dejas en 0 se toma el importe del concepto del catalogo |
+| Peso Porcentual | Se calcula solo: costo de la actividad / costo total del programa. El valor a mano solo se usa si ninguna actividad tiene costo |
 | Avance (%) | Progreso actual de la actividad |
 | Responsable | Persona encargada |
 | Orden | Posicion en la lista |
@@ -926,7 +927,9 @@ Despues de crear la obra, define las partidas presupuestales:
 
 **Calculo automatico de avance:**
 - El sistema calcula el avance general de la obra como promedio ponderado:
-- **Avance de Obra (%) = Suma(Peso x Avance) / Suma(Peso)**
+- **Avance de Obra (%) = Suma(Peso x Avance) / Suma(Peso)**, donde el peso de cada actividad es su costo (los hitos no cuentan)
+- Como el peso es dinero, la pestana *Semanas* muestra tambien lo **Ejecutado** en pesos (costo x avance) junto a lo **Gastado** en la obra, y avisa cuando el gasto va 5 puntos o mas arriba del avance
+- Si varias actividades comparten un concepto, el importe se reparte entre ellas; si alguna trae costo planeado, manda ese desglose
 - Este valor se sincroniza automaticamente con el campo `avance_porcentaje` de la obra
 
 ### Paso 4: Ejecucion
