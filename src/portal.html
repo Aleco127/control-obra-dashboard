@@ -52,7 +52,7 @@ h1{font-size:22px;line-height:1.2;margin:4px 0 2px}.sub{color:var(--muted);margi
 .card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}@media(min-width:560px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kpi b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.kpi span{font-size:12px;color:var(--muted)}
-.bar{height:10px;background:#e5eaf0;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.bar{height:10px;background:#e5eaf0;border-radius:999px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}.bar.pag i{background:var(--accent)}
 .chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
 .chip.hito{background:#e1eaf6;color:#2f5b8f;font-size:11px;letter-spacing:.03em;text-transform:uppercase;margin-right:6px;vertical-align:1px}
 .chip.opc{background:var(--surface-2);color:var(--muted);font-size:11px;letter-spacing:.03em;text-transform:uppercase;margin-right:6px;vertical-align:1px}.c-ok{background:var(--ok-soft);color:var(--ok)}.c-warn{background:var(--warn-soft);color:var(--warn)}.c-bad{background:var(--danger-soft);color:var(--danger)}.c-info{background:#e1eaf6;color:#2f5b8f}
@@ -361,10 +361,16 @@ function prepararCtx(d) {
   // Las fotos de un concepto cualquiera se agrupan aparte, en la galería.
   const gruposEnt = gruposHito.filter(a => porHito[a.id].docs.length || a.hito);
   const gruposFoto = gruposHito.filter(a => porHito[a.id].fotos.length);
+  // Ejecutado en pesos: el peso de cada actividad es su costo (migración 065), así que contrato × avance
+  // ponderado es lo que vale la obra ya hecha. Si el avance de la obra se fijó a mano, manda ese.
+  const tareas = acts.filter(a => !a.hito), pesoTot = tareas.reduce((s, a) => s + Number(a.peso || 0), 0);
+  let real = pesoTot > 0 ? tareas.reduce((s, a) => s + Number(a.peso || 0) * Math.min(100, Number(a.avance || 0)), 0) / pesoTot : Number(o.avance || 0);
+  if (Math.abs(real - Number(o.avance || 0)) > 1) real = Number(o.avance || 0);
+  const ejecutado = Math.round(contrato * real) / 100;
   const dp = e.datos_pago || {};
   const wa = e.telefono ? ('https://wa.me/' + String(e.telefono).replace(/\D/g, '').replace(/^(\d{10})$/, '52$1') + '?text=' + encodeURIComponent('Hola, tengo una duda sobre la obra ' + o.nombre)) : '';
   return {
-    o, e, plan, pagos, acts, fotos, ests, cfdis, docs, cobrado, contrato, saldo, hoy, proximo,
+    o, e, plan, pagos, acts, fotos, ests, cfdis, docs, cobrado, contrato, saldo, ejecutado, hoy, proximo,
     porHito, gruposHito, gruposEnt, gruposFoto, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
     hayFotosEnGrupos: gruposFoto.length > 0, dp, wa,
     avance: Math.round(Number(o.avance || 0)),
@@ -379,6 +385,19 @@ function kpisHtml() {
     <div class="kpi"><b>${fmt(ctx.cobrado)}</b><span>Pagado a la fecha</span></div>
     <div class="kpi"><b>${fmt(ctx.saldo)}</b><span>Saldo por pagar</span></div>
   </div>`;
+}
+// Lo que vale la obra ya hecha contra lo que el cliente lleva pagado (nunca los costos de la constructora)
+function tarjetaEjecutadoPagado() {
+  if (!(ctx.contrato > 0)) return '';
+  const pct = v => Math.max(0, Math.min(100, Math.round(v / ctx.contrato * 1000) / 10));
+  const dif = Math.round((ctx.cobrado - ctx.ejecutado) * 100) / 100;
+  const nota = Math.abs(dif) < ctx.contrato * 0.01 ? 'Lo pagado va a la par de lo ejecutado.'
+    : dif > 0 ? `Llevas pagados ${fmt(dif)} por delante de lo ejecutado; es normal con el anticipo.`
+    : `La obra lleva ejecutados ${fmt(-dif)} más de lo que se ha pagado.`;
+  const fila = (et, v, cls) => `<div class="avance-cab" style="margin-top:10px"><span>${et}</span><b>${fmt(v)} <span style="font-size:12px;font-weight:400;color:var(--muted)">${pct(v)}% del contrato</span></b></div><div class="bar${cls}" aria-hidden="true"><i style="width:${pct(v)}%"></i></div>`;
+  return `<div class="card"><h2>Ejecutado y pagado</h2>
+    ${fila('Ejecutado', ctx.ejecutado, '')}${fila('Pagado', ctx.cobrado, ' pag')}
+    <p style="margin:10px 0 0;font-size:13px;color:var(--muted)">Ejecutado es el valor de lo ya construido según el avance de cada concepto. ${nota}</p></div>`;
 }
 function tarjetaSiguientePago(resumida) {
   const p = ctx.proximo;
@@ -434,6 +453,7 @@ function vistaInicio() {
       <div class="bar" aria-hidden="true"><i style="width:${Math.min(100, ctx.avance)}%"></i></div>
       <p style="margin:10px 0 0;font-size:14px">${linea}</p>
       <p style="margin:8px 0 0"><button class="btn s" onclick="irASeccion('avance')">Ver el programa</button></p></div>`
+    + tarjetaEjecutadoPagado()
     + tarjetaSiguientePago(true)
     + (ultimas.length ? `<div class="card"><h2>Últimas fotos</h2><div class="fotos">${ultimas.map(miniatura).join('')}</div><p style="margin:10px 0 0"><button class="btn s" onclick="irASeccion('fotos')">Ver todas</button></p></div>` : '')
     + (ultimoDoc ? `<div class="card"><h2>Último entregable</h2>${filaDoc(ultimoDoc)}<p style="margin:10px 0 0"><button class="btn s" onclick="irASeccion('entregables')">Ver entregables</button></p></div>` : '');
@@ -448,6 +468,7 @@ function vistaAvance() {
 }
 function vistaPagos() {
   return tarjetaSiguientePago(false)
+    + tarjetaEjecutadoPagado()
     + `<div class="card"><h2>Plan de pagos</h2>${ctx.plan.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${ctx.plan.map(x => `<tr><td class="titulo">${esc(x.concepto)}</td><td class="n" data-et="Monto">${fmt(x.monto)}</td><td class="n" data-et="Pagado">${fmt(x.cobrado)}</td><td data-et="Vence">${fecha(x.vence)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vacio-caja"><strong>Todavía no hay un plan de pagos</strong>Cuando tu constructor lo registre vas a ver aquí cada exhibición con su fecha.</div>'}</div>`
     + `<div class="card"><h2>Pagos realizados</h2>${ctx.pagos.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th>Fecha</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${ctx.pagos.map(p => `<tr><td class="titulo">${esc(p.concepto || p.numero || '')}</td><td data-et="Fecha">${fecha(p.fecha)}</td><td data-et="Forma">${esc(p.metodo || '')}</td><td class="n" data-et="Monto">${fmt(p.monto)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="vacio-caja">Aquí van a aparecer tus pagos conforme se registren.</div>'}</div>`
     + (ctx.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl tbl-cards"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${ctx.cfdis.map(c => `<tr><td class="titulo"><span class="et-movil">Factura </span>${esc((c.serie || '') + (c.folio || ''))}<div style="font-size:11px;color:var(--muted)">${esc(c.uuid || '')}</div></td><td data-et="Fecha">${fecha(c.fecha)}</td><td class="n" data-et="Total">${fmt(c.total)}</td><td>${c.tiene_archivo ? `<button class="copy" onclick="archivo(${c.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${c.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
