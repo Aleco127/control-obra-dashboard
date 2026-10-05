@@ -423,7 +423,37 @@ def paso_819(page, tag, ancho):
     l1 = page.evaluate("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='L-1').descripcion")
     check(l1 == 'Editado a mano', f'{tag} 819: el requisito existente quedó igual')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818, '819': paso_819}
+def paso_820(page, tag, ancho):
+    perfil = sql(page, "const {data}=await sb.from('perfiles_convocante').select('id').eq('nombre','ICHIFE (Chihuahua)').single();return data.id;")
+    lid = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'QA-C-{ancho}-6',nombre:'Paquete',perfil_id:{perfil},presentacion:'2026-11-20T13:30:00-06:00'}}}});return r.data.id;")
+    for an, so, firma in [('L-1', 'legal', 'true'), ('L-2', 'legal', 'false'), ('T-1', 'tecnico', 'true')]:
+        sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'{an}',sobre:'{so}',descripcion:'Anexo {an}',requiere_firma:{firma}}}}});")
+    abrir_ficha(page, lid, 'requisitos')
+    for an in ['L-1', 'L-2']:
+        f = pdf_falso(f'{an} final {ancho}.pdf', f'{an} {ancho}')
+        with page.expect_file_chooser() as fc:
+            page.locator(f'#lcPanel button[aria-label="Adjuntar archivo final de {an}"]').click()
+        fc.value.set_files(f)
+        page.wait_for_function("a=>!!Licitaciones.ficha.reqs.find(r=>r.anexo_id===a).archivo_path", arg=an, timeout=20000)
+    page.locator('#lcPanel button:has-text("Armar paquete")').click()
+    page.wait_for_selector('#lcPaqOk')
+    rep = page.inner_text('#mdlLic')
+    check('Faltan' in rep and 'T-1' in rep and 'Requieren firma' in rep and 'L-1' in rep, f'{tag} 820: reporte de faltantes y sin firma antes de generar')
+    check('de todos modos' in page.inner_text('#lcPaqOk'), f'{tag} 820: se puede generar igual tras confirmar')
+    axe(page, '#mdlLic', f'{tag} 820 reporte')
+    with page.expect_download(timeout=60000) as dl:
+        page.click('#lcPaqOk')
+    ruta = os.path.join(TMP, f'paquete_{ancho}.zip'); dl.value.save_as(ruta)
+    import zipfile, csv, io
+    z = zipfile.ZipFile(ruta); nombres = z.namelist()
+    check('ANEXOS_EDITABLES' not in ''.join(nombres) and any(n.startswith('01_DOCUMENTACION_LEGAL/01_Anexo_L1.pdf') for n in nombres) and any(n.endswith('02_Anexo_L2.pdf') for n in nombres), f'{tag} 820: carpetas por sobre, orden y naming_pattern del perfil {nombres}')
+    man = list(csv.reader(io.StringIO(z.read('manifest.csv').decode('utf-8-sig'))))
+    fila = next((r for r in man if r[1] == 'L-1'), None)
+    real = hashlib.sha256(z.read(fila[3])).hexdigest() if fila else ''
+    check(man[0] == ['sobre', 'anexo', 'descripcion', 'archivo', 'sha256', 'origen', 'estado'] and fila and fila[4] == real, f'{tag} 820: manifest.csv con anexo, archivo y SHA-256 correcto')
+    check(any(r[1] == 'T-1' and r[5] == 'FALTA' for r in man) and 'LEEME.txt' in nombres and 'LicitaGen' in z.read('LEEME.txt').decode('utf-8'), f'{tag} 820: faltantes en el manifiesto y LEEME para foliar en LicitaGen')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818, '819': paso_819, '820': paso_820}
 
 def main():
     with sync_playwright() as pw:

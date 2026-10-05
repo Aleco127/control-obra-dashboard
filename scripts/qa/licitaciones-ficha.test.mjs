@@ -239,3 +239,27 @@ test('US-819: el código de una licitación existente no se cambia salvo que el 
   assert.equal(c.igual, false); assert.equal(c.aplicar, false);
   assert.equal(L.propuestaDeBases(b, { id: 1, codigo: null, bases: {} }, []).campos[0].aplicar, true);
 });
+
+test('US-820: nombres con el naming_pattern del perfil, carpetas por sobre, plan con reporte y manifest.csv', () => {
+  assert.equal(L.nombrePaquete('{NN}_Anexo_{XX}.pdf', { nn: 3, anexo: 'L-11' }, 'docx'), '03_Anexo_L11.docx', 'patrón de LicitaGen (ICHIFE); la extensión real manda');
+  assert.equal(L.nombrePaquete('{NN}_{anexo}_{descripcion}.pdf', { nn: 12, anexo: '7.10 AT-10', descripcion: 'Trabajos anteriores: 2 a 5 contratos' }, 'pdf'), '12_7.10_AT-10_Trabajos_anteriores_2_a_5_contratos.pdf');
+  assert.equal(L.nombrePaquete('{NN}_{anexo}', { nn: 2, anexo: '7.10' }, 'PDF'), '02_7.10.pdf', 'sin extensión en el patrón no se recorta el anexo');
+  assert.equal(L.nombrePaquete(null, { nn: 1, anexo: '6.1', descripcion: '' }, 'pdf'), '01_6.1.pdf');
+  assert.equal(L.carpetaSobre('tecnico', { sobres_json: [{ clave: 'tecnico', carpeta: 'B_SOBRE_TECNICO' }] }), 'B_SOBRE_TECNICO');
+  assert.equal(L.carpetaSobre('economico', null), '3_Economico');
+  const lic = { presentacion: '2026-11-20T19:30:00Z' };
+  const docs = [{ id: 5, archivo_path: 'empresa/1/expediente/opinion_sat/a.pdf', fecha_vencimiento: '2026-11-01' }];
+  const reqs = [
+    { id: 2, sobre: 'legal', orden: 2, anexo_id: 'L-2', descripcion: 'Acta', archivo_path: null, empresa_documento_id: 5, requiere_firma: false, estado: 'listo' },
+    { id: 1, sobre: 'legal', orden: 1, anexo_id: 'L-1', descripcion: 'Correo', archivo_path: 'empresa/1/licitaciones/9/requisitos/x.docx', requiere_firma: true, estado: 'listo' },
+    { id: 3, sobre: 'tecnico', orden: 1, anexo_id: 'T-1', descripcion: 'Bases', archivo_path: null, requiere_firma: true, estado: 'firmado' },
+  ];
+  const p = L.planPaquete(lic, reqs, docs, { naming_pattern: '{NN}_{anexo}.pdf' });
+  assert.deepEqual(p.items.map((i) => `${i.carpeta}/${i.nombre}:${i.origen}`), ['1_Legal/01_L-1.docx:requisito', '1_Legal/02_L-2.pdf:expediente'], 'en orden; el del expediente se toma del documento ligado');
+  assert.deepEqual(p.faltantes.map((r) => r.anexo_id), ['T-1']);
+  assert.deepEqual(p.vencidos.map((r) => r.anexo_id), ['L-2']);
+  assert.deepEqual(p.sinFirma.map((r) => r.anexo_id), ['L-1'], '«listo» no es «firmado»');
+  const csv = L.manifestCsv([{ sobre: 'legal', anexo: 'L-1', descripcion: 'Correo, "domicilio"', archivo: '1_Legal/01_L-1.docx', sha256: 'ab', origen: 'requisito', estado: 'Listo' }]);
+  assert.ok(csv.startsWith('﻿sobre,anexo,descripcion,archivo,sha256,origen,estado\r\n'));
+  assert.ok(csv.includes('Legal,L-1,"Correo, ""domicilio""",1_Legal/01_L-1.docx,ab,requisito,Listo'));
+});

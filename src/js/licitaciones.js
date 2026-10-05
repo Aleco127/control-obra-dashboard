@@ -991,6 +991,96 @@ ${campo('lcGpDesc', 'Descripción', `<textarea id="lcGpDesc" class="inp" rows="2
     } catch (e) { Toast.error(errTxt(e, 'No se pudo llenar desde el expediente')); }
   }
 
+  // Paquete de entrega (US-820) ----------------------------------------------------------------------------------------
+  const ESTADOS_FIRMADOS = ['firmado', 'escaneado', 'foliado', 'validado'];
+  const PATRON_DEFECTO = '{NN}_{anexo}_{descripcion}.pdf';
+  /** Nombre de un archivo del paquete con el naming_pattern del perfil. La extensión real reemplaza a la del patrón. */
+  function nombrePaquete(patron, d, ext) {
+    const nn = String(d.nn).padStart(2, '0');
+    const desc = String(d.descripcion || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/_+$/, '');
+    let n = String(patron || PATRON_DEFECTO).replace(/\.[A-Za-z0-9]{2,5}$/, '')
+      .replace(/\{NN\}/g, nn).replace(/\{orden\}/g, nn)
+      .replace(/\{XX\}/g, String(d.anexo || '').replace(/[^A-Za-z0-9]+/g, ''))
+      .replace(/\{anexo\}/g, String(d.anexo || '').trim())
+      .replace(/\{sobre\}/g, etiqueta(SOBRES, d.sobre))
+      .replace(/\{descripcion\}/g, desc);
+    n = nombreSeguro(n).replace(/[_.]+$/, '') || `${nn}_anexo`;
+    const e = String(ext || 'pdf').replace(/^\./, '').toLowerCase();
+    return `${n}.${e}`;
+  }
+  /** Carpeta de cada sobre: la del perfil (sobres_json[].carpeta) o «1_Legal», «2_Tecnico», «3_Economico». */
+  function carpetaSobre(sobre, perfil) {
+    const s = ((perfil && perfil.sobres_json) || []).find((x) => x && x.clave === sobre);
+    if (s && s.carpeta) return nombreSeguro(s.carpeta);
+    const i = Object.keys(SOBRES).indexOf(sobre) + 1;
+    return nombreSeguro(`${i}_${SOBRES[sobre]}`);
+  }
+  /** Plan del paquete (función pura): archivos en orden por sobre y reporte de faltantes, vencidos y sin firma. */
+  function planPaquete(lic, reqs, docs, perfil) {
+    const items = []; const faltantes = []; const vencidos = []; const sinFirma = [];
+    const ctx = { lic, docs: docs || [] };
+    for (const sobre of Object.keys(SOBRES)) {
+      delSobre(reqs, sobre).forEach((r, i) => {
+        const d = docDe(r, ctx);
+        const path = r.archivo_path || (d && d.archivo_path) || null;
+        const origenArchivo = r.archivo_path ? 'requisito' : (d && d.archivo_path ? 'expediente' : null);
+        if (!path) faltantes.push(r);
+        if (venceAntes(d, lic)) vencidos.push(r);
+        if (r.requiere_firma && !ESTADOS_FIRMADOS.includes(r.estado)) sinFirma.push(r);
+        if (!path) return;
+        const ext = String(path).split('.').pop();
+        items.push({ sobre, carpeta: carpetaSobre(sobre, perfil), nombre: nombrePaquete(perfil && perfil.naming_pattern, { nn: i + 1, anexo: r.anexo_id, sobre, descripcion: r.descripcion }, ext), path, origen: origenArchivo, r });
+      });
+    }
+    return { items, faltantes, vencidos, sinFirma };
+  }
+  const csvCelda = (v) => { const s = String(v == null ? '' : v); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  /** manifest.csv (UTF-8 con BOM para Excel): sobre, anexo, descripción, archivo, SHA-256, origen y estado. */
+  function manifestCsv(filas) {
+    const enc = ['sobre', 'anexo', 'descripcion', 'archivo', 'sha256', 'origen', 'estado'];
+    return '﻿' + [enc.join(','), ...filas.map((f) => [etiqueta(SOBRES, f.sobre), f.anexo, f.descripcion, f.archivo, f.sha256, f.origen, f.estado].map(csvCelda).join(','))].join('\r\n') + '\r\n';
+  }
+  accionesRequisitos.extra.push((ctx) => (ctx.reqs.length ? `<button type="button" class="btn btn-s" onclick="Licitaciones.armarPaquete()"><i class="ri-folder-zip-line" aria-hidden="true"></i> Armar paquete</button>` : ''));
+  async function perfilDeLic() {
+    if (!F.lic.perfil_id) return null;
+    try { return (await cargarPerfiles()).find((p) => p.id === F.lic.perfil_id) || null; } catch (e) { return null; }
+  }
+  async function armarPaquete() {
+    const perfil = await perfilDeLic();
+    const plan = planPaquete(F.lic, F.reqs, F.docs, perfil);
+    const lista = (arr) => `<ul class="text-sm list-disc pl-5">${arr.slice(0, 12).map((r) => `<li><span class="font-mono text-xs">${S(r.anexo_id)}</span> ${S(r.descripcion || '')}</li>`).join('')}${arr.length > 12 ? `<li>y ${arr.length - 12} más</li>` : ''}</ul>`;
+    const bloque = (t, arr, tono) => (arr.length ? `<section class="mb-3"><h3 class="font-semibold text-sm ${tono}">${S(t)} (${arr.length})</h3>${lista(arr)}</section>` : '');
+    const hay = plan.faltantes.length || plan.vencidos.length || plan.sinFirma.length;
+    modal('Armar paquete de entrega', `<div class="space-y-3">
+<p class="text-sm">${plan.items.length} archivo${plan.items.length === 1 ? '' : 's'} en carpetas por sobre, en el orden de los requisitos, nombrados con el patrón <span class="font-mono text-xs">${S((perfil && perfil.naming_pattern) || PATRON_DEFECTO)}</span>, más <span class="font-mono text-xs">manifest.csv</span> con anexo, archivo y SHA-256.</p>
+${hay ? `<div role="alert">${bloque('Faltan (sin archivo final ni documento del expediente)', plan.faltantes, 'text-danger')}${bloque('Documento vencido antes de la presentación', plan.vencidos, 'text-danger')}${bloque('Requieren firma y aún no están firmados', plan.sinFirma, 'text-warn')}</div>` : '<p class="text-sm text-ok"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Todos los requisitos tienen archivo, ninguno vence y los que llevan firma están firmados.</p>'}
+<p class="text-xs text-ink-muted">El foliado sigue siendo local: abre el ZIP en LicitaGen para foliar cada sobre.</p>
+<div class="flex justify-end gap-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button><button type="button" class="btn btn-p" id="lcPaqOk" onclick="Licitaciones.generarPaquete()" ${plan.items.length ? '' : 'disabled'}><i class="ri-folder-zip-line" aria-hidden="true"></i> ${hay ? 'Generar paquete de todos modos' : 'Generar paquete'}</button></div></div>`);
+  }
+  async function generarPaquete() {
+    if (typeof JSZip === 'undefined') { Toast.error('No se cargó el compresor ZIP; recarga la página.'); return; }
+    const btn = document.getElementById('lcPaqOk'); if (btn) { btn.disabled = true; btn.textContent = 'Generando…'; }
+    const perfil = await perfilDeLic();
+    const plan = planPaquete(F.lic, F.reqs, F.docs, perfil);
+    const zip = new JSZip(); const filas = []; const usados = {};
+    try {
+      for (const it of plan.items) {
+        const blob = await blobDe(it.path);
+        const hash = await sha256Hex(await blob.arrayBuffer());
+        usados[it.carpeta] = usados[it.carpeta] || new Set();
+        const nombre = nombreUnico(usados[it.carpeta], it.nombre);
+        zip.folder(it.carpeta).file(nombre, blob);
+        filas.push({ sobre: it.sobre, anexo: it.r.anexo_id, descripcion: it.r.descripcion, archivo: `${it.carpeta}/${nombre}`, sha256: hash, origen: it.origen, estado: etiqueta(ESTADOS_REQUISITO, it.r.estado) });
+      }
+      for (const r of plan.faltantes) filas.push({ sobre: r.sobre, anexo: r.anexo_id, descripcion: r.descripcion, archivo: '', sha256: '', origen: 'FALTA', estado: etiqueta(ESTADOS_REQUISITO, r.estado) });
+      zip.file('manifest.csv', manifestCsv(filas));
+      zip.file('LEEME.txt', `Paquete de entrega de ${F.lic.codigo}: ${F.lic.nombre}\r\nGenerado el ${fmtFechaHora(new Date().toISOString())} desde Control de Obra.\r\n\r\nUna carpeta por sobre con los archivos en el orden de los requisitos. manifest.csv trae el anexo, el archivo y su SHA-256.\r\nEl foliado se hace en LicitaGen (local): abre esta carpeta y folia cada sobre.\r\n${plan.faltantes.length ? `\r\nFaltan ${plan.faltantes.length} requisitos sin archivo (marcados FALTA en el manifiesto).\r\n` : ''}`);
+      const blob = await zip.generateAsync({ type: 'blob' });
+      guardarBlob(blob, `${nombreSeguro(F.lic.codigo)}_paquete.zip`);
+      cerrarModal(); Toast.success(`Paquete generado: ${plan.items.length} archivos`);
+    } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Generar paquete'; } Toast.error(errTxt(e, 'No se pudo armar el paquete')); }
+  }
+
   // Editor de perfiles en Configuración (nivel 100) ----------------------------------------------------------------------
   let cfgEl = null;
   async function perfilesConfig(el) {
@@ -1362,6 +1452,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     generarDelPerfil, confirmarGenerar, guardarComoPerfil, confirmarGuardarPerfil, _resumenPerfil: (id) => (generarDelPerfil._resumen ? generarDelPerfil._resumen(id) : ''),
     perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil, llenarDesdeExpediente,
     leerArchivoBases, revisarBases, aplicarBases,
+    armarPaquete, generarPaquete,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
@@ -1369,6 +1460,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
     delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil, docsUsables, venceAntes,
     validarBases, propuestaDeBases, datosDeRevision, modalidadDe, requisitosDeBases, ESQUEMA_BASES, MAPA_BASES,
+    nombrePaquete, carpetaSobre, planPaquete, manifestCsv,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };
