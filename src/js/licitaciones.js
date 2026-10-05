@@ -274,6 +274,19 @@ const Licitaciones = (() => {
     if (i >= 0) arr.splice(i + 1, 0, def); else arr.push(def);
     return true;
   }
+  /** Avisos sobre las pestañas de la ficha (US-845, convocatorias.js): fn(el, ctx) pinta en #lcFichaAvisos. */
+  const FICHA_AVISOS = [];
+  function registrarAvisoFicha(fn) { if (typeof fn === 'function' && !FICHA_AVISOS.includes(fn)) FICHA_AVISOS.push(fn); }
+  /** Sin build, convocatorias.js no viaja con este archivo: se pide aquí (en el build va en el mismo diferido de `lc`). */
+  let extras = null;
+  function conExtras() {
+    if (typeof Convocatorias !== 'undefined' || typeof document === 'undefined' || typeof __LAZY !== 'undefined') return Promise.resolve();
+    return extras || (extras = new Promise((res) => {
+      const sc = document.createElement('script'); sc.src = 'js/convocatorias.js';
+      sc.onload = () => res(); sc.onerror = () => { extras = null; sc.remove(); res(); };
+      document.head.appendChild(sc);
+    }));
+  }
   function tabsHtml(arr, activa, fn, etiquetaAria) {
     return `<div class="tabs mb-4" role="tablist" aria-label="${S(etiquetaAria)}">${arr.map((p) => `<button type="button" role="tab" id="lcTab-${S(p.k)}" aria-selected="${p.k === activa}" aria-controls="lcPanel" class="tab ${p.k === activa ? 'active' : ''}" onclick="Licitaciones.${fn}('${S(p.k)}')"><i class="${S(p.ic || 'ri-file-line')}" aria-hidden="true"></i> ${S(p.t)}</button>`).join('')}</div>`;
   }
@@ -333,6 +346,8 @@ ${campo('lcFAnio', 'Año', `<select id="lcFAnio" class="inp" onchange="Licitacio
   /** Pinta el módulo en el contenedor: esqueleto mientras carga, lista/ficha, estado vacío o error. */
   async function render(c, force) {
     const turno = ++pintadas;
+    try { const q = sessionStorage.getItem('lc_lista'); if (q) { sessionStorage.removeItem('lc_lista'); st.lista = q; st.ficha = null; } } catch (e) { /* sin sessionStorage */ }
+    await conExtras();
     if (st.ficha) return renderFicha(c, turno, force);
     c.innerHTML = cabecera() + `<div id="lcCuerpo" aria-busy="true" aria-live="polite">${Skeleton.table(4, 5)}</div>`;
     const cuerpo = () => (turno === pintadas && M === 'lc' ? $('lcCuerpo') : null);
@@ -432,7 +447,8 @@ ${campo('lcPerfil', 'Perfil de convocante', `<select id="lcPerfil" class="inp">$
 <p class="font-mono text-xs text-ink-muted">${S(l.codigo)}</p><h1 class="text-xl font-bold">${S(l.nombre)}</h1>
 <p class="text-sm text-ink-muted mt-1">${S(l.convocante || 'Sin convocante')} · ${chipEstatus(l.estatus)}</p></div>
 <div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Licitaciones.editarDatos(${+l.id})"><i class="ri-edit-line" aria-hidden="true"></i> Editar datos</button></div></div>
-${tabsHtml(FICHA_PESTANAS, tab.k, 'tabFicha', 'Secciones de la licitación')}<div id="lcPanel" role="tabpanel" aria-labelledby="lcTab-${S(tab.k)}"></div>`;
+<div id="lcFichaAvisos"></div>${tabsHtml(FICHA_PESTANAS, tab.k, 'tabFicha', 'Secciones de la licitación')}<div id="lcPanel" role="tabpanel" aria-labelledby="lcTab-${S(tab.k)}"></div>`;
+    FICHA_AVISOS.forEach((fn) => { try { const r = fn($('lcFichaAvisos'), F); if (r && r.catch) r.catch(() => {}); } catch (e) { /* un aviso no tumba la ficha */ } });
     tab.pintar($('lcPanel'), F);
   }
   function tabFicha(k) { st.tab = k; repintarFicha(); }
@@ -1560,7 +1576,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
 
   return {
     render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, cerrarModal,
-    guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana,
+    guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana, registrarAvisoFicha,
     subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
     verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
     adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
