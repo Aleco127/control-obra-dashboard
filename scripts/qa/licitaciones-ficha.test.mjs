@@ -101,3 +101,23 @@ test('errTxt: el mensaje en español de una RPC pasa tal cual; lo técnico va po
   assert.equal(L.errTxt({ message: 'duplicate key value violates unique constraint' }, 'Ctx'), 'Ctx: genérico');
   delete globalThis.humanizeError;
 });
+
+test('US-815: tipo MIME admitido por el bucket, nombre seguro, ruta, tamaño y agrupación', async () => {
+  assert.equal(L.mimeDe('Plano A-1.DWG', 'application/octet-stream'), 'image/vnd.dwg', '.dwg siempre con image/vnd.dwg');
+  assert.equal(L.mimeDe('bases.pdf', ''), 'application/pdf');
+  assert.equal(L.mimeDe('catalogo.xlsx', ''), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(L.mimeDe('viejo.xls', 'application/vnd.ms-excel'), null, 'el bucket no admite .xls');
+  assert.equal(L.nombreSeguro('Acta de junta Nº 2 (firmada).pdf'), 'Acta_de_junta_N_2_firmada_.pdf');
+  assert.equal(L.nombreSeguro('x'.repeat(150) + '.pdf').length, 100);
+  assert.ok(L.nombreSeguro('x'.repeat(150) + '.pdf').endsWith('.pdf'));
+  assert.equal(L.rutaArchivo(1, 42, 'bases', 'Bases MC 057.pdf', 123), 'empresa/1/licitaciones/42/bases/123_Bases_MC_057.pdf');
+  assert.equal(L.fmtBytes(512), '512 B');
+  assert.equal(L.fmtBytes(2048), '2 KB');
+  assert.equal(L.fmtBytes(5 * 1048576), '5.0 MB');
+  const g = L.agruparPorCategoria([{ categoria: 'plano' }, { categoria: 'bases' }, { categoria: 'plano' }]);
+  assert.deepEqual(g.map((x) => [x.k, x.archivos.length]), [['bases', 1], ['plano', 2]], 'orden del catálogo');
+  const h = await L.sha256Hex(new TextEncoder().encode('abc'));
+  assert.equal(h, 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  const u = new Set();
+  assert.deepEqual(['a.pdf', 'A.pdf', 'a.pdf'].map((n) => L.nombreUnico(u, n)), ['a.pdf', 'A (2).pdf', 'a (3).pdf']);
+});

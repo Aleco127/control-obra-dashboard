@@ -569,7 +569,164 @@ ${s.campos.map((c, i) => campo(`lcB-${s.k}-${i}`, S(c.et) + pag(c), inputCampo(c
   }
 
   // Pestañas que completan las historias siguientes ---------------------------------------------------------------------------
-  function pintarArchivos(el) { el.innerHTML = EmptyState({ icon: 'ri-folder-3-line', title: 'Archivos de la convocante', body: 'Aquí guardarás las bases, anexos, actas y planos tal como los publica la dependencia.' }); }
+  // Archivos de la convocante (US-815) ------------------------------------------------------------------------------------
+  const BUCKET = 'licitaciones';
+  const MAX_BYTES = 50 * 1024 * 1024;
+  const MIME_EXT = {
+    pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dwg: 'image/vnd.dwg', zip: 'application/zip',
+  };
+  /** Tipo MIME que admite el bucket para un archivo (por extensión; .dwg siempre image/vnd.dwg) o null. */
+  function mimeDe(nombre, tipo) {
+    const ext = String(nombre || '').toLowerCase().split('.').pop();
+    if (ext === 'dwg') return 'image/vnd.dwg';
+    if (MIME_EXT[ext]) return MIME_EXT[ext];
+    return Object.values(MIME_EXT).includes(tipo) ? tipo : null;
+  }
+  /** Nombre de archivo apto para la ruta del bucket: sin acentos ni espacios, máx. 100 caracteres, conserva la extensión. */
+  function nombreSeguro(n) {
+    const s = String(n || 'archivo').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^[_.]+/, '');
+    if (s.length <= 100) return s || 'archivo';
+    const i = s.lastIndexOf('.'); const ext = i > 0 && s.length - i <= 6 ? s.slice(i) : '';
+    return s.slice(0, 100 - ext.length) + ext;
+  }
+  /** Ruta en el bucket: empresa/<id>/licitaciones/<lic>/<categoria>/<marca>_<nombre>. */
+  function rutaArchivo(emp, lic, categoria, nombre, marca) {
+    return `empresa/${emp}/licitaciones/${lic}/${categoria}/${marca || Date.now()}_${nombreSeguro(nombre)}`;
+  }
+  function fmtBytes(n) {
+    const v = Number(n) || 0;
+    if (v < 1024) return v + ' B';
+    if (v < 1048576) return (v / 1024).toFixed(0) + ' KB';
+    return (v / 1048576).toFixed(1) + ' MB';
+  }
+  /** Agrupa archivos por categoría en el orden del catálogo. */
+  function agruparPorCategoria(archivos) {
+    const g = {};
+    for (const a of archivos || []) (g[a.categoria] = g[a.categoria] || []).push(a);
+    return Object.keys(CATEGORIAS_ARCHIVO).filter((k) => g[k]).map((k) => ({ k, t: CATEGORIAS_ARCHIVO[k], archivos: g[k] }));
+  }
+  /** SHA-256 en hexadecimal de un ArrayBuffer (Web Crypto; también en Node 20). */
+  async function sha256Hex(buf) {
+    const h = await crypto.subtle.digest('SHA-256', buf);
+    return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  async function urlFirmada(path, descargarComo) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 600, descargarComo ? { download: descargarComo } : undefined);
+    if (error) throw error;
+    return data.signedUrl;
+  }
+  function pintarArchivos(el, ctx) {
+    const grupos = agruparPorCategoria(ctx.archivos);
+    const total = (ctx.archivos || []).reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+    el.innerHTML = `<form class="g rounded-xl p-4 mb-4" onsubmit="event.preventDefault();Licitaciones.subirArchivos()" aria-labelledby="lcSubT">
+<h2 id="lcSubT" class="font-bold text-sm mb-1"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i> Subir archivos de la convocante</h2>
+<p class="text-xs text-ink-muted mb-3">Guárdalos tal como los publica la dependencia: PDF, imágenes, Word, Excel, DWG o ZIP, hasta 50 MB cada uno. Si un archivo ya está en esta licitación, se avisa y no se sube dos veces.</p>
+<div class="grid sm:grid-cols-3 gap-3 items-end">
+${campo('lcArchCat', 'Categoría', `<select id="lcArchCat" class="inp">${opciones(CATEGORIAS_ARCHIVO, 'bases')}</select>`)}
+${campo('lcArchFiles', 'Archivos', '<input id="lcArchFiles" type="file" multiple class="inp" accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.dwg,.zip">', 'sm:col-span-2')}
+</div><div id="lcArchProg" class="text-sm mt-2" role="status" aria-live="polite"></div>
+<div class="flex justify-end mt-3"><button type="submit" class="btn btn-p"><i class="ri-upload-2-line" aria-hidden="true"></i> Subir archivos</button></div></form>
+${grupos.length ? `<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><p class="text-sm text-ink-muted">${ctx.archivos.length} archivo${ctx.archivos.length === 1 ? '' : 's'} · ${fmtBytes(total)}</p>
+<button type="button" class="btn btn-s" onclick="Licitaciones.descargarTodo()"><i class="ri-folder-zip-line" aria-hidden="true"></i> Descargar todo</button></div>
+${grupos.map((g) => `<section class="mb-4" aria-labelledby="lcArchG-${g.k}"><h3 id="lcArchG-${g.k}" class="font-semibold text-sm mb-2">${S(g.t)} <span class="tab-n">${g.archivos.length}</span></h3>
+<div class="table-wrap g rounded-xl"><table class="table-modern lc-tbl w-full text-sm"><thead><tr><th scope="col">Archivo</th><th scope="col">Tamaño</th><th scope="col">Subido</th><th scope="col" class="text-right">Acciones</th></tr></thead><tbody>
+${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a.nombre)}</span></td><td data-et="Tamaño"><span>${fmtBytes(a.tamano)}</span></td><td data-et="Subido"><span>${S(fmtFecha(a.created_at))}</span></td>
+<td data-et="" class="text-right whitespace-nowrap"><button type="button" class="btn-icon" onclick="Licitaciones.verArchivo(${+a.id})" aria-label="Ver ${S(a.nombre)}" title="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.descargarArchivo(${+a.id})" aria-label="Descargar ${S(a.nombre)}" title="Descargar"><i class="ri-download-2-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.borrarArchivo(${+a.id})" aria-label="Borrar ${S(a.nombre)}" title="Borrar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></td></tr>`).join('')}
+</tbody></table></div></section>`).join('')}` : EmptyState({ icon: 'ri-folder-3-line', title: 'Todavía no hay archivos', body: 'Sube las bases, los anexos, las actas de junta y los planos que publicó la convocante.' })}`;
+  }
+  async function subirArchivos(listaArchivos, categoria) {
+    if (!F) return;
+    const input = document.getElementById('lcArchFiles');
+    const files = [...(listaArchivos || (input && input.files) || [])];
+    const cat = categoria || val('lcArchCat') || 'otro';
+    if (!files.length) { Toast.warning('Elige al menos un archivo.'); return; }
+    const prog = document.getElementById('lcArchProg');
+    const emp = currentUser.empresa_id; const lic = F.lic.id;
+    let ok = 0; const avisos = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (prog) prog.textContent = `Subiendo ${i + 1} de ${files.length}: ${f.name}`;
+      if (f.size > MAX_BYTES) { avisos.push(`«${f.name}» pesa ${fmtBytes(f.size)}: comprímelo o divídelo (máximo 50 MB).`); continue; }
+      const mime = mimeDe(f.name, f.type);
+      if (!mime) { avisos.push(`«${f.name}»: tipo no admitido. Conviértelo a PDF.`); continue; }
+      try {
+        const hash = await sha256Hex(await f.arrayBuffer());
+        const dup = F.archivos.find((a) => a.hash_sha256 === hash);
+        if (dup) { avisos.push(`«${f.name}» ya está en esta licitación como «${dup.nombre}» (${etiqueta(CATEGORIAS_ARCHIVO, dup.categoria)}).`); continue; }
+        const path = rutaArchivo(emp, lic, cat, f.name, Date.now() + i);
+        const up = await sb.storage.from(BUCKET).upload(path, f, { contentType: mime, upsert: false });
+        if (up.error) throw up.error;
+        const { data, error } = await sb.from('licitacion_archivos').insert({ licitacion_id: lic, categoria: cat, nombre: f.name, archivo_path: path, tamano: f.size, hash_sha256: hash, mime })
+          .select('id,licitacion_id,categoria,nombre,archivo_path,tamano,hash_sha256,mime,created_at').single();
+        if (error) { await sb.storage.from(BUCKET).remove([path]); throw error; }
+        F.archivos.unshift(data); ok++;
+      } catch (e) { avisos.push(`«${f.name}»: ${errTxt(e)}`); }
+    }
+    if (ok) Toast.success(`${ok} archivo${ok === 1 ? '' : 's'} guardado${ok === 1 ? '' : 's'}`);
+    avisos.forEach((m) => Toast.warning(m, 8000));
+    if (st.tab === 'archivos') repintarFicha();
+    return { subidos: ok, avisos };
+  }
+  const archivoPorId = (id) => (F && F.archivos.find((a) => a.id === id)) || null;
+  async function verArchivo(id) {
+    const a = archivoPorId(id); if (!a) return;
+    const w = window.open('', '_blank');
+    try { const u = await urlFirmada(a.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
+    catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
+  }
+  async function descargarArchivo(id) {
+    const a = archivoPorId(id); if (!a) return;
+    try { const u = await urlFirmada(a.archivo_path, a.nombre); const x = document.createElement('a'); x.href = u; x.rel = 'noopener'; document.body.appendChild(x); x.click(); x.remove(); }
+    catch (e) { Toast.error(errTxt(e, 'No se pudo descargar')); }
+  }
+  async function borrarArchivo(id) {
+    const a = archivoPorId(id); if (!a) return;
+    const okc = await Dialog.confirm({ title: 'Borrar archivo', body: `Se borrará «${a.nombre}» de esta licitación. Esta acción no se puede deshacer.`, confirmText: 'Borrar archivo', tone: 'danger' });
+    if (!okc) return;
+    try {
+      const { error } = await sb.from('licitacion_archivos').delete().eq('id', id);
+      if (error) throw error;
+      await sb.storage.from(BUCKET).remove([a.archivo_path]);
+      F.archivos = F.archivos.filter((x) => x.id !== id);
+      Toast.success('Archivo borrado');
+      repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se borró el archivo')); }
+  }
+  /** Descarga un archivo del bucket como Blob. */
+  async function blobDe(path) {
+    const { data, error } = await sb.storage.from(BUCKET).download(path);
+    if (error) throw error;
+    return data;
+  }
+  function guardarBlob(blob, nombre) {
+    const u = URL.createObjectURL(blob); const x = document.createElement('a');
+    x.href = u; x.download = nombre; document.body.appendChild(x); x.click(); x.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 4000);
+  }
+  /** Nombre único dentro de una carpeta del ZIP (agrega « (2)» si se repite). */
+  function nombreUnico(usados, n) {
+    let x = n; let i = 2;
+    while (usados.has(x.toLowerCase())) { const p = n.lastIndexOf('.'); x = p > 0 ? `${n.slice(0, p)} (${i})${n.slice(p)}` : `${n} (${i})`; i++; }
+    usados.add(x.toLowerCase()); return x;
+  }
+  async function descargarTodo() {
+    if (!F || !F.archivos.length) return;
+    if (typeof JSZip === 'undefined') { Toast.error('No se cargó el compresor ZIP; recarga la página.'); return; }
+    const zip = new JSZip(); const usados = {};
+    Toast.info(`Preparando ${F.archivos.length} archivo${F.archivos.length === 1 ? '' : 's'}…`);
+    try {
+      for (const a of F.archivos) {
+        const carpeta = nombreSeguro(etiqueta(CATEGORIAS_ARCHIVO, a.categoria));
+        usados[carpeta] = usados[carpeta] || new Set();
+        zip.folder(carpeta).file(nombreUnico(usados[carpeta], a.nombre), await blobDe(a.archivo_path));
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      guardarBlob(blob, `${nombreSeguro(F.lic.codigo)}_archivos_convocante.zip`);
+    } catch (e) { Toast.error(errTxt(e, 'No se pudo armar el ZIP')); }
+  }
   function pintarRequisitos(el) { el.innerHTML = EmptyState({ icon: 'ri-checkbox-multiple-line', title: 'Requisitos por sobre', body: 'Aquí capturarás la lista de anexos de cada sobre con su estado.' }); }
   function pintarPrecios(el) {
     el.innerHTML = EmptyState({
@@ -584,10 +741,12 @@ ${s.campos.map((c, i) => campo(`lcB-${s.k}-${i}`, S(c.et) + pag(c), inputCampo(c
   return {
     render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, cerrarModal,
     guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana,
+    subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
+    mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };

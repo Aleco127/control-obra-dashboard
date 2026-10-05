@@ -169,7 +169,62 @@ def paso_814(page, tag, ancho):
     check(page.evaluate("()=>Licitaciones.ficha&&Licitaciones.ficha.lic.id") == ev['_lic'], f'{tag} 814: el evento abre la ficha de la licitación')
     page.evaluate("()=>{calFilter.tipo='';calFilter.mes=new Date().getMonth();calFilter.anio=new Date().getFullYear();}")
 
-PASO_FN = {'813': paso_813, '814': paso_814}
+TMP = tempfile.mkdtemp(prefix='lic-c-')
+def pdf_falso(nombre, texto):
+    """PDF mínimo válido para subir (el bucket valida el tipo por la extensión que manda el cliente)."""
+    p = os.path.join(TMP, nombre)
+    contenido = ('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n% ' + texto + '\ntrailer<</Root 1 0 R>>\n%%EOF\n').encode('utf-8')
+    with open(p, 'wb') as f: f.write(contenido)
+    return p
+
+def abrir_ficha(page, lid, tab):
+    page.evaluate("([id,t])=>Licitaciones.abrir(id,t)", [lid, tab])
+    page.wait_for_function("id=>Licitaciones.ficha&&Licitaciones.ficha.lic.id===id&&document.getElementById('lcPanel')", arg=lid, timeout=15000)
+
+def paso_815(page, tag, ancho):
+    lid = lic_id(page, ancho)
+    abrir_ficha(page, lid, 'archivos')
+    a = pdf_falso(f'Bases {ancho}.pdf', f'bases {ancho}'); b = pdf_falso(f'Acta junta {ancho}.pdf', f'acta {ancho}')
+    page.select_option('#lcArchCat', 'bases')
+    page.set_input_files('#lcArchFiles', [a])
+    page.click('#lcPanel form button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.archivos.length===1", timeout=20000)
+    page.select_option('#lcArchCat', 'acta_junta')
+    page.set_input_files('#lcArchFiles', [b, a])   # el segundo ya está: debe avisar y no subirlo
+    page.click('#lcPanel form button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.archivos.length===2", timeout=20000)
+    page.wait_for_timeout(400)
+    toasts = page.inner_text('#toastContainer') if page.locator('#toastContainer').count() else ''
+    check('ya está en esta licitación' in toasts, f'{tag} 815: avisa del archivo repetido (SHA-256)')
+    filas = sql(page, f"const {{data}}=await sb.from('licitacion_archivos').select('categoria,hash_sha256,archivo_path,tamano').eq('licitacion_id',{lid});return data;")
+    with open(a, 'rb') as f: h = hashlib.sha256(f.read()).hexdigest()
+    check(len(filas) == 2 and any(x['hash_sha256'] == h for x in filas), f'{tag} 815: dos filas con hash SHA-256 correcto')
+    check(all(x['archivo_path'].startswith(f"empresa/") and f'/licitaciones/{lid}/' in x['archivo_path'] for x in filas), f'{tag} 815: ruta empresa/<id>/licitaciones/<lic>/<categoria>/…')
+    txt = page.inner_text('#lcPanel')
+    check('Bases' in txt and 'Acta de junta' in txt and 'Descargar todo' in txt, f'{tag} 815: lista por categoría con tamaño y fecha')
+    # ver: la URL firmada responde
+    st = page.evaluate("async()=>{const a=Licitaciones.ficha.archivos[0];const {data}=await sb.storage.from('licitaciones').createSignedUrl(a.archivo_path,60);return (await fetch(data.signedUrl)).status;}")
+    check(st == 200, f'{tag} 815: ver con URL firmada ({st})')
+    with page.expect_popup() as pop:
+        page.locator('#lcPanel button[aria-label^="Ver "]').first.click()
+    pop.value.close()
+    with page.expect_download(timeout=30000) as dl:
+        page.click('#lcPanel button:has-text("Descargar todo")')
+    ruta_zip = os.path.join(TMP, f'todo_{ancho}.zip'); dl.value.save_as(ruta_zip)
+    import zipfile
+    nombres = zipfile.ZipFile(ruta_zip).namelist()
+    check(any(n.startswith('Bases/') for n in nombres) and any(n.startswith('Acta_de_junta/') for n in nombres), f'{tag} 815: ZIP por categoría {nombres}')
+    snap(page, f'815_archivos_{ancho}.png')
+    axe(page, '#c', f'{tag} 815')
+    page.locator('#lcPanel button[aria-label^="Borrar Acta"]').first.click()
+    page.wait_for_selector('dialog.dlg[open]', timeout=5000)
+    check('btn-danger' in page.get_attribute('#dlgOk', 'class'), f'{tag} 815: borrar pide confirmación en tono peligro')
+    page.click('#dlgOk')
+    page.wait_for_function("()=>Licitaciones.ficha.archivos.length===1", timeout=15000)
+    quedan = sql(page, f"const {{data}}=await sb.storage.from('licitaciones').list('empresa/'+currentUser.empresa_id+'/licitaciones/{lid}/acta_junta');return (data||[]).length;")
+    check(quedan == 0, f'{tag} 815: borrar quita también el objeto del bucket')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815}
 
 def main():
     with sync_playwright() as pw:
