@@ -47,7 +47,11 @@ const Expediente = (() => {
     { k: 'personal', t: 'Personal técnico', ic: 'ri-team-line' },
     { k: 'obras', t: 'Obras ejecutadas', ic: 'ri-building-2-line' },
     { k: 'maquinaria', t: 'Maquinaria', ic: 'ri-truck-line' },
+    { k: 'portales', t: 'Portales', ic: 'ri-key-2-line' },
   ];
+  /** Portales de contrataciones (CHECK de 090) y estado de la última prueba de inicio de sesión (US-848 lo actualiza). */
+  const PORTALES = { comprasmx: 'ComprasMX (federal)', chihuahua: 'Contrataciones Chihuahua (estatal)', otro: 'Otro portal' };
+  const ESTADOS_PORTAL = { sin_probar: { t: 'Sin probar', tono: '' }, correcto: { t: 'Correcto', tono: 'ok' }, fallo: { t: 'Falló', tono: 'danger' } };
 
   /** Campos editables de empresa_expediente (US-807). tipo: texto | area | fecha | monto. */
   const CAMPOS_DATOS = [
@@ -316,17 +320,18 @@ const Expediente = (() => {
     if (enVuelo && !force) return enVuelo;
     enVuelo = (async () => {
       const empId = (typeof currentUser !== 'undefined' && currentUser && currentUser.empresa_id) || null;
-      const [emp, ex, docs, per, obras, maq] = await Promise.all([
+      const [emp, ex, docs, per, obras, maq, por] = await Promise.all([
         empId ? sb.from('empresas').select('id,nombre,razon_social,rfc,direccion,ciudad,estado,codigo_postal,representante_legal,registro_patronal').eq('id', empId).maybeSingle() : Promise.resolve({ data: null }),
         sb.from('empresa_expediente').select('*').maybeSingle(),
         sb.from('empresa_documentos_estado').select('*').order('categoria').order('fecha_vencimiento', { ascending: false, nullsFirst: false }),
         sb.from('personal_tecnico').select('*').order('nombre'),
         sb.from('obras_ejecutadas').select('*').order('fecha_fin', { ascending: false, nullsFirst: false }),
         sb.from('maquinaria').select('*').order('descripcion'),
+        sb.from('empresa_portales').select('*').order('portal'),   // sin contraseña: la vista no la tiene (US-847)
       ]);
-      const err = [emp, ex, docs, per, obras, maq].find((r) => r.error);
+      const err = [emp, ex, docs, per, obras, maq, por].find((r) => r.error);
       if (err) throw err.error;
-      guardarEnD('exp', { empresa: emp.data || null, expediente: ex.data || null, documentos: docs.data || [], personal: per.data || [], obras: obras.data || [], maquinaria: maq.data || [] });
+      guardarEnD('exp', { empresa: emp.data || null, expediente: ex.data || null, documentos: docs.data || [], personal: per.data || [], obras: obras.data || [], maquinaria: maq.data || [], portales: por.data || [] });
       return D.exp;
     })();
     try { return await enVuelo; } finally { enVuelo = null; }
@@ -349,6 +354,7 @@ const Expediente = (() => {
     if (k === 'personal') return exp.personal.filter((p) => p.activo).length;
     if (k === 'obras') return exp.obras.length;
     if (k === 'maquinaria') return exp.maquinaria.length;
+    if (k === 'portales') return (exp.portales || []).length;
     return null;
   }
   function tabsHtml(exp) {
@@ -784,6 +790,77 @@ ${campoArchivoHtml('exMaqPolizaArch', 'Archivo de la póliza', x.poliza_path)}</
     Toast.success('Relación de maquinaria exportada a Excel');
   }
 
+  // -- Accesos a portales (US-847) --
+  // La contraseña vive cifrada en Supabase Vault: el navegador sólo la ESCRIBE (RPC guardar_portal_credencial, nivel 100)
+  // y nunca la recibe. Aquí se muestra siempre como «••••••••» y el campo del modal se vacía al cerrar o guardar.
+  const puedeEditarPortales = () => ((typeof currentUser !== 'undefined' && currentUser && currentUser.nivel) || 0) >= 100;
+  function panelPortales(exp) {
+    const filas = exp.portales || [];
+    const editar = puedeEditarPortales();
+    const faltan = Object.keys(PORTALES).filter((k) => !filas.some((p) => p.portal === k));
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">Usuario y contraseña de cada portal de contrataciones, cifrados. El sistema los usa sólo para descargar los documentos de las convocatorias que marques «Me interesa»; la contraseña nunca se vuelve a mostrar.</p>
+${editar && faltan.length ? `<button type="button" class="btn btn-p" onclick="Expediente.nuevoPortal()"><i class="ri-key-2-line" aria-hidden="true"></i> Agregar acceso</button>` : ''}</div>
+${editar ? '' : '<p class="text-xs text-ink-muted mb-3"><i class="ri-lock-line" aria-hidden="true"></i> Sólo un administrador puede cambiar o quitar estos accesos.</p>'}`;
+    if (!filas.length) return barra + EmptyState({ icon: 'ri-key-2-line', title: 'Sin accesos a portales', body: 'Guarda el usuario de ComprasMX o de Contrataciones Chihuahua para que el sistema baje las bases por ti.', action: editar ? { label: 'Agregar acceso', icon: 'ri-key-2-line', onClick: 'Expediente.nuevoPortal()' } : null });
+    return barra + `<ul class="g rounded-xl px-4 divide-y divide-slate-100" aria-label="Accesos a portales">${filas.map((p) => {
+      const e = ESTADOS_PORTAL[p.estado] || { t: p.estado };
+      const probado = p.probado_at ? 'Última prueba: ' + new Date(p.probado_at).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : 'Aún no se ha probado el inicio de sesión';
+      return `<li class="ex-portal flex flex-wrap items-center gap-x-3 gap-y-1 py-3">
+<div class="flex-1 min-w-[12rem]"><p class="font-medium">${S(PORTALES[p.portal] || p.portal)}</p>
+<dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm mt-1"><dt class="text-ink-muted">Usuario</dt><dd class="break-all">${S(p.usuario)}</dd>
+<dt class="text-ink-muted">Contraseña</dt><dd><span aria-label="Contraseña guardada y oculta">••••••••</span></dd></dl>
+<p class="text-xs text-ink-muted mt-1">${S(probado)}</p>${p.estado === 'fallo' && p.ultimo_error ? `<p class="text-xs text-danger">${S(p.ultimo_error)}</p>` : ''}</div>
+${chipSimple(e.t, e.tono)}
+${editar ? `<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Expediente.cambiarPortal('${p.portal}')"><i class="ri-lock-password-line" aria-hidden="true"></i> Cambiar contraseña</button>
+<button type="button" class="btn btn-s" onclick="Expediente.quitarPortal('${p.portal}')"><i class="ri-delete-bin-line" aria-hidden="true"></i> Quitar acceso</button></div>` : ''}</li>`;
+    }).join('')}</ul>`;
+  }
+  function modalPortal(portal) {
+    const actual = portal ? (D.exp.portales || []).find((p) => p.portal === portal) : null;
+    const libres = Object.keys(PORTALES).filter((k) => !(D.exp.portales || []).some((p) => p.portal === k));
+    const html = `<form id="exPorForm" onsubmit="Expediente.guardarPortal(event)" novalidate class="space-y-3" autocomplete="off">
+<input type="hidden" id="exPorModo" value="${actual ? 'cambiar' : 'nuevo'}">
+<div>${lbl('exPorPortal', 'Portal', true)}<select id="exPorPortal" class="inp" ${actual ? 'disabled' : ''}>${(actual ? [actual.portal] : libres).map((k) => `<option value="${k}">${S(PORTALES[k])}</option>`).join('')}</select></div>
+<div>${lbl('exPorUsuario', 'Usuario del portal', true)}<input type="text" id="exPorUsuario" class="inp" required maxlength="200" autocomplete="off" value="${S(actual ? actual.usuario : '')}"></div>
+<div>${lbl('exPorPass', actual ? 'Contraseña nueva' : 'Contraseña', !actual)}<input type="password" id="exPorPass" class="inp" maxlength="200" autocomplete="new-password" aria-describedby="exPorPassAyuda">
+<p id="exPorPassAyuda" class="text-xs text-ink-muted mt-1">${actual ? 'Déjala vacía para conservar la actual y cambiar sólo el usuario.' : ''} Se guarda cifrada y no se vuelve a mostrar. Cámbiala primero en el portal y luego aquí.</p></div>
+<div class="flex flex-wrap justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Expediente.cerrarPortal()">Cancelar</button>
+<button type="submit" class="btn btn-p" id="exPorGuardar"><i class="ri-save-line" aria-hidden="true"></i> ${actual ? 'Guardar acceso' : 'Agregar acceso'}</button></div></form>`;
+    abrirModal('mdlExpPortal', actual ? 'Cambiar contraseña de ' + PORTALES[actual.portal] : 'Agregar acceso a un portal', html);
+  }
+  function cerrarPortal() { const p = $('exPorPass'); if (p) p.value = ''; closeMdl('mdlExpPortal'); }
+  function nuevoPortal() { if (puedeEditarPortales()) modalPortal(null); }
+  function cambiarPortal(portal) { if (puedeEditarPortales()) modalPortal(portal); }
+  async function guardarPortal(ev) {
+    if (ev) ev.preventDefault();
+    const modo = $('exPorModo').value; const portal = $('exPorPortal').value;
+    const usuario = $('exPorUsuario').value.trim(); const passEl = $('exPorPass');
+    if (!usuario) { Toast.error('Escribe el usuario del portal.'); return; }
+    if (modo === 'nuevo' && !passEl.value) { Toast.error('Escribe la contraseña del portal.'); return; }
+    const btn = $('exPorGuardar'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    try {
+      const { data, error } = await sb.rpc('guardar_portal_credencial', { p_portal: portal, p_usuario: usuario, p_password: passEl.value || null });
+      passEl.value = '';
+      if (error) throw error;
+      const lista = (D.exp.portales || []).filter((p) => p.portal !== portal);
+      D.exp.portales = lista.concat(data).sort((a, b) => String(a.portal).localeCompare(String(b.portal)));
+      closeMdl('mdlExpPortal');
+      Toast.success('Acceso guardado y cifrado');
+      pintarPanel();
+    } catch (e) {
+      Toast.error(humanizeError(e, 'No se guardó el acceso'));
+    } finally { passEl.value = ''; btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
+  async function quitarPortal(portal) {
+    if (!puedeEditarPortales()) return;
+    if (!await Dialog.confirm({ title: 'Quitar acceso', body: `Se borrarán el usuario y la contraseña cifrada de ${PORTALES[portal] || portal}. El sistema ya no podrá descargar documentos de ese portal hasta que los vuelvas a guardar.`, confirmText: 'Quitar acceso', tone: 'danger' })) return;
+    const { error } = await sb.rpc('quitar_portal_credencial', { p_portal: portal });
+    if (error) { Toast.error(humanizeError(error, 'No se quitó el acceso')); return; }
+    D.exp.portales = (D.exp.portales || []).filter((p) => p.portal !== portal);
+    Toast.success('Acceso quitado');
+    pintarPanel();
+  }
+
   // -- Documentos (US-808) --
   function filaDocumento(d, exp) {
     const versiones = cadenaVersiones(exp.documentos, d.id).length;
@@ -985,6 +1062,7 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     if (tab === 'personal') return panelPersonal(exp);
     if (tab === 'obras') return panelObras(exp);
     if (tab === 'maquinaria') return panelMaquinaria(exp);
+    if (tab === 'portales') return panelPortales(exp);
     return panelDocumentos(exp);
   }
   /** Repinta pestañas y panel con D.exp sin volver a pedir datos. */
@@ -1025,12 +1103,13 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     nuevaPersona, editarPersona, guardarPersona, alternarActivo, eliminarPersona, traerEmpleados, filtrarTraer, elegirEmpleado,
     nuevaObra, editarObra, guardarObra, eliminarObra, traerObras, agregarObrasTraidas, exportarCurriculum,
     nuevaMaquina, editarMaquina, guardarMaquina, eliminarMaquina, exportarMaquinaria,
+    nuevoPortal, cambiarPortal, guardarPortal, quitarPortal, cerrarPortal,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
     tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,
     empleadosDisponibles, personaDesdeEmpleado, ordenarPersonal,
     obrasParaCurriculum, obraEjecutadaDesdeObra, periodo, filasCurriculum, MODALIDADES,
-    estadoPoliza, filasMaquinaria, validarMaquina, ESTADOS_MAQ,
+    estadoPoliza, filasMaquinaria, validarMaquina, ESTADOS_MAQ, PORTALES, ESTADOS_PORTAL,
     CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS, TIPOS_ARCHIVO, MAX_BYTES,
   };
 })();

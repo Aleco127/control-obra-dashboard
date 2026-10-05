@@ -95,6 +95,8 @@ def limpiar(page):
       const mq=(await sb.from('maquinaria').select('*').like('descripcion',m+'%')).data||[];
       out.archivos+=await borrarArchivos(mq.flatMap(x=>[x.factura_path,x.poliza_path]));
       if(mq.length)await sb.from('maquinaria').delete().in('id',mq.map(x=>x.id)); out.maquinaria=mq.length;
+      const pq=(await sb.from('empresa_portales').select('portal,usuario').like('usuario',m+'%')).data||[];
+      for(const x of pq){await sb.rpc('quitar_portal_credencial',{p_portal:x.portal});} out.portales=pq.length;
       return out;}""", MARCA)
 
 # ---- US-807 ---------------------------------------------------------------------------------------------------------
@@ -458,7 +460,58 @@ def caso_maquinaria(page, tag):
     quedan = page.evaluate("async ps=>{let n=0;for(const p of ps){const dir=p.split('/').slice(0,-1).join('/');const{data}=await sb.storage.from('licitaciones').list(dir,{limit:1000});if((data||[]).some(x=>p.endsWith('/'+x.name)))n++;}return n;}", paths)
     check(quedan == 0, f'{tag}: eliminar borra la fila y los archivos de factura y póliza')
 
-CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal, 'obras': caso_obras, 'maquinaria': caso_maquinaria}
+# ---- US-847 ---------------------------------------------------------------------------------------------------------
+# NUNCA toca el acceso real de ComprasMX: sólo lo mira. Para probar alta y «Quitar acceso» usa el portal «chihuahua» con
+# una contraseña ficticia y lo borra al final (fila y secreto de Vault).
+def caso_portales(page, tag):
+    ficticia = 'qa-ficticia-' + str(int(time.time() * 1000))
+    respuestas = []
+    def on_resp(r):
+        try:
+            if '/rest/v1/' in r.url: respuestas.append(r.text())
+        except Exception: pass
+    page.on('response', on_resp)
+    abrir_ex(page, 'portales')
+    info = page.evaluate("""()=>{const li=[...document.querySelectorAll('#exPanel li.ex-portal')].find(l=>l.textContent.includes('ComprasMX'));
+      return li?{txt:li.textContent.replace(/\\s+/g,' '),botones:[...li.querySelectorAll('button')].map(b=>b.textContent.trim()),
+        claves:Object.keys((D.exp.portales||[]).find(p=>p.portal==='comprasmx')||{})}:null;}""")
+    check(info is not None, f'{tag}: pestaña Portales con el acceso adoptado de ComprasMX')
+    if info:
+        check('Usuario' in info['txt'] and '••••••••' in info['txt'], f'{tag}: usuario visible y contraseña como ••••••••')
+        check('Sin probar' in info['txt'] or 'Correcto' in info['txt'] or 'Falló' in info['txt'], f'{tag}: estado de la última prueba visible')
+        check(any('Cambiar contraseña' in b for b in info['botones']) and any('Quitar acceso' in b for b in info['botones']), f'{tag}: botones «Cambiar contraseña» y «Quitar acceso»')
+        check(not any(('pass' in k.lower() or 'secret' in k.lower() or 'vault' in k.lower()) for k in info['claves']), f'{tag}: D.exp.portales sin contraseña ni id del secreto {info["claves"]}')
+    # «Cambiar contraseña» abre el modal con el campo vacío y de tipo password; se cancela sin guardar
+    page.evaluate("()=>Expediente.cambiarPortal('comprasmx')")
+    esperar_modal(page, 'mdlExpPortal')
+    m = page.evaluate("()=>({t:document.getElementById('exPorPass').type,v:document.getElementById('exPorPass').value,ac:document.getElementById('exPorPass').autocomplete,dis:document.getElementById('exPorPortal').disabled})")
+    check(m['t'] == 'password' and m['v'] == '' and m['ac'] == 'new-password' and m['dis'], f'{tag}: el modal no trae la contraseña actual {m}')
+    axe(page, '#mdlExpPortal', tag + ' modal portal')
+    page.evaluate("()=>Expediente.cerrarPortal()")
+    # Alta de un acceso de prueba y «Quitar acceso» (portal chihuahua, contraseña ficticia)
+    if page.evaluate("()=>!(D.exp.portales||[]).some(p=>p.portal==='chihuahua')"):
+        page.evaluate("()=>Expediente.nuevoPortal()")
+        esperar_modal(page, 'mdlExpPortal')
+        page.select_option('#exPorPortal', 'chihuahua')
+        page.fill('#exPorUsuario', MARCA)
+        page.fill('#exPorPass', ficticia)
+        page.click('#exPorGuardar')
+        page.wait_for_function("()=>(D.exp.portales||[]).some(p=>p.portal==='chihuahua')", timeout=15000)
+        page.wait_for_timeout(300)
+        check(page.evaluate("()=>!document.getElementById('exPorPass')||document.getElementById('exPorPass').value===''"), f'{tag}: el campo de contraseña se vacía al guardar')
+        dom = page.evaluate("f=>document.documentElement.outerHTML.includes(f)||JSON.stringify(D.exp).includes(f)||localStorage.getItem('obra_cache')?.includes(f)||false", ficticia)
+        check(not dom, f'{tag}: la contraseña no queda en el DOM, en D ni en localStorage')
+        page.click('.ex-portal:has-text("Contrataciones Chihuahua") button:has-text("Quitar acceso")')
+        page.wait_for_selector('dialog.dlg[open]'); page.click('#dlgOk')
+        page.wait_for_function("()=>!(D.exp.portales||[]).some(p=>p.portal==='chihuahua')", timeout=15000)
+        check(True, f'{tag}: «Quitar acceso» borra el acceso de prueba')
+    check(not any(ficticia in r for r in respuestas), f'{tag}: ninguna respuesta de la API trae la contraseña ({len(respuestas)} respuestas revisadas)')
+    check(not desborde(page), f'{tag}: sin desborde horizontal')
+    snap(page, f'portales-{tag}.png')
+    axe(page, '#c', tag + ' portales')
+    page.remove_listener('response', on_resp)
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal, 'obras': caso_obras, 'maquinaria': caso_maquinaria, 'portales': caso_portales}
 
 def main():
     previo = None
