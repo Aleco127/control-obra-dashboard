@@ -1,0 +1,42 @@
+{
+  "formato": "licitacion-bases/v1",
+  "fuente": { "archivo": "1_BASES N12.pdf", "generado_por": "Claude Code", "fecha": "2026-04-22" },
+  "concurso": {
+    "numero": "LO-67-010-908029999-N-12-2026",
+    "nombre": "Trabajos en diferentes municipios del Estado de Chihuahua (partidas 1, 4 y 6)",
+    "modalidad": "Licitación pública estatal (LO)",
+    "convocante": "Instituto Chihuahuense de Infraestructura Física Educativa (ICHIFE)",
+    "objeto": "Trabajos en diferentes municipios del Estado de Chihuahua. Se preparan las partidas 1, 4 y 6.",
+    "ubicacion": "Estado de Chihuahua",
+    "plaza": "parral",
+    "fuente_recursos": null
+  },
+  "fechas": {
+    "publicacion": "2026-04-16",
+    "visita_obra": null,
+    "junta_aclaraciones": null,
+    "presentacion_propuestas": "2026-04-30T10:00",
+    "fallo": "2026-05-12T12:00",
+    "firma_contrato": null,
+    "inicio_obra": "2026-05-21",
+    "termino_obra": "2026-09-17",
+    "plazo_dias": 120,
+    "tipo_dias": "naturales"
+  },
+  "economicos": {
+    "anticipo_pct": 30,
+    "forma_pago": "Precios unitarios y tiempo determinado",
+    "moneda": "MXN",
+    "garantias": { "seriedad_propuesta": null, "anticipo": "Fianza por el 100 % del anticipo", "cumplimiento": "Fianza del 10 % del monto contratado", "vicios_ocultos": "Fianza del 10 % por 12 meses" }
+  },
+  "criterios_evaluacion": { "metodo": "binario" },
+  "causas_desechamiento": ["No presentar alguno de los documentos solicitados", "Presentar documentos sin firma autógrafa del representante"],
+  "notas_importantes": ["Junta de aclaraciones sin preguntas registradas."],
+  "requisitos": [
+    { "anexo_id": "L-1", "sobre": "legal", "descripcion": "Manifiesto de correo electrónico y domicilio para oír y recibir notificaciones", "origen": "se_genera", "requiere_firma": true, "categoria_expediente": null, "pagina": 18 },
+    { "anexo_id": "L-2", "sobre": "legal", "descripcion": "Acreditación de existencia legal y personalidad jurídica", "origen": "expediente", "requiere_firma": true, "categoria_expediente": "acta_constitutiva", "pagina": 18 },
+    { "anexo_id": "T-1", "sobre": "tecnico", "descripcion": "Manifiesto de conocimiento de la convocatoria", "origen": "se_genera", "requiere_firma": true, "categoria_expediente": null, "pagina": 22 },
+    { "anexo_id": "E-1", "sobre": "economico", "descripcion": "Análisis, cálculo e integración de los precios unitarios", "origen": "opus", "requiere_firma": true, "categoria_expediente": null, "pagina": 27 }
+  ],
+  "paginas": { "concurso.objeto": 1, "fechas.presentacion_propuestas": 3, "fechas.fallo": 3, "economicos.anticipo_pct": 9 }
+}

@@ -388,7 +388,42 @@ def paso_818(page, tag, ancho):
     ok = sql(page, f"const r=await sb.rpc('cambiar_estado_requisito',{{p_id:{rid},p_estado:'listo'}});return !r.error;")
     check(ok, f'{tag} 818: ahora sí puede pasar a «Listo»')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818}
+RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+def paso_819(page, tag, ancho):
+    lid = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'QA-C-{ancho}-5',nombre:'Importar bases',bases:{{concurso:{{objeto:'Objeto capturado a mano'}}}}}}}});return r.data.id;")
+    sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'L-1',sobre:'legal',descripcion:'Editado a mano'}}}});")
+    ejemplo = json.load(open(os.path.join(RAIZ, 'docs', 'licitaciones', 'ejemplo-licitacion-bases.json'), encoding='utf-8'))
+    malo = json.loads(json.dumps(ejemplo)); malo['economicos']['anticipo_pct'] = 130; malo['fechas']['fallo'] = '12 de mayo'
+    pm = os.path.join(TMP, 'malo.json'); json.dump(malo, open(pm, 'w', encoding='utf-8'), ensure_ascii=False)
+    pb = os.path.join(TMP, 'bueno.json'); json.dump(ejemplo, open(pb, 'w', encoding='utf-8'), ensure_ascii=False)
+    abrir_ficha(page, lid, 'bases')
+    page.click('#lcPanel button:has-text("Importar bases")')
+    page.wait_for_selector('#lcImpFile')
+    page.set_input_files('#lcImpFile', pm)
+    page.wait_for_selector('#lcImpErr li', timeout=5000)
+    err = page.inner_text('#lcImpErr')
+    check('anticipo_pct' in err and 'menor o igual a 100' in err and 'fechas.fallo' in err, f'{tag} 819: valida contra el esquema y muestra los errores en español')
+    page.set_input_files('#lcImpFile', pb)
+    page.wait_for_selector('#mdlLic table caption', timeout=5000)
+    txt = page.inner_text('#mdlLic')
+    check('Objeto capturado a mano' in txt and 'actual' in txt.lower() and 'propuesto' in txt.lower(), f'{tag} 819: revisión campo por campo (actual contra propuesto)')
+    check('Agregar 3 requisitos nuevos' in txt and '1 anexo ya está' in txt, f'{tag} 819: los requisitos ya editados no se pisan')
+    antes = sql(page, f"const {{data}}=await sb.from('licitaciones').select('anticipo_pct').eq('id',{lid}).single();return data.anticipo_pct;")
+    check(antes is None, f'{tag} 819: nada se guarda antes de «Aplicar»')
+    snap(page, f'819_revision_{ancho}.png')
+    axe(page, '#mdlLic', f'{tag} 819 revisión')
+    # desmarcar el objeto para conservar lo capturado
+    fila = page.locator('#mdlLic tbody tr:has-text("Objeto")')
+    fila.locator('input[type=checkbox]').uncheck()
+    page.click('#mdlLic button:has-text("Aplicar")')
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.length===4", timeout=15000)
+    d = sql(page, f"const {{data}}=await sb.from('licitaciones').select('anticipo_pct,fallo,modalidad,bases').eq('id',{lid}).single();return data;")
+    check(d['anticipo_pct'] == 30 and d['fallo'].startswith('2026-05-12T18:00') and d['modalidad'] == 'licitacion_publica', f'{tag} 819: «Aplicar» guarda los datos marcados')
+    check(d['bases']['concurso']['objeto'] == 'Objeto capturado a mano' and d['bases'].get('paginas', {}).get('fechas.fallo') == 3, f'{tag} 819: lo desmarcado se conserva y se guarda la página de origen')
+    l1 = page.evaluate("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='L-1').descripcion")
+    check(l1 == 'Editado a mano', f'{tag} 819: el requisito existente quedó igual')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818, '819': paso_819}
 
 def main():
     with sync_playwright() as pw:

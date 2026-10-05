@@ -1106,7 +1106,252 @@ ${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2
     });
   }
   function pintarCierre(el) { el.innerHTML = EmptyState({ icon: 'ri-flag-2-line', title: 'Cierre', body: 'Aquí registrarás el resultado del fallo.' }); }
-  function importarBases() { Toast.info('La importación de bases llega en la siguiente entrega de este módulo.'); }
+  // Importar bases desde un archivo licitacion-bases/v1 preparado con Claude Code (US-819) ---------------------------------
+  /** Esquema versionado: copia exacta de docs/licitaciones/licitacion-bases.schema.json (la prueba lo compara). */
+  const ESQUEMA_BASES = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://app.supernovarquitectos.com/schemas/licitacion-bases/v1.json", "title": "licitacion-bases/v1", "description": "Bases de una licitación leídas de la convocatoria (PDF) por Claude Code en la PC del usuario, para importarlas en Control de Obra › Licitaciones › Bases › Importar bases. Toma los campos de licitagen/schemas/bases.schema.json y agrega requisitos[] por sobre, causas de desechamiento y la página de origen de cada dato. Fechas: 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:MM' en hora de México; si el texto no permite fecha exacta, null y el texto en notas_importantes.", "type": "object", "additionalProperties": false, "required": ["formato", "concurso"], "properties": {"formato": {"const": "licitacion-bases/v1"}, "fuente": {"type": "object", "additionalProperties": false, "properties": {"archivo": {"type": ["string", "null"]}, "generado_por": {"type": ["string", "null"]}, "fecha": {"type": ["string", "null"]}}}, "concurso": {"type": "object", "additionalProperties": false, "required": ["numero", "convocante", "objeto"], "properties": {"numero": {"type": ["string", "null"], "maxLength": 120}, "nombre": {"type": ["string", "null"], "maxLength": 300}, "modalidad": {"type": ["string", "null"]}, "convocante": {"type": ["string", "null"], "maxLength": 200}, "objeto": {"type": ["string", "null"]}, "ubicacion": {"type": ["string", "null"]}, "plaza": {"type": ["string", "null"], "enum": ["cuauhtemoc", "chihuahua", "juarez", "parral", "casas_grandes", "otra", null]}, "fuente_recursos": {"type": ["string", "null"]}}}, "fechas": {"type": "object", "additionalProperties": false, "properties": {"publicacion": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "visita_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "junta_aclaraciones": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "presentacion_propuestas": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "fallo": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "firma_contrato": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "inicio_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "termino_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "plazo_dias": {"type": ["integer", "null"], "minimum": 0}, "tipo_dias": {"type": ["string", "null"], "enum": ["naturales", "habiles", null]}}}, "economicos": {"type": "object", "additionalProperties": false, "properties": {"anticipo_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100}, "financiamiento_pct": {"type": ["number", "null"]}, "forma_pago": {"type": ["string", "null"]}, "moneda": {"type": ["string", "null"]}, "presupuesto_referencial": {"type": ["number", "null"], "minimum": 0}, "ajuste_costos": {"type": ["string", "null"]}, "garantias": {"type": "object", "additionalProperties": false, "properties": {"seriedad_propuesta": {"type": ["string", "null"]}, "anticipo": {"type": ["string", "null"]}, "cumplimiento": {"type": ["string", "null"]}, "vicios_ocultos": {"type": ["string", "null"]}}}}}, "requisitos_empresa": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["clave", "descripcion"], "properties": {"clave": {"type": "string"}, "descripcion": {"type": "string"}, "obligatorio": {"type": ["boolean", "null"]}, "minimo": {"type": ["string", "null"]}}}}, "partidas": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["clave", "descripcion"], "properties": {"clave": {"type": "string"}, "descripcion": {"type": "string"}, "unidad": {"type": ["string", "null"]}, "cantidad": {"type": ["number", "null"]}, "monto_estimado": {"type": ["number", "null"]}}}}, "documentos_requeridos": {"description": "Compatibilidad con LicitaGen: si no viene requisitos[], se toman de aquí (sobre tecnica/economica).", "type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sobre", "anexo_id", "descripcion"], "properties": {"sobre": {"type": "string", "enum": ["legal", "tecnica", "economica"]}, "anexo_id": {"type": "string"}, "descripcion": {"type": "string"}, "requiere_firma": {"type": ["boolean", "null"]}, "formato": {"type": ["string", "null"]}, "obligatorio": {"type": ["boolean", "null"]}, "fuente": {"type": ["string", "null"]}}}}, "anexos_convocante": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["anexo_id", "nombre"], "properties": {"anexo_id": {"type": "string"}, "nombre": {"type": "string"}, "tipo": {"type": ["string", "null"]}, "paginas": {"type": ["string", "null"]}, "archivo_referencia": {"type": ["string", "null"]}}}}, "notas_importantes": {"type": "array", "items": {"type": "string"}}, "causas_desechamiento": {"type": "array", "items": {"type": "string"}}, "criterios_evaluacion": {"type": "object", "additionalProperties": false, "properties": {"metodo": {"type": ["string", "null"], "enum": ["puntos_y_porcentajes", "binario", "precio_mas_bajo", "otro", null]}, "puntos_legal": {"type": ["number", "null"]}, "puntos_tecnico": {"type": ["number", "null"]}, "puntos_economico": {"type": ["number", "null"]}, "subcriterios": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["criterio", "peso"], "properties": {"criterio": {"type": "string"}, "peso": {"type": "number"}, "descripcion": {"type": ["string", "null"]}}}}}}, "requisitos": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["anexo_id", "sobre", "descripcion"], "properties": {"anexo_id": {"type": "string", "minLength": 1, "maxLength": 40}, "sobre": {"type": "string", "enum": ["legal", "tecnico", "economico"]}, "descripcion": {"type": "string", "maxLength": 500}, "origen": {"type": ["string", "null"], "enum": ["expediente", "se_genera", "opus", "dependencia", null]}, "requiere_firma": {"type": ["boolean", "null"]}, "categoria_expediente": {"type": ["string", "null"], "enum": ["opinion_sat", "opinion_imss", "opinion_infonavit", "identificacion", "acta_constitutiva", "poder", "constancia_fiscal", "comprobante_domicilio", "estados_financieros", "cmic", "colegio", "poliza_rc", "curriculum", "otro", "padron_contratistas", "declaracion_anual", null]}, "pagina": {"type": ["integer", "null"], "minimum": 1}}}}, "paginas": {"description": "Página del PDF de donde salió cada dato, por ruta: {\"concurso.objeto\": 3, \"fechas.presentacion_propuestas\": 5}.", "type": "object", "additionalProperties": {"type": "integer", "minimum": 1}}}};
+  const b_ = (o, ruta) => ruta.split('.').reduce((x, k) => (x && typeof x === 'object' ? x[k] : undefined), o);
+  const NOMBRE_TIPO = { string: 'texto', integer: 'número entero', number: 'número', boolean: 'sí o no (true / false)', object: 'objeto', array: 'lista', null: 'vacío (null)' };
+  function esTipo(v, t) {
+    if (t === 'null') return v === null;
+    if (t === 'array') return Array.isArray(v);
+    if (t === 'object') return v !== null && typeof v === 'object' && !Array.isArray(v);
+    if (t === 'integer') return Number.isInteger(v);
+    if (t === 'number') return typeof v === 'number' && Number.isFinite(v);
+    return typeof v === t;
+  }
+  /** Validador mínimo de JSON Schema (type, const, enum, required, properties, additionalProperties, items, minimum,
+   *  maximum, minLength, maxLength, pattern) con mensajes en español y la ruta del dato. */
+  function validarEsquema(v, sch, ruta, errs) {
+    const r = ruta || 'archivo';
+    if (Object.prototype.hasOwnProperty.call(sch, 'const')) { if (v !== sch.const) errs.push(`${r}: debe ser «${sch.const}».`); return; }
+    if (sch.type) {
+      const tipos = [].concat(sch.type);
+      if (!tipos.some((t) => esTipo(v, t))) { errs.push(`${r}: debe ser ${tipos.map((t) => NOMBRE_TIPO[t] || t).join(' o ')}.`); return; }
+    }
+    if (sch.enum && !sch.enum.includes(v)) { errs.push(`${r}: el valor «${v}» no se admite; usa uno de estos: ${sch.enum.filter((x) => x !== null).join(', ')}.`); return; }
+    if (v === null) return;
+    if (typeof v === 'string') {
+      if (sch.minLength && v.length < sch.minLength) errs.push(`${r}: no puede ir vacío.`);
+      if (sch.maxLength && v.length > sch.maxLength) errs.push(`${r}: admite hasta ${sch.maxLength} caracteres.`);
+      if (sch.pattern && !new RegExp(sch.pattern).test(v)) errs.push(`${r}: la fecha debe escribirse AAAA-MM-DD o AAAA-MM-DDTHH:MM (se recibió «${v}»).`);
+    }
+    if (typeof v === 'number') {
+      if (sch.minimum !== undefined && v < sch.minimum) errs.push(`${r}: debe ser mayor o igual a ${sch.minimum}.`);
+      if (sch.maximum !== undefined && v > sch.maximum) errs.push(`${r}: debe ser menor o igual a ${sch.maximum}.`);
+    }
+    if (Array.isArray(v) && sch.items) v.forEach((x, i) => validarEsquema(x, sch.items, `${r}[${i + 1}]`, errs));
+    if (esTipo(v, 'object')) {
+      for (const k of sch.required || []) if (!(k in v)) errs.push(`${r}: falta el campo «${k}».`);
+      const props = sch.properties || {};
+      for (const [k, x] of Object.entries(v)) {
+        const sub = ruta ? `${ruta}.${k}` : k;
+        if (props[k]) validarEsquema(x, props[k], sub, errs);
+        else if (sch.additionalProperties === false) errs.push(`${sub}: campo desconocido (revisa que el nombre esté bien escrito).`);
+        else if (sch.additionalProperties && typeof sch.additionalProperties === 'object') validarEsquema(x, sch.additionalProperties, sub, errs);
+      }
+    }
+  }
+  /** Valida un archivo licitacion-bases/v1 (texto u objeto). Devuelve {ok, errores[], datos}. Función pura. */
+  function validarBases(entrada) {
+    let datos = entrada;
+    if (typeof entrada === 'string') {
+      try { datos = JSON.parse(entrada.replace(/^﻿/, '')); } catch (e) { return { ok: false, errores: [`El archivo no es JSON válido: ${e.message}`], datos: null }; }
+    }
+    const errores = [];
+    if (!esTipo(datos, 'object')) return { ok: false, errores: ['El archivo debe contener un objeto JSON con las bases.'], datos: null };
+    if (datos.formato !== 'licitacion-bases/v1') errores.push(`formato: debe ser «licitacion-bases/v1»${datos.formato ? ` (se recibió «${datos.formato}»)` : ''}. Pide a Claude Code que siga el esquema de docs/licitaciones/licitacion-bases.schema.json.`);
+    validarEsquema(datos, ESQUEMA_BASES, '', errores);
+    const vistos = new Set();
+    (Array.isArray(datos.requisitos) ? datos.requisitos : []).forEach((q, i) => {
+      const k = String((q && q.anexo_id) || '').trim().toLowerCase();
+      if (k && vistos.has(k)) errores.push(`requisitos[${i + 1}]: el anexo «${q.anexo_id}» está repetido.`);
+      vistos.add(k);
+    });
+    const unicos = [...new Set(errores)];
+    return { ok: unicos.length === 0, errores: unicos.slice(0, 60), datos };
+  }
+  /** Modalidad de las bases (texto libre: «LP», «Invitación…», «AD») → catálogo de la BD; null si no se reconoce. */
+  function modalidadDe(t) {
+    const s = String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (!s) return null;
+    if (/invitaci|\bi3p\b|\bir\b|\bio\b|tres personas/.test(s)) return 'invitacion';
+    if (/adjudicaci|\bad\b/.test(s)) return 'adjudicacion_directa';
+    if (/privad/.test(s)) return 'privada';
+    if (/licitaci|\blp[a-z]?\b|\blo\b|public/.test(s)) return 'licitacion_publica';
+    return null;
+  }
+  /** Requisitos del archivo: requisitos[] o, si no viene, documentos_requeridos de LicitaGen (tecnica → tecnico). */
+  function requisitosDeBases(b) {
+    if (Array.isArray(b.requisitos) && b.requisitos.length) {
+      return b.requisitos.map((q) => ({ anexo_id: String(q.anexo_id).trim(), sobre: q.sobre, descripcion: q.descripcion || '', origen: q.origen || 'se_genera', requiere_firma: !!q.requiere_firma, categoria_expediente: q.categoria_expediente || null, pagina: q.pagina || null }));
+    }
+    const SOB = { legal: 'legal', tecnica: 'tecnico', economica: 'economico' };
+    return (b.documentos_requeridos || []).map((q) => ({ anexo_id: String(q.anexo_id).trim(), sobre: SOB[q.sobre] || 'legal', descripcion: q.descripcion || '', origen: 'se_genera', requiere_firma: !!q.requiere_firma, categoria_expediente: null, pagina: null }));
+  }
+  /** Campos que importa la revisión: origen en el archivo → columna de licitaciones (col) o ruta en bases (ruta). */
+  const MAPA_BASES = [
+    { de: 'concurso.numero', et: 'Código o número de concurso', col: 'codigo', tipo: 'txt' },
+    { de: 'concurso.nombre', et: 'Nombre de la obra', col: 'nombre', tipo: 'txt' },
+    { de: 'concurso.convocante', et: 'Convocante', col: 'convocante', tipo: 'txt' },
+    { de: 'concurso.modalidad', et: 'Modalidad', col: 'modalidad', tipo: 'modalidad' },
+    { de: 'concurso.ubicacion', et: 'Ubicación', col: 'ubicacion', tipo: 'txt' },
+    { de: 'concurso.plaza', et: 'Plaza', col: 'plaza', tipo: 'plaza' },
+    { de: 'concurso.objeto', et: 'Objeto', ruta: 'concurso.objeto', tipo: 'txt' },
+    { de: 'concurso.fuente_recursos', et: 'Fuente de los recursos', ruta: 'concurso.fuente_recursos', tipo: 'txt' },
+    { de: 'fechas.publicacion', et: 'Publicación', ruta: 'fechas.publicacion', tipo: 'fecha' },
+    { de: 'fechas.visita_obra', et: 'Visita de obra', col: 'visita', tipo: 'fh' },
+    { de: 'fechas.junta_aclaraciones', et: 'Junta de aclaraciones', col: 'junta_aclaraciones', tipo: 'fh' },
+    { de: 'fechas.presentacion_propuestas', et: 'Presentación y apertura', col: 'presentacion', tipo: 'fh' },
+    { de: 'fechas.fallo', et: 'Fallo', col: 'fallo', tipo: 'fh' },
+    { de: 'fechas.firma_contrato', et: 'Firma del contrato', ruta: 'fechas.firma_contrato', tipo: 'fecha' },
+    { de: 'fechas.inicio_obra', et: 'Inicio de obra', col: 'inicio_obra', tipo: 'fecha' },
+    { de: 'fechas.termino_obra', et: 'Término de obra', ruta: 'fechas.termino_obra', tipo: 'fecha' },
+    { de: 'fechas.plazo_dias', et: 'Plazo (días)', col: 'plazo_dias', tipo: 'num' },
+    { de: 'fechas.tipo_dias', et: 'Tipo de días', ruta: 'fechas.tipo_dias', tipo: 'txt' },
+    { de: 'economicos.anticipo_pct', et: 'Anticipo (%)', col: 'anticipo_pct', tipo: 'num' },
+    { de: 'economicos.presupuesto_referencial', et: 'Presupuesto base', col: 'presupuesto_base', tipo: 'dinero' },
+    { de: 'economicos.financiamiento_pct', et: 'Financiamiento (%)', ruta: 'economicos.financiamiento_pct', tipo: 'num' },
+    { de: 'economicos.forma_pago', et: 'Forma de pago', ruta: 'economicos.forma_pago', tipo: 'txt' },
+    { de: 'economicos.moneda', et: 'Moneda', ruta: 'economicos.moneda', tipo: 'txt' },
+    { de: 'economicos.ajuste_costos', et: 'Ajuste de costos', ruta: 'economicos.ajuste_costos', tipo: 'txt' },
+    { de: 'economicos.garantias.seriedad_propuesta', et: 'Garantía de seriedad', ruta: 'economicos.garantias.seriedad_propuesta', tipo: 'txt' },
+    { de: 'economicos.garantias.anticipo', et: 'Garantía de anticipo', ruta: 'economicos.garantias.anticipo', tipo: 'txt' },
+    { de: 'economicos.garantias.cumplimiento', et: 'Garantía de cumplimiento', ruta: 'economicos.garantias.cumplimiento', tipo: 'txt' },
+    { de: 'economicos.garantias.vicios_ocultos', et: 'Garantía de vicios ocultos', ruta: 'economicos.garantias.vicios_ocultos', tipo: 'txt' },
+    { de: 'criterios_evaluacion.metodo', et: 'Método de evaluación', ruta: 'criterios_evaluacion.metodo', tipo: 'metodo' },
+    { de: 'criterios_evaluacion.puntos_legal', et: 'Puntos legal', ruta: 'criterios_evaluacion.puntos_legal', tipo: 'num' },
+    { de: 'criterios_evaluacion.puntos_tecnico', et: 'Puntos técnico', ruta: 'criterios_evaluacion.puntos_tecnico', tipo: 'num' },
+    { de: 'criterios_evaluacion.puntos_economico', et: 'Puntos económico', ruta: 'criterios_evaluacion.puntos_economico', tipo: 'num' },
+    { de: 'criterios_evaluacion.subcriterios', et: 'Subcriterios de evaluación', ruta: 'criterios_evaluacion.subcriterios', tipo: 'lista' },
+    { de: 'causas_desechamiento', et: 'Causas de desechamiento', ruta: 'causas_desechamiento', tipo: 'lista' },
+    { de: 'notas_importantes', et: 'Notas importantes', ruta: 'notas_importantes', tipo: 'lista' },
+    { de: 'requisitos_empresa', et: 'Requisitos de la empresa (capital, experiencia…)', ruta: 'requisitos_empresa', tipo: 'lista' },
+    { de: 'partidas', et: 'Partidas', ruta: 'partidas', tipo: 'lista' },
+    { de: 'anexos_convocante', et: 'Anexos que entrega la convocante', ruta: 'anexos_convocante', tipo: 'lista' },
+  ];
+  /** Texto para la pantalla de revisión. */
+  function mostrarValor(v, tipo) {
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) return '';
+    if (tipo === 'fh') return fmtFechaHora(v);
+    if (tipo === 'fecha') return fmtFecha(v);
+    if (tipo === 'dinero') return typeof fmt === 'function' ? fmt(v) : String(v);
+    if (tipo === 'modalidad') return etiqueta(MODALIDADES, v);
+    if (tipo === 'plaza') return etiqueta(PLAZAS, v);
+    if (tipo === 'metodo') return etiqueta(METODOS_EVALUACION, v);
+    if (tipo === 'lista') return `${v.length} ${v.length === 1 ? 'renglón' : 'renglones'}: ${v.slice(0, 3).map((x) => (typeof x === 'string' ? x : x.criterio || x.descripcion || x.nombre || x.clave || '')).join(' · ')}${v.length > 3 ? '…' : ''}`;
+    return String(v);
+  }
+  const igual = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+  /**
+   * Propuesta de cambios de un archivo ya validado contra la licitación actual. Función pura.
+   * {campos: [{de, et, col|ruta, actual, propuesto, mostrarActual, mostrarPropuesto, pagina, igual, aplicar}],
+   *  requisitosNuevos, requisitosExistentes, avisos}
+   */
+  function propuestaDeBases(b, lic, reqsActuales) {
+    const l = lic || {}; const bases = l.bases || {}; const avisos = [];
+    const campos = [];
+    for (const m of MAPA_BASES) {
+      let p = b_(b, m.de);
+      if (p === undefined || p === null || p === '' || (Array.isArray(p) && !p.length)) continue;
+      if (m.tipo === 'modalidad') { const k = modalidadDe(p); if (!k) { avisos.push(`La modalidad «${p}» no se reconoce; se guarda sólo como texto en las bases.`); continue; } p = k; }
+      if (m.tipo === 'fh') { const iso = aIsoMx(p); if (!iso) { avisos.push(`${m.et}: «${p}» no es una fecha válida.`); continue; } p = iso; }
+      if (m.tipo === 'fecha') p = String(p).slice(0, 10);
+      const actual = m.col ? l[m.col] : b_(bases, m.ruta);
+      const comparaActual = m.tipo === 'fh' && actual ? new Date(actual).getTime() : actual;
+      const comparaProp = m.tipo === 'fh' ? new Date(p).getTime() : p;
+      const eq = m.tipo === 'num' || m.tipo === 'dinero' ? (actual !== null && actual !== undefined && Number(actual) === Number(p)) : igual(comparaActual, comparaProp);
+      campos.push({ de: m.de, et: m.et, col: m.col || null, ruta: m.ruta || null, tipo: m.tipo, actual: actual === undefined ? null : actual, propuesto: p,
+        mostrarActual: mostrarValor(actual, m.tipo), mostrarPropuesto: mostrarValor(p, m.tipo),
+        pagina: (b.paginas && (b.paginas[m.de] || null)) || null, igual: eq,
+        // El código identifica la licitación: si ya tiene uno, cambiarlo es opt-in
+        aplicar: !eq && !(m.col === 'codigo' && actual) });
+    }
+    const ya = new Set((reqsActuales || []).map((r) => String(r.anexo_id).trim().toLowerCase()));
+    const reqs = requisitosDeBases(b);
+    return {
+      campos,
+      requisitosNuevos: reqs.filter((q) => !ya.has(q.anexo_id.toLowerCase())),
+      requisitosExistentes: reqs.filter((q) => ya.has(q.anexo_id.toLowerCase())),
+      avisos,
+    };
+  }
+  /** Datos para guardar_licitacion con los campos elegidos (bases se combina, nunca se reemplaza entera). Función pura. */
+  function datosDeRevision(lic, propuesta, b) {
+    const datos = { id: lic.id };
+    const bases = JSON.parse(JSON.stringify(lic.bases || {}));
+    bases.formato = 'licitacion-bases/v1';
+    const pags = Object.assign({}, bases.paginas || {});
+    for (const c of propuesta.campos) {
+      if (!c.aplicar) continue;
+      if (c.col) datos[c.col] = c.propuesto; else setRuta(bases, c.ruta, c.propuesto);
+      if (c.pagina) pags[c.ruta || c.de] = c.pagina;
+    }
+    if (b && b.concurso && b.concurso.modalidad) setRuta(bases, 'concurso.modalidad_texto', b.concurso.modalidad);
+    if (Object.keys(pags).length) bases.paginas = pags;
+    if (b && b.fuente) bases.fuente = b.fuente;
+    datos.bases = bases;
+    return datos;
+  }
+  let revision = null;
+  function importarBases() {
+    if (!F) return;
+    modal('Importar bases', `<div class="space-y-3"><p class="text-sm">Elige el archivo <b>licitacion-bases/v1</b> (.json) que preparó Claude Code al leer las bases en tu computadora. Antes de guardar verás cada dato junto al que ya tienes; nada se guarda hasta que pulses «Aplicar».</p>
+${campo('lcImpFile', 'Archivo de bases (.json)', '<input id="lcImpFile" type="file" accept=".json,application/json" class="inp" onchange="Licitaciones.leerArchivoBases(this.files[0])">')}
+<div id="lcImpErr" role="alert"></div>
+<p class="text-xs text-ink-muted">La captura manual de las pestañas Bases y Requisitos sigue disponible; importar sólo te ahorra teclear.</p>
+<div class="flex justify-end"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button></div></div>`);
+  }
+  async function leerArchivoBases(file) {
+    if (!file) return;
+    const box = document.getElementById('lcImpErr');
+    if (file.size > 5 * 1048576) { if (box) box.innerHTML = '<p class="text-sm text-danger">El archivo pesa más de 5 MB: no parece un archivo de bases.</p>'; return; }
+    revisarBases(await file.text(), file.name);
+  }
+  /** Pantalla de revisión campo por campo. Recibe texto u objeto licitacion-bases/v1 (la futura lectura con llave de
+   *  Anthropic producirá este mismo formato y llamará aquí). */
+  function revisarBases(entrada, nombreArchivo) {
+    const v = validarBases(entrada);
+    if (!v.ok) {
+      const box = document.getElementById('lcImpErr');
+      const html = `<div class="g rounded-xl p-3" style="background:var(--danger-soft)"><p class="text-sm font-semibold text-danger mb-1">El archivo no se puede importar (${v.errores.length} problema${v.errores.length === 1 ? '' : 's'}):</p><ul class="text-sm list-disc pl-5 space-y-1">${v.errores.map((e) => `<li>${S(e)}</li>`).join('')}</ul></div>`;
+      if (box) box.innerHTML = html; else { importarBases(); const b2 = document.getElementById('lcImpErr'); if (b2) b2.innerHTML = html; }
+      return v;
+    }
+    const prop = propuestaDeBases(v.datos, F.lic, F.reqs);
+    revision = { datos: v.datos, prop, archivo: nombreArchivo || '' };
+    const filas = prop.campos.map((c, i) => `<tr><td data-et=""><input type="checkbox" id="lcRv-${i}" ${c.aplicar ? 'checked' : ''} ${c.igual ? 'disabled' : ''} aria-label="Aplicar ${S(c.et)}"></td><td data-et="Campo"><label for="lcRv-${i}">${S(c.et)}</label></td><td data-et="Actual"><span class="text-ink-muted">${S(c.mostrarActual) || '—'}</span></td><td data-et="Propuesto"><span>${S(c.mostrarPropuesto)}${c.igual ? ' <span class="chip chip-ind">Igual</span>' : ''}</span></td><td data-et="Página"><span>${c.pagina ? S(c.pagina) : '—'}</span></td></tr>`).join('');
+    const rn = prop.requisitosNuevos;
+    modal('Revisar bases antes de aplicar', `<div class="space-y-3">
+<p class="text-sm">${nombreArchivo ? `Archivo <b>${S(nombreArchivo)}</b>. ` : ''}Marca lo que quieras traer. Lo que no marques se queda como está.</p>
+${prop.avisos.length ? `<ul class="text-sm text-warn list-disc pl-5">${prop.avisos.map((a) => `<li>${S(a)}</li>`).join('')}</ul>` : ''}
+<div class="table-wrap g rounded-xl" style="max-height:45vh;overflow:auto" tabindex="0" role="region" aria-label="Datos propuestos"><table class="table-modern lc-tbl w-full text-sm"><caption class="sr-only">Valor actual contra valor propuesto</caption><thead><tr><th scope="col"><span class="sr-only">Aplicar</span></th><th scope="col">Campo</th><th scope="col">Actual</th><th scope="col">Propuesto</th><th scope="col">Página</th></tr></thead><tbody>${filas || '<tr><td colspan="5" class="text-center py-4 text-ink-muted">El archivo no trae datos generales.</td></tr>'}</tbody></table></div>
+<fieldset class="g rounded-xl p-3"><legend class="text-sm font-semibold px-1">Requisitos por sobre</legend>
+${rn.length ? `<label class="flex items-center gap-2 text-sm" style="min-height:var(--tap)"><input type="checkbox" id="lcRvReqs" checked> Agregar ${rn.length} requisito${rn.length === 1 ? '' : 's'} nuevo${rn.length === 1 ? '' : 's'} (${Object.keys(SOBRES).map((s) => `${SOBRES[s].toLowerCase()} ${rn.filter((q) => q.sobre === s).length}`).join(', ')})</label>
+<p class="text-xs text-ink-muted">${S(rn.slice(0, 8).map((q) => q.anexo_id).join(', '))}${rn.length > 8 ? '…' : ''}</p>` : '<p class="text-sm text-ink-muted">No hay requisitos nuevos en el archivo.</p>'}
+${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${prop.requisitosExistentes.length} anexo${prop.requisitosExistentes.length === 1 ? '' : 's'} ya está${prop.requisitosExistentes.length === 1 ? '' : 'n'} en la licitación y no se toca${prop.requisitosExistentes.length === 1 ? '' : 'n'}.</p>` : ''}</fieldset>
+<div class="flex justify-end gap-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button><button type="button" class="btn btn-p" onclick="Licitaciones.aplicarBases()"><i class="ri-check-double-line" aria-hidden="true"></i> Aplicar</button></div></div>`, 'max-w-5xl');
+    return v;
+  }
+  async function aplicarBases() {
+    if (!revision || !F) return;
+    revision.prop.campos.forEach((c, i) => { const x = document.getElementById(`lcRv-${i}`); c.aplicar = !!(x && x.checked && !c.igual); });
+    const conReqs = !!(document.getElementById('lcRvReqs') || {}).checked;
+    const datos = datosDeRevision(F.lic, revision.prop, revision.datos);
+    try {
+      const r = await rpc('guardar_licitacion', { p_datos: datos });
+      let ins = 0;
+      if (conReqs && revision.prop.requisitosNuevos.length) {
+        const x = await rpc('importar_requisitos', { p_licitacion_id: F.lic.id, p_requisitos: revision.prop.requisitosNuevos.map(({ pagina, ...q }) => q) });
+        ins = x.insertados;
+      }
+      actualizarEnLista(r.licitacion);
+      F = await cargarFicha(F.lic.id);
+      const n = revision.prop.campos.filter((c) => c.aplicar).length;
+      revision = null; cerrarModal();
+      Toast.success(`Bases importadas: ${n} dato${n === 1 ? '' : 's'}${ins ? ` y ${ins} requisito${ins === 1 ? '' : 's'}` : ''}`);
+      repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se aplicaron las bases')); }
+  }
 
   return {
     render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, cerrarModal,
@@ -1116,12 +1361,14 @@ ${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2
     adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
     generarDelPerfil, confirmarGenerar, guardarComoPerfil, confirmarGuardarPerfil, _resumenPerfil: (id) => (generarDelPerfil._resumen ? generarDelPerfil._resumen(id) : ''),
     perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil, llenarDesdeExpediente,
+    leerArchivoBases, revisarBases, aplicarBases,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
     delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil, docsUsables, venceAntes,
+    validarBases, propuestaDeBases, datosDeRevision, modalidadDe, requisitosDeBases, ESQUEMA_BASES, MAPA_BASES,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };

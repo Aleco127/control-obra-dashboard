@@ -177,3 +177,65 @@ test('US-818: documentos ligables por categoría y vencimiento contra la present
   const sql = readFileSync(new URL('../../migrations/092_licitaciones_rpc.sql', import.meta.url), 'utf8');
   assert.match(sql, /d\.fecha_vencimiento < COALESCE\(\(l\.presentacion AT TIME ZONE 'America\/Mexico_City'\)::date/, 'la RPC usa la misma regla');
 });
+
+test('US-819: esquema licitacion-bases/v1 versionado = el que usa el panel; validarBases con el ejemplo y con errores', () => {
+  const esquema = JSON.parse(readFileSync(new URL('../../docs/licitaciones/licitacion-bases.schema.json', import.meta.url), 'utf8'));
+  assert.deepEqual(L.ESQUEMA_BASES, esquema, 'el esquema embebido en licitaciones.js es copia exacta del de docs/');
+  const licitagen = ['concurso', 'fechas', 'economicos', 'requisitos_empresa', 'partidas', 'documentos_requeridos', 'anexos_convocante', 'notas_importantes', 'criterios_evaluacion'];
+  for (const k of licitagen) assert.ok(esquema.properties[k], `incluye ${k} de licitagen/schemas/bases.schema.json`);
+  for (const k of ['anexo_id', 'sobre', 'descripcion', 'origen', 'requiere_firma', 'categoria_expediente', 'pagina']) assert.ok(esquema.properties.requisitos.items.properties[k], `requisitos[].${k}`);
+  const ejemplo = readFileSync(new URL('../../docs/licitaciones/ejemplo-licitacion-bases.json', import.meta.url), 'utf8');
+  const ok = L.validarBases(ejemplo);
+  assert.equal(ok.ok, true, ok.errores.join(' | '));
+  assert.equal(L.validarBases('{no es json').errores[0].startsWith('El archivo no es JSON válido'), true);
+  assert.match(L.validarBases('[]').errores[0], /objeto JSON/);
+  const malo = JSON.parse(ejemplo);
+  malo.formato = 'otra/v9'; malo.economicos.anticipo_pct = 130; malo.fechas.fallo = '12 de mayo'; malo.requisitos[1].sobre = 'tecnica';
+  malo.requisitos.push({ anexo_id: 'l-1', sobre: 'legal', descripcion: 'x' }); malo.concurso.numeroo = 'x'; delete malo.concurso.objeto; malo.fechas.plazo_dias = 12.5;
+  const e = L.validarBases(malo).errores.join('\n');
+  assert.match(e, /formato: debe ser «licitacion-bases\/v1»/);
+  assert.match(e, /economicos\.anticipo_pct: debe ser menor o igual a 100/);
+  assert.match(e, /fechas\.fallo: la fecha debe escribirse AAAA-MM-DD/);
+  assert.match(e, /requisitos\[2\]\.sobre: el valor «tecnica» no se admite/);
+  assert.match(e, /requisitos\[5\]: el anexo «l-1» está repetido/);
+  assert.match(e, /concurso\.numeroo: campo desconocido/);
+  assert.match(e, /concurso: falta el campo «objeto»/);
+  assert.match(e, /fechas\.plazo_dias: debe ser número entero o vacío/);
+});
+
+test('US-819: revisión campo por campo, nada se pisa sin marcarlo y los requisitos ya editados no se tocan', () => {
+  const b = JSON.parse(readFileSync(new URL('../../docs/licitaciones/ejemplo-licitacion-bases.json', import.meta.url), 'utf8'));
+  const lic = { id: 7, codigo: 'LO-67-010-908029999-N-12-2026', convocante: 'ICHIFE', plazo_dias: 120, anticipo_pct: null, presentacion: '2026-04-30T16:00:00Z', bases: { concurso: { objeto: 'Mi texto' }, paginas: { 'x.y': 2 } } };
+  const p = L.propuestaDeBases(b, lic, [{ anexo_id: 'l-2' }]);
+  const por = Object.fromEntries(p.campos.map((c) => [c.de, c]));
+  assert.equal(por['concurso.numero'].igual, true, 'mismo código: no se propone');
+  assert.equal(por['fechas.plazo_dias'].igual, true);
+  assert.equal(por['fechas.presentacion_propuestas'].igual, true, '10:00 en México = 16:00 UTC');
+  assert.equal(por['fechas.fallo'].propuesto, '2026-05-12T12:00:00-06:00');
+  assert.equal(por['concurso.modalidad'].propuesto, 'licitacion_publica');
+  assert.equal(por['concurso.objeto'].mostrarActual, 'Mi texto');
+  assert.equal(por['concurso.objeto'].pagina, 1);
+  assert.equal(por['economicos.anticipo_pct'].aplicar, true);
+  assert.deepEqual(p.requisitosNuevos.map((q) => q.anexo_id), ['L-1', 'T-1', 'E-1']);
+  assert.deepEqual(p.requisitosExistentes.map((q) => q.anexo_id), ['L-2']);
+  por['concurso.objeto'].aplicar = false;   // el usuario lo desmarca
+  const d = L.datosDeRevision(lic, p, b);
+  assert.equal(d.id, 7); assert.equal(d.anticipo_pct, 30); assert.equal(d.codigo, undefined, 'lo igual no se manda');
+  assert.equal(d.bases.concurso.objeto, 'Mi texto', 'lo desmarcado no se pisa');
+  assert.equal(d.bases.economicos.garantias.cumplimiento, 'Fianza del 10 % del monto contratado');
+  assert.deepEqual(d.bases.paginas, { 'x.y': 2, 'fechas.fallo': 3, 'economicos.anticipo_pct': 9 }, 'páginas combinadas sólo de lo aplicado');
+  assert.equal(d.bases.formato, 'licitacion-bases/v1');
+  assert.equal(L.modalidadDe('Invitación a cuando menos tres personas'), 'invitacion');
+  assert.equal(L.modalidadDe('AD'), 'adjudicacion_directa');
+  assert.equal(L.modalidadDe('LPN'), 'licitacion_publica');
+  assert.equal(L.modalidadDe('cosa rara'), null);
+  const viejo = L.requisitosDeBases({ documentos_requeridos: [{ sobre: 'tecnica', anexo_id: 'T-01', descripcion: 'x', requiere_firma: true }] });
+  assert.deepEqual(viejo, [{ anexo_id: 'T-01', sobre: 'tecnico', descripcion: 'x', origen: 'se_genera', requiere_firma: true, categoria_expediente: null, pagina: null }], 'compatibilidad con documentos_requeridos de LicitaGen');
+});
+
+test('US-819: el código de una licitación existente no se cambia salvo que el usuario lo marque', () => {
+  const b = { formato: 'licitacion-bases/v1', concurso: { numero: 'NUEVO-1', convocante: null, objeto: null } };
+  const c = L.propuestaDeBases(b, { id: 1, codigo: 'VIEJO', bases: {} }, []).campos.find((x) => x.col === 'codigo');
+  assert.equal(c.igual, false); assert.equal(c.aplicar, false);
+  assert.equal(L.propuestaDeBases(b, { id: 1, codigo: null, bases: {} }, []).campos[0].aplicar, true);
+});
