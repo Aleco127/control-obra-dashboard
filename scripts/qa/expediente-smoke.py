@@ -16,7 +16,7 @@ TODO lo que crea (filas y objetos del bucket) lo borra al final, aunque falle. R
 Uso (OBRA_QA_TOKEN en el entorno; dist servido con node scripts/serve-dist.mjs dist 8771):
   PYTHONIOENCODING=utf-8 python scripts/qa/expediente-smoke.py --app http://127.0.0.1:8771/index.html?app=1 --out docs/qa/expediente
 """
-import argparse, json, os, sys, time
+import argparse, json, os, re, sys, time
 from playwright.sync_api import sync_playwright
 
 ap = argparse.ArgumentParser()
@@ -259,7 +259,7 @@ def caso_avisos(page, tag):
     page.evaluate("()=>{M='d';R();}")
     page.wait_for_timeout(500)
     t = page.evaluate("m=>{const el=document.getElementById('dsExpAvisos');return el?{hidden:el.hidden,txt:el.textContent.replace(/\\s+/g,' ')}:null;}", MARCA)
-    check(t and not t['hidden'] and (MARCA + ' IMSS vencida') in t['txt'] and 'vence en los próximos 30 días' in t['txt'], f'{tag}: tarjeta en Inicio con el vencido y el aviso de por vencer {t and t["txt"][:160]}')
+    check(t and not t['hidden'] and (MARCA + ' IMSS vencida') in t['txt'] and re.search(r'vencen? en los próximos 30 días', t['txt']), f'{tag}: tarjeta en Inicio con el vencido y el aviso de por vencer {t and t["txt"][:160]}')
     snap(page, f'avisos-inicio-{tag}.png')
     axe(page, '#dsExpAvisos', tag + ' tarjeta Inicio')
     page.click('#dsExpAvisos button')
