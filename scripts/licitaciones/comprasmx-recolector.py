@@ -67,9 +67,24 @@ class Cancelado(Exception):
     """El usuario canceló la búsqueda desde la app."""
 
 
+DIAS_POR_OMISION = 30          # US-852: por omisión, publicadas en los últimos 30 días
+DIAS_MAXIMOS = 90              # nunca sin límite de fecha: rango máximo de 90 días
+DETALLES_POR_OMISION = 30      # detalles (para la descripción) que se abren por búsqueda
+DETALLES_MAXIMOS = 60
+
+
+def hoy_mx():
+    """Fecha civil de hoy en el centro de México (UTC-6 todo el año desde 2022)."""
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(hours=6)).date()
+
+
 def normalizar_filtros(d: dict | None) -> dict:
-    """Valida los filtros de una búsqueda a petición (contrato del conector local). ValueError si no sirven."""
-    from datetime import date
+    """Valida los filtros de una búsqueda a petición (contrato del conector local). ValueError si no sirven.
+
+    US-852: la búsqueda SIEMPRE va acotada por fecha: sin `desde` se buscan los últimos 30 días hasta `hasta` (por
+    omisión hoy); el rango no puede pasar de 90 días ni empezar en el futuro."""
+    from datetime import date, timedelta
     d = d or {}
     if not isinstance(d, dict):
         raise ValueError("el cuerpo debe ser un objeto JSON")
@@ -90,11 +105,18 @@ def normalizar_filtros(d: dict | None) -> dict:
         if v in (None, ""):
             fechas[k] = None; continue
         try:
-            fechas[k] = date.fromisoformat(str(v)).isoformat()
+            fechas[k] = date.fromisoformat(str(v))
         except ValueError:
             raise ValueError(f"{k}: fecha con formato AAAA-MM-DD") from None
-    if fechas["desde"] and fechas["hasta"] and fechas["desde"] > fechas["hasta"]:
+    hoy = hoy_mx()
+    hasta = fechas["hasta"] or hoy
+    desde = fechas["desde"] or (hasta - timedelta(days=DIAS_POR_OMISION))
+    if desde > hasta:
         raise ValueError("desde no puede ser posterior a hasta")
+    if desde > hoy:
+        raise ValueError("desde no puede estar en el futuro")
+    if (hasta - desde).days > DIAS_MAXIMOS:
+        raise ValueError(f"el rango de fechas no puede pasar de {DIAS_MAXIMOS} días")
     campo = str(d.get("campo_fecha") or "publicacion")
     if campo not in CAMPOS_FECHA:
         raise ValueError(f"campo_fecha: {list(CAMPOS_FECHA)}")
@@ -106,12 +128,18 @@ def normalizar_filtros(d: dict | None) -> dict:
             raise ValueError("max_resultados debe ser un entero") from None
         if mx < 1:
             raise ValueError("max_resultados debe ser 1 o más")
-    hay_filtro = bool(texto or entidades or fechas["desde"] or fechas["hasta"] or mx not in (None, ""))
-    if not hay_filtro:
-        raise ValueError("indica al menos un filtro (texto, entidades, desde, hasta) o max_resultados")
+    md = d.get("max_detalles")
+    if md in (None, ""):
+        md = DETALLES_POR_OMISION
+    else:
+        try:
+            md = int(md)
+        except (TypeError, ValueError):
+            raise ValueError("max_detalles debe ser un entero") from None
     return {"texto": texto or None, "tipos": list(dict.fromkeys(tipos)), "entidades": [e.strip() for e in entidades if e.strip()],
-            "desde": fechas["desde"], "hasta": fechas["hasta"], "campo_fecha": campo,
-            "max_resultados": min(TOPE_RESULTADOS, mx if isinstance(mx, int) else RESULTADOS_POR_OMISION)}
+            "desde": desde.isoformat(), "hasta": hasta.isoformat(), "campo_fecha": campo,
+            "max_resultados": min(TOPE_RESULTADOS, mx if isinstance(mx, int) else RESULTADOS_POR_OMISION),
+            "max_detalles": max(0, min(DETALLES_MAXIMOS, md))}
 
 
 def cumple_post(reg: dict, texto: str | None, desde: str | None, hasta: str | None, campo: str) -> bool:
@@ -496,7 +524,7 @@ def recolectar(a) -> int:
     return 0
 
 
-def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: float = 3.0, max_detalles: int = 5,
+def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: float = 3.0, max_detalles: int | None = None,
                          headed: bool = False, seco: bool = False, cancelado=None, usuario: str | None = None,
                          log=print) -> dict:
     """Búsqueda a petición con filtros (D12/D13, US-851). Devuelve {corrida_id, encontradas, nuevas, actualizadas,
@@ -513,10 +541,12 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
 
     pausa = min(5.0, max(2.0, pausa))
     tope = int(filtros["max_resultados"])
+    if max_detalles is None:
+        max_detalles = int(filtros.get("max_detalles", DETALLES_POR_OMISION))
     corrida = None
     tot = {"encontradas": 0, "nuevas": 0, "actualizadas": 0}
     detalle = {"filtros": filtros, "usuario": usuario, "busquedas": [], "detalles": 0, "avisos": [],
-               "filtrado_en_portal": [], "filtrado_despues": []}
+               "filtrado_en_portal": [], "filtrado_despues": [], "sin_descripcion": 0}
     error = None
     t0 = time.time()
     if not seco:
@@ -571,24 +601,34 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
                             raise RuntimeError("lote: " + str(r.get("error")))
                         for k in tot:
                             tot[k] += int(r.get(k) or 0)
-                # Detalle (publicación y fallo) de unas pocas de ESTA búsqueda que la BD aún no tiene completas.
-                if max_detalles > 0 and items and not seco:
-                    r = ingesta({"accion": "por_revisar", "fuente": "comprasmx", "vistos": list(por_uuid), "limite": 30})
-                    pend = [x for x in (r.get("pendientes") or []) if str(x.get("id_externo", "")).lower() in por_uuid][:max_detalles]
+                # US-852: la descripción sólo viene en el detalle. Se abre el detalle SÓLO de las convocatorias de ESTA
+                # búsqueda que aún no la tienen (en el orden del portal), con pausa de 2 a 5 s y tope por búsqueda.
+                # El detalle no descarga ningún anexo: sólo lee la ficha pública.
+                if items and not seco:
+                    r = ingesta({"accion": "sin_descripcion", "fuente": "comprasmx", "ids": list(por_uuid), "limite": 200})
+                    pend = [str(x.get("id_externo", "")).lower() for x in (r.get("pendientes") or [])
+                            if str(x.get("id_externo", "")).lower() in por_uuid] if r.get("ok") else []
+                    if not r.get("ok"):
+                        detalle["avisos"].append("sin_descripcion: " + str(r.get("error")))
+                    detalle["sin_descripcion_antes"] = len(pend)
                     lote = []
-                    for pnd in pend:
-                        uuid = str(pnd["id_externo"]).lower()
-                        nav.pausa(pausa + random.uniform(0, 2))
+                    for uuid in pend[:max_detalles]:
+                        nav.pausa(min(5.0, pausa + random.uniform(0, 2)))
                         try:
                             det = leer_detalle(nav, uuid)
                         except Bloqueo as e:
                             detalle["avisos"].append(str(e)); break
                         if det:
                             lote.append({**por_uuid[uuid], "detalle": det}); detalle["detalles"] += 1
+                            if len(lote) >= 20:   # se manda por tandas: si algo falla después, lo leído ya quedó
+                                r2 = ingesta({"accion": "lote", "corrida_id": corrida, "items": lote}); lote = []
+                                if not r2.get("ok"):
+                                    detalle["avisos"].append("lote detalles: " + str(r2.get("error")))
                     if lote:
-                        r = ingesta({"accion": "lote", "corrida_id": corrida, "items": lote})
-                        if not r.get("ok"):
-                            detalle["avisos"].append("lote detalles: " + str(r.get("error")))
+                        r2 = ingesta({"accion": "lote", "corrida_id": corrida, "items": lote})
+                        if not r2.get("ok"):
+                            detalle["avisos"].append("lote detalles: " + str(r2.get("error")))
+                    detalle["sin_descripcion"] = max(0, len(pend) - detalle["detalles"])
             finally:
                 nav.cerrar()
     except Cancelado as e:

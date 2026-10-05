@@ -52,6 +52,10 @@ def _sim(route):
     if ruta == '/comprasmx/buscar':
         time.sleep(1.5)
         return route.fulfill(status=200, headers=CORS, content_type='application/json', body=json.dumps({'corrida_id': SIM['corrida'], 'encontradas': 3, 'nuevas': 1, 'error': None}))
+    if ruta == '/comprasmx/anexos':   # US-848: «Me interesa» pide los anexos; el simulador no tiene ninguno
+        return route.fulfill(status=200, headers=CORS, content_type='application/json', body=json.dumps({'ok': True, 'sesion': 'sim', 'archivos': [], 'total': 0, 'truncado': False}))
+    if ruta == '/comprasmx/anexos/cerrar':
+        return route.fulfill(status=200, headers=CORS, content_type='application/json', body='{"ok":true,"cerrada":true}')
     if ruta == '/comprasmx/cancelar':
         return route.fulfill(status=200, headers=CORS, content_type='application/json', body='{"ok":true}')
     return route.fulfill(status=404, headers=CORS, body='{}')
@@ -73,6 +77,10 @@ def abrir(pw, ancho, alto, tag):
         errores.append(f'{tag} console.error: {t}')
     page.on('console', on_console)
     page.on('pageerror', lambda e: errores.append(f'{tag} pageerror: {e}'))
+    # US-848: «Me interesa» baja los documentos de esa convocatoria. Este smoke no debe tocar portales: la función de
+    # Chihuahua responde «sin documentos» dentro del navegador (los documentos reales los prueba convocatorias-documentos-smoke.py).
+    page.route('**/functions/v1/convocatorias-documentos', lambda r: r.fulfill(status=200, content_type='application/json',
+               headers={'Access-Control-Allow-Origin': '*'}, body=json.dumps({'ok': True, 'documentos': []})))
     page.goto(args.app, wait_until='domcontentloaded')
     page.evaluate("t=>{localStorage.clear();localStorage.setItem('obra_session',JSON.stringify({token:t}));}", TOKEN)
     page.reload(wait_until='domcontentloaded')
@@ -100,6 +108,11 @@ def ir_conv(page):
     page.wait_for_function("()=>typeof Convocatorias!=='undefined'&&document.getElementById('lcTab-convocatorias')", timeout=30000)
     page.click('#lcTab-convocatorias')
     esperar_lista(page)
+    abrir_barra(page)
+def abrir_barra(page):
+    # US-853: en el teléfono la barra de filtros entra plegada en «Filtros (N)».
+    if page.query_selector('#cvFiltrosPanel') and not page.evaluate("()=>document.getElementById('cvFiltrosPanel').open"):
+        page.click('#cvFiltrosPanel > summary'); page.wait_for_timeout(200)
 def sin_desborde(page, tag):
     w = page.evaluate("()=>[document.documentElement.scrollWidth, window.innerWidth]")
     check(w[0] <= w[1] + 1, f'{tag}: sin desborde horizontal ({w[0]} <= {w[1]})')
@@ -278,7 +291,7 @@ def recorrido(pw, ancho, alto):
 def limpiar(page):
     for lid in creados['lic']: sql(page, f"await sb.from('licitaciones').delete().eq('id',{lid});return 1")
     for cid in creados['conv']:
-        if cid: sql(page, f"await sb.from('convocatoria_seguimiento').delete().eq('convocatoria_id',{cid});return 1")
+        if cid: sql(page, f"await sb.from('convocatoria_seguimiento').delete().eq('convocatoria_id',{cid});await sb.from('convocatoria_descargas').delete().eq('convocatoria_id',{cid});return 1")
     sql(page, "await sb.from('convocatoria_filtros').delete().like('nombre','QA-G filtro%');return 1")
     quedan = sql(page, "const a=await sb.from('licitaciones').select('id').like('codigo','QA-G-%');const b=await sb.from('convocatoria_filtros').select('id').like('nombre','QA-G%');return [(a.data||[]).length,(b.data||[]).length]")
     check(quedan == [0, 0], f'limpieza: sin licitaciones ni filtros QA-G ({quedan})')

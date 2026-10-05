@@ -39,6 +39,7 @@ const Convocatorias = (() => {
   const PROCEDIMIENTOS = { licitacion_publica: 'Licitación pública', invitacion: 'Invitación a cuando menos tres', adjudicacion_directa: 'Adjudicación directa' };
   const ESTADOS = { nueva: 'Nuevas', interesa: 'Me interesan', descartada: 'Descartadas', convertida: 'Convertidas' };
   const ESTATUS_PORTAL = { vigente: 'Vigente', en_seguimiento: 'En seguimiento', terminado: 'Terminado', cancelado: 'Cancelado' };
+  const ESTADOS_DESCARGA = { pendiente: 'Documentos en cola', en_curso: 'Bajando documentos', lista: 'Documentos listos', fallo: 'Descarga con error' };
   const ENTIDADES = ['Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas', 'Chihuahua',
     'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco', 'México',
     'Michoacán', 'Morelos', 'Nayarit', 'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
@@ -55,10 +56,10 @@ const Convocatorias = (() => {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
       .replace(/[^a-z0-9ñ]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  /** Texto donde se buscan las palabras clave: el mismo de la columna generada convocatorias.texto_norm. */
+  /** Texto donde se buscan las palabras clave: el mismo de la columna generada convocatorias.texto_norm (migración 108: con la descripción al final). */
   function textoConvocatoria(c) {
     const x = c || {};
-    return norm([x.numero_procedimiento, x.titulo, x.dependencia, x.unidad_compradora, x.municipio].map((v) => v || '').join(' '));
+    return norm([x.numero_procedimiento, x.titulo, x.dependencia, x.unidad_compradora, x.municipio, x.descripcion].map((v) => v || '').join(' '));
   }
   const lista = (v) => (Array.isArray(v) ? v : []);
   /**
@@ -104,23 +105,134 @@ const Convocatorias = (() => {
     const f = hoyMx(new Date(ts)); const h = String(hoy || hoyMx());
     return Math.round((Date.UTC(+f.slice(0, 4), +f.slice(5, 7) - 1, +f.slice(8, 10)) - Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10))) / 86400000);
   }
-  /** Argumentos de convocatorias_buscar desde el estado de la pestaña. */
+  /**
+   * Texto de la barra → {palabras, excluir}: «red agua -mantenimiento» = deben aparecer «red» y «agua» (todas) y no
+   * «mantenimiento». Las palabras se normalizan como en el servidor; «-» solo o vacío no cuenta.
+   */
+  function parseTextoBarra(s) {
+    const palabras = []; const excluir = [];
+    for (const t of String(s == null ? '' : s).split(/\s+/)) {
+      if (!t) continue;
+      if (t.startsWith('-')) { const n = norm(t.slice(1)); if (n && !excluir.includes(n)) excluir.push(n); }
+      else { for (const w of norm(t).split(' ')) if (w && !palabras.includes(w)) palabras.push(w); }
+    }
+    return { palabras, excluir };
+  }
+  /** ¿Pasa la convocatoria el texto de la barra? (misma regla que p_texto + p_excluir de convocatorias_buscar). */
+  function cumpleTextoBarra(c, s) {
+    const { palabras, excluir } = parseTextoBarra(s);
+    const txt = c && c.texto_norm != null ? String(c.texto_norm) : textoConvocatoria(c);
+    return palabras.every((w) => txt.includes(w)) && !excluir.some((w) => txt.includes(w));
+  }
+  /** Estado vacío de la barra (lo que deja «Quitar filtros»). */
+  const BARRA_VACIA = { texto: '', fuente: '', entidad: '', municipio: '', dependencia: '', tipo: '', procedimiento: '', estatus: '',
+    estado: '', abren: '', abren_desde: '', abren_hasta: '', pub: '', pub_desde: '', pub_hasta: '', orden: 'apertura', mis: false, filtro: '', pagina: 0 };
+  /** Estado inicial: las nuevas que cumplen mis filtros (US-843). */
+  const BARRA_INICIAL = Object.assign({}, BARRA_VACIA, { estado: 'nueva', mis: true });
+  const ORDENES = { apertura: 'Apertura más próxima', publicacion: 'Publicación más reciente', dependencia: 'Dependencia' };
+  const PLAZOS_APERTURA = { 7: 'los próximos 7 días', 15: 'los próximos 15 días', 30: 'los próximos 30 días', rango: 'Rango de fechas…' };
+  const PLAZOS_PUBLICACION = { 7: 'los últimos 7 días', 15: 'los últimos 15 días', 30: 'los últimos 30 días', 60: 'los últimos 60 días', 90: 'los últimos 90 días', rango: 'Rango de fechas…' };
+  const fechaOk = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  /** Argumentos de convocatorias_buscar desde el estado de la barra (todo el filtrado y la paginación en el servidor). */
   function argsBusqueda(s) {
-    const x = s || {};
-    const a = {
-      p_texto: x.texto ? String(x.texto).trim() || null : null,
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const t = parseTextoBarra(x.texto);
+    const rangoA = x.abren === 'rango'; const rangoP = x.pub === 'rango';
+    return {
+      p_texto: t.palabras.length ? t.palabras.join(' ') : null,
+      p_excluir: t.excluir.length ? t.excluir : null,
       p_fuentes: x.fuente ? [x.fuente] : null,
       p_entidades: x.entidad ? [x.entidad] : null,
+      p_municipio: String(x.municipio || '').trim() || null,
+      p_dependencia: String(x.dependencia || '').trim() || null,
       p_tipos: x.tipo ? [x.tipo] : null,
+      p_procedimientos: x.procedimiento ? [x.procedimiento] : null,
+      p_estatus: x.estatus ? [x.estatus] : null,
       p_estados: x.estado ? [x.estado] : null,
-      p_abren_dias: x.abren ? Number(x.abren) : null,
+      p_abren_dias: x.abren && !rangoA ? Number(x.abren) : null,
+      p_abren_desde: rangoA && fechaOk(x.abren_desde) ? x.abren_desde : null,
+      p_abren_hasta: rangoA && fechaOk(x.abren_hasta) ? x.abren_hasta : null,
+      p_pub_dias: x.pub && !rangoP ? Number(x.pub) : null,
+      p_pub_desde: rangoP && fechaOk(x.pub_desde) ? x.pub_desde : null,
+      p_pub_hasta: rangoP && fechaOk(x.pub_hasta) ? x.pub_hasta : null,
+      p_orden: ORDENES[x.orden] ? x.orden : 'apertura',
+      p_filtro_id: x.filtro ? Number(x.filtro) : null,
       p_mis_filtros: !!x.mis,
-      p_solo_vigentes: true,
+      // Con un estatus del portal elegido se ven también las terminadas o canceladas; si no, sólo las vigentes.
+      p_solo_vigentes: !x.estatus,
       p_limite: POR_PAGINA,
       p_offset: Math.max(0, Number(x.pagina) || 0) * POR_PAGINA,
     };
-    return a;
   }
+  const fmtDia = (v) => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : ''; };
+  function rangoTexto(d, h) { return d && h ? `${fmtDia(d)} a ${fmtDia(h)}` : d ? `desde el ${fmtDia(d)}` : h ? `hasta el ${fmtDia(h)}` : ''; }
+  /**
+   * Fichas de los filtros puestos: [{k, t}] en el orden de la barra. `k` es lo que se quita con Convocatorias.quitar(k).
+   * `nombreFiltro(id)` da el nombre de un filtro guardado.
+   */
+  function fichasActivas(s, nombreFiltro) {
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const out = [];
+    const t = parseTextoBarra(x.texto);
+    if (t.palabras.length) out.push({ k: 'texto', t: `Texto: ${t.palabras.join(' ')}` });
+    for (const w of t.excluir) out.push({ k: 'excluir:' + w, t: `Sin «${w}»` });
+    if (x.filtro) out.push({ k: 'filtro', t: `Filtro guardado: ${(nombreFiltro && nombreFiltro(x.filtro)) || '#' + x.filtro}` });
+    if (x.mis) out.push({ k: 'mis', t: 'Cumplen mis filtros' });
+    if (x.fuente) out.push({ k: 'fuente', t: `Fuente: ${FUENTES_PORTAL[x.fuente] || x.fuente}` });
+    if (x.entidad) out.push({ k: 'entidad', t: `Entidad: ${x.entidad}` });
+    if (String(x.municipio || '').trim()) out.push({ k: 'municipio', t: `Municipio: ${String(x.municipio).trim()}` });
+    if (String(x.dependencia || '').trim()) out.push({ k: 'dependencia', t: `Dependencia: ${String(x.dependencia).trim()}` });
+    if (x.tipo) out.push({ k: 'tipo', t: TIPOS[x.tipo] || x.tipo });
+    if (x.procedimiento) out.push({ k: 'procedimiento', t: PROCEDIMIENTOS[x.procedimiento] || x.procedimiento });
+    if (x.estatus) out.push({ k: 'estatus', t: `Estatus: ${ESTATUS_PORTAL[x.estatus] || x.estatus}` });
+    if (x.estado) out.push({ k: 'estado', t: `Seguimiento: ${ESTADOS[x.estado] || x.estado}` });
+    if (x.abren === 'rango' && (x.abren_desde || x.abren_hasta)) out.push({ k: 'abren', t: `Abren ${rangoTexto(x.abren_desde, x.abren_hasta)}` });
+    else if (x.abren && x.abren !== 'rango') out.push({ k: 'abren', t: `Abren en ${PLAZOS_APERTURA[x.abren] || x.abren + ' días'}` });
+    if (x.pub === 'rango' && (x.pub_desde || x.pub_hasta)) out.push({ k: 'pub', t: `Publicadas ${rangoTexto(x.pub_desde, x.pub_hasta)}` });
+    else if (x.pub && x.pub !== 'rango') out.push({ k: 'pub', t: `Publicadas en ${PLAZOS_PUBLICACION[x.pub] || x.pub + ' días'}` });
+    return out;
+  }
+  /** Estado de la barra sin la ficha `k`. */
+  function quitarFicha(s, k) {
+    const x = Object.assign({}, BARRA_VACIA, s || {}, { pagina: 0 });
+    if (k.startsWith('excluir:')) {
+      const w = k.slice(8);
+      x.texto = String(x.texto || '').split(/\s+/).filter((t) => !(t.startsWith('-') && norm(t.slice(1)) === w)).join(' ');
+    } else if (k === 'texto') {
+      x.texto = String(x.texto || '').split(/\s+/).filter((t) => t.startsWith('-') && norm(t.slice(1))).join(' ');
+    } else if (k === 'abren') { x.abren = ''; x.abren_desde = ''; x.abren_hasta = ''; }
+    else if (k === 'pub') { x.pub = ''; x.pub_desde = ''; x.pub_hasta = ''; }
+    else if (k === 'mis') x.mis = false;
+    else if (k in x) x[k] = '';
+    return x;
+  }
+  /**
+   * «Guardar esta búsqueda» → filtro guardado (US-844). Las columnas del filtro sólo saben de palabras clave (basta
+   * una), palabras a excluir, fuentes, entidades y tipos; la barra completa va en `barra` y se reaplica al elegirlo.
+   */
+  function filtroDesdeBarra(s) {
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const t = parseTextoBarra(x.texto);
+    const barra = {};
+    for (const k of Object.keys(BARRA_VACIA)) if (!['pagina', 'filtro', 'mis'].includes(k) && x[k] !== BARRA_VACIA[k]) barra[k] = x[k];
+    return {
+      palabras_clave: t.palabras, palabras_excluir: t.excluir,
+      fuentes: x.fuente ? [x.fuente] : [], entidades: x.entidad ? [x.entidad] : [], tipos_contratacion: x.tipo ? [x.tipo] : [],
+      barra,
+    };
+  }
+  /** Estado de la barra al elegir un filtro guardado: su barra (si se guardó desde aquí) + la regla del filtro. */
+  function barraDesdeFiltro(f) {
+    const x = f || {};
+    const b = x.barra && typeof x.barra === 'object' ? x.barra : {};
+    const out = Object.assign({}, BARRA_VACIA, { estado: '' });
+    for (const k of Object.keys(BARRA_VACIA)) if (k in b && !['pagina', 'filtro', 'mis'].includes(k)) out[k] = b[k];
+    out.filtro = x.id ? String(x.id) : '';
+    out.mis = false;
+    return out;
+  }
+  /** Número de filtros puestos (para «Filtros (N)» en el teléfono). */
+  function cuentaFiltros(s) { return fichasActivas(s).length; }
   /** Modalidad de la licitación desde el tipo de procedimiento de la convocatoria. */
   function modalidadDe(tp) { return ['licitacion_publica', 'invitacion', 'adjudicacion_directa'].includes(tp) ? tp : null; }
   /** Plaza de la licitación (catálogo de Licitaciones) desde el municipio (o «Municipio de X» de la dependencia). */
@@ -217,11 +329,41 @@ const Convocatorias = (() => {
              estatus: x.estatus === undefined ? 'vigente' : x.estatus, desde: x.desde || '', hasta: x.hasta || '',
              max_resultados: Number(x.max) || 50 };
   }
-  /** Cuerpo para el conector local de ComprasMX (contrato de US-851). */
+  /** Cuerpo para el conector local de ComprasMX (contrato de US-851; US-852: siempre con fechas, tope 100 por omisión). */
   function cuerpoComprasmx(f) {
     const x = f || {};
     return { texto: x.texto || '', tipos: x.tipo ? [x.tipo] : ['obra_publica', 'servicios_obra'],
-             entidades: x.entidad ? [x.entidad] : [], desde: x.desde || '', hasta: x.hasta || '', max_resultados: Number(x.max) || 50 };
+             entidades: x.entidad ? [x.entidad] : [], desde: x.desde || '', hasta: x.hasta || '', max_resultados: Number(x.max) || 100 };
+  }
+  const PERIODOS = { 7: 'Últimos 7 días', 15: 'Últimos 15 días', 30: 'Últimos 30 días', 60: 'Últimos 60 días', 90: 'Últimos 90 días', rango: 'Rango de fechas…' };
+  const DIAS_MAX_BUSQUEDA = 90;
+  /**
+   * Fechas de publicación de una búsqueda en los portales (US-852): nunca sin límite. `periodo` = 7…90 días hacia atrás
+   * desde hoy, o 'rango' con desde y hasta (máximo 90 días, sin empezar en el futuro). → {desde, hasta} o {error}.
+   */
+  function periodoFechas(periodo, desde, hasta, hoy) {
+    const h = String(hoy || hoyMx());
+    const dia = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+    const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+    if (periodo !== 'rango') {
+      const n = Number(periodo) || 30;
+      if (!PERIODOS[n]) return { error: 'Elige un periodo de publicación.' };
+      return { desde: iso(dia(h) - n * 86400000), hasta: h };
+    }
+    if (!fechaOk(desde) || !fechaOk(hasta)) return { error: 'Escribe las dos fechas del rango.' };
+    if (desde > hasta) return { error: 'La fecha inicial es posterior a la final.' };
+    if (desde > h) return { error: 'La fecha inicial no puede estar en el futuro.' };
+    if ((dia(hasta) - dia(desde)) / 86400000 > DIAS_MAX_BUSQUEDA) return { error: `El rango no puede pasar de ${DIAS_MAX_BUSQUEDA} días: busca sólo lo reciente.` };
+    return { desde, hasta };
+  }
+  /**
+   * Por qué no respondió el conector (Chrome «acceso a la red local»): 'denegado' si el usuario negó el permiso,
+   * 'preguntar' si Chrome aún no lo pide, 'apagado' si el permiso está dado (o no existe) y nadie escucha.
+   */
+  function causaConector(estadoPermiso) {
+    if (estadoPermiso === 'denied') return 'denegado';
+    if (estadoPermiso === 'prompt') return 'preguntar';
+    return 'apagado';
   }
   /** Texto del pie para una fuente (convocatorias_estado). */
   function textoUltimaBusqueda(e, fmtFecha) {
@@ -234,8 +376,13 @@ const Convocatorias = (() => {
   }
 
   // ---- Estado del navegador -----------------------------------------------------------------------------------------------
-  const st = { texto: '', fuente: '', entidad: '', tipo: '', estado: 'nueva', abren: '', mis: true, pagina: 0 };
+  const st = Object.assign({}, BARRA_INICIAL);
   let filas = []; let total = 0; let estado = []; let filtros = null; let cargando = 0;
+  let opciones = null;          // {dependencias:[{v,n}], municipios:[{v,n}]} para autocompletar (convocatorias_opciones)
+  let stCargado = false;        // la barra ya se leyó de sessionStorage
+  let panelAbierto = null;      // <details> de la barra en el teléfono
+  let barraPendiente = null;    // «Guardar esta búsqueda»: barra que se guarda con el filtro nuevo
+  let ultimaMs = null;          // tiempo de la última consulta de la lista (para medir)
   let resultados = null;        // tras «Buscar en los portales»: [{fuente, corrida, inicio, filas, resumen, error}]
   let busqueda = null;          // búsqueda en curso: {fuentes:{chihuahua:{estado, texto}, comprasmx:{...}}, ctl:{}}
   let deshacer = null;          // {id, prev, titulo, t}
@@ -254,7 +401,7 @@ const Convocatorias = (() => {
   // ---- Carga ----------------------------------------------------------------------------------------------------------
   async function cargarFiltros(force) {
     if (filtros && !force) return filtros;
-    const { data, error } = await sb.from('convocatoria_filtros').select('id,nombre,palabras_clave,palabras_excluir,fuentes,entidades,tipos_contratacion,activo,de_fabrica,updated_at').order('de_fabrica', { ascending: false }).order('nombre');
+    const { data, error } = await sb.from('convocatoria_filtros').select('id,nombre,palabras_clave,palabras_excluir,fuentes,entidades,tipos_contratacion,activo,de_fabrica,updated_at,barra').order('de_fabrica', { ascending: false }).order('nombre');
     if (error) throw error;
     filtros = data || [];
     return filtros;
@@ -262,11 +409,29 @@ const Convocatorias = (() => {
   async function cargarEstado() { try { estado = (await rpc('convocatorias_estado')) || []; } catch (e) { estado = []; } return estado; }
   async function cargarLista() {
     const turno = ++cargando;
+    const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const d = await rpc('convocatorias_buscar', argsBusqueda(st));
     if (turno !== cargando) return false;
+    ultimaMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
     filas = d || []; total = filas.length ? Number(filas[0].total) || 0 : 0;
     return true;
   }
+  async function cargarOpciones() {
+    if (opciones) return opciones;
+    try { opciones = (await rpc('convocatorias_opciones')) || { dependencias: [], municipios: [] }; } catch (e) { opciones = { dependencias: [], municipios: [] }; }
+    return opciones;
+  }
+  // La barra sobrevive a salir y volver al módulo en la misma sesión (sessionStorage, por usuario).
+  const claveBarra = () => 'conv_barra:' + uid();
+  function leerBarra() {
+    if (stCargado) return;
+    stCargado = true;
+    try {
+      const g = JSON.parse(sessionStorage.getItem(claveBarra()) || 'null');
+      if (g && typeof g === 'object') for (const k of Object.keys(BARRA_VACIA)) if (k in g) st[k] = g[k];
+    } catch (e) { /* sin sessionStorage */ }
+  }
+  function guardarBarra() { try { sessionStorage.setItem(claveBarra(), JSON.stringify(st)); } catch (e) { /* sin sessionStorage */ } }
   /** Marca la pestaña como revisada: el contador de la barra (US-846) cuenta lo nuevo desde aquí. */
   function marcarVisto() {
     ls.set('conv_visto:' + uid(), new Date().toISOString());
@@ -283,9 +448,11 @@ const Convocatorias = (() => {
   async function pintar(cont) {
     cont.innerHTML = `<div id="cvPanel"><div aria-busy="true">${Skeleton.table(5, 5)}</div></div>`;
     try {
+      leerBarra();
       await cargarFiltros();
       if (!filtros.some((f) => f.activo) && st.mis) st.mis = false;   // sin filtros activos «sólo mis filtros» daría vacío
-      await Promise.all([cargarLista(), cargarEstado()]);
+      if (st.filtro && !filtros.some((f) => String(f.id) === String(st.filtro))) st.filtro = '';
+      await Promise.all([cargarLista(), cargarEstado(), cargarOpciones()]);
       marcarVisto();
       repintar();
     } catch (e) {
@@ -294,7 +461,15 @@ const Convocatorias = (() => {
   }
   function repintar() {
     const p = el(); if (!p) return;
-    p.innerHTML = cabeceraHtml() + busquedaHtml() + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + listaHtml()) + pieHtml();
+    p.innerHTML = cabeceraHtml() + busquedaHtml() + `<div id="cvDescargaPanel">${descargaHtml()}</div>` + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + `<div id="cvFichas">${fichasHtml()}</div><div id="cvLista">${listaHtml()}</div>`) + pieHtml();
+  }
+  /** Sólo fichas, contador y lista: la barra no se vuelve a pintar (no pierde el foco ni lo escrito). */
+  function repintarLista() {
+    const l = typeof document !== 'undefined' && document.getElementById('cvLista');
+    if (!l || resultados) { repintar(); return; }
+    l.innerHTML = listaHtml();
+    const f = document.getElementById('cvFichas'); if (f) f.innerHTML = fichasHtml();
+    const n = document.getElementById('cvNFiltros'); if (n) n.textContent = String(cuentaFiltros(st));
   }
   function cabeceraHtml() {
     const activos = (filtros || []).filter((f) => f.activo).length;
@@ -304,15 +479,45 @@ const Convocatorias = (() => {
 <button type="button" class="btn btn-p" onclick="Convocatorias.abrirBusqueda()" ${busqueda ? 'disabled' : ''}><i class="ri-search-eye-line" aria-hidden="true"></i> Buscar en los portales</button></div></div>`;
   }
   function barraHtml() {
-    return `<form class="grid grid-cols-2 gap-2 mb-3 items-end sm:flex sm:flex-wrap" onsubmit="event.preventDefault();Convocatorias.filtrar('texto',document.getElementById('cvTexto').value)" role="search" aria-label="Filtrar convocatorias">
-<div class="col-span-2 grow sm:min-w-[12rem]"><label class="text-xs mb-1 block" for="cvTexto">Buscar en lo guardado</label><input id="cvTexto" class="inp w-full" type="search" value="${S(st.texto)}" placeholder="Número, obra, dependencia o municipio" onchange="Convocatorias.filtrar('texto',this.value)"></div>
+    if (panelAbierto === null) panelAbierto = typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 640px)').matches;
+    const n = cuentaFiltros(st);
+    const fecha = (id, et, v, k) => `<div class="min-w-0"><label class="text-xs mb-1 block" for="${id}">${et}</label><input id="${id}" type="date" class="inp w-full" value="${S(v || '')}" onchange="Convocatorias.filtrar('${k}',this.value)"></div>`;
+    const guardados = (filtros || []).reduce((o, f) => { o[f.id] = f.nombre; return o; }, {});
+    const deps = ((opciones && opciones.dependencias) || []).map((d) => `<option value="${S(d.v)}">`).join('');
+    const muns = ((opciones && opciones.municipios) || []).map((d) => `<option value="${S(d.v)}">`).join('');
+    return `<details class="cv-filtros mb-2" id="cvFiltrosPanel" ${panelAbierto ? 'open' : ''} ontoggle="Convocatorias.panelFiltros(this.open)">
+<summary class="btn btn-s"><i class="ri-filter-3-line" aria-hidden="true"></i> <span>Filtros (<span id="cvNFiltros">${n}</span>)</span></summary>
+<form class="grid grid-cols-2 gap-2 mt-2 sm:mt-0 items-end sm:grid-cols-3 lg:grid-cols-6" onsubmit="event.preventDefault();Convocatorias.filtrar('texto',document.getElementById('cvTexto').value)" role="search" aria-label="Filtrar convocatorias">
+<div class="col-span-2 sm:col-span-3 lg:col-span-3"><label class="text-xs mb-1 block" for="cvTexto">Buscar en lo guardado</label><input id="cvTexto" class="inp w-full" type="search" value="${S(st.texto)}" placeholder="Palabras (todas); «-palabra» para excluir" aria-describedby="cvTextoAyuda" oninput="Convocatorias.escribir(this.value)" onchange="Convocatorias.filtrar('texto',this.value)"><p id="cvTextoAyuda" class="field-hint">Busca en número, título, descripción y dependencia, sin acentos ni mayúsculas.</p></div>
+${sel('cvFiltroG', 'Filtro guardado', guardados, st.filtro, 'Convocatorias.usarFiltroBarra(this.value)', 'Ninguno')}
+${sel('cvOrden', 'Ordenar por', ORDENES, st.orden || 'apertura', "Convocatorias.filtrar('orden',this.value)")}
+${sel('cvEstado', 'Seguimiento', ESTADOS, st.estado, "Convocatorias.filtrar('estado',this.value)", 'Todos')}
 ${sel('cvFuente', 'Fuente', FUENTES_PORTAL, st.fuente, "Convocatorias.filtrar('fuente',this.value)", 'Todas')}
 ${sel('cvEntidad', 'Entidad', entidadesOpc(), st.entidad, "Convocatorias.filtrar('entidad',this.value)", 'Todas')}
+<div class="min-w-0"><label class="text-xs mb-1 block" for="cvMunicipio">Municipio</label><input id="cvMunicipio" class="inp w-full" list="cvMunLista" value="${S(st.municipio)}" placeholder="Todos" onchange="Convocatorias.filtrar('municipio',this.value)"><datalist id="cvMunLista">${muns}</datalist></div>
+<div class="min-w-0 col-span-2 sm:col-span-1 lg:col-span-2"><label class="text-xs mb-1 block" for="cvDependencia">Dependencia</label><input id="cvDependencia" class="inp w-full" list="cvDepLista" value="${S(st.dependencia)}" placeholder="Todas (escribe para ver sugerencias)" onchange="Convocatorias.filtrar('dependencia',this.value)"><datalist id="cvDepLista">${deps}</datalist></div>
 ${sel('cvTipo', 'Tipo de contratación', TIPOS, st.tipo, "Convocatorias.filtrar('tipo',this.value)", 'Todos')}
-${sel('cvEstado', 'Seguimiento', ESTADOS, st.estado, "Convocatorias.filtrar('estado',this.value)", 'Todos')}
-${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15 días', 30: 'los próximos 30 días' }, st.abren, "Convocatorias.filtrar('abren',this.value)", 'Cualquier fecha')}
-<label class="zk-switch col-span-2"><input type="checkbox" id="cvMis" ${st.mis ? 'checked' : ''} onchange="Convocatorias.filtrar('mis',this.checked)"><span class="zk-slider" aria-hidden="true"></span> Sólo las que cumplen mis filtros</label>
-</form>`;
+${sel('cvProc', 'Procedimiento', PROCEDIMIENTOS, st.procedimiento, "Convocatorias.filtrar('procedimiento',this.value)", 'Todos')}
+${sel('cvEstatus', 'Estatus en el portal', ESTATUS_PORTAL, st.estatus, "Convocatorias.filtrar('estatus',this.value)", 'Vigentes')}
+${sel('cvAbren', 'Abren en', PLAZOS_APERTURA, st.abren, "Convocatorias.filtrar('abren',this.value)", 'Cualquier fecha')}
+${st.abren === 'rango' ? fecha('cvAbrenD', 'Abren desde', st.abren_desde, 'abren_desde') + fecha('cvAbrenH', 'Abren hasta', st.abren_hasta, 'abren_hasta') : ''}
+${sel('cvPub', 'Publicadas en', PLAZOS_PUBLICACION, st.pub, "Convocatorias.filtrar('pub',this.value)", 'Cualquier fecha')}
+${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_desde') + fecha('cvPubH', 'Publicadas hasta', st.pub_hasta, 'pub_hasta') : ''}
+<label class="zk-switch col-span-2 sm:col-span-3 lg:col-span-2"><input type="checkbox" id="cvMis" ${st.mis ? 'checked' : ''} onchange="Convocatorias.filtrar('mis',this.checked)"><span class="zk-slider" aria-hidden="true"></span> Sólo las que cumplen mis filtros</label>
+<div class="col-span-2 sm:col-span-3 lg:col-span-6 flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Convocatorias.guardarBusqueda()"><i class="ri-bookmark-line" aria-hidden="true"></i> Guardar esta búsqueda</button></div>
+</form></details>`;
+  }
+  function fichasHtml() {
+    const fs = fichasActivas(st, (id) => { const f = (filtros || []).find((x) => String(x.id) === String(id)); return f && f.nombre; });
+    if (!fs.length) return '';
+    return `<ul class="flex flex-wrap gap-2 mb-3" aria-label="Filtros puestos">${fs.map((f) => `<li class="cv-ficha"><span title="${S(f.t)}">${S(f.t)}</span><button type="button" onclick="Convocatorias.quitar('${S(f.k)}')" aria-label="Quitar el filtro ${S(f.t)}"><i class="ri-close-line" aria-hidden="true"></i></button></li>`).join('')}
+<li><button type="button" class="btn btn-s text-xs" onclick="Convocatorias.quitarFiltros()"><i class="ri-filter-off-line" aria-hidden="true"></i> Quitar filtros</button></li></ul>`;
+  }
+  function descripcionHtml(c) {
+    const d = String(c.descripcion || '').trim();
+    if (!d || norm(d) === norm(c.titulo)) return '';
+    const larga = d.length > 160;
+    return `<p class="text-xs text-ink-muted mt-1 cv-desc" id="cvDesc-${+c.id}">${S(d)}</p>${larga ? `<button type="button" class="text-xs text-accent hover:underline" aria-expanded="false" aria-controls="cvDesc-${+c.id}" onclick="Convocatorias.verMas(${+c.id},this)">Ver más</button>` : ''}`;
   }
   function chipFuente(f) { return `<span class="chip" style="background:var(--${f === 'comprasmx' ? 'accent' : 'warn'}-soft);color:var(--${f === 'comprasmx' ? 'accent' : 'warn'})">${S(FUENTES[f] || f)}</span>`; }
   function aperturaHtml(c) {
@@ -338,8 +543,9 @@ ${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15
   function filaHtml(c, nuevaDesde) {
     const nueva = nuevaDesde && c.primera_vez_vista && new Date(c.primera_vez_vista) >= new Date(nuevaDesde);
     const est = c.seguimiento_estado && c.seguimiento_estado !== 'nueva' ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S({ interesa: 'Me interesa', descartada: 'Descartada', convertida: 'Convertida' }[c.seguimiento_estado] || '')}</span>` : '';
-    return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><p class="font-medium">${S(c.titulo || 'Sin título')}</p>
-<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p><p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}</p></div></td>
+    const docs = c.descarga_estado ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)"><i class="ri-folder-download-line" aria-hidden="true"></i> ${S(ESTADOS_DESCARGA[c.descarga_estado] || c.descarga_estado)}</span>` : '';
+    return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><button type="button" class="font-medium text-left hover:underline" onclick="Convocatorias.abrirDetalle(${+c.id})">${S(c.titulo || 'Sin título')}</button>
+<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p>${descripcionHtml(c)}<p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}${docs}</p></div></td>
 <td data-et="Dependencia"><span>${S(c.dependencia || '—')}</span></td><td data-et="Entidad"><span>${S(c.entidad || '—')}${c.municipio ? `<span class="block text-xs text-ink-muted">${S(c.municipio)}</span>` : ''}</span></td>
 <td data-et="Tipo"><span>${S(TIPOS[c.tipo_contratacion] || '—')}${c.tipo_procedimiento && PROCEDIMIENTOS[c.tipo_procedimiento] ? `<span class="block text-xs text-ink-muted">${S(PROCEDIMIENTOS[c.tipo_procedimiento])}</span>` : ''}</span></td>
 <td data-et="Apertura"><span>${aperturaHtml(c)}</span></td><td data-et=""><div class="grid grid-cols-2 gap-1 cv-acciones" style="min-width:15rem">${accionesHtml(c)}</div></td></tr>`;
@@ -361,7 +567,7 @@ ${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15
     const pag = total > POR_PAGINA ? `<nav class="flex items-center justify-end gap-2 mt-3" aria-label="Páginas de convocatorias">
 <button type="button" class="btn btn-s" onclick="Convocatorias.pagina(-1)" ${st.pagina ? '' : 'disabled'}><i class="ri-arrow-left-s-line" aria-hidden="true"></i> Anteriores</button>
 <button type="button" class="btn btn-s" onclick="Convocatorias.pagina(1)" ${hasta < total ? '' : 'disabled'}>Siguientes <i class="ri-arrow-right-s-line" aria-hidden="true"></i></button></nav>` : '';
-    return `<p class="text-xs text-ink-muted mb-2" aria-live="polite">${desde} a ${hasta} de ${total}</p>${tablaHtml(filas, 'Lista de convocatorias')}${pag}`;
+    return `<p class="text-xs text-ink-muted mb-2" aria-live="polite" id="cvConteo">${total.toLocaleString('es-MX')} convocatoria${total === 1 ? '' : 's'} · ${desde} a ${hasta}</p>${tablaHtml(filas, 'Lista de convocatorias')}${pag}`;
   }
   function resultadosHtml() {
     const bloques = resultados.map((r) => {
@@ -380,6 +586,7 @@ ${r.filas && r.filas.length ? tablaHtml(r.filas, 'Resultados de ' + FUENTES_PORT
     let t = `${enc} encontrada${enc === 1 ? '' : 's'}, ${nv} nueva${nv === 1 ? '' : 's'}`;
     if (s.hay_filtros) t += nv ? `; ${s.nuevas_cumplen} de las nuevas cumple${s.nuevas_cumplen === 1 ? '' : 'n'} tus filtros guardados` : '';
     if (r.respuesta && r.respuesta.truncado) t += '. Llegó al tope de resultados: afina el texto o las fechas para ver el resto';
+    if (r.respuesta && Number(r.respuesta.sin_descripcion) > 0) t += `. ${r.respuesta.sin_descripcion} quedaron sin descripción por el tope de fichas que se abren en cada búsqueda: vuelve a buscar con los mismos filtros para completarlas`;
     return t + '.';
   }
   function busquedaHtml() {
@@ -406,10 +613,40 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
   let pendientes = 0;
   async function refrescar() {
     pendientes++;
-    try { if (await cargarLista()) repintar(); } catch (e) { Toast.error(errTxt(e, 'No se pudo actualizar la lista')); } finally { pendientes--; }
+    try { if (await cargarLista()) repintarLista(); } catch (e) { Toast.error(errTxt(e, 'No se pudo actualizar la lista')); } finally { pendientes--; }
   }
-  function filtrar(k, v) { st[k] = k === 'mis' ? !!v : (v || ''); st.pagina = 0; refrescar(); }
-  function pagina(d) { st.pagina = Math.max(0, st.pagina + d); refrescar(); }
+  function filtrar(k, v) {
+    st[k] = k === 'mis' ? !!v : (v == null ? '' : String(v));
+    st.pagina = 0; guardarBarra();
+    if (k === 'abren' || k === 'pub') repintar();   // muestra u oculta el rango de fechas
+    refrescar();
+  }
+  let escribirTimer = null;
+  /** Texto mientras se escribe: espera 300 ms sin teclear y filtra (sin repintar la barra). */
+  function escribir(v) { clearTimeout(escribirTimer); escribirTimer = setTimeout(() => { if (String(v) !== String(st.texto)) filtrar('texto', v); }, 300); }
+  function quitar(k) {
+    const n = quitarFicha(st, k); Object.assign(st, n); guardarBarra();
+    repintar(); refrescar();
+  }
+  function quitarFiltros() { Object.assign(st, BARRA_VACIA, { orden: st.orden || 'apertura' }); guardarBarra(); repintar(); refrescar(); }
+  function usarFiltroBarra(id) {
+    if (!id) { st.filtro = ''; st.pagina = 0; guardarBarra(); repintar(); refrescar(); return; }
+    const f = (filtros || []).find((x) => String(x.id) === String(id)); if (!f) return;
+    Object.assign(st, barraDesdeFiltro(f)); guardarBarra(); repintar(); refrescar();
+  }
+  function panelFiltros(abierto) { panelAbierto = !!abierto; }
+  function verMas(id, btn) {
+    const p = document.getElementById('cvDesc-' + id); if (!p) return;
+    const abierta = p.classList.toggle('abierta');
+    if (btn) { btn.textContent = abierta ? 'Ver menos' : 'Ver más'; btn.setAttribute('aria-expanded', String(abierta)); }
+  }
+  /** «Guardar esta búsqueda»: abre el alta de filtro prellenada con la barra (US-853 → US-844). */
+  function guardarBusqueda() {
+    const d = filtroDesdeBarra(st);
+    barraPendiente = d.barra;
+    editarFiltro(null, Object.assign({ activo: true, nombre: '' }, d));
+  }
+  function pagina(d) { st.pagina = Math.max(0, st.pagina + d); guardarBarra(); refrescar(); }
   async function recargar() { const p = el(); if (p && p.parentElement) return pintar(p.parentElement); }
   function buscarFila(id) {
     const enRes = resultados ? resultados.flatMap((r) => r.filas || []) : [];
@@ -429,7 +666,12 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
         const t = deshacer.t; setTimeout(() => { if (deshacer && deshacer.t === t) { deshacer = null; repintar(); } }, 10000);
       } else if (sinDeshacer) deshacer = null;
       repintar();
-      if (estadoNuevo === 'interesa') Toast.success('Marcada «Me interesa»: te recordaremos 5 y 2 días antes de la apertura.');
+      if (estadoNuevo === 'interesa') {
+        Toast.success('Marcada «Me interesa»: te recordaremos 5 y 2 días antes de la apertura. Bajando sus documentos…');
+        // US-848 (D14): al marcarla se bajan los documentos de ESA convocatoria (si ya se bajaron, «Buscar documentos
+        // nuevos» en su detalle lo repite a mano).
+        if (c && c.descarga_estado !== 'lista' && !(descarga && !descarga.fin)) descargarDocumentos(id, 'interesa');
+      }
     } catch (e) { Toast.error(errTxt(e, 'No se guardó la marca')); }
   }
   async function deshacerDescartar() {
@@ -472,10 +714,14 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
 <ul>${filasF || '<li class="text-sm text-ink-muted py-3">Todavía no tienes filtros.</li>'}</ul>
 <div class="flex justify-end gap-2 pt-3"><button type="button" class="btn btn-s" onclick="Convocatorias.cerrarModal()">Cerrar</button><button type="button" class="btn btn-p" onclick="Convocatorias.editarFiltro(null)"><i class="ri-add-line" aria-hidden="true"></i> Nuevo filtro</button></div>`);
   }
-  function editarFiltro(id) {
-    const f = id ? (filtros || []).find((x) => x.id === id) || {} : { activo: true, tipos_contratacion: ['obra_publica', 'servicios_obra'] };
+  function editarFiltro(id, prefill) {
+    if (!prefill) barraPendiente = null;
+    const f = id ? (filtros || []).find((x) => x.id === id) || {} : prefill || { activo: true, tipos_contratacion: ['obra_publica', 'servicios_obra'] };
     const fu = lista(f.fuentes); const ti = lista(f.tipos_contratacion);
-    modal(id ? 'Editar filtro' : 'Nuevo filtro', `<form id="cvFormFiltro" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.guardarFiltro(${id ? +id : 'null'})" oninput="Convocatorias.previa()" onchange="Convocatorias.previa()">
+    const extra = prefill && prefill.barra ? Object.keys(prefill.barra).filter((k) => !['texto', 'fuente', 'entidad', 'tipo', 'orden'].includes(k)) : [];
+    const nota = prefill ? `<p class="text-sm g rounded-xl p-3">Se guarda toda la barra: al elegir este filtro en «Filtro guardado» vuelve tal cual.${lista(prefill.palabras_clave).length > 1 ? ' En «Mis filtros» (vista «Nuevas» y contador de la barra) basta <b>una</b> de las palabras clave; en la barra se exigen todas.' : ''}${extra.length ? ' Municipio, dependencia, procedimiento, estatus, seguimiento y fechas sólo se aplican en la barra.' : ''}</p>` : '';
+    modal(id ? 'Editar filtro' : prefill ? 'Guardar esta búsqueda' : 'Nuevo filtro', `<form id="cvFormFiltro" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.guardarFiltro(${id ? +id : 'null'})" oninput="Convocatorias.previa()" onchange="Convocatorias.previa()">
+${nota}
 ${campo('cvfNombre', 'Nombre del filtro *', `<input id="cvfNombre" class="inp w-full" required maxlength="120" value="${S(f.nombre || '')}" placeholder="Ej. Escuelas en Cuauhtémoc">`)}
 ${campo('cvfClaves', 'Palabras clave (basta una; sepáralas con comas)', `<input id="cvfClaves" class="inp w-full" value="${S(lista(f.palabras_clave).join(', '))}" placeholder="Ej. escuela, pavimentación, Cuauhtémoc"><p class="field-hint">Sin acentos ni mayúsculas: «pavimentacion» también encuentra «PAVIMENTACIÓN».</p>`)}
 ${campo('cvfExcluir', 'Palabras a excluir', `<input id="cvfExcluir" class="inp w-full" value="${S(lista(f.palabras_excluir).join(', '))}" placeholder="Ej. mantenimiento, suministro">`)}
@@ -512,12 +758,21 @@ ${casilla('cvfActivo', 'Filtro encendido', f.activo !== false)}
   async function guardarFiltro(id) {
     const form = document.getElementById('cvFormFiltro'); if (form && !form.reportValidity()) return;
     const datos = leerFormFiltro();
+    const desdeBarra = !id && barraPendiente;
+    if (desdeBarra) datos.barra = barraPendiente;
     try {
-      const q = id ? sb.from('convocatoria_filtros').update(datos).eq('id', id) : sb.from('convocatoria_filtros').insert(datos);
-      const { error } = await q;
+      const q = id ? sb.from('convocatoria_filtros').update(datos).eq('id', id) : sb.from('convocatoria_filtros').insert(datos).select('id').single();
+      const { data, error } = await q;
       if (error) throw error;
+      barraPendiente = null;
       Toast.success(id ? 'Filtro guardado' : 'Filtro creado');
       await cargarFiltros(true);
+      if (desdeBarra) {
+        // La barra queda con el filtro recién guardado elegido.
+        st.filtro = data && data.id ? String(data.id) : ''; guardarBarra();
+        cerrarModal(); repintar(); refrescar();
+        return;
+      }
       if (filtros.some((f) => f.activo)) st.mis = true;
       await abrirFiltros();
       refrescar();
@@ -575,7 +830,7 @@ ${campo('cvpPerfil', 'Perfil de convocante', `<select id="cvpPerfil" class="inp 
       cerrarModal();
       aplicarEstado(id, 'convertida');
       for (const x of [...filas, ...(resultados ? resultados.flatMap((q) => q.filas || []) : [])]) if (x.id === id) x.licitacion_id = r.id;
-      Toast.success('Licitación creada: ' + (r.licitacion && r.licitacion.codigo));
+      Toast.success('Licitación creada: ' + (r.licitacion && r.licitacion.codigo) + (r.archivos ? ` · ${r.archivos} documento${r.archivos === 1 ? '' : 's'} de la convocatoria pasaron a sus archivos` : ''));
       await L.cargar(true);
       L.abrir(r.id);
     } catch (e) {
@@ -627,14 +882,34 @@ ${campo('cvpPerfil', 'Perfil de convocante', `<select id="cvpPerfil" class="inp 
       return j && j.ok ? j : null;
     } catch (e) { return null; } finally { clearTimeout(t); }
   }
+  /** Estado del permiso «acceso a la red local» de Chrome para esta página ('granted' | 'denied' | 'prompt' | null). */
+  async function permisoRedLocal() {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.permissions || !navigator.permissions.query) return null;
+      const p = await navigator.permissions.query({ name: 'local-network-access' });
+      return p && p.state ? p.state : null;
+    } catch (e) { return null; }   // el navegador no conoce el permiso
+  }
+  /** Mensaje (HTML) de por qué el conector no responde: permiso negado en Chrome o conector apagado. */
+  async function avisoConector() {
+    const causa = causaConector(await permisoRedLocal());
+    const doc = `<a class="text-accent hover:underline" href="${S(DOC_CONECTOR)}" target="_blank" rel="noopener noreferrer">cómo abrir o instalar el conector</a>`;
+    if (causa === 'denegado') {
+      return { causa, html: 'Chrome no deja que esta página hable con el conector de tu computadora: el permiso <b>«Acceso a la red local»</b> está bloqueado. Para darlo, haz clic en el <b>candado</b> (o en el icono de ajustes) a la izquierda de la dirección, busca «Acceso a la red local», elige <b>Permitir</b> y recarga la página.' };
+    }
+    if (causa === 'preguntar') {
+      return { causa, html: `el conector no contestó. Si Chrome muestra el aviso «Acceso a la red local», elige <b>Permitir</b> y vuelve a buscar; si no aparece, el conector está apagado: ${doc}.` };
+    }
+    return { causa, html: `el conector de ComprasMX no responde en esta computadora. Ábrelo (o instálalo) y vuelve a buscar: ${doc}.` };
+  }
   function abrirBusqueda(prefill) {
     if (busqueda) return;
-    const p = prefill || { chihuahua: true, comprasmx: true, texto: '', tipo: 'obra_publica', entidad: 'Chihuahua' };
+    const p = Object.assign({ chihuahua: true, comprasmx: true, texto: '', tipo: 'obra_publica', entidad: 'Chihuahua', periodo: '30', max: 100 }, prefill || {});
     const guardados = filtros || [];
     const usar = guardados.length ? campo('cvbFiltro', 'Usar un filtro guardado', `<select id="cvbFiltro" class="inp w-full" onchange="Convocatorias.usarFiltro(this.value)"><option value="">Elegir…</option>${guardados.map((f) => `<option value="${+f.id}">${S(f.nombre)}</option>`).join('')}</select>`) : '';
     const opc = (mapa, v, vacio) => `<option value="">${S(vacio)}</option>` + Object.entries(mapa).map(([k, t]) => `<option value="${S(k)}" ${k === v ? 'selected' : ''}>${S(t)}</option>`).join('');
     modal('Buscar en los portales', `<form id="cvFormBus" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.lanzarBusqueda()">
-<p class="text-sm text-ink-muted">Sólo se consulta lo que pidas aquí. Chihuahua responde en segundos; ComprasMX usa el conector de tu computadora y puede tardar de 1 a 3 minutos.</p>
+<p class="text-sm text-ink-muted">Sólo se consulta lo que pidas aquí y sólo lo publicado recientemente. Chihuahua responde en segundos; ComprasMX usa el conector de tu computadora, trae sólo anuncios vigentes con su descripción y puede tardar de 1 a 5 minutos. Ningún documento se descarga en la búsqueda.</p>
 ${usar}
 <fieldset><legend class="text-xs mb-1">Dónde buscar</legend><div class="flex flex-wrap gap-3">${casilla('cvbChih', 'Contrataciones Chihuahua', p.chihuahua)}${casilla('cvbFed', 'ComprasMX (federal)', p.comprasmx)}</div></fieldset>
 <div class="grid sm:grid-cols-2 gap-3">
@@ -643,9 +918,12 @@ ${campo('cvbTipo', 'Tipo de contratación', `<select id="cvbTipo" class="inp w-f
 ${campo('cvbEntidad', 'Entidad (para ComprasMX)', `<select id="cvbEntidad" class="inp w-full">${opc(entidadesOpc(), p.entidad, 'Todas')}</select>`)}
 ${campo('cvbProc', 'Tipo de procedimiento (para Chihuahua)', `<select id="cvbProc" class="inp w-full">${opc(PROCEDIMIENTOS, p.procedimiento || '', 'Todos')}</select>`)}
 ${campo('cvbEstatus', 'Estatus (para Chihuahua)', `<select id="cvbEstatus" class="inp w-full">${opc(ESTATUS_PORTAL, p.estatus === undefined ? 'vigente' : p.estatus, 'Todos')}</select>`)}
+${campo('cvbPeriodo', 'Publicadas en', `<select id="cvbPeriodo" class="inp w-full" onchange="Convocatorias.periodoBusqueda(this.value)">${Object.entries(PERIODOS).map(([k, t]) => `<option value="${S(k)}" ${String(k) === String(p.periodo) ? 'selected' : ''}>${S(t)}</option>`).join('')}</select><p class="field-hint">Siempre con límite de fecha (máximo ${DIAS_MAX_BUSQUEDA} días).</p>`)}
+${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="number" min="1" max="200" class="inp w-full" value="${S(String(p.max || 100))}"><p class="field-hint">100 por omisión, máximo 200.</p>`)}
+<div id="cvbRango" class="grid grid-cols-2 gap-3 sm:col-span-2 ${p.periodo === 'rango' ? '' : 'hidden'}">
 ${campo('cvbDesde', 'Publicadas desde', `<input id="cvbDesde" type="date" class="inp w-full" value="${S(p.desde || '')}">`)}
 ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full" value="${S(p.hasta || '')}">`)}
-${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="number" min="1" max="200" class="inp w-full" value="${S(String(p.max || 50))}">`)}
+</div>
 </div>
 <div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Convocatorias.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-search-eye-line" aria-hidden="true"></i> Buscar</button></div></form>`, 'max-w-2xl');
   }
@@ -655,16 +933,19 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     const set = (i, v) => { const x = document.getElementById(i); if (x) { if (x.type === 'checkbox') x.checked = !!v; else x.value = v; } };
     set('cvbChih', p.chihuahua); set('cvbFed', p.comprasmx); set('cvbTexto', p.texto); set('cvbTipo', p.tipo); set('cvbEntidad', p.entidad);
   }
+  function periodoBusqueda(v) { const r = document.getElementById('cvbRango'); if (r) r.classList.toggle('hidden', v !== 'rango'); }
   function leerFormBusqueda() {
+    const periodo = val('cvbPeriodo') || '30';
+    const fechas = periodoFechas(periodo, val('cvbDesde'), val('cvbHasta'));
     return { chihuahua: chk('cvbChih'), comprasmx: chk('cvbFed'), texto: val('cvbTexto'), tipo: val('cvbTipo'), entidad: val('cvbEntidad'),
-             procedimiento: val('cvbProc'), estatus: val('cvbEstatus'), desde: val('cvbDesde'), hasta: val('cvbHasta'),
-             max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 50)) };
+             procedimiento: val('cvbProc'), estatus: val('cvbEstatus'), periodo, desde: fechas.desde || '', hasta: fechas.hasta || '',
+             errorFechas: fechas.error || null, max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 100)) };
   }
   async function lanzarBusqueda() {
     const form = document.getElementById('cvFormBus'); if (form && !form.reportValidity()) return;
     const f = leerFormBusqueda();
     if (!f.chihuahua && !f.comprasmx) { Toast.warning('Elige al menos un portal.'); return; }
-    if (f.desde && f.hasta && f.desde > f.hasta) { Toast.warning('La fecha inicial es posterior a la final.'); return; }
+    if (f.errorFechas) { Toast.warning(f.errorFechas); return; }
     for (const k of ['chihuahua', 'comprasmx']) { const w = f[k] && esperaRestante(k); if (w) { Toast.warning(`Espera ${w} s antes de buscar otra vez en ${FUENTES_PORTAL[k]}.`); return; } }
     cerrarModal();
     resultados = null;
@@ -712,14 +993,15 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     const out = { fuente: 'comprasmx', inicio: new Date().toISOString() };
     const est = await estadoConector();
     if (!est) {
+      const av = await avisoConector();
       b.estado = 'omitida';
-      b.html = `el conector de ComprasMX no responde en esta computadora. Ábrelo (o instálalo) y vuelve a buscar: <a class="text-accent hover:underline" href="${S(DOC_CONECTOR)}" target="_blank" rel="noopener noreferrer">cómo abrir o instalar el conector</a>.`;
-      out.error = 'El conector local no responde.';
+      b.html = av.html;
+      out.error = av.causa === 'denegado' ? 'Chrome bloqueó el acceso a la red local.' : 'El conector local no responde.';
       repintarBusqueda();
       return out;
     }
     if (est.ocupado) { b.estado = 'error'; b.texto = 'el conector ya está buscando; espera a que termine.'; out.error = b.texto; repintarBusqueda(); return out; }
-    b.texto = 'buscando con Chrome en tu computadora (de 1 a 3 minutos)…'; repintarBusqueda();
+    b.texto = `buscando con Chrome en tu computadora lo publicado del ${fmtDia(f.desde)} al ${fmtDia(f.hasta)}, con su descripción (de 1 a 5 minutos)…`; repintarBusqueda();
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null; busqueda.ctl.comprasmx = ctl;
     ls.set(ultimaClave('comprasmx'), String(Date.now()));
     const cuerpo = cuerpoComprasmx(f);
@@ -734,6 +1016,7 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     } catch (e) {
       const cancel = e && e.name === 'AbortError';
       b.estado = cancel ? 'omitida' : 'error'; b.texto = cancel ? 'cancelaste la búsqueda.' : String((e && e.message) || e);
+      if (!cancel && e instanceof TypeError) { const av = await avisoConector(); b.texto = ''; b.html = av.html; }
       out.error = b.texto;
     }
     repintarBusqueda();
@@ -762,6 +1045,344 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     for (const c of Object.values(busqueda.ctl)) { try { c && c.abort(); } catch (e) { /* ya terminó */ } }
   }
 
+  // ---- Documentos de UNA convocatoria (US-848, D14) y panel de detalle (US-849) -------------------------------------------
+  // Nada se baja a volumen: sólo la convocatoria que el usuario marca «Me interesa» o en la que pulsa «Descargar
+  // documentos» / «Buscar documentos nuevos», una a la vez (aquí y en el servidor: convocatoria_descarga_iniciar).
+  //   ComprasMX → conector local (POST /comprasmx/anexos, /anexos/archivo, /anexos/cerrar; sin iniciar sesión).
+  //   Chihuahua → función de borde convocatorias-documentos (el portal no manda CORS).
+  // La APP sube cada archivo al bucket `licitaciones` (empresa/<id>/convocatorias/<convocatoria>/…) con la sesión del
+  // usuario y lo registra en convocatoria_archivos; no duplica por id del portal ni por SHA-256.
+  const BUCKET = 'licitaciones';
+  const TOPE_ARCHIVOS = 60;
+  const TOPE_BYTES = 300 * 1024 * 1024;
+  const TOPE_ARCHIVO = 50 * 1024 * 1024;
+  const MIME_DOCS = {
+    pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dwg: 'image/vnd.dwg', zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed', txt: 'text/plain',
+  };
+  /** Tipo MIME que admite el bucket para un documento del portal (por extensión) o null. */
+  function mimeDocumento(nombre) { return MIME_DOCS[String(nombre || '').toLowerCase().split('.').pop()] || null; }
+  function nombreSeguroDoc(n) {
+    const s = String(n || 'archivo').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^[_.]+/, '');
+    if (s.length <= 90) return s || 'archivo';
+    const i = s.lastIndexOf('.'); const ext = i > 0 && s.length - i <= 6 ? s.slice(i) : '';
+    return s.slice(0, 90 - ext.length) + ext;
+  }
+  /** Ruta en el bucket: empresa/<emp>/convocatorias/<convocatoria>/<hash12>_<nombre>. */
+  function rutaDocumento(emp, convId, hash, nombre) { return `empresa/${emp}/convocatorias/${convId}/${String(hash).slice(0, 12)}_${nombreSeguroDoc(nombre)}`; }
+  /**
+   * Qué bajar de la lista del portal: no lo que ya está (por id del portal), ni lo que pasa de 50 MB, y sin rebasar
+   * 60 archivos ni 300 MB por convocatoria contando lo ya guardado. → {bajar, omitidos: [{item, motivo}], ya}
+   */
+  function planDescarga(lista, existentes, topes) {
+    const t = Object.assign({ archivos: TOPE_ARCHIVOS, bytes: TOPE_BYTES, archivo: TOPE_ARCHIVO }, topes || {});
+    const prev = lista ? (existentes || []) : [];
+    const yaIds = new Set(prev.map((a) => a.origen_id).filter(Boolean));
+    let n = prev.length; let bytes = prev.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+    const bajar = []; const omitidos = []; const ya = [];
+    for (const it of lista || []) {
+      if (yaIds.has(it.id)) { ya.push(it); continue; }
+      const tam = Number(it.tamano) || 0;
+      if (tam > t.archivo) { omitidos.push({ item: it, motivo: `pesa ${(tam / 1048576).toFixed(1)} MB (más de 50 MB): bájalo del portal` }); continue; }
+      if (n >= t.archivos) { omitidos.push({ item: it, motivo: `tope de ${t.archivos} archivos por convocatoria` }); continue; }
+      if (bytes + tam > t.bytes) { omitidos.push({ item: it, motivo: 'tope de 300 MB por convocatoria' }); continue; }
+      bajar.push(it); n++; bytes += tam;
+    }
+    return { bajar, omitidos, ya };
+  }
+  /** Archivos llegados después de la visita anterior (etiqueta «Nuevo»). Sin visita anterior no hay «Nuevo». */
+  function idsNuevos(archivos, vistoAntes) {
+    if (!vistoAntes) return new Set();
+    const t = new Date(vistoAntes).getTime();
+    return new Set((archivos || []).filter((a) => a.created_at && new Date(a.created_at).getTime() > t).map((a) => a.id));
+  }
+  /** convocatoria.json de «Preparar para revisión»: datos + archivos + notas, para generar licitacion-bases/v1. */
+  function convocatoriaJson(c, archivos, notas, ahora) {
+    const x = c || {};
+    return {
+      formato: 'convocatoria-revision/v1',
+      generado: ahora || new Date().toISOString(),
+      instrucciones: 'Lee los PDF de esta carpeta y genera un archivo licitacion-bases/v1 (docs/licitaciones/licitacion-bases.schema.json; guía en docs/licitaciones/bases-con-claude-code.md). Luego impórtalo en Licitaciones › ficha › Bases.',
+      convocatoria: {
+        fuente: FUENTES_PORTAL[x.fuente] || x.fuente || null, numero_procedimiento: x.numero_procedimiento || null, id_externo: x.id_externo || null,
+        titulo: x.titulo || null, descripcion: x.descripcion || null, dependencia: x.dependencia || null, unidad_compradora: x.unidad_compradora || null,
+        entidad: x.entidad || null, municipio: x.municipio || null,
+        tipo_contratacion: TIPOS[x.tipo_contratacion] || x.tipo_contratacion || null,
+        tipo_procedimiento: PROCEDIMIENTOS[x.tipo_procedimiento] || x.tipo_procedimiento || null,
+        estatus: ESTATUS_PORTAL[x.estatus] || x.estatus || null,
+        publicacion: x.publicacion || null, junta_aclaraciones: x.junta_aclaraciones || null, apertura: x.apertura || null, fallo: x.fallo || null,
+        url_detalle: urlSegura(x.url_detalle),
+      },
+      archivos: (archivos || []).map((a) => ({ nombre: a.nombre, en_zip: a.en_zip || null, anexo: a.anexo || null, tipo: a.tipo || null,
+        tamano: Number(a.tamano) || 0, sha256: a.hash_sha256, publicado_portal: a.publicado_portal_at || null })),
+      notas: (notas || []).map((n) => ({ autor: n.autor || null, fecha: n.created_at, texto: n.texto })),
+    };
+  }
+  const esPdf = (a) => /\.pdf$/i.test(String(a && a.nombre)) || (a && a.mime) === 'application/pdf';
+
+  let descarga = null;     // en curso: {convId, items:[{id, nombre, estado, nota}], fase, cancelar, ses, error}
+  let det = null;          // panel de detalle abierto: {id, c, archivos, descarga, notas, vistoAntes}
+
+  function descargaHtml() {
+    if (!descarga) return '';
+    const d = descarga; const c = buscarFila(d.convId);
+    const hechos = d.items.filter((x) => x.estado !== 'pendiente' && x.estado !== 'bajando').length;
+    const pct = d.items.length ? Math.round((hechos / d.items.length) * 100) : 0;
+    const ic = { pendiente: 'ri-time-line text-ink-muted', bajando: 'ri-loader-4-line animate-spin', listo: 'ri-checkbox-circle-line text-ok', ya: 'ri-check-double-line text-ink-muted', omitido: 'ri-forbid-line text-warn', error: 'ri-error-warning-line text-danger' };
+    const et = { pendiente: 'en espera', bajando: 'bajando…', listo: 'guardado', ya: 'ya estaba', omitido: 'omitido', error: 'error' };
+    return `<section class="g rounded-xl p-3 mb-3" role="status" aria-live="polite" aria-label="Descarga de documentos">
+<p class="text-sm font-semibold"><i class="ri-folder-download-line" aria-hidden="true"></i> Documentos de ${S((c && (c.numero_procedimiento || c.titulo)) || 'la convocatoria')}: ${S(d.fase)}</p>
+${d.items.length ? `<div class="cv-prog my-2" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Avance de la descarga"><span style="width:${pct}%"></span></div>
+<ul class="text-xs space-y-1 max-h-48 overflow-y-auto" tabindex="0" aria-label="Archivos de la descarga">${d.items.map((x) => `<li class="flex items-start gap-2"><i class="${ic[x.estado] || ''}" aria-hidden="true"></i><span class="break-all"><b>${S(x.nombre)}</b> · ${S(et[x.estado] || x.estado)}${x.nota ? ' · ' + S(x.nota) : ''}</span></li>`).join('')}</ul>` : ''}
+${d.fin ? '' : `<button type="button" class="btn btn-s text-xs mt-2" onclick="Convocatorias.cancelarDescarga()" ${d.cancelar ? 'disabled' : ''}><i class="ri-stop-circle-line" aria-hidden="true"></i> ${d.cancelar ? 'Deteniendo…' : 'Detener la descarga'}</button>`}</section>`;
+  }
+  function repintarDescarga() {
+    for (const id of ['cvDescargaPanel', 'cvDescargaDet']) {
+      const n = typeof document !== 'undefined' && document.getElementById(id);
+      if (n) n.innerHTML = descargaHtml();
+    }
+  }
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function leerArchivos(convId) {
+    const { data, error } = await sb.from('convocatoria_archivos').select('id,convocatoria_id,nombre,tipo,anexo,tamano,hash_sha256,archivo_path,mime,publicado_portal_at,origen_id,origen_url,created_at').eq('convocatoria_id', convId).order('created_at', { ascending: false }).order('id', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+  async function leerDescarga(convId) {
+    const { data, error } = await sb.from('convocatoria_descargas').select('id,estado,error,solicitado_at,inicio_at,fin_at,revisado_at,total,bajados,omitidos,bytes,avisos,motivo').eq('convocatoria_id', convId).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+  /** Lista de documentos del portal → [{id, nombre, tamano, anexo, tipo, publicado}] (y la sesión del conector). */
+  async function listaPortal(c) {
+    if (c.fuente === 'comprasmx') {
+      const est = await estadoConector();
+      if (!est) { const av = await avisoConector(); const e = new Error(av.causa === 'denegado' ? 'Chrome bloqueó el acceso a la red local' : 'El conector de ComprasMX no responde'); e.html = av.html; throw e; }
+      if (est.ocupado) throw new Error('El conector está ocupado con otra búsqueda o descarga; espera a que termine.');
+      const r = await fetch(CONECTOR + '/comprasmx/anexos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uuid: c.id_externo }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `El conector respondió ${r.status}`);
+      return { ses: j.sesion, items: j.archivos || [], truncado: !!j.truncado };
+    }
+    const r = await fetch(SB + '/functions/v1/convocatorias-documentos', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify({ accion: 'lista', convocatoria_id: c.id }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `El servidor respondió ${r.status}`);
+    // En Chihuahua el nombre real llega con el archivo; mientras, tipo y fecha.
+    return { ses: null, items: (j.documentos || []).map((d) => ({ id: d.id, nombre: `${d.tipo || 'Documento'}${d.fecha ? ' (' + d.fecha + ')' : ''}`, tamano: 0, anexo: d.tipo, tipo: d.tipo, publicado: d.fecha })), truncado: false };
+  }
+  /** Un archivo del portal como Blob + nombre (+ sha256 que calculó el conector). */
+  async function bajarDelPortal(c, ses, it) {
+    const r = c.fuente === 'comprasmx'
+      ? await fetch(CONECTOR + '/comprasmx/anexos/archivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sesion: ses, id: it.id }) })
+      : await fetch(SB + '/functions/v1/convocatorias-documentos', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify({ accion: 'archivo', convocatoria_id: c.id, id: it.id }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || `respondió ${r.status}`); e.status = r.status; throw e; }
+    const nombre = decodeURIComponent(r.headers.get('X-Archivo-Nombre') || '') || it.nombre;
+    return { blob: await r.blob(), nombre, sha: r.headers.get('X-Archivo-Sha256') || null };
+  }
+  function fechaPortal(v) {
+    if (!v) return null;
+    const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T12:00:00-06:00`;
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(String(v)) ? String(v) + '-06:00' : (Number.isFinite(Date.parse(v)) ? v : null);
+  }
+  /**
+   * Baja los documentos de UNA convocatoria (motivo: 'interesa' | 'manual' | 'nuevos'). Un archivo a la vez, con pausas,
+   * avance visible por archivo, topes de 60 archivos y 300 MB, sin duplicar (id del portal y SHA-256).
+   */
+  async function descargarDocumentos(id, motivo) {
+    if (descarga && !descarga.fin) { Toast.warning('Ya se están bajando los documentos de otra convocatoria; espera a que termine.'); return null; }
+    const c = buscarFila(id) || (det && det.id === id ? det.c : null);
+    if (!c) return null;
+    descarga = { convId: id, items: [], fase: 'preparando…', cancelar: false, ses: null, fin: false };
+    if (!document.getElementById('cvDescargaPanel') && el()) el().insertAdjacentHTML('afterbegin', '<div id="cvDescargaPanel"></div>');
+    repintarDescarga();
+    let reg = null; const avisos = []; let bajados = 0; let omitidos = 0; let bytes = 0; let total = 0; let error = null;
+    const avance = async (estado) => { if (reg) { try { await rpc('convocatoria_descarga_avance', { p_id: reg.id, p_estado: estado, p_total: total, p_bajados: bajados, p_omitidos: omitidos, p_bytes: bytes, p_avisos: avisos.slice(0, 80), p_error: error }); } catch (e) { /* el avance es informativo */ } } };
+    try {
+      reg = await rpc('convocatoria_descarga_iniciar', { p_convocatoria_id: id, p_motivo: motivo || 'manual' });
+      const existentes = await leerArchivos(id);
+      descarga.fase = c.fuente === 'comprasmx' ? 'abriendo el procedimiento con el conector de tu computadora…' : 'leyendo la lista de documentos del portal…';
+      repintarDescarga();
+      const lista = await listaPortal(c);
+      descarga.ses = lista.ses;
+      const plan = planDescarga(lista.items, existentes);
+      if (lista.truncado) avisos.push('El procedimiento tiene más de 60 archivos: sólo se listaron los primeros 60.');
+      total = plan.bajar.length;
+      descarga.items = [...plan.bajar.map((x) => ({ id: x.id, nombre: x.nombre, estado: 'pendiente', it: x })),
+        ...plan.omitidos.map((o) => ({ id: o.item.id, nombre: o.item.nombre, estado: 'omitido', nota: o.motivo })),
+        ...plan.ya.map((x) => ({ id: x.id, nombre: x.nombre, estado: 'ya' }))];
+      for (const o of plan.omitidos) { omitidos++; avisos.push(`«${o.item.nombre}»: ${o.motivo}`); }
+      descarga.fase = plan.bajar.length ? `bajando ${plan.bajar.length} archivo${plan.bajar.length === 1 ? '' : 's'}…` : 'no hay documentos nuevos';
+      repintarDescarga(); await avance('en_curso');
+      const hashes = new Set(existentes.map((a) => a.hash_sha256));
+      let bytesGuardados = existentes.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+      const emp = currentUser.empresa_id;
+      for (const x of descarga.items.filter((q) => q.estado === 'pendiente')) {
+        if (descarga.cancelar) { x.estado = 'omitido'; x.nota = 'detenido'; omitidos++; continue; }
+        x.estado = 'bajando'; repintarDescarga();
+        try {
+          if (c.fuente === 'chihuahua' && bajados + omitidos > 0) await dormir(1500 + Math.random() * 1500);   // pausa entre descargas (el conector la pone en ComprasMX)
+          const f = await bajarDelPortal(c, descarga.ses, x.it);
+          x.nombre = f.nombre;
+          const buf = await f.blob.arrayBuffer();
+          const hash = await sha256Hex(buf);
+          if (f.sha && f.sha !== hash) throw new Error('el archivo llegó incompleto (el SHA-256 no coincide)');
+          if (buf.byteLength > TOPE_ARCHIVO) { x.estado = 'omitido'; x.nota = 'más de 50 MB'; omitidos++; avisos.push(`«${f.nombre}»: más de 50 MB`); continue; }
+          if (bytesGuardados + buf.byteLength > TOPE_BYTES) { x.estado = 'omitido'; x.nota = 'tope de 300 MB'; omitidos++; avisos.push(`«${f.nombre}»: tope de 300 MB por convocatoria`); continue; }
+          if (hashes.has(hash)) { x.estado = 'ya'; x.nota = 'mismo contenido que otro archivo ya guardado'; continue; }
+          const mime = mimeDocumento(f.nombre);
+          if (!mime) { x.estado = 'omitido'; x.nota = 'tipo de archivo no admitido'; omitidos++; avisos.push(`«${f.nombre}»: tipo de archivo no admitido`); continue; }
+          const path = rutaDocumento(emp, id, hash, f.nombre);
+          const up = await sb.storage.from(BUCKET).upload(path, new Blob([buf], { type: mime }), { contentType: mime, upsert: false });
+          if (up.error && !/exists|duplicate/i.test(String(up.error.message || up.error))) throw up.error;
+          const ins = await sb.from('convocatoria_archivos').insert({ convocatoria_id: id, nombre: f.nombre, tipo: x.it.tipo || null, anexo: x.it.anexo || null,
+            tamano: buf.byteLength, hash_sha256: hash, archivo_path: path, mime, publicado_portal_at: fechaPortal(x.it.publicado),
+            origen_url: urlSegura(c.url_detalle), origen_id: x.it.id, descarga_id: reg.id });
+          if (ins.error) { if (!up.error) await sb.storage.from(BUCKET).remove([path]); throw ins.error; }
+          hashes.add(hash); bajados++; bytes += buf.byteLength; bytesGuardados += buf.byteLength;
+          x.estado = 'listo'; x.nota = fmtBytesDoc(buf.byteLength);
+        } catch (e) {
+          x.estado = 'error'; x.nota = errTxt(e); omitidos++; avisos.push(`«${x.nombre}»: ${errTxt(e)}`);
+          if (e && (e.status === 404 || /sesi[oó]n de anexos/.test(String(e.message)))) break;   // la sesión del conector se cerró
+        }
+        repintarDescarga(); await avance('en_curso');
+      }
+      descarga.fase = descarga.cancelar ? `detenida: ${bajados} guardado${bajados === 1 ? '' : 's'}` : `lista: ${bajados} guardado${bajados === 1 ? '' : 's'}${omitidos ? `, ${omitidos} omitido${omitidos === 1 ? '' : 's'}` : ''}`;
+      await avance(bajados || !omitidos ? 'lista' : 'fallo');
+    } catch (e) {
+      error = errTxt(e); descarga.fase = 'no se pudo: ' + error; if (e && e.html) descarga.fase = 'no se pudo';
+      if (e && e.html) descarga.items = [{ id: 'aviso', nombre: 'Conector', estado: 'error', nota: e.message }];
+      await avance('fallo');
+      if (e && e.html) Toast.error(e.message + '. Revisa el aviso en «Buscar en los portales».', 8000); else Toast.error(error);
+    } finally {
+      if (descarga.ses) { try { await fetch(CONECTOR + '/comprasmx/anexos/cerrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sesion: descarga.ses }) }); } catch (e) { /* el conector la cierra solo a los 5 min */ } }
+      descarga.fin = true; repintarDescarga();
+      for (const q of [...filas, ...(resultados ? resultados.flatMap((r) => r.filas || []) : [])]) if (q.id === id) q.descarga_estado = error ? 'fallo' : 'lista';
+      if (det && det.id === id) await recargarDetalle();
+    }
+    return { bajados, omitidos, error };
+  }
+  function cancelarDescarga() { if (descarga && !descarga.fin) { descarga.cancelar = true; repintarDescarga(); } }
+  const fmtBytesDoc = (n) => { const v = Number(n) || 0; return v < 1024 ? v + ' B' : v < 1048576 ? Math.round(v / 1024) + ' KB' : (v / 1048576).toFixed(1) + ' MB'; };
+  async function sha256Hex(buf) { const h = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+
+  // ---- Panel de detalle (US-849) ---------------------------------------------------------------------------------------------
+  async function abrirDetalle(id) {
+    const c = buscarFila(id);
+    if (!c) { Toast.error('No se encontró la convocatoria en la lista.'); return; }
+    det = { id, c, archivos: null, descarga: null, notas: null, vistoAntes: null, cargando: true };
+    modal(c.titulo || 'Convocatoria', `<div id="cvDet" aria-busy="true">${Skeleton.table(4, 3)}</div>`, 'max-w-4xl');
+    await recargarDetalle(true);
+  }
+  async function recargarDetalle(primera) {
+    if (!det) return;
+    const id = det.id;
+    try {
+      const [archivos, d, notas, visto] = await Promise.all([
+        leerArchivos(id), leerDescarga(id),
+        sb.from('convocatoria_notas').select('id,texto,autor,created_at').eq('convocatoria_id', id).order('created_at', { ascending: false }).then((r) => { if (r.error) throw r.error; return r.data || []; }),
+        primera ? rpc('convocatoria_visitar', { p_convocatoria_id: id }) : Promise.resolve(det.vistoAntes),
+      ]);
+      if (!det || det.id !== id) return;
+      Object.assign(det, { archivos, descarga: d, notas, vistoAntes: primera ? visto : det.vistoAntes, cargando: false });
+      pintarDetalle();
+    } catch (e) {
+      const n = document.getElementById('cvDet'); if (n) { n.removeAttribute('aria-busy'); n.innerHTML = `<p class="text-sm text-danger">${S(errTxt(e, 'No se pudo cargar el detalle'))}</p>`; }
+    }
+  }
+  function pintarDetalle() {
+    const n = typeof document !== 'undefined' && document.getElementById('cvDet'); if (!n || !det) return;
+    n.removeAttribute('aria-busy');
+    const c = det.c; const url = urlSegura(c.url_detalle);
+    const dato = (et, v) => (v ? `<div><dt class="text-xs text-ink-muted">${S(et)}</dt><dd class="text-sm">${v}</dd></div>` : '');
+    const f = (ts) => S(fmtFechaHora(ts));
+    const nuevos = idsNuevos(det.archivos, det.vistoAntes);
+    const d = det.descarga;
+    const estadoDesc = !d ? 'Todavía no se han bajado documentos de esta convocatoria.'
+      : `${S(ESTADOS_DESCARGA[d.estado] || d.estado)}${d.fin_at ? ' · ' + f(d.fin_at) : ''}${d.estado !== 'en_curso' ? ` · ${d.bajados} guardado${d.bajados === 1 ? '' : 's'}${d.omitidos ? `, ${d.omitidos} omitido${d.omitidos === 1 ? '' : 's'}` : ''}` : ''}${d.revisado_at ? ' · última revisión de documentos nuevos: ' + f(d.revisado_at) : ''}`;
+    const avisos = d && Array.isArray(d.avisos) && d.avisos.length ? `<details class="text-xs mt-1"><summary class="cursor-pointer">Avisos de la última descarga (${d.avisos.length})</summary><ul class="list-disc pl-5">${d.avisos.map((a) => `<li>${S(a)}</li>`).join('')}</ul></details>` : '';
+    const enCurso = descarga && !descarga.fin;
+    const arch = det.archivos || [];
+    const total = arch.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+    const filasArch = arch.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a.nombre)}${nuevos.has(a.id) ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nuevo</span>' : ''}</span></td>
+<td data-et="Anexo"><span>${S(a.anexo || a.tipo || '—')}</span></td><td data-et="Tamaño"><span>${S(fmtBytesDoc(a.tamano))}</span></td><td data-et="Llegó"><span>${S(fmtFechaHora(a.created_at))}</span></td>
+<td data-et="" class="text-right whitespace-nowrap"><button type="button" class="btn-icon" onclick="Convocatorias.verArchivo(${+a.id})" aria-label="Ver ${S(a.nombre)}" title="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Convocatorias.descargarArchivo(${+a.id})" aria-label="Descargar ${S(a.nombre)}" title="Descargar"><i class="ri-download-2-line" aria-hidden="true"></i></button></td></tr>`).join('');
+    n.innerHTML = `<p class="text-xs text-ink-muted font-mono mb-1">${S(c.numero_procedimiento || c.id_externo || '')}</p>
+<p class="mb-3">${chipFuente(c.fuente)} ${c.estatus ? `<span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S(ESTATUS_PORTAL[c.estatus] || c.estatus)}</span>` : ''}${url ? ` <a class="text-accent hover:underline text-sm" href="${S(url)}" target="_blank" rel="noopener noreferrer"><i class="ri-external-link-line" aria-hidden="true"></i> Ver en el portal</a>` : ''}</p>
+${c.descripcion ? `<section class="mb-4" aria-labelledby="cvDetDesc"><h3 id="cvDetDesc" class="font-semibold text-sm mb-1">Descripción</h3><p class="text-sm whitespace-pre-line">${S(c.descripcion)}</p></section>` : ''}
+<dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mb-4">
+${dato('Dependencia', S(c.dependencia || ''))}${dato('Unidad compradora', S(c.unidad_compradora || ''))}${dato('Entidad', S([c.entidad, c.municipio].filter(Boolean).join(' · ')))}
+${dato('Tipo', S([TIPOS[c.tipo_contratacion], PROCEDIMIENTOS[c.tipo_procedimiento]].filter(Boolean).join(' · ')))}
+${dato('Publicación', f(c.publicacion))}${dato('Junta de aclaraciones', f(c.junta_aclaraciones))}${dato('Presentación y apertura', f(c.apertura))}${dato('Fallo', f(c.fallo))}</dl>
+<section class="mb-4" aria-labelledby="cvDetDocs"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h3 id="cvDetDocs" class="font-semibold text-sm">Documentos <span class="tab-n">${arch.length}</span></h3>
+<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s text-xs" onclick="Convocatorias.descargarDocumentos(${+c.id},'${d ? 'nuevos' : 'manual'}')" ${enCurso ? 'disabled' : ''}><i class="${d ? 'ri-refresh-line' : 'ri-folder-download-line'}" aria-hidden="true"></i> ${d ? 'Buscar documentos nuevos' : 'Descargar documentos'}</button>
+<button type="button" class="btn btn-s text-xs" onclick="Convocatorias.descargarZip(false)" ${arch.length ? '' : 'disabled'}><i class="ri-folder-zip-line" aria-hidden="true"></i> Descargar todo (ZIP)</button>
+<button type="button" class="btn btn-p text-xs" onclick="Convocatorias.descargarZip(true)" ${arch.some(esPdf) ? '' : 'disabled'}><i class="ri-robot-2-line" aria-hidden="true"></i> Preparar para revisión</button></div></div>
+<p class="text-xs text-ink-muted mb-2">${estadoDesc}${arch.length ? ` · ${arch.length} archivo${arch.length === 1 ? '' : 's'}, ${S(fmtBytesDoc(total))}` : ''}</p>${avisos}
+<div id="cvDescargaDet">${descarga && descarga.convId === c.id ? descargaHtml() : ''}</div>
+${arch.length ? `<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Documentos de la convocatoria"><table class="table-modern lc-tbl w-full text-sm"><thead><tr><th scope="col">Archivo</th><th scope="col">Anexo</th><th scope="col">Tamaño</th><th scope="col">Llegó</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody>${filasArch}</tbody></table></div>` : ''}
+<p class="field-hint mt-1">Los documentos se bajan sólo de esta convocatoria y sólo cuando lo pides (o al marcar «Me interesa»); nunca en lote ni de forma automática.</p></section>
+<section aria-labelledby="cvDetNotas"><h3 id="cvDetNotas" class="font-semibold text-sm mb-2">Notas de revisión</h3>
+<form class="flex flex-col gap-2 mb-3" onsubmit="event.preventDefault();Convocatorias.agregarNota()"><label class="sr-only" for="cvNota">Nueva nota de revisión</label><textarea id="cvNota" class="inp w-full" rows="2" maxlength="4000" placeholder="Ej. Pide experiencia en redes de agua de 3 años; revisar fianza."></textarea>
+<div class="flex justify-end"><button type="submit" class="btn btn-s text-xs"><i class="ri-sticky-note-add-line" aria-hidden="true"></i> Agregar nota</button></div></form>
+${(det.notas || []).length ? `<ul class="space-y-2">${det.notas.map((x) => `<li class="g rounded-xl p-3"><p class="text-xs text-ink-muted">${S(x.autor || 'Sin nombre')} · ${S(fmtFechaHora(x.created_at))}</p><p class="text-sm whitespace-pre-line">${S(x.texto)}</p></li>`).join('')}</ul>` : '<p class="text-sm text-ink-muted">Sin notas todavía.</p>'}</section>`;
+  }
+  const archivoDet = (id) => (det && (det.archivos || []).find((a) => a.id === id)) || null;
+  async function urlFirmada(path, como) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 600, como ? { download: como } : undefined);
+    if (error) throw error;
+    return data.signedUrl;
+  }
+  async function verArchivo(id) {
+    const a = archivoDet(id); if (!a) return;
+    const w = window.open('', '_blank');
+    try { const u = await urlFirmada(a.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
+    catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
+  }
+  async function descargarArchivo(id) {
+    const a = archivoDet(id); if (!a) return;
+    try { const u = await urlFirmada(a.archivo_path, a.nombre); const x = document.createElement('a'); x.href = u; x.rel = 'noopener'; document.body.appendChild(x); x.click(); x.remove(); }
+    catch (e) { Toast.error(errTxt(e, 'No se pudo descargar')); }
+  }
+  function nombreUnicoZip(usados, n) {
+    let x = n; let i = 2;
+    while (usados.has(x.toLowerCase())) { const p = n.lastIndexOf('.'); x = p > 0 ? `${n.slice(0, p)} (${i})${n.slice(p)}` : `${n} (${i})`; i++; }
+    usados.add(x.toLowerCase()); return x;
+  }
+  /** «Descargar todo» (ZIP con todos los archivos) o «Preparar para revisión» (sólo PDF + convocatoria.json). */
+  async function descargarZip(revision) {
+    if (!det || !(det.archivos || []).length) return;
+    if (typeof JSZip === 'undefined') { Toast.error('No se cargó el compresor ZIP; recarga la página.'); return; }
+    const lista = revision ? det.archivos.filter(esPdf) : det.archivos;
+    const zip = new JSZip(); const usados = new Set(); const enZip = [];
+    Toast.info(`Preparando ${lista.length} archivo${lista.length === 1 ? '' : 's'}…`);
+    try {
+      for (const a of lista) {
+        const { data, error } = await sb.storage.from(BUCKET).download(a.archivo_path);
+        if (error) throw error;
+        const nombre = nombreUnicoZip(usados, nombreSeguroDoc(a.nombre));
+        zip.file(nombre, data); enZip.push({ ...a, en_zip: nombre });
+      }
+      if (revision) zip.file('convocatoria.json', JSON.stringify(convocatoriaJson(det.c, enZip, det.notas), null, 2));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const base = nombreSeguroDoc(det.c.numero_procedimiento || det.c.id_externo || 'convocatoria');
+      const u = URL.createObjectURL(blob); const x = document.createElement('a');
+      x.href = u; x.download = `${base}_${revision ? 'para_revision' : 'documentos'}.zip`; document.body.appendChild(x); x.click(); x.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 4000);
+    } catch (e) { Toast.error(errTxt(e, 'No se pudo armar el ZIP')); }
+  }
+  async function agregarNota() {
+    const t = val('cvNota'); if (!t || !det) { if (!t) Toast.warning('Escribe la nota.'); return; }
+    try {
+      const { error } = await sb.from('convocatoria_notas').insert({ convocatoria_id: det.id, texto: t });
+      if (error) throw error;
+      Toast.success('Nota guardada');
+      await recargarDetalle();
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó la nota')); }
+  }
+
   // ---- Registro en Licitaciones ---------------------------------------------------------------------------------------------
   if (typeof Licitaciones !== 'undefined' && Licitaciones.registrarPestana) {
     Licitaciones.registrarPestana('lista', { k: 'convocatorias', t: 'Convocatorias', ic: 'ri-file-search-line', pintar }, 'licitaciones');
@@ -771,13 +1392,18 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
   return {
     pintar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
-    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda,
-    get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0 }; },
+    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda,
+    escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
+    descargarDocumentos, cancelarDescarga, abrirDetalle, verArchivo, descargarArchivo, descargarZip, agregarNota,
+    get detalle() { return det; }, get descarga() { return descarga; },
+    get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0, ms: ultimaMs }; },
     // puras
     norm, textoConvocatoria, cumpleFiltro, cumpleAlguno, vigente, parseLista, diasA, argsBusqueda, modalidadDe, plazaDe,
     sugerirPerfil, datosLicitacion, cambiosFechas, urlSegura, resumenFiltro, formDesdeFiltro, cuerpoChihuahua, cuerpoComprasmx,
-    textoUltimaBusqueda,
-    FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS,
+    textoUltimaBusqueda, parseTextoBarra, cumpleTextoBarra, fichasActivas, quitarFicha, filtroDesdeBarra, barraDesdeFiltro,
+    cuentaFiltros, periodoFechas, causaConector, PERIODOS, planDescarga, idsNuevos, convocatoriaJson, rutaDocumento, mimeDocumento,
+    nombreSeguroDoc, TOPE_ARCHIVOS, TOPE_BYTES,
+    FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS, BARRA_VACIA, BARRA_INICIAL,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Convocatorias;

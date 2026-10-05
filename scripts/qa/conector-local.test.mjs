@@ -110,8 +110,10 @@ t('GET /estado con Origin ajeno: 403', async () => {
   assert.equal(r.status, 403);
 });
 
-t('filtros no válidos: 400 sin abrir Chrome', async () => {
-  for (const cuerpo of [{}, { tipos: ['adquisiciones'] }, { texto: 'x', desde: '05/10/2026' }, { max_resultados: 0 }]) {
+t('filtros no válidos: 400 sin abrir Chrome (US-852: nunca sin límite de fecha, máximo 90 días)', async () => {
+  const futuro = new Date(Date.now() + 5 * 86400e3).toISOString().slice(0, 10);
+  for (const cuerpo of [{ tipos: ['adquisiciones'] }, { texto: 'x', desde: '05/10/2026' }, { max_resultados: 0 },
+    { texto: 'x', desde: '2026-01-01', hasta: '2026-06-30' }, { texto: 'x', desde: futuro }, { texto: 'x', desde: '2026-10-05', hasta: '2026-09-01' }]) {
     const r = await pedir('POST', '/comprasmx/buscar', { headers: { ...json, Origin: APP }, cuerpo });
     assert.equal(r.status, 400, JSON.stringify(cuerpo));
     assert.match(r.json.error, /Filtros no válidos/);
@@ -119,6 +121,26 @@ t('filtros no válidos: 400 sin abrir Chrome', async () => {
   }
   const e = await pedir('GET', '/estado');
   assert.equal(e.json.ocupado, false);
+});
+
+t('US-848: anexos de un procedimiento — validación y sesiones, sin abrir Chrome', async () => {
+  const h = { ...json, Origin: APP };
+  for (const uuid of [undefined, '', 'abc', '../etc/passwd', '0989ce6e0ecd4d2a9c9d1fe714f1f50g']) {
+    const r = await pedir('POST', '/comprasmx/anexos', { headers: h, cuerpo: { uuid } });
+    assert.equal(r.status, 400, String(uuid));
+    assert.match(r.json.error, /uuid/);
+  }
+  const a = await pedir('POST', '/comprasmx/anexos/archivo', { headers: h, cuerpo: { sesion: 'no-existe', id: 'x' } });
+  assert.equal(a.status, 404);
+  assert.match(a.json.error, /sesión de anexos/);
+  assert.match(a.headers['access-control-expose-headers'] || '', /X-Archivo-Nombre/, 'la app puede leer el nombre y el hash');
+  const c = await pedir('POST', '/comprasmx/anexos/cerrar', { headers: h, cuerpo: { sesion: 'no-existe' } });
+  assert.deepEqual(c.json, { ok: true, cerrada: false });
+  const ajeno = await pedir('POST', '/comprasmx/anexos', { headers: { ...json, Origin: 'https://evil.example' }, cuerpo: { uuid: '0989ce6e0ecd4d2a9c9d1fe714f1f501' } });
+  assert.equal(ajeno.status, 403, 'mismas defensas de origen');
+  const sin = await pedir('POST', '/comprasmx/anexos/archivo', { headers: json, cuerpo: { sesion: 'x', id: 'y' } });
+  assert.equal(sin.status, 403, 'sin Origin');
+  assert.equal((await pedir('GET', '/estado')).json.ocupado, false);
 });
 
 t('cancelar sin búsqueda en curso no hace nada', async () => {

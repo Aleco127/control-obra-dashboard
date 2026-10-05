@@ -28,11 +28,13 @@ test('expediente de ComprasMX con detalle → convocatoria normalizada', () => {
   assert.equal(c.url_detalle, 'https://comprasmx.buengobierno.gob.mx/sitiopublico/#/sitiopublico/detalle/8734b5ab82b04fca9231c4adaf2c901f/procedimiento');
   assert.ok(c.detalle_at);
   assert.ok(!('detalle' in c.datos.expediente), 'no duplica el detalle dentro del expediente');
+  assert.ok(c.descripcion && c.descripcion === String(fx.detalle.descripcion).replace(/\s+/g, ' ').trim(), 'US-852: la descripción del detalle va en su columna');
 });
 
 test('sin detalle no manda la dependencia (sólo siglas) para no pisar el nombre completo', () => {
   const c = normalizar(fx.registro);
   assert.equal(c.dependencia, null);
+  assert.equal(c.descripcion, null, 'sin detalle no hay descripción (el conector abre el detalle de las que no la tienen)');
   assert.equal(c.publicacion, null);
   assert.equal(c.apertura, '2026-10-06T10:00:00-06:00');
   assert.ok(!('detalle_at' in c));

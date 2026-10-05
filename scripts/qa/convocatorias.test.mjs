@@ -142,6 +142,65 @@ test('US-850: filtros de la función convocatorias-chihuahua viajan en el POST d
   assert.match(filtrosManual({ desde: '05/10/2026' }).error, /AAAA-MM-DD/);
 });
 
+test('US-853: texto de la barra (todas las palabras, «-palabra» excluye), fichas y filtros guardados desde la barra', () => {
+  assert.deepEqual(C.parseTextoBarra('  Red AGUA -Mantenimiento - agua -mantenimiento'), { palabras: ['red', 'agua'], excluir: ['mantenimiento'] });
+  const c = conv({ descripcion: 'Red de agua potable en la colonia Siglo XXI' });
+  assert.match(C.textoConvocatoria(c), /red de agua potable/, 'la descripción entra al texto (migración 108)');
+  assert.equal(C.cumpleTextoBarra(c, 'agua aula'), true, 'todas las palabras, en cualquier campo');
+  assert.equal(C.cumpleTextoBarra(c, 'agua puente'), false);
+  assert.equal(C.cumpleTextoBarra(c, 'aula -potable'), false, 'excluir mira también la descripción');
+  const s = { ...C.BARRA_INICIAL, texto: 'agua -mantenimiento', municipio: 'Juárez', pub: '30', abren: 'rango', abren_desde: '2026-10-01', abren_hasta: '2026-10-31', orden: 'publicacion' };
+  const a = C.argsBusqueda(s);
+  assert.deepEqual([a.p_texto, a.p_excluir, a.p_municipio, a.p_pub_dias, a.p_abren_dias, a.p_abren_desde, a.p_abren_hasta, a.p_orden, a.p_estados, a.p_mis_filtros, a.p_solo_vigentes],
+    ['agua', ['mantenimiento'], 'Juárez', 30, null, '2026-10-01', '2026-10-31', 'publicacion', ['nueva'], true, true]);
+  assert.equal(C.argsBusqueda({ estatus: 'terminado' }).p_solo_vigentes, false, 'con estatus del portal se ven también las no vigentes');
+  assert.equal(C.argsBusqueda({ orden: 'x' }).p_orden, 'apertura');
+  const f = C.fichasActivas(s, () => 'X');
+  assert.deepEqual(f.map((x) => x.k), ['texto', 'excluir:mantenimiento', 'mis', 'municipio', 'estado', 'abren', 'pub']);
+  assert.equal(C.cuentaFiltros(C.BARRA_VACIA), 0);
+  assert.equal(C.cuentaFiltros(C.quitarFicha(s, 'abren')), 6);
+  assert.equal(C.quitarFicha(s, 'texto').texto, '-mantenimiento', 'quitar el texto deja las exclusiones');
+  assert.equal(C.quitarFicha(s, 'excluir:mantenimiento').texto, 'agua');
+  const g = C.filtroDesdeBarra({ ...s, fuente: 'comprasmx', entidad: 'Chihuahua', tipo: 'obra_publica', texto: 'red agua -mant' });
+  assert.deepEqual([g.palabras_clave, g.palabras_excluir, g.fuentes, g.entidades, g.tipos_contratacion], [['red', 'agua'], ['mant'], ['comprasmx'], ['Chihuahua'], ['obra_publica']]);
+  assert.equal(g.barra.municipio, 'Juárez'); assert.equal('pagina' in g.barra, false);
+  const b = C.barraDesdeFiltro({ id: 7, barra: g.barra });
+  assert.deepEqual([b.filtro, b.municipio, b.texto, b.mis, b.orden], ['7', 'Juárez', 'red agua -mant', false, 'publicacion']);
+  assert.deepEqual([C.barraDesdeFiltro({ id: 3 }).filtro, C.barraDesdeFiltro({ id: 3 }).estado], ['3', ''], 'filtro sin barra: sólo su regla');
+});
+
+test('US-852: la búsqueda en los portales siempre va acotada por fecha de publicación (30 días por omisión, máx. 90)', () => {
+  assert.deepEqual(C.periodoFechas('30', '', '', '2026-10-05'), { desde: '2026-09-05', hasta: '2026-10-05' });
+  assert.deepEqual(C.periodoFechas('7', '', '', '2026-10-05'), { desde: '2026-09-28', hasta: '2026-10-05' });
+  assert.deepEqual(Object.keys(C.PERIODOS), ['7', '15', '30', '60', '90', 'rango']);
+  assert.deepEqual(C.periodoFechas('rango', '2026-09-01', '2026-10-01', '2026-10-05'), { desde: '2026-09-01', hasta: '2026-10-01' });
+  assert.match(C.periodoFechas('rango', '', '2026-10-01', '2026-10-05').error, /dos fechas/, 'sin límite no se puede');
+  assert.match(C.periodoFechas('rango', '2026-01-01', '2026-06-01', '2026-10-05').error, /90 días/);
+  assert.match(C.periodoFechas('rango', '2026-10-01', '2026-09-01', '2026-10-05').error, /posterior/);
+  assert.match(C.periodoFechas('rango', '2026-11-01', '2026-11-05', '2026-10-05').error, /futuro/);
+  assert.match(C.periodoFechas('5', '', '', '2026-10-05').error, /periodo/);
+  assert.equal(C.cuerpoComprasmx({ texto: 'x' }).max_resultados, 100, 'tope de 100 por omisión');
+  assert.equal(C.causaConector('denied'), 'denegado', 'permiso «acceso a la red local» negado ≠ conector apagado');
+  assert.equal(C.causaConector('prompt'), 'preguntar');
+  assert.equal(C.causaConector('granted'), 'apagado');
+  assert.equal(C.causaConector(null), 'apagado', 'navegador sin ese permiso');
+});
+
+test('US-853: lista de Licitaciones con texto, convocante y resultado', () => {
+  const L = require('../../src/js/licitaciones.js');
+  const lics = [
+    { id: 1, codigo: 'LO-1', nombre: 'Pavimentación de la calle 5', convocante: 'Municipio de Cuauhtémoc', estatus: 'ganada' },
+    { id: 2, codigo: 'IO-2', nombre: 'Escuela primaria', convocante: 'ICHIFE', estatus: 'presentada' },
+    { id: 3, codigo: 'LP-3', nombre: 'Pavimento acceso', convocante: 'ICHIFE', estatus: 'desierta' },
+  ];
+  assert.deepEqual(L.filtrar(lics, { texto: 'PAVIMENTACION cuauhtemoc' }).map((l) => l.id), [1], 'todas las palabras, sin acentos');
+  assert.deepEqual(L.filtrar(lics, { convocante: 'ichife' }).map((l) => l.id), [2, 3]);
+  assert.deepEqual(L.filtrar(lics, { resultado: 'sin_fallo' }).map((l) => l.id), [2]);
+  assert.deepEqual(L.filtrar(lics, { resultado: 'otro' }).map((l) => l.id), [3]);
+  assert.deepEqual(L.convocantesDe(lics), ['ICHIFE', 'Municipio de Cuauhtémoc']);
+  assert.deepEqual(L.fichasLista({ texto: 'x', convocante: 'ICHIFE', resultado: 'ganada' }).map((f) => f.k), ['texto', 'convocante', 'resultado']);
+});
+
 // ---- Contra el servidor ------------------------------------------------------------------------------------------------
 const conToken = { skip: A ? false : 'OBRA_QA_TOKEN no definido' };
 
@@ -167,6 +226,49 @@ test('una sola regla: cumpleFiltro() (JS) cuenta lo mismo que convocatoria_cumpl
     const js = vig.filter((c) => C.cumpleFiltro(c, f)).length;
     assert.equal(js, s.body.cumplen, `mismo conteo para ${JSON.stringify(f)}`);
   }
+});
+
+test('US-853: la barra se filtra en el servidor con la misma regla que en JS, y responde rápido', conToken, async () => {
+  const todas = await rpc('convocatorias_buscar', A, { p_solo_vigentes: false, p_limite: 1000 });
+  assert.equal(todas.status, 200, JSON.stringify(todas.body));
+  const U = todas.body;
+  assert.ok(U.length > 900, 'universo de ~1,000 convocatorias');
+  assert.ok('descripcion' in U[0] && 'descarga_estado' in U[0], 'la RPC expone descripción y estado de la descarga');
+  assert.ok(U.filter((c) => c.fuente === 'comprasmx').every((c) => c.descripcion), 'las federales tienen descripción');
+  for (const texto of ['pavimentacion', 'agua potable', 'construccion -pavimentacion', 'chihuahua escuela -juarez']) {
+    const t = C.parseTextoBarra(texto);
+    const r = await rpc('convocatorias_buscar', A, { p_texto: t.palabras.join(' '), p_excluir: t.excluir, p_solo_vigentes: false, p_limite: 1000 });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.length, U.filter((c) => C.cumpleTextoBarra(c, texto)).length, `misma regla para «${texto}»`);
+  }
+  const pub = await rpc('convocatorias_buscar', A, { p_pub_dias: 30, p_solo_vigentes: false, p_orden: 'publicacion', p_limite: 1000 });
+  assert.equal(pub.status, 200);
+  const lim = Date.now() - 31 * 86400e3;
+  assert.ok(pub.body.every((c) => c.publicacion && new Date(c.publicacion).getTime() >= lim), 'publicadas en los últimos 30 días');
+  const fechas = pub.body.map((c) => new Date(c.publicacion).getTime());
+  assert.deepEqual(fechas, [...fechas].sort((a, b) => b - a), 'orden por publicación más reciente');
+  const dep = await rpc('convocatorias_buscar', A, { p_dependencia: 'Obras Públicas', p_solo_vigentes: false, p_orden: 'dependencia', p_limite: 1000 });
+  assert.ok(dep.body.length > 0 && dep.body.every((c) => C.norm(`${c.dependencia || ''} ${c.unidad_compradora || ''}`).includes('obras publicas')), 'dependencia o unidad, sin acentos');
+  assert.equal(dep.body.length, U.filter((c) => C.norm(`${c.dependencia || ''} ${c.unidad_compradora || ''}`).includes('obras publicas')).length);
+  const nd = dep.body.map((c) => C.norm(c.dependencia || c.unidad_compradora || ''));
+  assert.deepEqual(nd, [...nd].sort(), 'orden por dependencia');
+  const op = await rpc('convocatorias_opciones', A, {});
+  assert.equal(op.status, 200); assert.ok(op.body.dependencias.length > 5 && op.body.municipios.length > 0);
+  assert.notEqual((await rpc('convocatorias_buscar', A, { p_orden: 'precio' })).status, 200, 'orden no válido');
+  assert.notEqual((await rpc('convocatorias_buscar', '', {})).status, 200, 'sin sesión no hay lista');
+  // Tiempos: consultas típicas de la barra (50 por página), mediana de 3.
+  const casos = [{}, { p_texto: 'pavimentacion', p_estados: ['nueva'], p_mis_filtros: true }, { p_dependencia: 'obras publicas', p_pub_dias: 30, p_orden: 'publicacion' },
+    { p_texto: 'construccion', p_excluir: ['mantenimiento'], p_municipio: 'juarez', p_abren_dias: 30, p_orden: 'dependencia' }];
+  const ms = [];
+  for (const k of casos) {
+    const t = [];
+    for (let i = 0; i < 3; i++) { const t0 = Date.now(); const r = await rpc('convocatorias_buscar', A, { p_limite: 50, ...k }); t.push(Date.now() - t0); assert.equal(r.status, 200); }
+    ms.push(t.sort((a, b) => a - b)[1]);
+  }
+  console.log('# tiempos convocatorias_buscar (ms, mediana de 3, ida y vuelta desde esta PC):', ms.join(', '));
+  // El criterio de < 400 ms se mide aislado en convocatorias-filtros-smoke.py: aquí la suite corre en paralelo y la red
+  // de esta PC a Supabase varía; el servidor tarda 3-20 ms (EXPLAIN en progress.txt). Aquí sólo una cota de cordura.
+  assert.ok(ms.sort((a, b) => a - b)[1] < 400 && Math.max(...ms) < 1500, `consultas de la barra: ${ms}`);
 });
 
 test('sin sesión no hay vista previa, ni conversión, ni búsqueda en el portal', async () => {

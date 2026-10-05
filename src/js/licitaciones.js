@@ -102,10 +102,45 @@ const Licitaciones = (() => {
   const etiqueta = (mapa, v) => (v && mapa[v]) || v || '';
   /** Año de una licitación para el filtro: el de su presentación (en México) o, sin fecha, el de su alta. */
   function anioDe(l) { return String(fechaMx(l.presentacion) || fechaMx(l.created_at) || '').slice(0, 4); }
-  /** Filtra la lista por estatus y año ('' = todos). */
+  /** Minúsculas, sin acentos, signos a espacio (como control_obra.texto_norm). */
+  function normTxt(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9ñ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  /** Resultado de una licitación (US-853): ganada, perdida, sin fallo todavía u otro desenlace. */
+  const RESULTADOS = { ganada: 'Ganada', perdida: 'Perdida', sin_fallo: 'Sin fallo todavía', otro: 'Desierta, cancelada o sin participar' };
+  function resultadoDe(l) {
+    const e = l && l.estatus;
+    if (e === 'ganada' || e === 'perdida') return e;
+    if (e === 'en_preparacion' || e === 'presentada' || !e) return 'sin_fallo';
+    return 'otro';
+  }
+  /**
+   * Filtra la lista ('' = todos): estatus, año, texto (todas las palabras, en código, nombre y convocante, sin acentos
+   * ni mayúsculas), convocante (exacto, normalizado) y resultado. La lista es corta: se filtra en el navegador.
+   */
   function filtrar(lics, f) {
-    const est = (f && f.estatus) || ''; const anio = (f && f.anio) || '';
-    return (lics || []).filter((l) => (!est || l.estatus === est) && (!anio || anioDe(l) === String(anio)));
+    const x = f || {};
+    const est = x.estatus || ''; const anio = x.anio || ''; const conv = normTxt(x.convocante); const res = x.resultado || '';
+    const palabras = normTxt(x.texto).split(' ').filter(Boolean);
+    return (lics || []).filter((l) => (!est || l.estatus === est) && (!anio || anioDe(l) === String(anio))
+      && (!conv || normTxt(l.convocante) === conv) && (!res || resultadoDe(l) === res)
+      && (!palabras.length || ((t) => palabras.every((w) => t.includes(w)))(normTxt(`${l.codigo || ''} ${l.nombre || ''} ${l.convocante || ''}`))));
+  }
+  /** Fichas de los filtros puestos en la lista de licitaciones: [{k, t}]. */
+  function fichasLista(f) {
+    const x = f || {}; const out = [];
+    if (normTxt(x.texto)) out.push({ k: 'texto', t: `Texto: ${String(x.texto).trim()}` });
+    if (x.convocante) out.push({ k: 'convocante', t: `Convocante: ${x.convocante}` });
+    if (x.resultado) out.push({ k: 'resultado', t: `Resultado: ${RESULTADOS[x.resultado] || x.resultado}` });
+    if (x.estatus) out.push({ k: 'estatus', t: `Estatus: ${ESTATUS[x.estatus] || x.estatus}` });
+    if (x.anio) out.push({ k: 'anio', t: `Año: ${x.anio}` });
+    return out;
+  }
+  /** Convocantes distintos de la lista, ordenados. */
+  function convocantesDe(lics) {
+    const m = new Map();
+    for (const l of lics || []) { const c = String(l.convocante || '').trim(); if (c && !m.has(normTxt(c))) m.set(normTxt(c), c); }
+    return [...m.values()].sort((a, b) => a.localeCompare(b, 'es'));
   }
   /** Años presentes en la lista, del más reciente al más viejo. */
   function aniosDe(lics) { return [...new Set((lics || []).map(anioDe).filter(Boolean))].sort().reverse(); }
@@ -183,7 +218,10 @@ const Licitaciones = (() => {
   // ---- Estado y datos (navegador) -----------------------------------------------------------------------------------
   let enVuelo = null;
   let pintadas = 0;
-  const st = { lista: 'licitaciones', ficha: null, tab: 'resumen', filtro: { estatus: '', anio: '' }, sobre: 'legal' };
+  const FILTRO_VACIO = { estatus: '', anio: '', texto: '', convocante: '', resultado: '' };
+  const st = { lista: 'licitaciones', ficha: null, tab: 'resumen', filtro: Object.assign({}, FILTRO_VACIO), sobre: 'legal' };
+  // Los filtros de la lista sobreviven a salir y volver al módulo en la misma sesión (US-853).
+  try { const g = JSON.parse(sessionStorage.getItem('lc_filtro') || 'null'); if (g && typeof g === 'object') for (const k of Object.keys(FILTRO_VACIO)) if (typeof g[k] === 'string') st.filtro[k] = g[k]; } catch (e) { /* sin sessionStorage */ }
   /** Datos de la ficha abierta: {lic, reqs, archivos} (se piden al abrirla). */
   let F = null;
   let perfiles = null;
@@ -316,17 +354,34 @@ const Licitaciones = (() => {
     const k = resumen(lics);
     const kpi = (t, v) => `<div class="kpi"><p class="kpi-v">${v}</p><p class="kpi-l">${t}</p></div>`;
     const anios = aniosDe(lics);
+    const convs = convocantesDe(lics);
+    if (st.filtro.convocante && !convs.some((c) => normTxt(c) === normTxt(st.filtro.convocante))) convs.push(st.filtro.convocante);
+    el.innerHTML = `<div class="kpi-strip">${kpi('En preparación', k.en_preparacion)}${kpi('Presentadas', k.presentadas)}${kpi('Ganadas en el año', k.ganadas_anio)}${kpi('Éxito en el año', k.pct_exito === null ? '—' : k.pct_exito + ' %')}</div>
+<form class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 mb-2 items-end" role="search" aria-label="Filtrar licitaciones" onsubmit="event.preventDefault()">
+${campo('lcFTexto', 'Buscar', `<input id="lcFTexto" type="search" class="inp w-full" value="${S(st.filtro.texto)}" placeholder="Código, nombre o convocante" oninput="Licitaciones.filtro('texto',this.value)">`, 'col-span-2 sm:grow sm:min-w-[14rem]')}
+${campo('lcFConv', 'Convocante', `<select id="lcFConv" class="inp w-full" onchange="Licitaciones.filtro('convocante',this.value)"><option value="">Todos</option>${convs.map((c) => `<option value="${S(c)}" ${normTxt(c) === normTxt(st.filtro.convocante) ? 'selected' : ''}>${S(c)}</option>`).join('')}</select>`)}
+${campo('lcFRes', 'Resultado', `<select id="lcFRes" class="inp w-full" onchange="Licitaciones.filtro('resultado',this.value)">${opciones(RESULTADOS, st.filtro.resultado, 'Todos')}</select>`)}
+${campo('lcFEst', 'Estatus', `<select id="lcFEst" class="inp w-full" onchange="Licitaciones.filtro('estatus',this.value)">${opciones(ESTATUS, st.filtro.estatus, 'Todos')}</select>`)}
+${campo('lcFAnio', 'Año', `<select id="lcFAnio" class="inp w-full" onchange="Licitaciones.filtro('anio',this.value)"><option value="">Todos</option>${anios.map((a) => `<option ${a === st.filtro.anio ? 'selected' : ''}>${S(a)}</option>`).join('')}</select>`)}
+</form>
+<div id="lcFichas"></div>
+<p class="text-xs text-ink-muted mb-2" id="lcConteo" aria-live="polite"></p>
+<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Lista de licitaciones"><table class="table-modern lc-tbl w-full text-sm"><thead><tr><th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Convocante</th><th scope="col">Estatus</th><th scope="col">Próxima fecha</th></tr></thead><tbody id="lcTbody"></tbody></table></div>`;
+    pintarFilasLista();
+  }
+  /** Filas, fichas y contador de la lista (sin repintar los filtros: no se pierde lo que se escribe). */
+  function pintarFilasLista() {
+    const lics = D.lic || []; const hoy = hoyMx();
     const vis = filtrar(lics, st.filtro);
-    const filas = vis.map((l) => {
+    const tb = $('lcTbody'); if (!tb) return;
+    tb.innerHTML = vis.map((l) => {
       const p = proximaFechaClave(l, hoy);
       return `<tr class="cursor-pointer" onclick="Licitaciones.abrir(${+l.id})"><td data-et="Código" class="font-mono text-xs"><button type="button" class="text-accent hover:underline text-left" onclick="event.stopPropagation();Licitaciones.abrir(${+l.id})">${S(l.codigo)}</button></td><td data-et="Nombre"><span>${S(l.nombre)}</span></td><td data-et="Convocante"><span>${S(l.convocante || '—')}</span></td><td data-et="Estatus"><span>${chipEstatus(l.estatus)}</span></td><td data-et="Próxima fecha"><span>${textoProxima(p)}</span></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center py-6 text-ink-muted">Ninguna licitación coincide con los filtros.</td></tr>';
-    el.innerHTML = `<div class="kpi-strip">${kpi('En preparación', k.en_preparacion)}${kpi('Presentadas', k.presentadas)}${kpi('Ganadas en el año', k.ganadas_anio)}${kpi('Éxito en el año', k.pct_exito === null ? '—' : k.pct_exito + ' %')}</div>
-<div class="flex flex-wrap gap-2 mb-3 items-end">
-${campo('lcFEst', 'Estatus', `<select id="lcFEst" class="inp" onchange="Licitaciones.filtro('estatus',this.value)">${opciones(ESTATUS, st.filtro.estatus, 'Todos')}</select>`)}
-${campo('lcFAnio', 'Año', `<select id="lcFAnio" class="inp" onchange="Licitaciones.filtro('anio',this.value)"><option value="">Todos</option>${anios.map((a) => `<option ${a === st.filtro.anio ? 'selected' : ''}>${S(a)}</option>`).join('')}</select>`)}
-<p class="text-xs text-ink-muted ml-auto self-center">${vis.length} de ${lics.length}</p></div>
-<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Lista de licitaciones"><table class="table-modern lc-tbl w-full text-sm"><thead><tr><th scope="col">Código</th><th scope="col">Nombre</th><th scope="col">Convocante</th><th scope="col">Estatus</th><th scope="col">Próxima fecha</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+    const fs = fichasLista(st.filtro);
+    const fe = $('lcFichas');
+    if (fe) fe.innerHTML = fs.length ? `<ul class="flex flex-wrap gap-2 mb-2" aria-label="Filtros puestos">${fs.map((f) => `<li class="cv-ficha"><span title="${S(f.t)}">${S(f.t)}</span><button type="button" onclick="Licitaciones.quitarFiltro('${S(f.k)}')" aria-label="Quitar el filtro ${S(f.t)}"><i class="ri-close-line" aria-hidden="true"></i></button></li>`).join('')}<li><button type="button" class="btn btn-s text-xs" onclick="Licitaciones.quitarFiltro('')"><i class="ri-filter-off-line" aria-hidden="true"></i> Quitar filtros</button></li></ul>` : '';
+    const ce = $('lcConteo'); if (ce) ce.textContent = `${vis.length} de ${lics.length} licitaciones`;
   }
   function vacio() {
     return EmptyState({
@@ -341,7 +396,14 @@ ${campo('lcFAnio', 'Año', `<select id="lcFAnio" class="inp" onchange="Licitacio
       body: errTxt(e), action: { label: 'Reintentar', icon: 'ri-refresh-line', onClick: 'Licitaciones.recargar()' },
     });
   }
-  function filtro(k, v) { st.filtro[k] = v || ''; const el = $('lcPanel'); if (el) pintarLista(el); }
+  function guardarFiltroLista() { try { sessionStorage.setItem('lc_filtro', JSON.stringify(st.filtro)); } catch (e) { /* sin sessionStorage */ } }
+  function filtro(k, v) { st.filtro[k] = v || ''; guardarFiltroLista(); pintarFilasLista(); }
+  /** Quita una ficha ('' = todas) y vuelve a pintar los filtros con su nuevo valor. */
+  function quitarFiltro(k) {
+    if (k) st.filtro[k] = ''; else Object.assign(st.filtro, FILTRO_VACIO);
+    guardarFiltroLista();
+    const el = $('lcPanel'); if (el) pintarLista(el);
+  }
 
   /** Pinta el módulo en el contenedor: esqueleto mientras carga, lista/ficha, estado vacío o error. */
   async function render(c, force) {
@@ -712,7 +774,8 @@ ${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a
     try {
       const { error } = await sb.from('licitacion_archivos').delete().eq('id', id);
       if (error) throw error;
-      await sb.storage.from(BUCKET).remove([a.archivo_path]);
+      // Los que llegaron de una convocatoria (US-849) comparten el objeto del bucket con ella: no se borra.
+      if (!/\/convocatorias\//.test(String(a.archivo_path))) await sb.storage.from(BUCKET).remove([a.archivo_path]);
       F.archivos = F.archivos.filter((x) => x.id !== id);
       Toast.success('Archivo borrado');
       repintarFicha();
@@ -1576,7 +1639,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
   }
 
   return {
-    render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, cerrarModal,
+    render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, quitarFiltro, cerrarModal,
     guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana, registrarAvisoFicha,
     subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
     verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
@@ -1588,7 +1651,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     guardarCierre, convertirEnObra, irAlBanco, verObra, pintarArchivosDeObra, verArchivoObra,
     get estado() { return st; }, get ficha() { return F; },
     // puras
-    hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
+    hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx, normTxt, resultadoDe, fichasLista, convocantesDe, RESULTADOS,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
     delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil, docsUsables, venceAntes,

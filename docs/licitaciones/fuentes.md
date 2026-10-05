@@ -227,3 +227,44 @@ Filtros de fábrica de la empresa 1: «Obra pública en Chihuahua (estatal)» (f
 de la barra (`get_convocatorias_avisos`) y el resumen tras una búsqueda (`get_convocatoria_corrida_resumen`).
 `cumpleFiltro()` de `src/js/convocatorias.js` es la misma regla en JS; `scripts/qa/convocatorias.test.mjs` cuenta con
 ambas sobre las convocatorias vigentes reales y exige el mismo resultado. Si cambia una, cambia la otra.
+
+**Descripción (migración 108, 5-oct-2026):** `convocatorias.descripcion` guarda el objeto de la contratación tal como
+lo publica el portal (ComprasMX: `descripcion` del detalle; Chihuahua: «Descripción del procedimiento», el mismo texto
+del listado). `texto_norm` la incluye al final, así que la regla de arriba, la búsqueda de la barra y `textoConvocatoria()`
+en JS la cubren. Lo ya cargado se llenó desde `datos` con SQL (sin volver a consultar los portales).
+
+### Barra de filtros de la lista (US-853)
+`convocatorias_buscar` filtra y pagina en el servidor. Parámetros nuevos (al final, con `DEFAULT NULL`): `p_excluir`,
+`p_municipio`, `p_dependencia` (subcadena de dependencia o unidad), `p_procedimientos`, `p_estatus`, `p_abren_desde/hasta`,
+`p_pub_dias`, `p_pub_desde/hasta`, `p_orden` (`apertura` | `publicacion` | `dependencia`) y `p_filtro_id` (un filtro
+guardado). En la barra, el texto exige **todas** las palabras y «-palabra» excluye (`parseTextoBarra()` /
+`cumpleTextoBarra()`, comparadas contra el servidor en `convocatorias.test.mjs`); en un filtro guardado basta una palabra
+clave. «Guardar esta búsqueda» guarda la barra completa en `convocatoria_filtros.barra` y la reaplica al elegir el filtro.
+`convocatorias_opciones()` da dependencias y municipios para autocompletar. Tiempos: el servidor resuelve cada consulta
+en 3-20 ms; en el navegador (ida y vuelta desde la oficina) la mediana fue 180 ms y el p90 286 ms.
+
+## Documentos de una convocatoria de interés (US-848 y US-849, 5-oct-2026)
+D14: los documentos se bajan sólo de la convocatoria que el usuario marca «Me interesa» o en la que pulsa «Descargar
+documentos» / «Buscar documentos nuevos» (en su panel de detalle), una a la vez por empresa
+(`convocatoria_descarga_iniciar`: otra «en_curso» de menos de 20 min → error), nunca en lote ni por tarea programada.
+- **ComprasMX**: el conector local (`/comprasmx/anexos`, ver `conector-local.md`), sin iniciar sesión.
+- **Contrataciones Chihuahua**: función de borde `convocatorias-documentos` (`x-obra-token`, nivel ≥ 80). `lista` lee
+  el detalle público (una petición) y guarda la lista en `datos.detalle.documentos`; `archivo` baja UN documento cuyo
+  enlace toma de la BD (nunca del cuerpo: sin SSRF; sólo `contratosadm.chihuahua.gob.mx` / `contrataciones…`) y lo pasa
+  en flujo, con tope de 50 MB. Id estable de cada documento: «tipo|fecha|n» (los enlaces llevan tokens). Nombre:
+  «Tipo AAAA-MM-DD.ext» (el portal pone un sello de hora distinto en cada descarga). El portal no manda CORS: por eso
+  no se baja directo desde el navegador.
+- La **app** sube cada archivo al bucket `licitaciones` en `empresa/<id>/convocatorias/<convocatoria>/<sha12>_<nombre>`
+  (migración 110 amplió la política de INSERT a esa carpeta y los tipos .doc, .xls, .rar, .7z, .txt, .tif) y registra
+  `convocatoria_archivos` (con `origen_id`, `anexo`, `descarga_id`); único por (empresa, convocatoria, `origen_id`) y por
+  hash. Topes: 60 archivos y 300 MB por convocatoria; avance visible por archivo; pausas de 1.5-3 s (Chihuahua) y 2-4 s
+  (conector).
+- Panel de detalle (US-849): datos, descripción completa, estado de la última descarga y sus avisos, archivos con «Nuevo»
+  (llegados desde la visita anterior del usuario: `convocatoria_visitar`), ver/descargar con URL firmada, «Descargar todo
+  (ZIP)», «Preparar para revisión» (ZIP con los PDF + `convocatoria.json`, formato `convocatoria-revision/v1`, para que
+  Claude Code genere el `licitacion-bases/v1`) y notas de revisión (`convocatoria_notas`, autor puesto por el servidor).
+- «Participar» (US-845) copia las filas de `convocatoria_archivos` a `licitacion_archivos` con su categoría
+  (`categoria_archivo_convocatoria`) y la MISMA ruta del bucket: no se vuelven a subir. Quitar uno de la licitación no
+  borra el objeto (lo comparte con la convocatoria).
+- Credenciales del portal (D10/D11, US-847): **no se usan** para documentos; los anexos son públicos. La función
+  `portal-credencial` no se creó.

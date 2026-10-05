@@ -43,7 +43,7 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 `%LOCALAPPDATA%\control-obra\conector\`. No toca el secreto ni los datos de la app.
 
 ## ¿Está activo?
-- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.0.0", "ocupado": false, "chrome": true}`.
+- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.2.0", "ocupado": false, "chrome": true}`.
   `ocupado` es `true` mientras corre una búsqueda; `chrome: false` significa que falta Google Chrome.
 - Bitácora: `%LOCALAPPDATA%\control-obra\conector.log` (arranque, filtros de cada búsqueda y resultado; nunca el secreto).
 - La app muestra el estado del conector en el formulario de búsqueda y explica cómo instalarlo si no responde.
@@ -52,11 +52,18 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 | Petición | Respuesta |
 |---|---|
 | `GET /estado` | `{ok: true, version, ocupado, chrome}` |
-| `POST /comprasmx/buscar` `{texto, tipos: ["obra_publica","servicios_obra"], entidades: ["Chihuahua"], desde: "AAAA-MM-DD", hasta: "AAAA-MM-DD", max_resultados}` | `{corrida_id, encontradas, nuevas, error}` al terminar (30 s a 3 min). 409 si ya hay una en curso; 400 si los filtros no sirven |
-| `POST /comprasmx/cancelar` | `{ok: true, cancelando}`; la búsqueda en curso termina en unos segundos con `error: "Cancelada: …"` |
+| `POST /comprasmx/buscar` `{texto, tipos: ["obra_publica","servicios_obra"], entidades: ["Chihuahua"], desde: "AAAA-MM-DD", hasta: "AAAA-MM-DD", max_resultados, max_detalles}` | `{corrida_id, encontradas, nuevas, error, desde, hasta, detalles, sin_descripcion}` al terminar (30 s a 5 min). 409 si ya hay una en curso; 400 si los filtros no sirven |
+| `POST /comprasmx/cancelar` | `{ok: true, cancelando}`; la búsqueda en curso termina en unos segundos con `error: "Cancelada: …"` (también cierra una sesión de anexos) |
+| `POST /comprasmx/anexos` `{uuid}` | Abre una **sesión de anexos** de ESE procedimiento: `{ok, sesion, uuid, numero_procedimiento, archivos: [{id, nombre, tamano, anexo, tipo, numero, publicado}], total, bytes, truncado, error}`. 409 si hay una búsqueda u otra sesión; 400 si `uuid` no son 32 hex; 502 con `error: "Bloqueo: …"` si el portal no responde |
+| `POST /comprasmx/anexos/archivo` `{sesion, id}` | **El archivo** (200 `application/octet-stream`, `Content-Length`, `X-Archivo-Nombre` URI-encoded, `X-Archivo-Sha256`), o JSON `{ok:false, error}`: 404 sesión cerrada, 400 id ajeno a la lista, 413 más de 50 MB, 502/504 portal |
+| `POST /comprasmx/anexos/cerrar` `{sesion}` | `{ok, cerrada}` |
 
-Todos los campos son opcionales, pero debe venir al menos un filtro (`texto`, `entidades`, `desde`, `hasta`) o
-`max_resultados`. `tipos` vacío = los dos. `max_resultados` por omisión 100, **tope duro 200**. Extensiones opcionales
+Todos los campos son opcionales. **Siempre hay límite de fecha (US-852):** sin `hasta` se usa hoy (hora del centro) y
+sin `desde`, 30 días antes de `hasta`; el rango no puede pasar de 90 días ni empezar en el futuro (400). `tipos` vacío =
+los dos. `max_resultados` por omisión 100, **tope duro 200**. `max_detalles` (por omisión 30, máximo 60): cuántas fichas
+de detalle se abren como máximo para leer la descripción. La respuesta agrega `desde`/`hasta` usados, `detalles` (fichas
+abiertas) y `sin_descripcion` (de esta búsqueda, cuántas siguen sin descripción por el tope; otra búsqueda igual las
+completa). Extensiones opcionales
 que no rompen el contrato: `campo_fecha` (`"publicacion"`, por omisión, o `"apertura"`) y `usuario` (texto ≤ 80 que se
 guarda en la corrida para el pie «quién la lanzó»; lo declara la app, el conector no autentica).
 
@@ -79,8 +86,44 @@ apertura no llegaran (cambio del formulario), los filtra después sobre el lista
 La fecha de publicación no viene en el listado: si el portal no la aplicara, se anota un aviso en vez de filtrar a
 ciegas. En las pruebas del 5-oct-2026 los tres llegaron al portal.
 
+## Descripción de cada convocatoria (US-852)
+El listado del portal no trae la descripción (el objeto de la contratación), sólo el nombre del procedimiento. Tras
+guardar el listado, el conector pregunta a `convocatorias-ingesta` (`accion: "sin_descripcion"`) cuáles de **esta
+búsqueda** aún no la tienen y abre sólo esas fichas de detalle, una por una, con pausa de 2 a 5 s y tope `max_detalles`.
+La ficha de detalle es la página pública del procedimiento: **no se descarga ningún anexo** en la búsqueda. Sólo se traen
+«Anuncios vigentes» (pestaña fija del portal).
+
+Probado el 5-oct-2026 desde la app (build local, conector real): Chihuahua + obra pública + últimos 30 días → 8 (ya
+tenían descripción, 0 fichas abiertas, 37 s); Sonora + obra pública + últimos 15 días, tope 8 → 8 nuevas, 8 fichas
+abiertas, 74 s, las 8 con descripción y publicación dentro del rango.
+
+## Anexos de UNA convocatoria (US-848, D14)
+Sólo cuando la app lo pide para la convocatoria que el usuario marcó «Me interesa» o en la que pulsó «Descargar
+documentos» / «Buscar documentos nuevos». Nunca en lote, nunca durante una búsqueda, sin revisión automática.
+1. `POST /comprasmx/anexos {uuid}`: el conector abre Chrome sin cabeza en el detalle público del procedimiento (sin
+   iniciar sesión; **las credenciales del portal no se usan**), lee la lista de anexos que el propio sitio recibe
+   (`expedientes/<uuid>/anexos`, 10 por página, hasta 6 páginas) y responde la lista: máximo **60 archivos** (si hay más,
+   `truncado: true`). La sesión es una sola a la vez y comparte el candado con la búsqueda.
+2. `POST /comprasmx/anexos/archivo {sesion, id}` por cada archivo, de uno en uno: el conector abre el anexo en el
+   sitio, pulsa su botón de descarga, guarda el archivo en `%LOCALAPPDATA%\control-obra\tmp\anexos-*` (fuera del
+   repo), calcula su SHA-256 y lo **entrega en flujo** (bloques de 256 KB, sin cargarlo entero en memoria); al terminar
+   lo borra. Pausa de 2 a 4 s entre descargas; un archivo de más de 50 MB (por el tamaño que publica el portal o el real)
+   no se entrega (413).
+3. `POST /comprasmx/anexos/cerrar {sesion}` al terminar (la app siempre lo llama). Una sesión sin órdenes se cierra sola
+   a los 5 minutos; al cerrarse se borra la carpeta temporal y se suelta el candado.
+
+La app sube cada archivo al bucket `licitaciones` en `empresa/<id>/convocatorias/<convocatoria>/<sha12>_<nombre>` con la
+sesión del usuario, comprueba el SHA-256 que manda el conector, no duplica (id del documento en el portal y hash) y
+respeta los topes de 60 archivos y 300 MB por convocatoria. Contrataciones Chihuahua no pasa por el conector: la función
+de borde `convocatorias-documentos` baja los enlaces públicos del detalle (el portal no manda CORS).
+
+Probado el 5-oct-2026 (build local, conector real 1.2.0, permiso concedido): LO-67-021-908069995-N-11-2026 → 7 archivos,
+19.2 MB, todos con su SHA-256 verificado; «Buscar documentos nuevos» no volvió a bajar ninguno. Datos de prueba borrados.
+
 ## Qué datos salen de la máquina
 - Hacia **ComprasMX**: las consultas del sitio público que haría una persona con esos filtros (sin iniciar sesión).
+- Hacia **la app** (sólo si la pide): los anexos públicos del procedimiento elegido (US-848); la app los sube con la
+  sesión del usuario.
 - Hacia **Control de Obra** (función `convocatorias-ingesta`): sólo los resultados públicos de la búsqueda (listado y,
   para unas pocas de esa búsqueda que aún no lo tienen, el detalle público sin correos ni nombres de responsables), y el
   registro de la corrida con sus filtros. Autenticado con el secreto de servidor del `.env`, que nunca se imprime ni se
@@ -101,7 +144,11 @@ La app sólo podrá llamar al conector si la CSP de producción incluye el orige
 connect-src … http://127.0.0.1:8879;
 ```
 Sitio: la cabecera o `<meta http-equiv="Content-Security-Policy">` que sirve `app.supernovarquitectos.com` (y el alias).
-Chrome además puede mostrar el permiso «Acceso a la red local» la primera vez: hay que aceptarlo.
+Chrome además pide el permiso «Acceso a la red local» la primera vez (desde `https://…` hacia `127.0.0.1`): hay que
+aceptarlo. Si se negó, la app lo distingue de un conector apagado (`navigator.permissions.query({name:
+'local-network-access'})` = `denied`) y explica cómo darlo: candado de la barra de direcciones › «Acceso a la red local»
+› Permitir, y recargar. En Playwright se concede con `ctx.grant_permissions(['local-network-access'], origin=<app>)`.
+Desde `http://127.0.0.1:<puerto>` (pruebas locales) Chrome no lo pide: es loopback a loopback.
 
 ## Solución de problemas
 | Síntoma | Causa y arreglo |
