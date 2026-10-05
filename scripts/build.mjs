@@ -74,6 +74,9 @@ const LAZY_ARCHIVOS = [
   { key: 'lc', file: 'licitaciones.js' },
   { key: 'ex', file: 'expediente.js' },
   { key: 'bp', file: 'banco-precios.js' },
+  // Precios de una licitación (US-829/833): no es módulo de la barra; la pestaña Precios de lc lo pide con
+  // conModuloArchivo('lcp'). precargarModulos lo salta (NavRules no conoce la clave).
+  { key: 'lcp', file: 'licitacion-precios.js' },
 ];
 for (const { key, file } of LAZY_ARCHIVOS) {
   if (!jsMap[file]) throw new Error(`build: falta src/js/${file} (módulo diferido '${key}')`);

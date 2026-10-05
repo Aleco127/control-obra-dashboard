@@ -565,3 +565,6 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
   .tbl-apilada td::before{content:attr(data-et);color:var(--ink-muted);font-size:var(--fs-xs);text-align:left;flex:0 0 auto}
   .tbl-apilada td[data-et=""]::before{content:none}
 }
+
+/* ===== Precios de una licitación (US-829/833, licitacion-precios.js) ===== */
+.lp-inp-ambar{border-color:var(--warn);background:var(--warn-soft)}

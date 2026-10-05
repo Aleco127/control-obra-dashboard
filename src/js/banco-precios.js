@@ -52,11 +52,15 @@ const BancoPrecios = (() => {
    * precios: [{precio, fecha, plaza, id?}] · devuelve {precio, fecha, plaza, de_otra_plaza} o null.
    */
   function precioVigente(precios, plaza) {
+    const v = precioVigenteFila(precios, plaza);
+    return v ? { precio: Number(v.fila.precio), fecha: String(v.fila.fecha).slice(0, 10), plaza: v.fila.plaza, de_otra_plaza: v.de_otra_plaza } : null;
+  }
+  /** Igual que precioVigente pero devuelve el registro completo (fuente, datos…): {fila, de_otra_plaza} o null (US-829). */
+  function precioVigenteFila(precios, plaza) {
     const lista = (precios || []).filter((p) => p && p.precio !== null && p.precio !== undefined && p.fecha).slice().sort(ordenReciente);
     if (!lista.length) return null;
     const dePlaza = plaza ? lista.find((p) => p.plaza === plaza) : null;
-    const p = dePlaza || lista[0];
-    return { precio: Number(p.precio), fecha: String(p.fecha).slice(0, 10), plaza: p.plaza, de_otra_plaza: !!plaza && !dePlaza };
+    return { fila: dePlaza || lista[0], de_otra_plaza: !!plaza && !dePlaza };
   }
   /**
    * Variación anual (US-823): último precio contra el más reciente que tenga al menos 365 días menos que él.
@@ -1049,9 +1053,12 @@ ${sugeridas.length ? `<button type="button" class="btn btn-s" onclick="BancoPrec
     const ids = new Set(componentes.map((c) => c.insumo_id));
     const aux = {}; let pendientes = [...ids];
     for (let nivel = 0; nivel < 4 && pendientes.length; nivel++) {
-      const { data: ins, error } = await sb.from('insumos').select('id,clave,descripcion,unidad,tipo,compuesto').in('id', pendientes);
-      if (error) throw error;
-      const comp = (ins || []).filter((i) => i.compuesto).map((i) => i.id);
+      const ins = [];
+      for (let i = 0; i < pendientes.length; i += 150) {
+        const r = await sb.from('insumos').select('id,compuesto').in('id', pendientes.slice(i, i + 150));
+        if (r.error) throw r.error; ins.push(...(r.data || []));
+      }
+      const comp = ins.filter((i) => i.compuesto).map((i) => i.id);
       pendientes = [];
       if (comp.length) {
         const { data: ic, error: e2 } = await sb.from('insumo_componentes').select('insumo_id,componente_id,cantidad,licitacion_id,orden').in('insumo_id', comp).order('orden');
@@ -1065,14 +1072,22 @@ ${sugeridas.length ? `<button type="button" class="btn btn-s" onclick="BancoPrec
         }
       }
     }
-    const lista = [...ids];
-    const [ins, pre] = await Promise.all([
-      sb.from('insumos').select('id,clave,descripcion,unidad,tipo,compuesto').in('id', lista),
-      sb.from('insumo_precios').select('id,insumo_id,precio,fecha,plaza,fuente').in('insumo_id', lista).order('fecha', { ascending: false }).limit(5000),
-    ]);
-    if (ins.error) throw ins.error; if (pre.error) throw pre.error;
-    const info = Object.fromEntries((ins.data || []).map((i) => [i.id, i]));
-    const precios = {}; for (const p of pre.data || []) (precios[p.insumo_id] = precios[p.insumo_id] || []).push(p);
+    // Por tandas de ids: PostgREST corta en 1,000 filas y una URL con cientos de ids crece demasiado (US-833 pide
+    // las matrices de un catálogo completo de una vez)
+    const lista = [...ids]; const insData = []; const preData = [];
+    for (let i = 0; i < lista.length; i += 150) {
+      const t = lista.slice(i, i + 150);
+      const ins = await sb.from('insumos').select('id,clave,descripcion,unidad,tipo,compuesto').in('id', t);
+      if (ins.error) throw ins.error; insData.push(...(ins.data || []));
+      for (let desde = 0; ; desde += LIMITE_PAGINA) {
+        const pre = await sb.from('insumo_precios').select('id,insumo_id,precio,fecha,plaza,fuente,datos').in('insumo_id', t)
+          .order('fecha', { ascending: false }).order('id', { ascending: false }).range(desde, desde + LIMITE_PAGINA - 1);
+        if (pre.error) throw pre.error; preData.push(...(pre.data || []));
+        if (!pre.data || pre.data.length < LIMITE_PAGINA) break;
+      }
+    }
+    const info = Object.fromEntries(insData.map((i) => [i.id, i]));
+    const precios = {}; for (const p of preData) (precios[p.insumo_id] = precios[p.insumo_id] || []).push(p);
     for (const k of Object.keys(aux)) aux[k] = aux[k].map((x) => ({ ...x, ...(info[x.insumo_id] ? { tipo: info[x.insumo_id].tipo, unidad: info[x.insumo_id].unidad, compuesto: info[x.insumo_id].compuesto } : {}) }));
     return { info, precios, aux };
   }
@@ -1145,7 +1160,8 @@ ${pus.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="P
     abrirInsumo, cerrarInsumo, mostrarCaptura, ocultarCaptura, guardarPrecio,
     abrirFusion, buscarDestino, elegirDestino, confirmarFusion,
     // puras
-    hoyMx, normalizarTexto, antiguedadDias, esViejo, precioVigente, variacionAnual, seriesPorPlaza, grupoFuente,
+    datosMatriz,
+    hoyMx, normalizarTexto, antiguedadDias, esViejo, precioVigente, precioVigenteFila, variacionAnual, seriesPorPlaza, grupoFuente,
     TIPOS, PLAZAS, FUENTES, DIAS_PRECIO_VIEJO, LIMITE_PAGINA, COLUMNAS, UMBRAL_PARECIDO,
   };
 })();
