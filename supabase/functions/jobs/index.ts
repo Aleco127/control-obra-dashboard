@@ -1,6 +1,6 @@
 // Edge Function jobs: tareas diarias de la plataforma. La invoca el cron del VPS (14:00 UTC) con x-internal-key.
 // Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas, vencimientos
-// del expediente de la empresa + resumen diario),
+// del expediente de la empresa + resumen diario), convocatorias_avisos (US-846, recordatorios de apertura),
 // whatsapp (avisos urgentes vía Twilio de Zook, US-240), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -131,6 +131,16 @@ async function jobNotificaciones(internalKey: string) {
   return out;
 }
 
+// US-846: recordatorios a 5 y 2 días de la apertura de las convocatorias marcadas «interesa» que no se han convertido
+// (una notificación por usuario de nivel >= 80, una vez por umbral). No consulta ningún portal: la búsqueda de
+// convocatorias es manual desde la app (D12), así que aquí no hay recolector ni aviso «tras la corrida». En `all` corre
+// ANTES de `notificaciones` para entrar al resumen por correo. Con {"action":"convocatorias_avisos","simular":true} sólo
+// calcula (no inserta ni manda nada): así se prueba en producción.
+async function jobConvocatoriasAvisos(simular = false) {
+  const { data, error } = await admin.rpc("generar_avisos_convocatorias", { p_simular: simular });
+  return error ? { error: error.message } : data;
+}
+
 // US-240: refresca el estado de aprobación de las plantillas y manda por WhatsApp las alertas urgentes nuevas a los admins con opt-in
 async function jobWhatsapp(internalKey: string) {
   const out: Record<string, unknown> = {};
@@ -156,12 +166,13 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   const internalKey = await secret("internal_key");
   if (!internalKey || req.headers.get("x-internal-key") !== internalKey) return json({ error: "No autorizado" }, 401);
-  let body: { action?: string } = {};
+  let body: { action?: string; simular?: boolean } = {};
   try { body = await req.json(); } catch { /* sin cuerpo */ }
   const action = body.action ?? "all";
   const result: Record<string, unknown> = { action, at: new Date().toISOString() };
   if (action === "bajas" || action === "all") result.bajas = await jobBajas(internalKey);
   if (action === "suscripciones" || action === "all") result.suscripciones = await jobSuscripciones(internalKey);
+  if (action === "convocatorias_avisos" || action === "all") result.convocatorias_avisos = await jobConvocatoriasAvisos(action !== "all" && body.simular === true);
   if (action === "notificaciones" || action === "all") result.notificaciones = await jobNotificaciones(internalKey);
   if (action === "whatsapp" || action === "all") result.whatsapp = await jobWhatsapp(internalKey);
   return json(result);
