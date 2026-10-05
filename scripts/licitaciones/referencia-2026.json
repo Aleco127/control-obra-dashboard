@@ -1,0 +1,132 @@
+{
+  "formato": "banco-referencia/v1",
+  "descripcion": "Precios verificados de la skill /opus-budget-direct (US-824). Sin IVA. Cada grupo lleva la plaza y la fecha de su fuente; el script los carga con fuente='referencia' y es idempotente (insumo por clave + unidad + tipo; precio por insumo + fecha + plaza + fuente).",
+  "parametros_laborales": {
+    "nota": "Se cargan como fila de FÁBRICA por la migración 098_parametros_laborales_2026.sql (la RLS no deja escribir filas de fábrica desde la app). El script sólo comprueba que coincidan.",
+    "anio": 2026, "uma": 117.31, "salario_minimo": 315.04, "salario_minimo_frontera": 440.87, "salario_albanil": 363.44,
+    "dias_vacaciones": 12, "riesgo_trabajo_pct": 7.58875, "isn_pct": 3.0,
+    "cesantia_pcts": [3.150, 3.676, 4.851, 5.556, 6.026, 6.361, 6.613, 7.513]
+  },
+  "grupos": [
+    {
+      "nombre": "Tabulador de mano de obra por categoría · Cd. Cuauhtémoc 2026",
+      "fuente_texto": "Skill opus-budget-direct · tabulador del Archivo Municipal MC-2617057-057 (FSR Anexo 2 del IIPU actualizado a 2026, con ISN 3 %)",
+      "plaza": "cuauhtemoc", "fecha": "2026-08-31", "tipo": "mano_obra", "unidad": "JOR", "familia": "Tabulador 2026",
+      "insumos": [
+        { "clave": "MO-PEON", "descripcion": "Peón / ayudante general", "salario_base": 360, "sbc": 377.74, "fsr": 1.84650, "precio": 664.74 },
+        { "clave": "MO-PIN",  "descripcion": "Oficial pintor", "salario_base": 460, "sbc": 482.67, "fsr": 1.84646, "precio": 849.37 },
+        { "clave": "MO-ALB",  "descripcion": "Oficial albañil", "salario_base": 480, "sbc": 503.66, "fsr": 1.84395, "precio": 885.09 },
+        { "clave": "MO-PLO",  "descripcion": "Oficial plomero", "salario_base": 500, "sbc": 524.64, "fsr": 1.84163, "precio": 920.82 },
+        { "clave": "MO-TAB",  "descripcion": "Oficial tablarroquero / plafonero", "salario_base": 520, "sbc": 545.63, "fsr": 1.83950, "precio": 956.54 },
+        { "clave": "MO-HER",  "descripcion": "Oficial herrero-soldador", "salario_base": 560, "sbc": 587.60, "fsr": 1.83568, "precio": 1027.98 },
+        { "clave": "MO-ELE",  "descripcion": "Oficial electricista", "salario_base": 560, "sbc": 587.60, "fsr": 1.83568, "precio": 1027.98 },
+        { "clave": "MO-OPE",  "descripcion": "Operador de maquinaria", "salario_base": 580, "sbc": 608.58, "fsr": 1.83397, "precio": 1063.71 },
+        { "clave": "MO-INS",  "descripcion": "Instalador de lámina / impermeabilización TPO", "salario_base": 600, "sbc": 629.57, "fsr": 1.83238, "precio": 1099.43 },
+        { "clave": "MO-CABO", "descripcion": "Cabo de oficios", "salario_base": 620, "sbc": 650.55, "fsr": 1.83089, "precio": 1135.15 }
+      ]
+    },
+    {
+      "nombre": "Cuadrillas · Casas Grandes 2026 (FSR método BanRegio)",
+      "fuente_texto": "Skill opus-budget-direct · precios de referencia Mercado Chihuahua 2026 (Casas Grandes / obra pública, ICHIFE N-12-2026); FSR interpolado de BanRegio.mdf (UMA 108.57)",
+      "plaza": "casas_grandes", "fecha": "2026-04-28", "tipo": "mano_obra", "unidad": "JOR", "familia": "Cuadrillas BanRegio",
+      "insumos": [
+        { "clave": "C-DEMO",    "descripcion": "Cuadrilla de demolición (1 oficial + 2 peones)", "salario_base": 920,  "sbc": 965.25,  "fsr": 1.81706, "precio": 1671.70 },
+        { "clave": "C-ALB",     "descripcion": "Cuadrilla de albañilería (1 oficial + 1 peón)", "salario_base": 660,  "sbc": 692.46,  "fsr": 1.82376, "precio": 1203.68 },
+        { "clave": "C-INST",    "descripcion": "Cuadrilla de instalación (1 oficial + 1 ayudante)", "salario_base": 620,  "sbc": 650.49,  "fsr": 1.82613, "precio": 1132.20 },
+        { "clave": "C-ELEC-MT", "descripcion": "Cuadrilla de electricista de media tensión (1 técnico + 1 ayudante)", "salario_base": 1050, "sbc": 1101.64, "fsr": 1.81507, "precio": 1905.82 }
+      ]
+    },
+    {
+      "nombre": "Materiales · Cd. Cuauhtémoc, agosto de 2026 (puestos en obra)",
+      "fuente_texto": "Skill opus-budget-direct · materiales adicionales verificados (Cd. Cuauhtémoc, ago-2026)",
+      "plaza": "cuauhtemoc", "fecha": "2026-08-31", "tipo": "material", "familia": "Referencia Cd. Cuauhtémoc 2026",
+      "insumos": [
+        { "clave": "REF-CEM-CPC30R", "descripcion": "Cemento CPC 30R (saco 50 kg)", "unidad": "SACO", "precio": 235 },
+        { "clave": "REF-CAL-HID", "descripcion": "Cal hidratada (saco)", "unidad": "SACO", "precio": 118 },
+        { "clave": "REF-ARENA-FINA", "descripcion": "Arena fina", "unidad": "M3", "precio": 520 },
+        { "clave": "REF-ARENA-RIO", "descripcion": "Arena de río", "unidad": "M3", "precio": 480 },
+        { "clave": "REF-AGUA-PIPA", "descripcion": "Agua en pipa", "unidad": "M3", "precio": 95 },
+        { "clave": "REF-CONC-150", "descripcion": "Concreto premezclado f'c=150 kg/cm²", "unidad": "M3", "precio": 2480 },
+        { "clave": "REF-PANEL-YESO-12", "descripcion": "Panel de yeso de 1/2\"", "unidad": "M2", "precio": 128 },
+        { "clave": "REF-PANEL-YESO-RH", "descripcion": "Panel de yeso de 1/2\" resistente a la humedad", "unidad": "M2", "precio": 178 },
+        { "clave": "REF-POSTE-312", "descripcion": "Poste metálico 3 1/2\" cal. 26", "unidad": "PZA", "precio": 138 },
+        { "clave": "REF-LAM-RN100", "descripcion": "Lámina Rn 100/35 cal. 26 pintro", "unidad": "M2", "precio": 268 },
+        { "clave": "REF-LAM-GALV24", "descripcion": "Lámina galvanizada cal. 24", "unidad": "M2", "precio": 232 },
+        { "clave": "REF-TPO-15", "descripcion": "Membrana TPO de 1.5 mm", "unidad": "M2", "precio": 268 },
+        { "clave": "REF-LAJA-DIAM", "descripcion": "Piedra laja diamantada", "unidad": "M2", "precio": 420 },
+        { "clave": "REF-REJACERO", "descripcion": "Rejacero clásica", "unidad": "M2", "precio": 385 },
+        { "clave": "REF-PTR-2X2-14", "descripcion": "PTR de 2\" x 2\" cal. 14", "unidad": "M", "precio": 185 },
+        { "clave": "REF-PINT-VINIL", "descripcion": "Pintura vinil-acrílica", "unidad": "LT", "precio": 118 },
+        { "clave": "REF-THW-12", "descripcion": "Cable THW-LS cal. 12", "unidad": "M", "precio": 16.80 },
+        { "clave": "REF-THW-6", "descripcion": "Cable THW-LS cal. 6", "unidad": "M", "precio": 52 },
+        { "clave": "REF-THW-2", "descripcion": "Cable THW-LS cal. 2", "unidad": "M", "precio": 138 },
+        { "clave": "REF-EMT-12", "descripcion": "Tubo conduit EMT de 1/2\"", "unidad": "M", "precio": 38 },
+        { "clave": "REF-EMT-34", "descripcion": "Tubo conduit EMT de 3/4\"", "unidad": "M", "precio": 52 },
+        { "clave": "REF-EMT-2", "descripcion": "Tubo conduit EMT de 2\"", "unidad": "M", "precio": 185 },
+        { "clave": "REF-PVC-SAN-4", "descripcion": "Tubo PVC sanitario de 4\"", "unidad": "M", "precio": 168 },
+        { "clave": "REF-PVC-HID-3", "descripcion": "Tubo PVC hidráulico de 3\" ced. 40", "unidad": "M", "precio": 198 },
+        { "clave": "REF-EXT-ABC-5", "descripcion": "Extintor ABC de 5 lb", "unidad": "PZA", "precio": 580 },
+        { "clave": "REF-EXT-AUTO-PQS", "descripcion": "Extintor automático PQS con detector", "unidad": "PZA", "precio": 1850 }
+      ]
+    },
+    {
+      "nombre": "Materiales · Chihuahua 2026 (Casas Grandes, obra pública)",
+      "fuente_texto": "Skill opus-budget-direct · materiales representativos, precios puestos en obra, CHI 2026 (Casas Grandes / ICHIFE N-12-2026)",
+      "plaza": "casas_grandes", "fecha": "2026-04-28", "tipo": "material", "familia": "Referencia Chihuahua 2026",
+      "insumos": [
+        { "clave": "REF-ACARREO-TIRO", "descripcion": "Acarreo a tiro autorizado", "unidad": "M3", "precio": 185 },
+        { "clave": "REF-TEPETATE", "descripcion": "Tepetate compactado (banco local)", "unidad": "M3", "precio": 120 },
+        { "clave": "REF-CONC-150-CHI", "descripcion": "Concreto f'c=150 kg/cm²", "unidad": "M3", "precio": 2350 },
+        { "clave": "REF-MALLA-CIC-200", "descripcion": "Malla ciclónica cal. 10.5 h=2.00 m", "unidad": "ML", "precio": 430 },
+        { "clave": "REF-MALLA-CIC-150", "descripcion": "Malla ciclónica cal. 10.5 h=1.50 m", "unidad": "ML", "precio": 285 },
+        { "clave": "REF-POSTE-GALV-2", "descripcion": "Poste galvanizado de 2\" h=2.5 m", "unidad": "PZA", "precio": 370 },
+        { "clave": "REF-POSTE-48MM", "descripcion": "Poste de tubo de 48 mm galvanizado cal. 18", "unidad": "PZA", "precio": 325 },
+        { "clave": "REF-PUERTA-MALLA", "descripcion": "Puerta de malla ciclónica galvanizada 2 x 1 m", "unidad": "PZA", "precio": 3600 },
+        { "clave": "REF-RED-NYLON", "descripcion": "Red de nylon / polietileno de alta densidad", "unidad": "M2", "precio": 98 },
+        { "clave": "REF-XLP-10-15KV", "descripcion": "Conductor XLP 1/0 15 kV", "unidad": "ML", "precio": 325 },
+        { "clave": "REF-CODO-15KV", "descripcion": "Codo 15 kV de terminación enchufable", "unidad": "PZA", "precio": 1850 },
+        { "clave": "REF-ADAPT-TIERRA-15KV", "descripcion": "Adaptador de tierra 15 kV", "unidad": "PZA", "precio": 860 },
+        { "clave": "REF-TRAFO-225KVA", "descripcion": "Transformador trifásico 225 kVA tipo pedestal D-Y 13.2/0.22 kV", "unidad": "PZA", "precio": 148000 },
+        { "clave": "REF-ELECTRODO-34", "descripcion": "Electrodo de cobre de 3/4\" L=3.0 m", "unidad": "PZA", "precio": 490 },
+        { "clave": "REF-CADWELD-90", "descripcion": "Soldadura Cad-Weld carga #90", "unidad": "PZA", "precio": 290 }
+      ]
+    },
+    {
+      "nombre": "Renta de equipo · Cd. Cuauhtémoc, agosto de 2026",
+      "fuente_texto": "Skill opus-budget-direct · equipo (renta), Cd. Cuauhtémoc 2026",
+      "plaza": "cuauhtemoc", "fecha": "2026-08-31", "tipo": "equipo", "familia": "Renta de equipo 2026",
+      "insumos": [
+        { "clave": "REF-EQ-ANDAMIO", "descripcion": "Andamio tubular (renta)", "unidad": "JOR", "precio": 185 },
+        { "clave": "REF-EQ-ROTOMARTILLO", "descripcion": "Rotomartillo (renta)", "unidad": "JOR", "precio": 280 },
+        { "clave": "REF-EQ-CORTADORA", "descripcion": "Cortadora de disco (renta)", "unidad": "JOR", "precio": 320 },
+        { "clave": "REF-EQ-REVOLVEDORA", "descripcion": "Revolvedora de 1 saco (renta)", "unidad": "JOR", "precio": 420 },
+        { "clave": "REF-EQ-BAILARINA", "descripcion": "Compactador tipo bailarina (renta)", "unidad": "JOR", "precio": 420 },
+        { "clave": "REF-EQ-SOLDADORA", "descripcion": "Equipo de soldadura (renta)", "unidad": "JOR", "precio": 380 },
+        { "clave": "REF-EQ-GENERADOR", "descripcion": "Generador portátil (renta)", "unidad": "JOR", "precio": 480 },
+        { "clave": "REF-EQ-PLATAFORMA", "descripcion": "Plataforma de elevación (renta)", "unidad": "JOR", "precio": 580 },
+        { "clave": "REF-EQ-TERMOFUSION", "descripcion": "Equipo de termofusión para TPO (renta)", "unidad": "JOR", "precio": 650 },
+        { "clave": "REF-EQ-VOLTEO-7M3", "descripcion": "Camión de volteo de 7 m³", "unidad": "HR", "precio": 680 },
+        { "clave": "REF-EQ-RETRO", "descripcion": "Retroexcavadora", "unidad": "HR", "precio": 980 }
+      ]
+    },
+    {
+      "nombre": "Renta de equipo · Chihuahua 2026 (Casas Grandes)",
+      "fuente_texto": "Skill opus-budget-direct · equipos (renta diaria), Mercado Chihuahua 2026 (Casas Grandes / obra pública)",
+      "plaza": "casas_grandes", "fecha": "2026-04-28", "tipo": "equipo", "familia": "Renta de equipo 2026",
+      "insumos": [
+        { "clave": "REF-EQ-ROMPEDORA-25", "descripcion": "Rompedora eléctrica de 25 kg (renta)", "unidad": "JOR", "precio": 550 },
+        { "clave": "REF-EQ-BAILARINA", "descripcion": "Compactador tipo bailarina (renta)", "unidad": "JOR", "precio": 420 },
+        { "clave": "REF-EQ-RETRO-320D", "descripcion": "Retroexcavadora Cat 320D (renta)", "unidad": "JOR", "precio": 4200 },
+        { "clave": "REF-EQ-GRUA-5T", "descripcion": "Grúa de 5 t para maniobras (renta)", "unidad": "JOR", "precio": 3800 }
+      ]
+    },
+    {
+      "nombre": "Herramienta menor",
+      "fuente_texto": "Skill opus-budget-direct · herramienta menor = 3 % de la mano de obra del concepto (recurso tipo 3, unidad %MO, costo 1.00; en la matriz la cantidad es el importe)",
+      "plaza": "cuauhtemoc", "fecha": "2026-08-31", "tipo": "herramienta", "familia": "Herramienta menor",
+      "insumos": [
+        { "clave": "HM", "descripcion": "Herramienta menor (3 % de la mano de obra)", "unidad": "%MO", "precio": 1.00 }
+      ]
+    }
+  ]
+}

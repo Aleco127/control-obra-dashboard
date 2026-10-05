@@ -37,3 +37,22 @@ test('series por plaza ordenadas por fecha; compra se distingue de propuesta', (
   assert.deepEqual(s.chihuahua.map((x) => [x.fecha, x.grupo]), [['2026-01-01', 'propuesta'], ['2026-02-01', 'compra']]);
   assert.equal(BP.grupoFuente('referencia'), 'propuesta');
 });
+
+test('referencia-2026 (US-824): grupos con plaza y fecha, tabulador de 10, 4 cuadrillas, HM %MO 1.00', async () => {
+  const ref = JSON.parse(readFileSync(new URL('../licitaciones/referencia-2026.json', import.meta.url), 'utf8'));
+  const { filasReferencia } = await import('../licitaciones/sembrar-referencia.mjs');
+  const filas = filasReferencia(ref);
+  assert.ok(filas.every((f) => f.fuente === 'referencia' && BP.PLAZAS[f.plaza] && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha) && f.precio > 0 && BP.TIPOS[f.tipo]));
+  const tab = filas.filter((f) => f.tipo === 'mano_obra' && f.clave.startsWith('MO-'));
+  assert.equal(tab.length, 10);
+  assert.ok(tab.every((f) => Math.abs(f.datos.salario_base * f.datos.fsr - f.precio) < 0.01), 'costo por jornada = SB × FSR');
+  assert.deepEqual(filas.filter((f) => f.clave.startsWith('C-')).map((f) => f.clave), ['C-DEMO', 'C-ALB', 'C-INST', 'C-ELEC-MT']);
+  const hm = filas.find((f) => f.clave === 'HM');
+  assert.deepEqual([hm.tipo, hm.unidad, hm.precio], ['herramienta', '%MO', 1]);
+  const eq = filas.filter((f) => f.tipo === 'equipo');
+  assert.equal(eq.length, 15);
+  assert.ok(eq.every((f) => ['JOR', 'HR'].includes(f.unidad)), 'renta de equipo por jornada u hora');
+  // Una llave (clave + unidad + tipo + fecha + plaza) no se repite: correr dos veces no duplica
+  const llaves = filas.map((f) => [f.clave, f.unidad, f.tipo, f.fecha, f.plaza].join('|'));
+  assert.equal(new Set(llaves).size, llaves.length);
+});
