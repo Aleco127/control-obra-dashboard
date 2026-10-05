@@ -22,7 +22,8 @@ test('los tres módulos exponen render y cargar (IIFE) y sus catálogos coincide
   assert.deepEqual(Object.keys(BancoPrecios.PLAZAS).sort(), Object.keys(Licitaciones.PLAZAS).sort());
   assert.deepEqual(check('sobre'), Object.keys(Licitaciones.SOBRES).sort());
   assert.deepEqual(check('origen'), Object.keys(Licitaciones.ORIGENES).sort());
-  assert.deepEqual(check('tipo'), Object.keys(BancoPrecios.TIPOS).sort());
+  // `flete` llega en 096_banco_precios_catalogo.sql (épica D); banco-precios.test.mjs lo compara contra esa migración
+  assert.deepEqual(check('tipo'), Object.keys(BancoPrecios.TIPOS).filter((t) => t !== 'flete').sort());
   assert.deepEqual(check('fuente'), Object.keys(BancoPrecios.FUENTES).sort());
   const estatus = sql.match(/CHECK \(estatus IN \(([^)]*)\)/)[1];
   assert.deepEqual([...estatus.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort(), Object.keys(Licitaciones.ESTATUS).sort());

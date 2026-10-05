@@ -533,3 +533,19 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 
 .bg-orange-600{background-color:var(--ref-amber-700)!important}
 .text-green-600{color:var(--ref-emerald-700)!important}
+
+/* ===== Banco de precios (épica D, US-822 a US-832) ===== */
+.bp-seg{flex-wrap:wrap;width:auto}
+.bp-seg .seg-btn{flex:0 1 auto}
+.bp-seg .seg-btn.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.bp-viejo{color:var(--warn)}
+.bp-aviso{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.bp-barra{height:8px;border-radius:var(--radius-pill);background:var(--surface-2);overflow:hidden}
+.bp-barra>span{display:block;height:100%;background:var(--accent-fill)}
+@media (max-width:559px){
+  .tbl-apilada thead{display:none}
+  .tbl-apilada tr{display:block;border-bottom:1px solid var(--line);padding:var(--sp-2) 0}
+  .tbl-apilada td{display:flex;justify-content:space-between;gap:var(--sp-3);border:0;padding:4px var(--sp-3);text-align:right}
+  .tbl-apilada td::before{content:attr(data-et);color:var(--ink-muted);font-size:var(--fs-xs);text-align:left;flex:0 0 auto}
+  .tbl-apilada td[data-et=""]::before{content:none}
+}
