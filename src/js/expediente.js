@@ -1,15 +1,19 @@
 /**
- * Expediente de la empresa (PRD licitaciones · US-806 esqueleto). Módulo de la barra `ex`, sólo nivel >= 80.
+ * Expediente de la empresa (PRD licitaciones · épica B). Módulo de la barra `ex`, sólo nivel >= 80.
  *
  * Carga perezosa (D4): NO entra a load_all_data_seguro. Al abrirse, `cargar()` lee en paralelo (RLS: empresa de la
  * sesión y nivel >= 80) y deja en `D.exp` (propiedad NO enumerable de D: no se guarda en localStorage):
- *   { expediente: fila de public.empresa_expediente | null,
+ *   { empresa:    fila de public.empresas (sólo lectura aquí: se edita en Configuración),
+ *     expediente: fila de public.empresa_expediente | null,
  *     documentos: public.empresa_documentos_estado (estado y días restantes calculados en el servidor),
  *     personal:   public.personal_tecnico, obras: public.obras_ejecutadas, maquinaria: public.maquinaria }
  * En el build sale como módulo diferido (js/expediente.<hash>.js en __LAZY['ex']).
  *
- * Depende de (navegador): sb, D, M, S, $, Skeleton, EmptyState, humanizeError, Toast.
- * Las funciones puras (categorías, estado de un documento, faltantes) se exportan con module.exports.
+ * Pestañas: Documentos (US-808) · Datos (US-807) · Personal (US-810) · Obras (US-811) · Maquinaria (US-812) ·
+ * Portales (US-847).
+ *
+ * Depende de (navegador): sb, D, M, S, $, Skeleton, EmptyState, humanizeError, Toast, currentUser.
+ * Las funciones puras se exportan con module.exports (pruebas en scripts/qa/expediente*.test.mjs).
  */
 const Expediente = (() => {
   'use strict';
@@ -37,6 +41,31 @@ const Expediente = (() => {
   const ESTADOS = { vigente: 'Vigente', por_vencer: 'Por vencer', vencido: 'Vencido', reemplazado: 'Reemplazado', sin_vencimiento: 'Sin vencimiento' };
   /** Días antes del vencimiento a partir de los cuales un documento está «por vencer» (igual que la vista). */
   const DIAS_POR_VENCER = 30;
+  const TABS = [
+    { k: 'documentos', t: 'Documentos', ic: 'ri-file-list-3-line' },
+    { k: 'datos', t: 'Datos', ic: 'ri-building-line' },
+  ];
+
+  /** Campos editables de empresa_expediente (US-807). tipo: texto | area | fecha | monto. */
+  const CAMPOS_DATOS = [
+    { g: 'Representante legal', k: 'representante_cargo', t: 'Cargo del representante', tipo: 'texto', ph: 'Administrador único' },
+    { g: 'Representante legal', k: 'representante_rfc', t: 'RFC del representante', tipo: 'texto', ph: 'XAXX010101000', max: 13 },
+    { g: 'Constitución y poderes', k: 'escritura_constitutiva', t: 'Escritura constitutiva', tipo: 'area', ph: 'Número, notario, lugar y datos de inscripción' },
+    { g: 'Constitución y poderes', k: 'escritura_fecha', t: 'Fecha de la escritura', tipo: 'fecha' },
+    { g: 'Constitución y poderes', k: 'poder_notarial', t: 'Poder notarial del representante', tipo: 'area', ph: 'Número de escritura, notario y fecha' },
+    { g: 'Capacidad financiera', k: 'capital_contable', t: 'Capital contable', tipo: 'monto' },
+    { g: 'Capacidad financiera', k: 'capital_contable_fecha', t: 'Fecha del estado financiero', tipo: 'fecha' },
+    { g: 'Registros', k: 'infonavit_registro', t: 'Registro INFONAVIT', tipo: 'texto' },
+    { g: 'Registros', k: 'cmic_registro', t: 'Registro CMIC', tipo: 'texto' },
+    { g: 'Registros', k: 'padron_contratistas', t: 'Padrón de contratistas', tipo: 'texto', ph: 'Número de registro' },
+    { g: 'Registros', k: 'padron_contratistas_vigencia', t: 'Vigencia del padrón', tipo: 'fecha' },
+    { g: 'Seguros y fianzas', k: 'poliza_rc_numero', t: 'Póliza de responsabilidad civil', tipo: 'texto', ph: 'Número de póliza' },
+    { g: 'Seguros y fianzas', k: 'poliza_rc_aseguradora', t: 'Aseguradora', tipo: 'texto' },
+    { g: 'Seguros y fianzas', k: 'poliza_rc_monto', t: 'Suma asegurada', tipo: 'monto' },
+    { g: 'Seguros y fianzas', k: 'poliza_rc_vigencia', t: 'Vigencia de la póliza', tipo: 'fecha' },
+    { g: 'Seguros y fianzas', k: 'afianzadora', t: 'Afianzadora', tipo: 'texto' },
+    { g: 'Notas', k: 'notas', t: 'Notas', tipo: 'area' },
+  ];
 
   // ---- Funciones puras ------------------------------------------------------------------------------------------------
   function hoyMx(d) {
@@ -74,9 +103,47 @@ const Expediente = (() => {
   }
   const categoria = (k) => CATEGORIAS.find((c) => c.k === k) || { k, t: k, vence: null, ic: 'ri-file-line' };
 
+  /**
+   * Del formulario de Datos al objeto que recibe guardar_empresa_expediente: sólo las llaves de CAMPOS_DATOS,
+   * texto recortado ('' → null), RFC en mayúsculas, montos como número (acepta «$1,250,000.50»), fechas AAAA-MM-DD.
+   * Lanza Error con un mensaje en español si un monto o una fecha no son válidos.
+   */
+  function datosParaGuardar(valores) {
+    const out = {};
+    for (const c of CAMPOS_DATOS) {
+      if (!valores || !(c.k in valores)) continue;
+      let v = valores[c.k] == null ? '' : String(valores[c.k]).trim();
+      if (v === '') { out[c.k] = null; continue; }
+      if (c.tipo === 'monto') {
+        const n = Number(v.replace(/[$,\s]/g, ''));
+        if (!Number.isFinite(n) || n < 0) throw new Error(`${c.t}: escribe un importe válido (sólo números).`);
+        out[c.k] = Math.round(n * 100) / 100;
+      } else if (c.tipo === 'fecha') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(utc(v))) throw new Error(`${c.t}: la fecha no es válida.`);
+        out[c.k] = v;
+      } else {
+        if (c.k === 'representante_rfc') {
+          v = v.toUpperCase().replace(/\s+/g, '');
+          if (!/^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/.test(v)) throw new Error('RFC del representante: revisa el formato (13 caracteres para persona física).');
+        }
+        out[c.k] = v;
+      }
+    }
+    return out;
+  }
+  /** Domicilio en una línea a partir de la fila de empresas. */
+  function domicilio(e) {
+    if (!e) return '';
+    const cp = e.codigo_postal ? 'C.P. ' + e.codigo_postal : '';
+    return [e.direccion, e.ciudad, e.estado, cp].map((x) => String(x || '').trim()).filter(Boolean).join(', ');
+  }
+
   // ---- Datos (navegador) --------------------------------------------------------------------------------------------
   let enVuelo = null;
   let pintadas = 0;
+  let tab = 'documentos';
+  try { const t = localStorage.getItem('ex_tab'); if (t && TABS.some((x) => x.k === t)) tab = t; } catch (e) { /* sin almacenamiento */ }
+
   function guardarEnD(clave, valor) {
     Object.defineProperty(D, clave, { value: valor, writable: true, configurable: true, enumerable: false });
   }
@@ -84,16 +151,18 @@ const Expediente = (() => {
     if (!force && D.exp && Array.isArray(D.exp.documentos)) return D.exp;
     if (enVuelo && !force) return enVuelo;
     enVuelo = (async () => {
-      const [ex, docs, per, obras, maq] = await Promise.all([
+      const empId = (typeof currentUser !== 'undefined' && currentUser && currentUser.empresa_id) || null;
+      const [emp, ex, docs, per, obras, maq] = await Promise.all([
+        empId ? sb.from('empresas').select('id,nombre,razon_social,rfc,direccion,ciudad,estado,codigo_postal,representante_legal,registro_patronal').eq('id', empId).maybeSingle() : Promise.resolve({ data: null }),
         sb.from('empresa_expediente').select('*').maybeSingle(),
         sb.from('empresa_documentos_estado').select('*').order('categoria').order('fecha_vencimiento', { ascending: false, nullsFirst: false }),
         sb.from('personal_tecnico').select('*').order('nombre'),
         sb.from('obras_ejecutadas').select('*').order('fecha_fin', { ascending: false, nullsFirst: false }),
         sb.from('maquinaria').select('*').order('descripcion'),
       ]);
-      const err = [ex, docs, per, obras, maq].find((r) => r.error);
+      const err = [emp, ex, docs, per, obras, maq].find((r) => r.error);
       if (err) throw err.error;
-      guardarEnD('exp', { expediente: ex.data || null, documentos: docs.data || [], personal: per.data || [], obras: obras.data || [], maquinaria: maq.data || [] });
+      guardarEnD('exp', { empresa: emp.data || null, expediente: ex.data || null, documentos: docs.data || [], personal: per.data || [], obras: obras.data || [], maquinaria: maq.data || [] });
       return D.exp;
     })();
     try { return await enVuelo; } finally { enVuelo = null; }
@@ -111,16 +180,78 @@ const Expediente = (() => {
     const extra = dias === null || dias === undefined || e === 'reemplazado' ? '' : dias < 0 ? ` · hace ${-dias} d` : ` · ${dias} d`;
     return `<span class="chip" style="${estilo}">${S(ESTADOS[e] || e)}${extra}</span>`;
   }
-  function contenido(exp) {
+  function conteoTab(exp, k) {
+    if (k === 'documentos') return resumen(exp.documentos).total;
+    return null;
+  }
+  function tabsHtml(exp) {
+    return `<div class="tabs mb-4" role="tablist" aria-label="Secciones del expediente">${TABS.map((t) => {
+      const n = conteoTab(exp, t.k);
+      return `<button type="button" role="tab" id="exTab-${t.k}" aria-selected="${tab === t.k}" aria-controls="exPanel" class="tab ${tab === t.k ? 'active' : ''}" onclick="Expediente.setTab('${t.k}')"><i class="${t.ic}" aria-hidden="true"></i> ${t.t}${n === null ? '' : ` <span class="tab-n">${n}</span>`}</button>`;
+    }).join('')}</div>`;
+  }
+
+  // -- Documentos (resumen; la gestión completa llega con US-808) --
+  function panelDocumentos(exp) {
     const docs = exp.documentos.filter((d) => d.estado !== 'reemplazado');
     const r = resumen(exp.documentos);
     const falta = faltantes(exp.documentos);
     const kpi = (t, v) => `<div class="kpi"><p class="kpi-v">${v}</p><p class="kpi-l">${t}</p></div>`;
     const filas = docs.map((d) => `<tr><td>${S(categoria(d.categoria).t)}</td><td>${S(d.nombre)}</td><td>${S(d.fecha_vencimiento || '—')}</td><td>${chipEstado(d.estado, d.dias_restantes)}</td></tr>`).join('');
+    if (!docs.length) return vacio();
     return `<div class="kpi-strip">${kpi('Vigentes', r.vigente + r.sin_vencimiento)}${kpi('Por vencer', r.por_vencer)}${kpi('Vencidos', r.vencido)}${kpi('Categorías faltantes', falta.length)}</div>
-${docs.length ? `<div class="table-wrap g rounded-xl mb-4" tabindex="0" role="region" aria-label="Documentos de la empresa"><table class="table-modern w-full text-sm"><thead><tr><th scope="col">Categoría</th><th scope="col">Documento</th><th scope="col">Vence</th><th scope="col">Estado</th></tr></thead><tbody>${filas}</tbody></table></div>` : ''}
-<p class="text-sm text-ink-muted">Personal técnico: ${exp.personal.length} · Obras ejecutadas: ${exp.obras.length} · Maquinaria: ${exp.maquinaria.length}</p>`;
+<div class="table-wrap g rounded-xl mb-4" tabindex="0" role="region" aria-label="Documentos de la empresa"><table class="table-modern w-full text-sm"><thead><tr><th scope="col">Categoría</th><th scope="col">Documento</th><th scope="col">Vence</th><th scope="col">Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`;
   }
+
+  // -- Datos legales (US-807) --
+  function campoHtml(c, valor) {
+    const id = 'exD-' + c.k;
+    const v = valor == null ? '' : String(valor);
+    const lab = `<label class="text-xs text-ink-muted mb-1 block" for="${id}">${S(c.t)}</label>`;
+    if (c.tipo === 'area') return `<div class="sm:col-span-2">${lab}<textarea id="${id}" class="inp" rows="2" data-k="${c.k}" placeholder="${S(c.ph || '')}">${S(v)}</textarea></div>`;
+    if (c.tipo === 'fecha') return `<div>${lab}<input type="date" id="${id}" class="inp" data-k="${c.k}" value="${S(v.slice(0, 10))}"></div>`;
+    if (c.tipo === 'monto') return `<div>${lab}<input type="text" inputmode="decimal" id="${id}" class="inp" data-k="${c.k}" value="${S(v)}" placeholder="0.00"></div>`;
+    return `<div>${lab}<input type="text" id="${id}" class="inp" data-k="${c.k}" value="${S(v)}" placeholder="${S(c.ph || '')}"${c.max ? ` maxlength="${c.max}"` : ''}></div>`;
+  }
+  function soloLectura(t, v) {
+    return `<div><dt class="text-xs text-ink-muted">${S(t)}</dt><dd class="text-sm font-medium break-words">${v ? S(v) : '<span class="text-ink-subtle">Sin capturar</span>'}</dd></div>`;
+  }
+  function panelDatos(exp) {
+    const e = exp.empresa || {};
+    const x = exp.expediente || {};
+    const grupos = [];
+    for (const c of CAMPOS_DATOS) { let g = grupos.find((y) => y.g === c.g); if (!g) { g = { g: c.g, campos: [] }; grupos.push(g); } g.campos.push(c); }
+    const actualizado = x.updated_at ? new Date(x.updated_at).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return `<section class="g rounded-xl p-4 mb-4" aria-labelledby="exDatosEmp">
+<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><h2 id="exDatosEmp" class="font-bold text-sm"><i class="ri-building-line" aria-hidden="true"></i> Datos de la empresa</h2>
+<button type="button" class="text-xs text-accent hover:underline" onclick="openEmpresaModal()">Editar en Configuración <i class="ri-arrow-right-s-line" aria-hidden="true"></i></button></div>
+<dl class="grid sm:grid-cols-2 gap-3">${soloLectura('Razón social', e.razon_social || e.nombre)}${soloLectura('RFC', e.rfc)}${soloLectura('Domicilio fiscal', domicilio(e))}${soloLectura('Representante legal', e.representante_legal)}${soloLectura('Registro patronal IMSS', e.registro_patronal)}</dl>
+<p class="text-xs text-ink-muted mt-3">Estos datos vienen de Configuración y se usan también en recibos y facturas. El registro patronal se captura en Contabilidad › Configuración del CFDI.</p></section>
+<form id="exDatosForm" class="g rounded-xl p-4" onsubmit="Expediente.guardarDatos(event)" novalidate>
+<h2 class="font-bold text-sm mb-3"><i class="ri-scales-3-line" aria-hidden="true"></i> Datos legales para concursos</h2>
+${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold text-ink-muted uppercase mb-2">${S(g.g)}</legend><div class="grid sm:grid-cols-2 gap-3">${g.campos.map((c) => campoHtml(c, x[c.k])).join('')}</div></fieldset>`).join('')}
+<div class="flex flex-wrap items-center gap-3"><button type="submit" class="btn btn-p" id="exDatosGuardar"><i class="ri-save-line" aria-hidden="true"></i> Guardar datos legales</button>
+<span id="exDatosEstado" class="text-xs text-ink-muted" role="status">${actualizado ? 'Última actualización: ' + S(actualizado) : ''}</span></div></form>`;
+  }
+  async function guardarDatos(ev) {
+    if (ev) ev.preventDefault();
+    const form = $('exDatosForm'); if (!form) return;
+    const valores = {};
+    form.querySelectorAll('[data-k]').forEach((el) => { valores[el.dataset.k] = el.value; });
+    let datos;
+    try { datos = datosParaGuardar(valores); } catch (e) { Toast.error(e.message); return; }
+    const btn = $('exDatosGuardar'); if (btn) btn.disabled = true;
+    try {
+      const { data, error } = await sb.rpc('guardar_empresa_expediente', { p_datos: datos });
+      if (error) throw error;
+      if (D.exp) D.exp.expediente = data;
+      Toast.success('Datos legales guardados');
+      pintarPanel();
+    } catch (e) {
+      Toast.error(humanizeError(e, 'No se guardaron los datos legales'));
+    } finally { if (btn) btn.disabled = false; }
+  }
+
   const vacioTotal = (exp) => !exp.expediente && !exp.documentos.length && !exp.personal.length && !exp.obras.length && !exp.maquinaria.length;
   function vacio() {
     return EmptyState({
@@ -135,15 +266,31 @@ ${docs.length ? `<div class="table-wrap g rounded-xl mb-4" tabindex="0" role="re
       body: humanizeError(e), action: { label: 'Reintentar', icon: 'ri-refresh-line', onClick: 'Expediente.recargar()' },
     });
   }
+  function panelHtml(exp) {
+    if (tab === 'datos') return panelDatos(exp);
+    return panelDocumentos(exp);
+  }
+  /** Repinta pestañas y panel con D.exp sin volver a pedir datos. */
+  function pintarPanel() {
+    const el = $('exCuerpo'); if (!el || !D.exp || M !== 'ex') return;
+    el.innerHTML = tabsHtml(D.exp) + `<div id="exPanel" role="tabpanel" aria-labelledby="exTab-${tab}">${panelHtml(D.exp)}</div>`;
+  }
+  function setTab(k) {
+    if (!TABS.some((t) => t.k === k)) return;
+    tab = k;
+    try { localStorage.setItem('ex_tab', k); } catch (e) { /* sin almacenamiento */ }
+    pintarPanel();
+    const b = $('exTab-' + k); if (b) b.focus();
+  }
   async function render(c, force) {
     const turno = ++pintadas;
     c.innerHTML = cabecera() + `<div id="exCuerpo" aria-busy="true" aria-live="polite">${Skeleton.table(4, 4)}</div>`;
     const cuerpo = () => (turno === pintadas && M === 'ex' ? $('exCuerpo') : null);
     try {
-      const exp = await cargar(force);
+      await cargar(force);
       const el = cuerpo(); if (!el) return;
       el.removeAttribute('aria-busy');
-      el.innerHTML = vacioTotal(exp) ? vacio() : contenido(exp);
+      pintarPanel();
     } catch (e) {
       const el = cuerpo(); if (!el) return;
       el.removeAttribute('aria-busy');
@@ -151,14 +298,14 @@ ${docs.length ? `<div class="table-wrap g rounded-xl mb-4" tabindex="0" role="re
     }
   }
   function recargar() { const c = $('c'); if (c) render(c, true); }
-  /** Alta de documento (US-808). En el esqueleto sólo avisa. */
+  /** Alta de documento (US-808). Por ahora sólo avisa. */
   function nuevoDocumento() { Toast.info('La subida de documentos al expediente se habilita en la siguiente entrega de este módulo.'); }
 
   return {
-    render, cargar, recargar, nuevoDocumento,
+    render, cargar, recargar, setTab, guardarDatos, nuevoDocumento,
     // puras
-    hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria,
-    CATEGORIAS, ESTADOS, DIAS_POR_VENCER,
+    hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
+    CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Expediente;
