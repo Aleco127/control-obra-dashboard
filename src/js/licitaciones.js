@@ -727,7 +727,187 @@ ${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a
       guardarBlob(blob, `${nombreSeguro(F.lic.codigo)}_archivos_convocante.zip`);
     } catch (e) { Toast.error(errTxt(e, 'No se pudo armar el ZIP')); }
   }
-  function pintarRequisitos(el) { el.innerHTML = EmptyState({ icon: 'ri-checkbox-multiple-line', title: 'Requisitos por sobre', body: 'Aquí capturarás la lista de anexos de cada sobre con su estado.' }); }
+  // Requisitos por sobre (US-816) -------------------------------------------------------------------------------------------
+  /** Categorías de empresa_documentos (CHECK de 081) con su etiqueta. */
+  const CATEGORIAS_EXPEDIENTE = {
+    opinion_sat: 'Opinión de cumplimiento SAT', opinion_imss: 'Opinión de cumplimiento IMSS', opinion_infonavit: 'Opinión de cumplimiento INFONAVIT',
+    identificacion: 'Identificación oficial', acta_constitutiva: 'Acta constitutiva', poder: 'Poder notarial',
+    constancia_fiscal: 'Constancia de situación fiscal', comprobante_domicilio: 'Comprobante de domicilio',
+    estados_financieros: 'Estados financieros', declaracion_anual: 'Declaración anual', cmic: 'Registro CMIC',
+    colegio: 'Colegio de profesionistas', poliza_rc: 'Póliza de responsabilidad civil', curriculum: 'Currículum',
+    padron_contratistas: 'Padrón de contratistas', otro: 'Otro',
+  };
+  const TONO_ESTADO = { pendiente: '', en_revision: 'warn', listo: 'accent', firmado: 'accent', escaneado: 'accent', foliado: 'accent', validado: 'ok' };
+  function chipEstado(e) {
+    const t = TONO_ESTADO[e];
+    const estilo = t ? `background:var(--${t}-soft);color:var(--${t})` : 'background:var(--surface-2);color:var(--ink-muted)';
+    return `<span class="chip" style="${estilo}">${S(etiqueta(ESTADOS_REQUISITO, e))}</span>`;
+  }
+  /** Requisitos de un sobre en su orden. */
+  function delSobre(reqs, sobre) {
+    return (reqs || []).filter((r) => r.sobre === sobre).sort((a, b) => (a.orden - b.orden) || (a.id - b.id));
+  }
+  /** Ids del sobre en el orden nuevo tras mover uno (dir -1 sube, +1 baja); null si no se puede mover. */
+  function moverEnLista(ids, id, dir) {
+    const i = ids.indexOf(id); const j = i + dir;
+    if (i < 0 || j < 0 || j >= ids.length) return null;
+    const out = ids.slice(); [out[i], out[j]] = [out[j], out[i]];
+    return out;
+  }
+  /** Extra que pintan las historias siguientes en la fila (documento ligado, vencimiento): se reemplaza en US-818. */
+  let extraRequisito = () => '';
+  function pintarRequisitos(el, ctx) {
+    const sob = st.sobre;
+    const av = avancePorSobre(ctx.reqs);
+    const lista = delSobre(ctx.reqs, sob);
+    const segs = Object.entries(SOBRES).map(([k, t]) => `<button type="button" role="tab" aria-selected="${k === sob}" class="seg-btn ${k === sob ? 'active' : ''}" onclick="Licitaciones.verSobre('${k}')">${S(t)} <span class="tab-n">${av[k].hechos}/${av[k].total}</span></button>`).join('');
+    const filas = lista.map((r, i) => {
+      const firma = r.requiere_firma ? '<span class="chip chip-ind"><i class="ri-quill-pen-line" aria-hidden="true"></i> Firma</span>' : '';
+      const arch = r.archivo_path
+        ? `<button type="button" class="btn-icon" onclick="Licitaciones.verArchivoRequisito(${+r.id})" aria-label="Ver archivo final de ${S(r.anexo_id)}" title="Ver archivo final"><i class="ri-file-check-line" aria-hidden="true"></i></button>`
+        : '';
+      return `<tr id="lcReq-${+r.id}"><td data-et="Orden" class="whitespace-nowrap"><span><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},-1)" aria-label="Subir ${S(r.anexo_id)}" ${i === 0 ? 'disabled' : ''}><i class="ri-arrow-up-s-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},1)" aria-label="Bajar ${S(r.anexo_id)}" ${i === lista.length - 1 ? 'disabled' : ''}><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></span></td>
+<td data-et="Anexo" class="font-mono text-xs"><span>${S(r.anexo_id)}</span></td>
+<td data-et="Descripción"><span>${S(r.descripcion || '')}<span class="block text-xs text-ink-muted">${S(etiqueta(ORIGENES, r.origen))}${r.responsable ? ' · ' + S(r.responsable) : ''} ${firma}</span>${extraRequisito(r, ctx)}</span></td>
+<td data-et="Estado"><span><button type="button" class="lc-estado" onclick="Licitaciones.estadoRequisito(${+r.id})" aria-label="Cambiar estado de ${S(r.anexo_id)}: ${S(etiqueta(ESTADOS_REQUISITO, r.estado))}">${chipEstado(r.estado)} <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></span></td>
+<td data-et="" class="text-right whitespace-nowrap">${arch}<button type="button" class="btn-icon" onclick="Licitaciones.adjuntarRequisito(${+r.id})" aria-label="${r.archivo_path ? 'Reemplazar' : 'Adjuntar'} archivo final de ${S(r.anexo_id)}" title="${r.archivo_path ? 'Reemplazar' : 'Adjuntar'} archivo final"><i class="ri-attachment-2" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.editarRequisito(${+r.id})" aria-label="Editar ${S(r.anexo_id)}" title="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.borrarRequisito(${+r.id})" aria-label="Borrar ${S(r.anexo_id)}" title="Borrar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></td></tr>`;
+    }).join('');
+    el.innerHTML = `<div class="flex flex-wrap gap-2 mb-3" id="lcReqAcciones">${accionesRequisitos(ctx).join('')}</div>
+<div class="seg mb-3" role="tablist" aria-label="Sobre">${segs}</div>
+${lista.length ? `<div class="table-wrap g rounded-xl"><table class="table-modern lc-tbl w-full text-sm"><caption class="sr-only">Requisitos del sobre ${S(SOBRES[sob].toLowerCase())}</caption><thead><tr><th scope="col" class="w-24">Orden</th><th scope="col">Anexo</th><th scope="col">Descripción</th><th scope="col">Estado</th><th scope="col" class="text-right">Acciones</th></tr></thead><tbody>${filas}</tbody></table></div>`
+    : EmptyState({ icon: 'ri-checkbox-multiple-line', title: `Sin requisitos en el sobre ${SOBRES[sob].toLowerCase()}`, body: 'Agrega los anexos que pide la convocante para este sobre, o genéralos desde el perfil de la convocante.', action: { label: 'Agregar requisito', icon: 'ri-add-line', onClick: 'Licitaciones.editarRequisito()' } })}
+<input type="file" id="lcReqFile" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx,.dwg,.zip" onchange="Licitaciones.subirArchivoRequisito(this.files[0])">`;
+  }
+  /** Botones de la barra de requisitos; las historias siguientes agregan los suyos con accionesRequisitos.extra. */
+  function accionesRequisitos(ctx) {
+    const out = [`<button type="button" class="btn btn-p" onclick="Licitaciones.editarRequisito()"><i class="ri-add-line" aria-hidden="true"></i> Agregar requisito</button>`];
+    for (const f of accionesRequisitos.extra) { const h = f(ctx); if (h) out.push(h); }
+    return out;
+  }
+  accionesRequisitos.extra = [];
+  function verSobre(k) { st.sobre = k; repintarFicha(); }
+  const reqPorId = (id) => (F && F.reqs.find((r) => r.id === id)) || null;
+  function reemplazarReq(row) {
+    const i = F.reqs.findIndex((r) => r.id === row.id);
+    if (i >= 0) F.reqs[i] = Object.assign(F.reqs[i], row); else F.reqs.push(row);
+  }
+  async function editarRequisito(id) {
+    const r = id ? reqPorId(id) || {} : { sobre: st.sobre, origen: 'se_genera' };
+    modal(id ? `Editar requisito ${r.anexo_id}` : 'Agregar requisito', `<form id="lcFormReq" onsubmit="event.preventDefault();Licitaciones.guardarRequisito(${id ? +id : 'null'})" class="space-y-3">
+<div class="grid sm:grid-cols-2 gap-3">
+${campo('lcRqAnexo', 'Anexo *', `<input id="lcRqAnexo" class="inp font-mono" required maxlength="40" value="${S(r.anexo_id || '')}" placeholder="Ej. AT-02, L-3, 8.4">`)}
+${campo('lcRqSobre', 'Sobre', `<select id="lcRqSobre" class="inp">${opciones(SOBRES, r.sobre)}</select>`)}
+${campo('lcRqDesc', 'Descripción', `<textarea id="lcRqDesc" class="inp" rows="2" maxlength="500">${S(r.descripcion || '')}</textarea>`, 'sm:col-span-2')}
+${campo('lcRqOrigen', 'Origen', `<select id="lcRqOrigen" class="inp" onchange="document.getElementById('lcRqCatBox').hidden=this.value!=='expediente'">${opciones(ORIGENES, r.origen)}</select>`)}
+${campo('lcRqResp', 'Responsable', `<input id="lcRqResp" class="inp" maxlength="120" value="${S(r.responsable || '')}" placeholder="Quién lo prepara">`)}
+<div id="lcRqCatBox" class="sm:col-span-2" ${r.origen === 'expediente' ? '' : 'hidden'}>${campo('lcRqCat', 'Categoría del expediente', `<select id="lcRqCat" class="inp">${opciones(CATEGORIAS_EXPEDIENTE, r.categoria_expediente, 'Sin categoría')}</select><p class="field-hint">Sirve para ligar el documento vigente de la empresa.</p>`)}<div id="lcRqDocBox"></div></div>
+<label class="flex items-center gap-2 text-sm sm:col-span-2" style="min-height:var(--tap)"><input id="lcRqFirma" type="checkbox" ${r.requiere_firma ? 'checked' : ''}> Requiere firma del representante</label>
+${campo('lcRqNotas', 'Notas', `<textarea id="lcRqNotas" class="inp" rows="2">${S(r.notas || '')}</textarea>`, 'sm:col-span-2')}
+</div><div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button>
+<button type="submit" class="btn btn-p"><i class="ri-save-line" aria-hidden="true"></i> ${id ? 'Guardar requisito' : 'Agregar requisito'}</button></div></form>`);
+    if (typeof editarRequisito.alAbrir === 'function') editarRequisito.alAbrir(r);
+  }
+  async function guardarRequisito(id) {
+    const f = document.getElementById('lcFormReq');
+    if (f && !f.reportValidity()) return;
+    const origen = val('lcRqOrigen');
+    const datos = {
+      anexo_id: val('lcRqAnexo'), sobre: val('lcRqSobre'), descripcion: val('lcRqDesc'), origen,
+      responsable: val('lcRqResp'), requiere_firma: !!(document.getElementById('lcRqFirma') || {}).checked, notas: val('lcRqNotas'),
+      categoria_expediente: origen === 'expediente' ? val('lcRqCat') || null : null,
+    };
+    const doc = document.getElementById('lcRqDoc');
+    if (doc) datos.empresa_documento_id = origen === 'expediente' ? doc.value || null : null;
+    if (id) datos.id = id; else datos.licitacion_id = F.lic.id;
+    try {
+      const r = await rpc('guardar_requisito', { p_datos: datos });
+      reemplazarReq(r.requisito); st.sobre = r.requisito.sobre;
+      cerrarModal(); Toast.success(id ? 'Requisito guardado' : 'Requisito agregado'); repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó el requisito')); }
+  }
+  async function borrarRequisito(id) {
+    const r = reqPorId(id); if (!r) return;
+    const okc = await Dialog.confirm({ title: 'Borrar requisito', body: `Se borrará el requisito ${r.anexo_id} con su historial${r.archivo_path ? ' y su archivo final' : ''}. Esta acción no se puede deshacer.`, confirmText: 'Borrar requisito', tone: 'danger' });
+    if (!okc) return;
+    try {
+      const { error } = await sb.from('licitacion_requisitos').delete().eq('id', id);
+      if (error) throw error;
+      if (r.archivo_path) await sb.storage.from(BUCKET).remove([r.archivo_path]);
+      F.reqs = F.reqs.filter((x) => x.id !== id);
+      Toast.success('Requisito borrado'); repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se borró el requisito')); }
+  }
+  async function moverRequisito(id, dir) {
+    const r = reqPorId(id); if (!r) return;
+    const ids = delSobre(F.reqs, r.sobre).map((x) => x.id);
+    const nuevo = moverEnLista(ids, id, dir); if (!nuevo) return;
+    nuevo.forEach((x, i) => { const q = reqPorId(x); if (q) q.orden = i + 1; });
+    repintarFicha();
+    const b2 = document.querySelector(`#lcReq-${id} button[aria-label^="${dir < 0 ? 'Subir' : 'Bajar'}"]`);
+    if (b2 && !b2.disabled) b2.focus();
+    try { await rpc('ordenar_requisitos', { p_licitacion_id: F.lic.id, p_ids: nuevo }); }
+    catch (e) { Toast.error(errTxt(e, 'No se guardó el orden')); }
+  }
+  async function estadoRequisito(id) {
+    const r = reqPorId(id); if (!r) return;
+    const bloqueo = typeof estadoRequisito.bloqueo === 'function' ? estadoRequisito.bloqueo(r) : '';
+    modal(`Estado de ${r.anexo_id}`, `<form id="lcFormEst" onsubmit="event.preventDefault();Licitaciones.guardarEstado(${+id})">
+<fieldset><legend class="text-sm mb-2">${S(r.descripcion || '')}</legend>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 lc-est">${Object.entries(ESTADOS_REQUISITO).map(([k, t]) => {
+      const des = bloqueo && ESTADOS_HECHOS.includes(k);
+      return `<label class="seg-btn rounded-md border ${k === r.estado ? 'active' : ''}" style="border-color:var(--line)${des ? ';opacity:.55' : ''}"><input type="radio" name="lcEst" value="${k}" class="sr-only" ${k === r.estado ? 'checked' : ''} ${des ? 'disabled' : ''} onchange="document.querySelectorAll('#lcFormEst .seg-btn').forEach(x=>x.classList.toggle('active',x.contains(this)))">${S(t)}</label>`;
+    }).join('')}</div></fieldset>
+${bloqueo ? `<p class="lc-vence text-sm mt-3" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> ${bloqueo}</p>` : ''}
+${campo('lcEstNota', 'Nota (opcional)', '<textarea id="lcEstNota" class="inp" rows="2" maxlength="500" placeholder="Ej. Falta la firma del representante"></textarea>', 'mt-3')}
+<div class="flex justify-end gap-2 pt-3"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-check-line" aria-hidden="true"></i> Guardar estado</button></div></form>
+<h3 class="font-semibold text-sm mt-4 mb-2">Historial</h3><ol id="lcEstHist" class="text-sm space-y-2" aria-busy="true"><li class="text-ink-muted">Cargando…</li></ol>`);
+    try {
+      const { data, error } = await sb.from('licitacion_requisito_historial').select('estado_anterior,estado_nuevo,nota,created_at,usuario_id').eq('requisito_id', id).order('created_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      const usuarios = (D.u || []).reduce((o, u) => { o[u.id] = u.nombre; return o; }, {});
+      const ol = document.getElementById('lcEstHist'); if (!ol) return;
+      ol.removeAttribute('aria-busy');
+      ol.innerHTML = (data || []).map((h) => `<li class="border-b pb-2" style="border-color:var(--line)"><span class="text-xs text-ink-muted">${S(fmtFechaHora(h.created_at))}${usuarios[h.usuario_id] ? ' · ' + S(usuarios[h.usuario_id]) : ''}</span><br>${h.estado_anterior ? S(etiqueta(ESTADOS_REQUISITO, h.estado_anterior)) + ' → ' : 'Alta: '}<b>${S(etiqueta(ESTADOS_REQUISITO, h.estado_nuevo))}</b>${h.nota ? `<br><span class="text-ink-muted">${S(h.nota)}</span>` : ''}</li>`).join('') || '<li class="text-ink-muted">Sin cambios todavía.</li>';
+    } catch (e) { const ol = document.getElementById('lcEstHist'); if (ol) ol.innerHTML = `<li class="text-danger">${S(errTxt(e, 'No se pudo leer el historial'))}</li>`; }
+  }
+  async function guardarEstado(id) {
+    const sel = document.querySelector('#lcFormEst input[name=lcEst]:checked');
+    if (!sel) return;
+    const r = reqPorId(id);
+    if (r && sel.value === r.estado && !val('lcEstNota')) { cerrarModal(); return; }
+    try {
+      const x = await rpc('cambiar_estado_requisito', { p_id: id, p_estado: sel.value, p_nota: val('lcEstNota') || null });
+      if (r) r.estado = x.estado;
+      cerrarModal(); Toast.success(`${r ? r.anexo_id + ': ' : ''}${etiqueta(ESTADOS_REQUISITO, x.estado)}`); repintarFicha();
+      const b2 = document.querySelector(`#lcReq-${id} .lc-estado`); if (b2) b2.focus();
+    } catch (e) { Toast.error(errTxt(e, 'No se cambió el estado')); }
+  }
+  let reqAdjuntando = null;
+  function adjuntarRequisito(id) { reqAdjuntando = id; const i = document.getElementById('lcReqFile'); if (i) { i.value = ''; i.click(); } }
+  async function subirArchivoRequisito(file, id) {
+    const rid = id || reqAdjuntando; const r = reqPorId(rid);
+    if (!file || !r) return;
+    if (file.size > MAX_BYTES) { Toast.error(`«${file.name}» pesa ${fmtBytes(file.size)}: comprímelo o divídelo (máximo 50 MB).`); return; }
+    const mime = mimeDe(file.name, file.type);
+    if (!mime) { Toast.error(`«${file.name}»: tipo no admitido. Conviértelo a PDF.`); return; }
+    const path = rutaArchivo(currentUser.empresa_id, F.lic.id, 'requisitos', `${r.anexo_id}_${file.name}`);
+    try {
+      const up = await sb.storage.from(BUCKET).upload(path, file, { contentType: mime, upsert: false });
+      if (up.error) throw up.error;
+      let x;
+      try { x = await rpc('guardar_requisito', { p_datos: { id: rid, archivo_path: path } }); }
+      catch (e) { await sb.storage.from(BUCKET).remove([path]); throw e; }
+      if (r.archivo_path && r.archivo_path !== path) await sb.storage.from(BUCKET).remove([r.archivo_path]);
+      reemplazarReq(x.requisito);
+      Toast.success(`${r.anexo_id}: archivo final guardado`); repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó el archivo')); }
+  }
+  async function verArchivoRequisito(id) {
+    const r = reqPorId(id); if (!r || !r.archivo_path) return;
+    const w = window.open('', '_blank');
+    try { const u = await urlFirmada(r.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
+    catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
+  }
   function pintarPrecios(el) {
     el.innerHTML = EmptyState({
       icon: 'ri-price-tag-3-line', title: 'La lista de precios llega con el Banco de precios',
@@ -742,11 +922,14 @@ ${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a
     render, cargar, recargar, nueva, editarDatos, guardarDatos, abrir, volver, tabFicha, tabLista, filtro, cerrarModal,
     guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana,
     subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
+    verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
+    adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
+    delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };

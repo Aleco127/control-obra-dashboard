@@ -539,6 +539,9 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 .lc-avance>span{display:block;height:100%;background:var(--accent-fill)}
 .lc-vence{color:var(--danger);font-weight:600}
 .lc-fila-vence{background:var(--danger-soft)}
+.lc-estado{display:inline-flex;align-items:center;gap:2px;min-height:var(--tap);border-radius:var(--radius-sm);padding:0 4px}
+.lc-estado:hover{background:var(--surface-2)}
+.lc-est label:focus-within{outline:2px solid var(--ring);outline-offset:2px}
 @media (max-width:559px){
   .lc-tbl thead{display:none}
   .lc-tbl tr{display:block;padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}

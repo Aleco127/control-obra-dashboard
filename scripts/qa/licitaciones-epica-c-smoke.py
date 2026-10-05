@@ -224,7 +224,72 @@ def paso_815(page, tag, ancho):
     quedan = sql(page, f"const {{data}}=await sb.storage.from('licitaciones').list('empresa/'+currentUser.empresa_id+'/licitaciones/{lid}/acta_junta');return (data||[]).length;")
     check(quedan == 0, f'{tag} 815: borrar quita también el objeto del bucket')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815}
+def paso_816(page, tag, ancho):
+    lid = lic_id(page, ancho)
+    abrir_ficha(page, lid, 'requisitos')
+    page.evaluate("()=>Licitaciones.verSobre('tecnico')")
+    page.locator('#lcPanel button:has-text("Agregar requisito")').first.click()
+    page.wait_for_selector('#lcFormReq')
+    page.fill('#lcRqAnexo', 'AT-01'); page.fill('#lcRqDesc', 'Designación del superintendente'); page.select_option('#lcRqOrigen', 'se_genera')
+    page.fill('#lcRqResp', 'Ricardo'); page.check('#lcRqFirma')
+    page.click('#lcFormReq button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.some(r=>r.anexo_id==='AT-01')", timeout=10000)
+    for an, d in [('AT-02', 'Conocimiento del sitio'), ('AT-03', 'Conocimiento de las bases')]:
+        sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'{an}',sobre:'tecnico',descripcion:'{d}'}}}});")
+    sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'6.2',sobre:'legal',descripcion:'Escrito de facultades'}}}});")
+    abrir_ficha(page, lid, 'requisitos')
+    page.evaluate("()=>Licitaciones.verSobre('tecnico')")
+    orden0 = page.eval_on_selector_all('#lcPanel tbody tr td[data-et=Anexo]', 'els=>els.map(e=>e.textContent.trim())')
+    check(orden0 == ['AT-01', 'AT-02', 'AT-03'], f'{tag} 816: sobre técnico con sus requisitos en orden {orden0}')
+    check(page.locator('#lcPanel [role=tablist] [role=tab]').count() == 3, f'{tag} 816: tres pestañas de sobre')
+    page.locator('#lcPanel button[aria-label="Subir AT-03"]').click()
+    page.wait_for_timeout(1200)
+    orden_bd = sql(page, f"const {{data}}=await sb.from('licitacion_requisitos').select('anexo_id').eq('licitacion_id',{lid}).eq('sobre','tecnico').order('orden');return data.map(x=>x.anexo_id);")
+    check(orden_bd == ['AT-01', 'AT-03', 'AT-02'], f'{tag} 816: orden editable y guardado {orden_bd}')
+    # estado con nota e historial
+    page.locator('#lcPanel button[aria-label^="Cambiar estado de AT-01"]').click()
+    page.wait_for_selector('#lcFormEst')
+    page.wait_for_function("()=>!document.getElementById('lcEstHist').hasAttribute('aria-busy')", timeout=10000)
+    check(page.locator('#lcFormEst input[name=lcEst]').count() == 7, f'{tag} 816: los 7 estados de LicitaGen')
+    page.locator('#lcFormEst label:has-text("En revisión")').click()
+    page.fill('#lcEstNota', 'Falta la cédula')
+    if ancho < 560:
+        alto = page.evaluate("()=>document.querySelector('#lcFormEst .seg-btn').getBoundingClientRect().height")
+        check(alto >= 44, f'{tag} 816: opción de estado táctil ({alto} px)')
+        snap(page, f'816_estado_{ancho}.png')
+    page.click('#lcFormEst button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='AT-01').estado==='en_revision'", timeout=10000)
+    page.locator('#lcPanel button[aria-label^="Cambiar estado de AT-01"]').click()
+    page.wait_for_function("()=>document.getElementById('lcEstHist')&&!document.getElementById('lcEstHist').hasAttribute('aria-busy')", timeout=10000)
+    hist = page.inner_text('#lcEstHist')
+    check('Falta la cédula' in hist and 'Pendiente → En revisión' in hist, f'{tag} 816: historial visible con la nota')
+    axe(page, '#mdlLic', f'{tag} 816 modal estado')
+    page.evaluate("()=>Licitaciones.cerrarModal()")
+    # editar
+    page.locator('#lcPanel button[aria-label="Editar AT-02"]').click()
+    page.wait_for_selector('#lcFormReq'); page.fill('#lcRqDesc', 'Conocimiento del sitio y condiciones'); page.select_option('#lcRqOrigen', 'expediente')
+    check(page.is_visible('#lcRqCat'), f'{tag} 816: con origen expediente se pide la categoría')
+    page.select_option('#lcRqCat', 'curriculum')
+    page.click('#lcFormReq button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='AT-02').categoria_expediente==='curriculum'", timeout=10000)
+    # archivo final
+    f = pdf_falso(f'AT-01 firmado {ancho}.pdf', f'firmado {ancho}')
+    with page.expect_file_chooser() as fc:
+        page.locator('#lcPanel button[aria-label="Adjuntar archivo final de AT-01"]').click()
+    fc.value.set_files(f)
+    page.wait_for_function("()=>!!Licitaciones.ficha.reqs.find(r=>r.anexo_id==='AT-01').archivo_path", timeout=20000)
+    ruta = page.evaluate("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='AT-01').archivo_path")
+    check(f'/licitaciones/{lid}/requisitos/' in ruta, f'{tag} 816: archivo final en …/requisitos/')
+    check(page.locator('#lcPanel button[aria-label="Ver archivo final de AT-01"]').count() == 1, f'{tag} 816: botón para ver el archivo final')
+    ovf = page.evaluate("()=>document.documentElement.scrollWidth-document.documentElement.clientWidth")
+    check(ovf <= 0, f'{tag} 816: sin desborde horizontal ({ovf})')
+    snap(page, f'816_requisitos_{ancho}.png')
+    axe(page, '#c', f'{tag} 816')
+    # el resumen refleja el avance
+    page.evaluate("()=>Licitaciones.tabFicha('resumen')")
+    check('0 de 3' in page.inner_text('#lcPanel'), f'{tag} 816: barra de avance por sobre en el resumen')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816}
 
 def main():
     with sync_playwright() as pw:

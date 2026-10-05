@@ -121,3 +121,17 @@ test('US-815: tipo MIME admitido por el bucket, nombre seguro, ruta, tamaño y a
   const u = new Set();
   assert.deepEqual(['a.pdf', 'A.pdf', 'a.pdf'].map((n) => L.nombreUnico(u, n)), ['a.pdf', 'A (2).pdf', 'a (3).pdf']);
 });
+
+test('US-816: requisitos de un sobre en su orden, mover arriba/abajo y categorías del expediente = CHECK de 081', () => {
+  const reqs = [{ id: 3, sobre: 'legal', orden: 2 }, { id: 1, sobre: 'legal', orden: 1 }, { id: 9, sobre: 'tecnico', orden: 1 }, { id: 2, sobre: 'legal', orden: 2 }];
+  assert.deepEqual(L.delSobre(reqs, 'legal').map((r) => r.id), [1, 2, 3], 'empate en orden: por id');
+  assert.deepEqual(L.moverEnLista([1, 2, 3], 3, -1), [1, 3, 2]);
+  assert.deepEqual(L.moverEnLista([1, 2, 3], 1, 1), [2, 1, 3]);
+  assert.equal(L.moverEnLista([1, 2, 3], 1, -1), null);
+  assert.equal(L.moverEnLista([1, 2, 3], 3, 1), null);
+  const sql = readFileSync(new URL('../../migrations/081_expediente_empresa.sql', import.meta.url), 'utf8');
+  const cat = sql.match(/categoria\s+text NOT NULL CHECK \(categoria IN \(([\s\S]*?)\)\),/)[1];
+  assert.deepEqual([...cat.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort(), Object.keys(L.CATEGORIAS_EXPEDIENTE).sort());
+  const est = readFileSync(new URL('../../migrations/092_licitaciones_rpc.sql', import.meta.url), 'utf8').match(/p_estado NOT IN \(([^)]*)\)/)[1];
+  assert.deepEqual([...est.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort(), Object.keys(L.ESTADOS_REQUISITO).sort(), 'los 7 estados de LicitaGen');
+});
