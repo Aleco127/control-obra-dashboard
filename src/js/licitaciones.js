@@ -774,7 +774,8 @@ ${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a
     try {
       const { error } = await sb.from('licitacion_archivos').delete().eq('id', id);
       if (error) throw error;
-      await sb.storage.from(BUCKET).remove([a.archivo_path]);
+      // Los que llegaron de una convocatoria (US-849) comparten el objeto del bucket con ella: no se borra.
+      if (!/\/convocatorias\//.test(String(a.archivo_path))) await sb.storage.from(BUCKET).remove([a.archivo_path]);
       F.archivos = F.archivos.filter((x) => x.id !== id);
       Toast.success('Archivo borrado');
       repintarFicha();

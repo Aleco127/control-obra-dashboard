@@ -461,7 +461,7 @@ const Convocatorias = (() => {
   }
   function repintar() {
     const p = el(); if (!p) return;
-    p.innerHTML = cabeceraHtml() + busquedaHtml() + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + `<div id="cvFichas">${fichasHtml()}</div><div id="cvLista">${listaHtml()}</div>`) + pieHtml();
+    p.innerHTML = cabeceraHtml() + busquedaHtml() + `<div id="cvDescargaPanel">${descargaHtml()}</div>` + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + `<div id="cvFichas">${fichasHtml()}</div><div id="cvLista">${listaHtml()}</div>`) + pieHtml();
   }
   /** Sólo fichas, contador y lista: la barra no se vuelve a pintar (no pierde el foco ni lo escrito). */
   function repintarLista() {
@@ -544,7 +544,7 @@ ${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_de
     const nueva = nuevaDesde && c.primera_vez_vista && new Date(c.primera_vez_vista) >= new Date(nuevaDesde);
     const est = c.seguimiento_estado && c.seguimiento_estado !== 'nueva' ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S({ interesa: 'Me interesa', descartada: 'Descartada', convertida: 'Convertida' }[c.seguimiento_estado] || '')}</span>` : '';
     const docs = c.descarga_estado ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)"><i class="ri-folder-download-line" aria-hidden="true"></i> ${S(ESTADOS_DESCARGA[c.descarga_estado] || c.descarga_estado)}</span>` : '';
-    return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><p class="font-medium">${S(c.titulo || 'Sin título')}</p>
+    return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><button type="button" class="font-medium text-left hover:underline" onclick="Convocatorias.abrirDetalle(${+c.id})">${S(c.titulo || 'Sin título')}</button>
 <p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p>${descripcionHtml(c)}<p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}${docs}</p></div></td>
 <td data-et="Dependencia"><span>${S(c.dependencia || '—')}</span></td><td data-et="Entidad"><span>${S(c.entidad || '—')}${c.municipio ? `<span class="block text-xs text-ink-muted">${S(c.municipio)}</span>` : ''}</span></td>
 <td data-et="Tipo"><span>${S(TIPOS[c.tipo_contratacion] || '—')}${c.tipo_procedimiento && PROCEDIMIENTOS[c.tipo_procedimiento] ? `<span class="block text-xs text-ink-muted">${S(PROCEDIMIENTOS[c.tipo_procedimiento])}</span>` : ''}</span></td>
@@ -666,7 +666,12 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
         const t = deshacer.t; setTimeout(() => { if (deshacer && deshacer.t === t) { deshacer = null; repintar(); } }, 10000);
       } else if (sinDeshacer) deshacer = null;
       repintar();
-      if (estadoNuevo === 'interesa') Toast.success('Marcada «Me interesa»: te recordaremos 5 y 2 días antes de la apertura.');
+      if (estadoNuevo === 'interesa') {
+        Toast.success('Marcada «Me interesa»: te recordaremos 5 y 2 días antes de la apertura. Bajando sus documentos…');
+        // US-848 (D14): al marcarla se bajan los documentos de ESA convocatoria (si ya se bajaron, «Buscar documentos
+        // nuevos» en su detalle lo repite a mano).
+        if (c && c.descarga_estado !== 'lista' && !(descarga && !descarga.fin)) descargarDocumentos(id, 'interesa');
+      }
     } catch (e) { Toast.error(errTxt(e, 'No se guardó la marca')); }
   }
   async function deshacerDescartar() {
@@ -825,7 +830,7 @@ ${campo('cvpPerfil', 'Perfil de convocante', `<select id="cvpPerfil" class="inp 
       cerrarModal();
       aplicarEstado(id, 'convertida');
       for (const x of [...filas, ...(resultados ? resultados.flatMap((q) => q.filas || []) : [])]) if (x.id === id) x.licitacion_id = r.id;
-      Toast.success('Licitación creada: ' + (r.licitacion && r.licitacion.codigo));
+      Toast.success('Licitación creada: ' + (r.licitacion && r.licitacion.codigo) + (r.archivos ? ` · ${r.archivos} documento${r.archivos === 1 ? '' : 's'} de la convocatoria pasaron a sus archivos` : ''));
       await L.cargar(true);
       L.abrir(r.id);
     } catch (e) {
@@ -1040,6 +1045,344 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
     for (const c of Object.values(busqueda.ctl)) { try { c && c.abort(); } catch (e) { /* ya terminó */ } }
   }
 
+  // ---- Documentos de UNA convocatoria (US-848, D14) y panel de detalle (US-849) -------------------------------------------
+  // Nada se baja a volumen: sólo la convocatoria que el usuario marca «Me interesa» o en la que pulsa «Descargar
+  // documentos» / «Buscar documentos nuevos», una a la vez (aquí y en el servidor: convocatoria_descarga_iniciar).
+  //   ComprasMX → conector local (POST /comprasmx/anexos, /anexos/archivo, /anexos/cerrar; sin iniciar sesión).
+  //   Chihuahua → función de borde convocatorias-documentos (el portal no manda CORS).
+  // La APP sube cada archivo al bucket `licitaciones` (empresa/<id>/convocatorias/<convocatoria>/…) con la sesión del
+  // usuario y lo registra en convocatoria_archivos; no duplica por id del portal ni por SHA-256.
+  const BUCKET = 'licitaciones';
+  const TOPE_ARCHIVOS = 60;
+  const TOPE_BYTES = 300 * 1024 * 1024;
+  const TOPE_ARCHIVO = 50 * 1024 * 1024;
+  const MIME_DOCS = {
+    pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff',
+    doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dwg: 'image/vnd.dwg', zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed', txt: 'text/plain',
+  };
+  /** Tipo MIME que admite el bucket para un documento del portal (por extensión) o null. */
+  function mimeDocumento(nombre) { return MIME_DOCS[String(nombre || '').toLowerCase().split('.').pop()] || null; }
+  function nombreSeguroDoc(n) {
+    const s = String(n || 'archivo').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^[_.]+/, '');
+    if (s.length <= 90) return s || 'archivo';
+    const i = s.lastIndexOf('.'); const ext = i > 0 && s.length - i <= 6 ? s.slice(i) : '';
+    return s.slice(0, 90 - ext.length) + ext;
+  }
+  /** Ruta en el bucket: empresa/<emp>/convocatorias/<convocatoria>/<hash12>_<nombre>. */
+  function rutaDocumento(emp, convId, hash, nombre) { return `empresa/${emp}/convocatorias/${convId}/${String(hash).slice(0, 12)}_${nombreSeguroDoc(nombre)}`; }
+  /**
+   * Qué bajar de la lista del portal: no lo que ya está (por id del portal), ni lo que pasa de 50 MB, y sin rebasar
+   * 60 archivos ni 300 MB por convocatoria contando lo ya guardado. → {bajar, omitidos: [{item, motivo}], ya}
+   */
+  function planDescarga(lista, existentes, topes) {
+    const t = Object.assign({ archivos: TOPE_ARCHIVOS, bytes: TOPE_BYTES, archivo: TOPE_ARCHIVO }, topes || {});
+    const prev = lista ? (existentes || []) : [];
+    const yaIds = new Set(prev.map((a) => a.origen_id).filter(Boolean));
+    let n = prev.length; let bytes = prev.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+    const bajar = []; const omitidos = []; const ya = [];
+    for (const it of lista || []) {
+      if (yaIds.has(it.id)) { ya.push(it); continue; }
+      const tam = Number(it.tamano) || 0;
+      if (tam > t.archivo) { omitidos.push({ item: it, motivo: `pesa ${(tam / 1048576).toFixed(1)} MB (más de 50 MB): bájalo del portal` }); continue; }
+      if (n >= t.archivos) { omitidos.push({ item: it, motivo: `tope de ${t.archivos} archivos por convocatoria` }); continue; }
+      if (bytes + tam > t.bytes) { omitidos.push({ item: it, motivo: 'tope de 300 MB por convocatoria' }); continue; }
+      bajar.push(it); n++; bytes += tam;
+    }
+    return { bajar, omitidos, ya };
+  }
+  /** Archivos llegados después de la visita anterior (etiqueta «Nuevo»). Sin visita anterior no hay «Nuevo». */
+  function idsNuevos(archivos, vistoAntes) {
+    if (!vistoAntes) return new Set();
+    const t = new Date(vistoAntes).getTime();
+    return new Set((archivos || []).filter((a) => a.created_at && new Date(a.created_at).getTime() > t).map((a) => a.id));
+  }
+  /** convocatoria.json de «Preparar para revisión»: datos + archivos + notas, para generar licitacion-bases/v1. */
+  function convocatoriaJson(c, archivos, notas, ahora) {
+    const x = c || {};
+    return {
+      formato: 'convocatoria-revision/v1',
+      generado: ahora || new Date().toISOString(),
+      instrucciones: 'Lee los PDF de esta carpeta y genera un archivo licitacion-bases/v1 (docs/licitaciones/licitacion-bases.schema.json; guía en docs/licitaciones/bases-con-claude-code.md). Luego impórtalo en Licitaciones › ficha › Bases.',
+      convocatoria: {
+        fuente: FUENTES_PORTAL[x.fuente] || x.fuente || null, numero_procedimiento: x.numero_procedimiento || null, id_externo: x.id_externo || null,
+        titulo: x.titulo || null, descripcion: x.descripcion || null, dependencia: x.dependencia || null, unidad_compradora: x.unidad_compradora || null,
+        entidad: x.entidad || null, municipio: x.municipio || null,
+        tipo_contratacion: TIPOS[x.tipo_contratacion] || x.tipo_contratacion || null,
+        tipo_procedimiento: PROCEDIMIENTOS[x.tipo_procedimiento] || x.tipo_procedimiento || null,
+        estatus: ESTATUS_PORTAL[x.estatus] || x.estatus || null,
+        publicacion: x.publicacion || null, junta_aclaraciones: x.junta_aclaraciones || null, apertura: x.apertura || null, fallo: x.fallo || null,
+        url_detalle: urlSegura(x.url_detalle),
+      },
+      archivos: (archivos || []).map((a) => ({ nombre: a.nombre, en_zip: a.en_zip || null, anexo: a.anexo || null, tipo: a.tipo || null,
+        tamano: Number(a.tamano) || 0, sha256: a.hash_sha256, publicado_portal: a.publicado_portal_at || null })),
+      notas: (notas || []).map((n) => ({ autor: n.autor || null, fecha: n.created_at, texto: n.texto })),
+    };
+  }
+  const esPdf = (a) => /\.pdf$/i.test(String(a && a.nombre)) || (a && a.mime) === 'application/pdf';
+
+  let descarga = null;     // en curso: {convId, items:[{id, nombre, estado, nota}], fase, cancelar, ses, error}
+  let det = null;          // panel de detalle abierto: {id, c, archivos, descarga, notas, vistoAntes}
+
+  function descargaHtml() {
+    if (!descarga) return '';
+    const d = descarga; const c = buscarFila(d.convId);
+    const hechos = d.items.filter((x) => x.estado !== 'pendiente' && x.estado !== 'bajando').length;
+    const pct = d.items.length ? Math.round((hechos / d.items.length) * 100) : 0;
+    const ic = { pendiente: 'ri-time-line text-ink-muted', bajando: 'ri-loader-4-line animate-spin', listo: 'ri-checkbox-circle-line text-ok', ya: 'ri-check-double-line text-ink-muted', omitido: 'ri-forbid-line text-warn', error: 'ri-error-warning-line text-danger' };
+    const et = { pendiente: 'en espera', bajando: 'bajando…', listo: 'guardado', ya: 'ya estaba', omitido: 'omitido', error: 'error' };
+    return `<section class="g rounded-xl p-3 mb-3" role="status" aria-live="polite" aria-label="Descarga de documentos">
+<p class="text-sm font-semibold"><i class="ri-folder-download-line" aria-hidden="true"></i> Documentos de ${S((c && (c.numero_procedimiento || c.titulo)) || 'la convocatoria')}: ${S(d.fase)}</p>
+${d.items.length ? `<div class="cv-prog my-2" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Avance de la descarga"><span style="width:${pct}%"></span></div>
+<ul class="text-xs space-y-1 max-h-48 overflow-y-auto" tabindex="0" aria-label="Archivos de la descarga">${d.items.map((x) => `<li class="flex items-start gap-2"><i class="${ic[x.estado] || ''}" aria-hidden="true"></i><span class="break-all"><b>${S(x.nombre)}</b> · ${S(et[x.estado] || x.estado)}${x.nota ? ' · ' + S(x.nota) : ''}</span></li>`).join('')}</ul>` : ''}
+${d.fin ? '' : `<button type="button" class="btn btn-s text-xs mt-2" onclick="Convocatorias.cancelarDescarga()" ${d.cancelar ? 'disabled' : ''}><i class="ri-stop-circle-line" aria-hidden="true"></i> ${d.cancelar ? 'Deteniendo…' : 'Detener la descarga'}</button>`}</section>`;
+  }
+  function repintarDescarga() {
+    for (const id of ['cvDescargaPanel', 'cvDescargaDet']) {
+      const n = typeof document !== 'undefined' && document.getElementById(id);
+      if (n) n.innerHTML = descargaHtml();
+    }
+  }
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function leerArchivos(convId) {
+    const { data, error } = await sb.from('convocatoria_archivos').select('id,convocatoria_id,nombre,tipo,anexo,tamano,hash_sha256,archivo_path,mime,publicado_portal_at,origen_id,origen_url,created_at').eq('convocatoria_id', convId).order('created_at', { ascending: false }).order('id', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+  async function leerDescarga(convId) {
+    const { data, error } = await sb.from('convocatoria_descargas').select('id,estado,error,solicitado_at,inicio_at,fin_at,revisado_at,total,bajados,omitidos,bytes,avisos,motivo').eq('convocatoria_id', convId).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+  /** Lista de documentos del portal → [{id, nombre, tamano, anexo, tipo, publicado}] (y la sesión del conector). */
+  async function listaPortal(c) {
+    if (c.fuente === 'comprasmx') {
+      const est = await estadoConector();
+      if (!est) { const av = await avisoConector(); const e = new Error(av.causa === 'denegado' ? 'Chrome bloqueó el acceso a la red local' : 'El conector de ComprasMX no responde'); e.html = av.html; throw e; }
+      if (est.ocupado) throw new Error('El conector está ocupado con otra búsqueda o descarga; espera a que termine.');
+      const r = await fetch(CONECTOR + '/comprasmx/anexos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uuid: c.id_externo }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `El conector respondió ${r.status}`);
+      return { ses: j.sesion, items: j.archivos || [], truncado: !!j.truncado };
+    }
+    const r = await fetch(SB + '/functions/v1/convocatorias-documentos', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify({ accion: 'lista', convocatoria_id: c.id }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `El servidor respondió ${r.status}`);
+    // En Chihuahua el nombre real llega con el archivo; mientras, tipo y fecha.
+    return { ses: null, items: (j.documentos || []).map((d) => ({ id: d.id, nombre: `${d.tipo || 'Documento'}${d.fecha ? ' (' + d.fecha + ')' : ''}`, tamano: 0, anexo: d.tipo, tipo: d.tipo, publicado: d.fecha })), truncado: false };
+  }
+  /** Un archivo del portal como Blob + nombre (+ sha256 que calculó el conector). */
+  async function bajarDelPortal(c, ses, it) {
+    const r = c.fuente === 'comprasmx'
+      ? await fetch(CONECTOR + '/comprasmx/anexos/archivo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sesion: ses, id: it.id }) })
+      : await fetch(SB + '/functions/v1/convocatorias-documentos', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify({ accion: 'archivo', convocatoria_id: c.id, id: it.id }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || `respondió ${r.status}`); e.status = r.status; throw e; }
+    const nombre = decodeURIComponent(r.headers.get('X-Archivo-Nombre') || '') || it.nombre;
+    return { blob: await r.blob(), nombre, sha: r.headers.get('X-Archivo-Sha256') || null };
+  }
+  function fechaPortal(v) {
+    if (!v) return null;
+    const m = String(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T12:00:00-06:00`;
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(String(v)) ? String(v) + '-06:00' : (Number.isFinite(Date.parse(v)) ? v : null);
+  }
+  /**
+   * Baja los documentos de UNA convocatoria (motivo: 'interesa' | 'manual' | 'nuevos'). Un archivo a la vez, con pausas,
+   * avance visible por archivo, topes de 60 archivos y 300 MB, sin duplicar (id del portal y SHA-256).
+   */
+  async function descargarDocumentos(id, motivo) {
+    if (descarga && !descarga.fin) { Toast.warning('Ya se están bajando los documentos de otra convocatoria; espera a que termine.'); return null; }
+    const c = buscarFila(id) || (det && det.id === id ? det.c : null);
+    if (!c) return null;
+    descarga = { convId: id, items: [], fase: 'preparando…', cancelar: false, ses: null, fin: false };
+    if (!document.getElementById('cvDescargaPanel') && el()) el().insertAdjacentHTML('afterbegin', '<div id="cvDescargaPanel"></div>');
+    repintarDescarga();
+    let reg = null; const avisos = []; let bajados = 0; let omitidos = 0; let bytes = 0; let total = 0; let error = null;
+    const avance = async (estado) => { if (reg) { try { await rpc('convocatoria_descarga_avance', { p_id: reg.id, p_estado: estado, p_total: total, p_bajados: bajados, p_omitidos: omitidos, p_bytes: bytes, p_avisos: avisos.slice(0, 80), p_error: error }); } catch (e) { /* el avance es informativo */ } } };
+    try {
+      reg = await rpc('convocatoria_descarga_iniciar', { p_convocatoria_id: id, p_motivo: motivo || 'manual' });
+      const existentes = await leerArchivos(id);
+      descarga.fase = c.fuente === 'comprasmx' ? 'abriendo el procedimiento con el conector de tu computadora…' : 'leyendo la lista de documentos del portal…';
+      repintarDescarga();
+      const lista = await listaPortal(c);
+      descarga.ses = lista.ses;
+      const plan = planDescarga(lista.items, existentes);
+      if (lista.truncado) avisos.push('El procedimiento tiene más de 60 archivos: sólo se listaron los primeros 60.');
+      total = plan.bajar.length;
+      descarga.items = [...plan.bajar.map((x) => ({ id: x.id, nombre: x.nombre, estado: 'pendiente', it: x })),
+        ...plan.omitidos.map((o) => ({ id: o.item.id, nombre: o.item.nombre, estado: 'omitido', nota: o.motivo })),
+        ...plan.ya.map((x) => ({ id: x.id, nombre: x.nombre, estado: 'ya' }))];
+      for (const o of plan.omitidos) { omitidos++; avisos.push(`«${o.item.nombre}»: ${o.motivo}`); }
+      descarga.fase = plan.bajar.length ? `bajando ${plan.bajar.length} archivo${plan.bajar.length === 1 ? '' : 's'}…` : 'no hay documentos nuevos';
+      repintarDescarga(); await avance('en_curso');
+      const hashes = new Set(existentes.map((a) => a.hash_sha256));
+      let bytesGuardados = existentes.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+      const emp = currentUser.empresa_id;
+      for (const x of descarga.items.filter((q) => q.estado === 'pendiente')) {
+        if (descarga.cancelar) { x.estado = 'omitido'; x.nota = 'detenido'; omitidos++; continue; }
+        x.estado = 'bajando'; repintarDescarga();
+        try {
+          if (c.fuente === 'chihuahua' && bajados + omitidos > 0) await dormir(1500 + Math.random() * 1500);   // pausa entre descargas (el conector la pone en ComprasMX)
+          const f = await bajarDelPortal(c, descarga.ses, x.it);
+          x.nombre = f.nombre;
+          const buf = await f.blob.arrayBuffer();
+          const hash = await sha256Hex(buf);
+          if (f.sha && f.sha !== hash) throw new Error('el archivo llegó incompleto (el SHA-256 no coincide)');
+          if (buf.byteLength > TOPE_ARCHIVO) { x.estado = 'omitido'; x.nota = 'más de 50 MB'; omitidos++; avisos.push(`«${f.nombre}»: más de 50 MB`); continue; }
+          if (bytesGuardados + buf.byteLength > TOPE_BYTES) { x.estado = 'omitido'; x.nota = 'tope de 300 MB'; omitidos++; avisos.push(`«${f.nombre}»: tope de 300 MB por convocatoria`); continue; }
+          if (hashes.has(hash)) { x.estado = 'ya'; x.nota = 'mismo contenido que otro archivo ya guardado'; continue; }
+          const mime = mimeDocumento(f.nombre);
+          if (!mime) { x.estado = 'omitido'; x.nota = 'tipo de archivo no admitido'; omitidos++; avisos.push(`«${f.nombre}»: tipo de archivo no admitido`); continue; }
+          const path = rutaDocumento(emp, id, hash, f.nombre);
+          const up = await sb.storage.from(BUCKET).upload(path, new Blob([buf], { type: mime }), { contentType: mime, upsert: false });
+          if (up.error && !/exists|duplicate/i.test(String(up.error.message || up.error))) throw up.error;
+          const ins = await sb.from('convocatoria_archivos').insert({ convocatoria_id: id, nombre: f.nombre, tipo: x.it.tipo || null, anexo: x.it.anexo || null,
+            tamano: buf.byteLength, hash_sha256: hash, archivo_path: path, mime, publicado_portal_at: fechaPortal(x.it.publicado),
+            origen_url: urlSegura(c.url_detalle), origen_id: x.it.id, descarga_id: reg.id });
+          if (ins.error) { if (!up.error) await sb.storage.from(BUCKET).remove([path]); throw ins.error; }
+          hashes.add(hash); bajados++; bytes += buf.byteLength; bytesGuardados += buf.byteLength;
+          x.estado = 'listo'; x.nota = fmtBytesDoc(buf.byteLength);
+        } catch (e) {
+          x.estado = 'error'; x.nota = errTxt(e); omitidos++; avisos.push(`«${x.nombre}»: ${errTxt(e)}`);
+          if (e && (e.status === 404 || /sesi[oó]n de anexos/.test(String(e.message)))) break;   // la sesión del conector se cerró
+        }
+        repintarDescarga(); await avance('en_curso');
+      }
+      descarga.fase = descarga.cancelar ? `detenida: ${bajados} guardado${bajados === 1 ? '' : 's'}` : `lista: ${bajados} guardado${bajados === 1 ? '' : 's'}${omitidos ? `, ${omitidos} omitido${omitidos === 1 ? '' : 's'}` : ''}`;
+      await avance(bajados || !omitidos ? 'lista' : 'fallo');
+    } catch (e) {
+      error = errTxt(e); descarga.fase = 'no se pudo: ' + error; if (e && e.html) descarga.fase = 'no se pudo';
+      if (e && e.html) descarga.items = [{ id: 'aviso', nombre: 'Conector', estado: 'error', nota: e.message }];
+      await avance('fallo');
+      if (e && e.html) Toast.error(e.message + '. Revisa el aviso en «Buscar en los portales».', 8000); else Toast.error(error);
+    } finally {
+      if (descarga.ses) { try { await fetch(CONECTOR + '/comprasmx/anexos/cerrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sesion: descarga.ses }) }); } catch (e) { /* el conector la cierra solo a los 5 min */ } }
+      descarga.fin = true; repintarDescarga();
+      for (const q of [...filas, ...(resultados ? resultados.flatMap((r) => r.filas || []) : [])]) if (q.id === id) q.descarga_estado = error ? 'fallo' : 'lista';
+      if (det && det.id === id) await recargarDetalle();
+    }
+    return { bajados, omitidos, error };
+  }
+  function cancelarDescarga() { if (descarga && !descarga.fin) { descarga.cancelar = true; repintarDescarga(); } }
+  const fmtBytesDoc = (n) => { const v = Number(n) || 0; return v < 1024 ? v + ' B' : v < 1048576 ? Math.round(v / 1024) + ' KB' : (v / 1048576).toFixed(1) + ' MB'; };
+  async function sha256Hex(buf) { const h = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, '0')).join(''); }
+
+  // ---- Panel de detalle (US-849) ---------------------------------------------------------------------------------------------
+  async function abrirDetalle(id) {
+    const c = buscarFila(id);
+    if (!c) { Toast.error('No se encontró la convocatoria en la lista.'); return; }
+    det = { id, c, archivos: null, descarga: null, notas: null, vistoAntes: null, cargando: true };
+    modal(c.titulo || 'Convocatoria', `<div id="cvDet" aria-busy="true">${Skeleton.table(4, 3)}</div>`, 'max-w-4xl');
+    await recargarDetalle(true);
+  }
+  async function recargarDetalle(primera) {
+    if (!det) return;
+    const id = det.id;
+    try {
+      const [archivos, d, notas, visto] = await Promise.all([
+        leerArchivos(id), leerDescarga(id),
+        sb.from('convocatoria_notas').select('id,texto,autor,created_at').eq('convocatoria_id', id).order('created_at', { ascending: false }).then((r) => { if (r.error) throw r.error; return r.data || []; }),
+        primera ? rpc('convocatoria_visitar', { p_convocatoria_id: id }) : Promise.resolve(det.vistoAntes),
+      ]);
+      if (!det || det.id !== id) return;
+      Object.assign(det, { archivos, descarga: d, notas, vistoAntes: primera ? visto : det.vistoAntes, cargando: false });
+      pintarDetalle();
+    } catch (e) {
+      const n = document.getElementById('cvDet'); if (n) { n.removeAttribute('aria-busy'); n.innerHTML = `<p class="text-sm text-danger">${S(errTxt(e, 'No se pudo cargar el detalle'))}</p>`; }
+    }
+  }
+  function pintarDetalle() {
+    const n = typeof document !== 'undefined' && document.getElementById('cvDet'); if (!n || !det) return;
+    n.removeAttribute('aria-busy');
+    const c = det.c; const url = urlSegura(c.url_detalle);
+    const dato = (et, v) => (v ? `<div><dt class="text-xs text-ink-muted">${S(et)}</dt><dd class="text-sm">${v}</dd></div>` : '');
+    const f = (ts) => S(fmtFechaHora(ts));
+    const nuevos = idsNuevos(det.archivos, det.vistoAntes);
+    const d = det.descarga;
+    const estadoDesc = !d ? 'Todavía no se han bajado documentos de esta convocatoria.'
+      : `${S(ESTADOS_DESCARGA[d.estado] || d.estado)}${d.fin_at ? ' · ' + f(d.fin_at) : ''}${d.estado !== 'en_curso' ? ` · ${d.bajados} guardado${d.bajados === 1 ? '' : 's'}${d.omitidos ? `, ${d.omitidos} omitido${d.omitidos === 1 ? '' : 's'}` : ''}` : ''}${d.revisado_at ? ' · última revisión de documentos nuevos: ' + f(d.revisado_at) : ''}`;
+    const avisos = d && Array.isArray(d.avisos) && d.avisos.length ? `<details class="text-xs mt-1"><summary class="cursor-pointer">Avisos de la última descarga (${d.avisos.length})</summary><ul class="list-disc pl-5">${d.avisos.map((a) => `<li>${S(a)}</li>`).join('')}</ul></details>` : '';
+    const enCurso = descarga && !descarga.fin;
+    const arch = det.archivos || [];
+    const total = arch.reduce((s, a) => s + (Number(a.tamano) || 0), 0);
+    const filasArch = arch.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a.nombre)}${nuevos.has(a.id) ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nuevo</span>' : ''}</span></td>
+<td data-et="Anexo"><span>${S(a.anexo || a.tipo || '—')}</span></td><td data-et="Tamaño"><span>${S(fmtBytesDoc(a.tamano))}</span></td><td data-et="Llegó"><span>${S(fmtFechaHora(a.created_at))}</span></td>
+<td data-et="" class="text-right whitespace-nowrap"><button type="button" class="btn-icon" onclick="Convocatorias.verArchivo(${+a.id})" aria-label="Ver ${S(a.nombre)}" title="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Convocatorias.descargarArchivo(${+a.id})" aria-label="Descargar ${S(a.nombre)}" title="Descargar"><i class="ri-download-2-line" aria-hidden="true"></i></button></td></tr>`).join('');
+    n.innerHTML = `<p class="text-xs text-ink-muted font-mono mb-1">${S(c.numero_procedimiento || c.id_externo || '')}</p>
+<p class="mb-3">${chipFuente(c.fuente)} ${c.estatus ? `<span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S(ESTATUS_PORTAL[c.estatus] || c.estatus)}</span>` : ''}${url ? ` <a class="text-accent hover:underline text-sm" href="${S(url)}" target="_blank" rel="noopener noreferrer"><i class="ri-external-link-line" aria-hidden="true"></i> Ver en el portal</a>` : ''}</p>
+${c.descripcion ? `<section class="mb-4" aria-labelledby="cvDetDesc"><h3 id="cvDetDesc" class="font-semibold text-sm mb-1">Descripción</h3><p class="text-sm whitespace-pre-line">${S(c.descripcion)}</p></section>` : ''}
+<dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mb-4">
+${dato('Dependencia', S(c.dependencia || ''))}${dato('Unidad compradora', S(c.unidad_compradora || ''))}${dato('Entidad', S([c.entidad, c.municipio].filter(Boolean).join(' · ')))}
+${dato('Tipo', S([TIPOS[c.tipo_contratacion], PROCEDIMIENTOS[c.tipo_procedimiento]].filter(Boolean).join(' · ')))}
+${dato('Publicación', f(c.publicacion))}${dato('Junta de aclaraciones', f(c.junta_aclaraciones))}${dato('Presentación y apertura', f(c.apertura))}${dato('Fallo', f(c.fallo))}</dl>
+<section class="mb-4" aria-labelledby="cvDetDocs"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h3 id="cvDetDocs" class="font-semibold text-sm">Documentos <span class="tab-n">${arch.length}</span></h3>
+<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s text-xs" onclick="Convocatorias.descargarDocumentos(${+c.id},'${d ? 'nuevos' : 'manual'}')" ${enCurso ? 'disabled' : ''}><i class="${d ? 'ri-refresh-line' : 'ri-folder-download-line'}" aria-hidden="true"></i> ${d ? 'Buscar documentos nuevos' : 'Descargar documentos'}</button>
+<button type="button" class="btn btn-s text-xs" onclick="Convocatorias.descargarZip(false)" ${arch.length ? '' : 'disabled'}><i class="ri-folder-zip-line" aria-hidden="true"></i> Descargar todo (ZIP)</button>
+<button type="button" class="btn btn-p text-xs" onclick="Convocatorias.descargarZip(true)" ${arch.some(esPdf) ? '' : 'disabled'}><i class="ri-robot-2-line" aria-hidden="true"></i> Preparar para revisión</button></div></div>
+<p class="text-xs text-ink-muted mb-2">${estadoDesc}${arch.length ? ` · ${arch.length} archivo${arch.length === 1 ? '' : 's'}, ${S(fmtBytesDoc(total))}` : ''}</p>${avisos}
+<div id="cvDescargaDet">${descarga && descarga.convId === c.id ? descargaHtml() : ''}</div>
+${arch.length ? `<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Documentos de la convocatoria"><table class="table-modern lc-tbl w-full text-sm"><thead><tr><th scope="col">Archivo</th><th scope="col">Anexo</th><th scope="col">Tamaño</th><th scope="col">Llegó</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody>${filasArch}</tbody></table></div>` : ''}
+<p class="field-hint mt-1">Los documentos se bajan sólo de esta convocatoria y sólo cuando lo pides (o al marcar «Me interesa»); nunca en lote ni de forma automática.</p></section>
+<section aria-labelledby="cvDetNotas"><h3 id="cvDetNotas" class="font-semibold text-sm mb-2">Notas de revisión</h3>
+<form class="flex flex-col gap-2 mb-3" onsubmit="event.preventDefault();Convocatorias.agregarNota()"><label class="sr-only" for="cvNota">Nueva nota de revisión</label><textarea id="cvNota" class="inp w-full" rows="2" maxlength="4000" placeholder="Ej. Pide experiencia en redes de agua de 3 años; revisar fianza."></textarea>
+<div class="flex justify-end"><button type="submit" class="btn btn-s text-xs"><i class="ri-sticky-note-add-line" aria-hidden="true"></i> Agregar nota</button></div></form>
+${(det.notas || []).length ? `<ul class="space-y-2">${det.notas.map((x) => `<li class="g rounded-xl p-3"><p class="text-xs text-ink-muted">${S(x.autor || 'Sin nombre')} · ${S(fmtFechaHora(x.created_at))}</p><p class="text-sm whitespace-pre-line">${S(x.texto)}</p></li>`).join('')}</ul>` : '<p class="text-sm text-ink-muted">Sin notas todavía.</p>'}</section>`;
+  }
+  const archivoDet = (id) => (det && (det.archivos || []).find((a) => a.id === id)) || null;
+  async function urlFirmada(path, como) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 600, como ? { download: como } : undefined);
+    if (error) throw error;
+    return data.signedUrl;
+  }
+  async function verArchivo(id) {
+    const a = archivoDet(id); if (!a) return;
+    const w = window.open('', '_blank');
+    try { const u = await urlFirmada(a.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
+    catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
+  }
+  async function descargarArchivo(id) {
+    const a = archivoDet(id); if (!a) return;
+    try { const u = await urlFirmada(a.archivo_path, a.nombre); const x = document.createElement('a'); x.href = u; x.rel = 'noopener'; document.body.appendChild(x); x.click(); x.remove(); }
+    catch (e) { Toast.error(errTxt(e, 'No se pudo descargar')); }
+  }
+  function nombreUnicoZip(usados, n) {
+    let x = n; let i = 2;
+    while (usados.has(x.toLowerCase())) { const p = n.lastIndexOf('.'); x = p > 0 ? `${n.slice(0, p)} (${i})${n.slice(p)}` : `${n} (${i})`; i++; }
+    usados.add(x.toLowerCase()); return x;
+  }
+  /** «Descargar todo» (ZIP con todos los archivos) o «Preparar para revisión» (sólo PDF + convocatoria.json). */
+  async function descargarZip(revision) {
+    if (!det || !(det.archivos || []).length) return;
+    if (typeof JSZip === 'undefined') { Toast.error('No se cargó el compresor ZIP; recarga la página.'); return; }
+    const lista = revision ? det.archivos.filter(esPdf) : det.archivos;
+    const zip = new JSZip(); const usados = new Set(); const enZip = [];
+    Toast.info(`Preparando ${lista.length} archivo${lista.length === 1 ? '' : 's'}…`);
+    try {
+      for (const a of lista) {
+        const { data, error } = await sb.storage.from(BUCKET).download(a.archivo_path);
+        if (error) throw error;
+        const nombre = nombreUnicoZip(usados, nombreSeguroDoc(a.nombre));
+        zip.file(nombre, data); enZip.push({ ...a, en_zip: nombre });
+      }
+      if (revision) zip.file('convocatoria.json', JSON.stringify(convocatoriaJson(det.c, enZip, det.notas), null, 2));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const base = nombreSeguroDoc(det.c.numero_procedimiento || det.c.id_externo || 'convocatoria');
+      const u = URL.createObjectURL(blob); const x = document.createElement('a');
+      x.href = u; x.download = `${base}_${revision ? 'para_revision' : 'documentos'}.zip`; document.body.appendChild(x); x.click(); x.remove();
+      setTimeout(() => URL.revokeObjectURL(u), 4000);
+    } catch (e) { Toast.error(errTxt(e, 'No se pudo armar el ZIP')); }
+  }
+  async function agregarNota() {
+    const t = val('cvNota'); if (!t || !det) { if (!t) Toast.warning('Escribe la nota.'); return; }
+    try {
+      const { error } = await sb.from('convocatoria_notas').insert({ convocatoria_id: det.id, texto: t });
+      if (error) throw error;
+      Toast.success('Nota guardada');
+      await recargarDetalle();
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó la nota')); }
+  }
+
   // ---- Registro en Licitaciones ---------------------------------------------------------------------------------------------
   if (typeof Licitaciones !== 'undefined' && Licitaciones.registrarPestana) {
     Licitaciones.registrarPestana('lista', { k: 'convocatorias', t: 'Convocatorias', ic: 'ri-file-search-line', pintar }, 'licitaciones');
@@ -1051,12 +1394,15 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
     abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda,
     escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
+    descargarDocumentos, cancelarDescarga, abrirDetalle, verArchivo, descargarArchivo, descargarZip, agregarNota,
+    get detalle() { return det; }, get descarga() { return descarga; },
     get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0, ms: ultimaMs }; },
     // puras
     norm, textoConvocatoria, cumpleFiltro, cumpleAlguno, vigente, parseLista, diasA, argsBusqueda, modalidadDe, plazaDe,
     sugerirPerfil, datosLicitacion, cambiosFechas, urlSegura, resumenFiltro, formDesdeFiltro, cuerpoChihuahua, cuerpoComprasmx,
     textoUltimaBusqueda, parseTextoBarra, cumpleTextoBarra, fichasActivas, quitarFicha, filtroDesdeBarra, barraDesdeFiltro,
-    cuentaFiltros, periodoFechas, causaConector, PERIODOS,
+    cuentaFiltros, periodoFechas, causaConector, PERIODOS, planDescarga, idsNuevos, convocatoriaJson, rutaDocumento, mimeDocumento,
+    nombreSeguroDoc, TOPE_ARCHIVOS, TOPE_BYTES,
     FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS, BARRA_VACIA, BARRA_INICIAL,
   };
 })();
