@@ -3346,7 +3346,9 @@ break;
 const MOD_ARCHIVO={
 lc:{src:'js/licitaciones.js',mod:()=>typeof Licitaciones!=='undefined'?Licitaciones:null},
 ex:{src:'js/expediente.js',mod:()=>typeof Expediente!=='undefined'?Expediente:null},
-bp:{src:'js/banco-precios.js',mod:()=>typeof BancoPrecios!=='undefined'?BancoPrecios:null}
+bp:{src:'js/banco-precios.js',mod:()=>typeof BancoPrecios!=='undefined'?BancoPrecios:null},
+// Precios de una licitación (US-829/833): no es módulo de la barra; lo pide la pestaña Precios de lc con conModuloArchivo('lcp')
+lcp:{src:'js/licitacion-precios.js',mod:()=>typeof LicitacionPrecios!=='undefined'?LicitacionPrecios:null}
 };
 function abrirModuloArchivo(k,c){
 const m=MOD_ARCHIVO[k];const mod=m&&m.mod();

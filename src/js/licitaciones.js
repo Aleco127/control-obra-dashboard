@@ -1188,11 +1188,12 @@ ${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2
     try { const u = await urlFirmada(r.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
     catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
   }
-  function pintarPrecios(el) {
-    el.innerHTML = EmptyState({
-      icon: 'ri-price-tag-3-line', title: 'La lista de precios llega con el Banco de precios',
-      body: 'Aquí verás los insumos de esta licitación con su precio de referencia para cargarlos a OPUS. Mientras tanto, consulta los precios históricos en el Banco de precios.',
-      action: { label: 'Abrir el Banco de precios', icon: 'ri-database-2-line', onClick: "irAModulo('bp')" },
+  /** Precios (US-829 y US-833): vive en js/licitacion-precios.js (diferido 'lcp'); se pide al abrir la pestaña. */
+  function pintarPrecios(el, ctx) {
+    el.innerHTML = `<div aria-busy="true">${Skeleton.table(5, 5)}</div>`;
+    conModuloArchivo('lcp').then((m) => {
+      if ($('lcPanel') !== el) return;
+      if (m) m.pintar(el, ctx); else el.innerHTML = EmptyState({ icon: 'ri-wifi-off-line', title: 'No se pudo cargar la lista de precios', body: 'Revisa tu conexión e intenta de nuevo.', action: { label: 'Reintentar', icon: 'ri-refresh-line', onClick: "Licitaciones.tabFicha('precios')" } });
     });
   }
   // Cierre y «Convertir en obra» (US-821) ------------------------------------------------------------------------------
