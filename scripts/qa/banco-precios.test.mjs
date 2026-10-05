@@ -229,3 +229,20 @@ test('importar_opus_insumos: idempotente, cuadrillas a insumo_componentes, fusi�
     if (cids.length) await rest(`conceptos_historicos?id=in.(${cids.join(',')})`, A, { method: 'DELETE' });
   }
 });
+
+test('alias de importaciones anteriores y regla de la carga inicial (US-828)', async () => {
+  const ex = [{ id: 7, clave: 'REF-EQ-VOLTEO-7M3', descripcion: 'Camión de volteo de 7 m³', unidad: 'HR', tipo: 'equipo' }];
+  const alias = BP.aliasDeImportaciones([{ mapa: { cami: 99 } }, { mapa: { cami: 7 } }]);
+  assert.deepEqual(alias, { cami: 7 }, 'la importación más reciente manda');
+  const c = BP.conciliarInsumos([{ clave: 'CAMI', descripcion: 'Camion de volteo de 7 m3', unidad: 'HR', tipo: 'equipo' }], ex, { alias });
+  assert.deepEqual(c.coincide.map((x) => [x.insumo.id, x.aviso]), [[7, 'alias']]);
+  const { decisionesCarga } = await import('../licitaciones/cargar-historicos.mjs');
+  const ex2 = [...ex, { id: 8, clave: 'REF-CEM', descripcion: 'Cemento CPC 30R (saco 50 kg)', unidad: 'SACO', tipo: 'material' }];
+  const conc = BP.conciliarInsumos([
+    { clave: 'CAMI', descripcion: 'Camion de volteo de 7 m3', unidad: 'HR', tipo: 'equipo' },
+    { clave: 'CEM', descripcion: 'Cemento gris CPC 30R, saco de 50 kg', unidad: 'SACO', tipo: 'material' },
+  ], ex2);
+  const d = decisionesCarga(conc);
+  assert.deepEqual(d.decisiones, { cami: 7, cem: 'nuevo' }, '≥ 0.80 con la misma unidad se liga; lo demás entra nuevo');
+  assert.equal(d.pendientes[0].candidato, 'REF-CEM');
+});

@@ -140,6 +140,10 @@ BEGIN
            CASE WHEN compuesto THEN 'compuesto' WHEN lower(unidad) = '(%)mo' THEN 'herramienta_pct_mo' ELSE 'sin_precio' END)
            ORDER BY orden), '[]'::jsonb)
     INTO v_sin_precio FROM _rec WHERE compuesto OR precio IS NULL OR precio <= 0;
+  -- Reimportar reemplaza: fuera los precios OPUS de esta licitación cuyo insumo ya no sale del archivo (p. ej. una
+  -- clave que ahora se liga a otro insumo); así una segunda carga nunca deja precios duplicados
+  DELETE FROM control_obra.insumo_precios p WHERE p.licitacion_id = p_licitacion_id AND p.fuente = 'opus'
+     AND NOT EXISTS (SELECT 1 FROM _rec r WHERE r.insumo_id = p.insumo_id AND NOT r.compuesto AND r.precio > 0);
   INSERT INTO control_obra.insumo_precios (insumo_id, precio, fecha, plaza, fuente, licitacion_id, datos)
   SELECT DISTINCT ON (r.insumo_id) r.insumo_id, r.precio, p_fecha, p_plaza, 'opus', p_licitacion_id,
          jsonb_strip_nulls(jsonb_build_object(
@@ -185,6 +189,8 @@ BEGIN
      AND ins.descripcion_norm = control_obra.texto_norm(c.descripcion);
   SELECT count(DISTINCT concepto_id) INTO n_conc_nuevos FROM _con WHERE nuevo;
 
+  DELETE FROM control_obra.concepto_precios cp WHERE cp.licitacion_id = p_licitacion_id AND cp.fuente = 'opus'
+     AND NOT EXISTS (SELECT 1 FROM _con c WHERE c.concepto_id = cp.concepto_id AND c.pu > 0);
   INSERT INTO control_obra.concepto_precios (concepto_id, licitacion_id, fecha, plaza, pu, costo_directo, cantidad, fuente)
   SELECT DISTINCT ON (c.concepto_id) c.concepto_id, p_licitacion_id, p_fecha, p_plaza, c.pu,
          CASE WHEN c.cd > 0 THEN c.cd END, c.cantidad, 'opus'

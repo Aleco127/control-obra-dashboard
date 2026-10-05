@@ -103,7 +103,8 @@ const BancoPrecios = (() => {
   /**
    * Concilia los recursos de un archivo opus-insumos/v1 contra los insumos del banco, en tres cubetas:
    *   coincide: misma clave + unidad + tipo (sin distinguir mayúsculas). Si la descripción no se parece (< 0.3) lleva
-   *             aviso 'descripcion_distinta';
+   *             aviso 'descripcion_distinta'. También coincide (aviso 'alias') una clave de OPUS que una importación
+   *             anterior ya ligó a un insumo (opts.alias = {clave_minúsculas: insumo_id}, de banco_importaciones.mapa);
    *   parecido: mismo tipo y descripción con similitud ≥ umbral (0.6): A REVISAR, nada se fusiona solo;
    *   nuevo:    lo demás.
    * omitidos: sin clave o con un tipo que el banco no maneja (otro_<n>).
@@ -111,7 +112,8 @@ const BancoPrecios = (() => {
    */
   function conciliarInsumos(recursos, existentes, opts) {
     const umbral = (opts && opts.umbral) || UMBRAL_PARECIDO;
-    const idx = new Map(); const porTipo = {};
+    const alias = (opts && opts.alias) || {};
+    const idx = new Map(); const porTipo = {}; const porId = new Map((existentes || []).map((e) => [Number(e.id), e]));
     for (const e of existentes || []) {
       if (!idx.has(llaveInsumo(e.clave, e.unidad, e.tipo))) idx.set(llaveInsumo(e.clave, e.unidad, e.tipo), e);
       (porTipo[e.tipo] = porTipo[e.tipo] || []).push({ e, tri: trigramas(e.descripcion) });
@@ -122,12 +124,22 @@ const BancoPrecios = (() => {
       const tri = trigramas(r.descripcion);
       const m = idx.get(llaveInsumo(r.clave, r.unidad, r.tipo));
       if (m) { res.coincide.push({ recurso: r, insumo: m, aviso: similitud(tri, trigramas(m.descripcion)) < 0.3 ? 'descripcion_distinta' : null }); continue; }
+      // La misma clave de OPUS ya se ligó (y confirmó) en una importación anterior: se respeta esa decisión
+      const al = alias[String(r.clave).trim().toLowerCase()];
+      const ai = al !== undefined ? porId.get(Number(al)) : null;
+      if (ai && ai.tipo === r.tipo) { res.coincide.push({ recurso: r, insumo: ai, aviso: 'alias' }); continue; }
       const cands = (porTipo[r.tipo] || []).map((x) => ({ insumo: x.e, puntaje: Math.round(similitud(tri, x.tri) * 1000) / 1000 }))
         .filter((x) => x.puntaje >= umbral).sort((a, b) => b.puntaje - a.puntaje || String(a.insumo.clave).localeCompare(String(b.insumo.clave))).slice(0, 3);
       if (cands.length) res.parecido.push({ recurso: r, candidato: cands[0].insumo, puntaje: cands[0].puntaje, candidatos: cands });
       else res.nuevo.push({ recurso: r });
     }
     return res;
+  }
+  /** Alias clave de OPUS → insumo a partir de los mapas de importaciones anteriores (la más reciente manda). */
+  function aliasDeImportaciones(filas) {
+    const out = {};
+    for (const f of filas || []) for (const [k, v] of Object.entries((f && f.mapa) || {})) out[k] = Number(v);
+    return out;
   }
   /**
    * Mapa clave (minúsculas) → insumo_id que se manda a importar_opus_insumos. Las coincidencias entran siempre; un
@@ -747,10 +759,11 @@ ${compHtml}`;
         imp.doc = excelAOpusInsumos(filas, file.name);
       }
       imp.archivo = file.name;
-      const [ins, lics] = await Promise.all([todosLosInsumos(), sb.from('licitaciones').select('id,codigo,nombre,plaza,presentacion,estatus').order('created_at', { ascending: false }).limit(300)]);
+      const [ins, lics, maps] = await Promise.all([todosLosInsumos(), sb.from('licitaciones').select('id,codigo,nombre,plaza,presentacion,estatus').order('created_at', { ascending: false }).limit(300),
+        sb.from('banco_importaciones').select('mapa,updated_at').order('updated_at')]);
       if (lics.error) throw lics.error;
       imp.lics = lics.data || [];
-      imp.conc = conciliarInsumos(imp.doc.recursos, ins);
+      imp.conc = conciliarInsumos(imp.doc.recursos, ins, { alias: aliasDeImportaciones(maps.data) });
       for (const p of imp.conc.parecido) imp.decisiones[String(p.recurso.clave).trim().toLowerCase()] = 'nuevo';
       pintarImportacion();
     } catch (e) {
@@ -1124,7 +1137,7 @@ ${pus.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="P
     elegirCategoria, calcularDesglose, guardarFsr,
     abrirSug, buscarParaSug, elegirSugDestino, confirmarSug, descartarSug, aplicarSugerida, aplicarSugeridas,
     leerArchivo, cambiarLic, decidir, decidirTodos, cancelarImportacion, importar, buscarConcepto, abrirConcepto,
-    trigramas, similitud, conciliarInsumos, mapaImportacion, leerOpusInsumos, validarOpusInsumos, fechaPropuesta, plazaSugerida,
+    trigramas, similitud, conciliarInsumos, aliasDeImportaciones, mapaImportacion, leerOpusInsumos, validarOpusInsumos, fechaPropuesta, plazaSugerida,
     excelAOpusInsumos, recalcularMatriz, composicionCD, COMPOSICION_REFERENCIA, calcularFSR, cesantiaPct, parametrosDelAnio,
     render, cargar, recargar, irA, nuevoInsumo, editarInsumo, guardarInsumo, buscar, filtrarPlaza, filtrarTipo,
     abrirInsumo, cerrarInsumo, mostrarCaptura, ocultarCaptura, guardarPrecio,
