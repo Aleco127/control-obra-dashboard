@@ -45,6 +45,7 @@ const Expediente = (() => {
     { k: 'documentos', t: 'Documentos', ic: 'ri-file-list-3-line' },
     { k: 'datos', t: 'Datos', ic: 'ri-building-line' },
     { k: 'personal', t: 'Personal técnico', ic: 'ri-team-line' },
+    { k: 'obras', t: 'Obras ejecutadas', ic: 'ri-building-2-line' },
   ];
 
   /** Campos editables de empresa_expediente (US-807). tipo: texto | area | fecha | monto. */
@@ -219,6 +220,53 @@ const Expediente = (() => {
     return [...(personal || [])].sort((a, b) => (b.activo - a.activo) || String(a.nombre).localeCompare(String(b.nombre), 'es'));
   }
 
+  // -- Obras ejecutadas (US-811) --
+  const MODALIDADES = { licitacion_publica: 'Licitación pública', invitacion: 'Invitación a cuando menos tres', adjudicacion_directa: 'Adjudicación directa', privada: 'Privada' };
+  const ESTATUS_TERMINADA = /^(completada|terminada|concluida|finalizada|entregada|archivada)$/i;
+  /**
+   * Obras del panel que se pueden traer al currículum: no ligadas todavía, sin las de ejemplo ni las canceladas.
+   * Por defecto sólo las terminadas (estatus Completada/Terminada/Archivada o avance >= 100); con incluirEnProceso, todas.
+   */
+  function obrasParaCurriculum(obras, ejecutadas, incluirEnProceso) {
+    const ligadas = new Set((ejecutadas || []).map((x) => x.obra_id).filter(Boolean));
+    return (obras || []).filter((o) => !ligadas.has(o.id) && !o.es_ejemplo && !/^cancelad/i.test(String(o.estatus || '')))
+      .filter((o) => incluirEnProceso || ESTATUS_TERMINADA.test(String(o.estatus || '')) || Number(o.avance_porcentaje) >= 100)
+      .sort((a, b) => String(b.fecha_fin_estimada || b.fecha_inicio || '').localeCompare(String(a.fecha_fin_estimada || a.fecha_inicio || '')));
+  }
+  const obraTerminada = (o) => ESTATUS_TERMINADA.test(String(o.estatus || '')) || Number(o.avance_porcentaje) >= 100;
+  /** Fila de obras_ejecutadas a partir de una obra del panel: cliente, monto (con IVA) y fechas ya llenos, obra_id ligado. */
+  function obraEjecutadaDesdeObra(o, clientes) {
+    const cli = (clientes || []).find((c) => c.id === o.cliente_id);
+    const monto = Number(o.presupuesto_total);
+    return {
+      obra_id: o.id, nombre: String(o.nombre_obra || o.codigo_obra || 'Obra').trim(),
+      cliente: (cli && (cli.razon_social || cli.nombre)) || (o.cliente ? String(o.cliente).trim() : null),
+      monto: Number.isFinite(monto) && monto > 0 ? Math.round(monto * 100) / 100 : null,
+      fecha_inicio: o.fecha_inicio ? String(o.fecha_inicio).slice(0, 10) : null,
+      fecha_fin: o.fecha_fin_estimada ? String(o.fecha_fin_estimada).slice(0, 10) : null,
+      ubicacion: o.ubicacion || null, descripcion: o.descripcion || null,
+    };
+  }
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  /** Periodo legible «mar 2025 a oct 2025» (o sólo una punta si falta la otra). */
+  function periodo(ini, fin) {
+    const f = (x) => (x ? MESES[+String(x).slice(5, 7) - 1] + ' ' + String(x).slice(0, 4) : '');
+    if (ini && fin) return `${f(ini)} a ${f(fin)}`;
+    if (ini) return `desde ${f(ini)}`;
+    if (fin) return `hasta ${f(fin)}`;
+    return '';
+  }
+  /** Renglones del currículum para Excel (la más reciente primero). */
+  function filasCurriculum(ejecutadas) {
+    return [...(ejecutadas || [])]
+      .sort((a, b) => String(b.fecha_fin || b.fecha_inicio || '').localeCompare(String(a.fecha_fin || a.fecha_inicio || '')))
+      .map((x) => ({
+        Obra: x.nombre, Cliente: x.cliente || '', Contrato: x.contrato || '',
+        Monto: x.monto == null ? '' : Number(x.monto), Periodo: periodo(x.fecha_inicio, x.fecha_fin),
+        Inicio: x.fecha_inicio || '', Fin: x.fecha_fin || '', Modalidad: MODALIDADES[x.modalidad] || '', 'Ubicación': x.ubicacion || '',
+      }));
+  }
+
   /** Domicilio en una línea a partir de la fila de empresas. */
   function domicilio(e) {
     if (!e) return '';
@@ -271,6 +319,7 @@ const Expediente = (() => {
   function conteoTab(exp, k) {
     if (k === 'documentos') return resumen(exp.documentos).total;
     if (k === 'personal') return exp.personal.filter((p) => p.activo).length;
+    if (k === 'obras') return exp.obras.length;
     return null;
   }
   function tabsHtml(exp) {
@@ -473,6 +522,139 @@ ${disp.length > 8 ? `<div class="mb-2">${lbl('exTraerBuscar', 'Buscar empleado')
     modalPersona(personaDesdeEmpleado(e));
   }
 
+  // -- Obras ejecutadas (US-811) --
+  const ARCH_OBRA = [{ id: 'exObrContrato', col: 'contrato_path', t: 'Contrato' }, { id: 'exObrActa', col: 'acta_path', t: 'Acta de entrega-recepción' }];
+  const dinero = (n) => (n == null || n === '' ? '' : typeof fmt === 'function' ? fmt(n) : '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 2 }));
+  function panelObras(exp) {
+    const lista = [...exp.obras].sort((a, b) => String(b.fecha_fin || b.fecha_inicio || '').localeCompare(String(a.fecha_fin || a.fecha_inicio || '')));
+    const total = lista.reduce((s, o) => s + (Number(o.monto) || 0), 0);
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">El currículum de la empresa: obras que respaldan tu experiencia en los concursos.${lista.length ? ` ${lista.length} obra${lista.length === 1 ? '' : 's'} por ${S(dinero(total))}.` : ''}</p>
+<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Expediente.traerObras()"><i class="ri-building-2-line" aria-hidden="true"></i> Traer de mis obras</button>
+${lista.length ? `<button type="button" class="btn btn-s" onclick="Expediente.exportarCurriculum()"><i class="ri-file-excel-2-line" aria-hidden="true"></i> Exportar a Excel</button>` : ''}
+<button type="button" class="btn btn-p" onclick="Expediente.nuevaObra()"><i class="ri-add-line" aria-hidden="true"></i> Agregar obra</button></div></div>`;
+    if (!lista.length) return barra + EmptyState({ icon: 'ri-building-2-line', title: 'Sin obras en el currículum', body: 'Trae las obras terminadas del panel con cliente, monto y fechas ya llenos, o captura las que hiciste antes de usar el panel.', action: { label: 'Traer de mis obras', icon: 'ri-building-2-line', onClick: 'Expediente.traerObras()' } });
+    return barra + `<ul class="g rounded-xl px-4 divide-y divide-slate-100" aria-label="Obras ejecutadas">${lista.map((o) => {
+      const det = [o.cliente, o.contrato ? 'Contrato ' + o.contrato : '', o.monto != null ? dinero(o.monto) : '', periodo(o.fecha_inicio, o.fecha_fin), MODALIDADES[o.modalidad]].filter(Boolean).join(' · ');
+      const arch = ARCH_OBRA.filter((a) => o[a.col]).map((a) => `<span class="inline-flex items-center text-xs text-ink-muted">${S(a.t)}${botonesArchivo(o[a.col], a.t + ' de ' + o.nombre)}</span>`).join('')
+        + (o.evidencia_paths || []).map((p, i) => `<span class="inline-flex items-center text-xs text-ink-muted">Evidencia ${i + 1}${botonesArchivo(p, 'evidencia ' + (i + 1) + ' de ' + o.nombre)}</span>`).join('');
+      return `<li class="ex-obra flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+<div class="flex-1 min-w-[12rem]"><p class="font-medium break-words">${S(o.nombre)} ${o.obra_id ? '<span class="text-xs text-ink-muted font-normal">· del panel</span>' : ''}</p><p class="text-xs text-ink-muted">${S(det || 'Sin datos')}</p>
+<div class="flex flex-wrap gap-x-3">${arch}</div></div>
+<div class="flex items-center"><button type="button" class="btn-icon" onclick="Expediente.editarObra(${o.id})" aria-label="Editar ${S(o.nombre)}" title="Editar"><i class="ri-pencil-line" aria-hidden="true"></i></button>
+<button type="button" class="btn-icon" onclick="Expediente.eliminarObra(${o.id})" aria-label="Quitar del currículum ${S(o.nombre)}" title="Quitar del currículum"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div></li>`;
+    }).join('')}</ul>`;
+  }
+  const obraPorId = (id) => D.exp && D.exp.obras.find((o) => o.id === id);
+  function modalObra(o) {
+    const x = o || {};
+    const ev = x.evidencia_paths || [];
+    const html = `<form id="exObrForm" onsubmit="Expediente.guardarObra(event)" novalidate class="space-y-3">
+<input type="hidden" id="exObrId" value="${x.id || ''}">
+${x.obra_id ? `<p class="text-xs text-ink-muted"><i class="ri-links-line" aria-hidden="true"></i> Ligada a una obra del panel.</p>` : ''}
+<div>${lbl('exObrNombre', 'Obra', true)}<input type="text" id="exObrNombre" class="inp" required maxlength="250" value="${S(x.nombre || '')}" placeholder="Construcción de aula en escuela primaria"></div>
+<div class="grid sm:grid-cols-2 gap-3"><div>${lbl('exObrCliente', 'Cliente o dependencia')}<input type="text" id="exObrCliente" class="inp" value="${S(x.cliente || '')}"></div>
+<div>${lbl('exObrContratoNum', 'Número de contrato')}<input type="text" id="exObrContratoNum" class="inp" value="${S(x.contrato || '')}"></div>
+<div>${lbl('exObrMonto', 'Monto con IVA')}<input type="text" inputmode="decimal" id="exObrMonto" class="inp" value="${x.monto != null ? S(x.monto) : ''}" placeholder="0.00"></div>
+<div>${lbl('exObrModalidad', 'Modalidad')}<select id="exObrModalidad" class="inp"><option value="">Sin especificar</option>${Object.entries(MODALIDADES).map(([k, t]) => `<option value="${k}" ${x.modalidad === k ? 'selected' : ''}>${S(t)}</option>`).join('')}</select></div>
+<div>${lbl('exObrIni', 'Inicio')}<input type="date" id="exObrIni" class="inp" value="${S(x.fecha_inicio || '')}"></div>
+<div>${lbl('exObrFin', 'Terminación')}<input type="date" id="exObrFin" class="inp" value="${S(x.fecha_fin || '')}"></div></div>
+<div>${lbl('exObrUbic', 'Ubicación')}<input type="text" id="exObrUbic" class="inp" value="${S(x.ubicacion || '')}"></div>
+<div>${lbl('exObrDesc', 'Descripción de los trabajos')}<textarea id="exObrDesc" class="inp" rows="2">${S(x.descripcion || '')}</textarea></div>
+${ARCH_OBRA.map((a) => campoArchivoHtml(a.id, a.t, x[a.col])).join('')}
+<div>${lbl('exObrEv', 'Evidencia (fotos, finiquito, estimaciones)')}
+${ev.length ? `<ul class="text-xs text-ink-muted mb-1">${ev.map((p, i) => `<li class="flex flex-wrap items-center gap-2"><i class="ri-attachment-2" aria-hidden="true"></i><span class="break-all">${S(nombreDeRuta(p))}</span><label class="inline-flex items-center gap-1 min-h-[44px]"><input type="checkbox" id="exObrEvQuitar${i}"> Quitar</label></li>`).join('')}</ul>` : ''}
+<input type="file" id="exObrEv" class="inp" accept="${ACCEPT}" multiple><p class="text-xs text-ink-muted mt-1">Puedes elegir varios archivos; se agregan a los que ya hay.</p></div>
+<div>${lbl('exObrNotas', 'Notas')}<textarea id="exObrNotas" class="inp" rows="2">${S(x.notas || '')}</textarea></div>
+<div class="flex flex-wrap justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpObra')">Cancelar</button>
+<button type="submit" class="btn btn-p" id="exObrGuardar"><i class="ri-save-line" aria-hidden="true"></i> ${x.id ? 'Guardar cambios' : 'Agregar obra'}</button></div></form>`;
+    abrirModal('mdlExpObra', x.id ? 'Editar obra ejecutada' : 'Agregar obra ejecutada', html, 'max-w-2xl');
+  }
+  function nuevaObra() { modalObra(null); }
+  function editarObra(id) { const o = obraPorId(id); if (o) modalObra(o); }
+  async function guardarObra(ev) {
+    if (ev) ev.preventDefault();
+    const id = +$('exObrId').value || null; const actual = id ? obraPorId(id) : null;
+    const nombre = $('exObrNombre').value.trim();
+    if (!nombre) { Toast.error('Escribe el nombre de la obra.'); return; }
+    const montoTxt = $('exObrMonto').value.trim().replace(/[$,\s]/g, '');
+    const monto = montoTxt === '' ? null : Number(montoTxt);
+    if (monto !== null && (!Number.isFinite(monto) || monto < 0)) { Toast.error('Monto: escribe un importe válido (sólo números).'); return; }
+    const ini = $('exObrIni').value || null; const fin = $('exObrFin').value || null;
+    if (ini && fin && fin < ini) { Toast.error('La terminación no puede ser anterior al inicio.'); return; }
+    const evFiles = [...($('exObrEv').files || [])];
+    const errArch = validarCamposArchivo(ARCH_OBRA) || evFiles.map(validarArchivo).find(Boolean); if (errArch) { Toast.error(errArch); return; }
+    const btn = $('exObrGuardar'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    let arch = null; const evSubidos = [];
+    try {
+      arch = await aplicarArchivos(ARCH_OBRA, 'obras', actual);
+      for (const f of evFiles) { const up = await subirArchivo(f, 'obras'); evSubidos.push(up.path); }
+      const evPrevias = (actual && actual.evidencia_paths) || [];
+      const evQuitar = evPrevias.filter((p, i) => $('exObrEvQuitar' + i) && $('exObrEvQuitar' + i).checked);
+      const fila = Object.assign({ nombre, cliente: $('exObrCliente').value.trim() || null, contrato: $('exObrContratoNum').value.trim() || null,
+        monto: monto === null ? null : Math.round(monto * 100) / 100, modalidad: $('exObrModalidad').value || null, fecha_inicio: ini, fecha_fin: fin,
+        ubicacion: $('exObrUbic').value.trim() || null, descripcion: $('exObrDesc').value.trim() || null, notas: $('exObrNotas').value.trim() || null,
+        evidencia_paths: evPrevias.filter((p) => !evQuitar.includes(p)).concat(evSubidos) }, arch.cambios);
+      const q = id ? sb.from('obras_ejecutadas').update(fila).eq('id', id).select().single() : sb.from('obras_ejecutadas').insert(fila).select().single();
+      const { data, error } = await q;
+      if (error) throw error;
+      await borrarObjetos(arch.viejos.concat(evQuitar));
+      D.exp.obras = id ? D.exp.obras.map((o) => (o.id === id ? data : o)) : D.exp.obras.concat(data);
+      closeMdl('mdlExpObra');
+      Toast.success(id ? 'Obra actualizada' : 'Obra agregada al currículum');
+      pintarPanel();
+    } catch (e) {
+      await borrarObjetos((arch ? arch.subidos : []).concat(evSubidos));
+      Toast.error(errorDe(e, 'No se guardó la obra'));
+    } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
+  async function eliminarObra(id) {
+    const o = obraPorId(id); if (!o) return;
+    if (!await Dialog.confirm({ title: 'Quitar del currículum', body: `Se quitará «${o.nombre}» del currículum junto con su contrato, acta y evidencia.${o.obra_id ? ' La obra del panel no cambia.' : ''}`, confirmText: 'Quitar obra', tone: 'danger' })) return;
+    const { error } = await sb.from('obras_ejecutadas').delete().eq('id', id);
+    if (error) { Toast.error(humanizeError(error, 'No se quitó la obra')); return; }
+    await borrarObjetos([o.contrato_path, o.acta_path, ...(o.evidencia_paths || [])]);
+    D.exp.obras = D.exp.obras.filter((x) => x.id !== id);
+    Toast.success('Obra quitada del currículum');
+    pintarPanel();
+  }
+  /** «Traer de mis obras»: propone las obras terminadas del panel (con casilla para ver también las que siguen en proceso). */
+  function traerObras(incluirEnProceso) {
+    const cand = obrasParaCurriculum(D.o || [], D.exp.obras, !!incluirEnProceso);
+    const filas = cand.map((o) => { const x = obraEjecutadaDesdeObra(o, D.cli); return `<li class="flex items-start gap-3 py-2"><input type="checkbox" class="mt-1 w-5 h-5" id="exTO-${o.id}" value="${o.id}" ${obraTerminada(o) ? 'checked' : ''}>
+<label for="exTO-${o.id}" class="flex-1 min-w-0 cursor-pointer"><span class="font-medium block break-words">${S(x.nombre)}</span><span class="text-xs text-ink-muted">${S([x.cliente, x.monto != null ? dinero(x.monto) : '', periodo(x.fecha_inicio, x.fecha_fin), o.estatus].filter(Boolean).join(' · '))}</span></label></li>`; }).join('');
+    const html = `<p class="text-sm text-ink-muted mb-2">Se copian cliente, monto con IVA y fechas, y la obra queda ligada. Después puedes agregar el número de contrato, el acta y la evidencia.</p>
+<label class="zk-switch mb-2"><input type="checkbox" id="exTOProceso" ${incluirEnProceso ? 'checked' : ''} onchange="Expediente.traerObras(this.checked)"><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Mostrar también las obras en proceso</span></label>
+${cand.length ? `<ul id="exTOLista" class="divide-y divide-slate-100 max-h-[50vh] overflow-y-auto">${filas}</ul>` : `<p class="text-sm text-ink-muted py-3">${incluirEnProceso ? 'Todas tus obras ya están en el currículum.' : 'No hay obras terminadas que falten en el currículum. Activa «Mostrar también las obras en proceso» para verlas todas.'}</p>`}
+<div class="flex flex-wrap justify-end gap-2 pt-3"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpTraerObras')">Cancelar</button>
+${cand.length ? `<button type="button" class="btn btn-p" id="exTOAgregar" onclick="Expediente.agregarObrasTraidas()"><i class="ri-add-line" aria-hidden="true"></i> Agregar al currículum</button>` : ''}</div>`;
+    abrirModal('mdlExpTraerObras', 'Traer de mis obras', html, 'max-w-xl');
+  }
+  async function agregarObrasTraidas() {
+    const ids = [...document.querySelectorAll('#exTOLista input[type=checkbox]:checked')].map((i) => +i.value);
+    if (!ids.length) { Toast.error('Marca al menos una obra.'); return; }
+    const filas = ids.map((id) => (D.o || []).find((o) => o.id === id)).filter(Boolean).map((o) => obraEjecutadaDesdeObra(o, D.cli));
+    const btn = $('exTOAgregar'); if (btn) btn.disabled = true;
+    try {
+      const { data, error } = await sb.from('obras_ejecutadas').insert(filas).select();
+      if (error) throw error;
+      D.exp.obras = D.exp.obras.concat(data || []);
+      closeMdl('mdlExpTraerObras');
+      Toast.success(`${filas.length} obra${filas.length === 1 ? '' : 's'} agregada${filas.length === 1 ? '' : 's'} al currículum`);
+      pintarPanel();
+    } catch (e) { Toast.error(humanizeError(e, 'No se agregaron las obras')); } finally { if (btn) btn.disabled = false; }
+  }
+  function exportarCurriculum() {
+    if (typeof XLSX === 'undefined') { Toast.error('No cargó el generador de Excel. Revisa tu conexión y vuelve a intentar.'); return; }
+    const filas = filasCurriculum(D.exp.obras);
+    const ws = XLSX.utils.json_to_sheet(filas);
+    ws['!cols'] = [{ wch: 45 }, { wch: 32 }, { wch: 18 }, { wch: 16 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 30 }];
+    filas.forEach((f, i) => { const c = ws['D' + (i + 2)]; if (c && typeof c.v === 'number') c.z = '"$"#,##0.00'; });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Currículum');
+    XLSX.writeFile(wb, `Curriculum_obras_${hoyMx()}.xlsx`);
+    Toast.success('Currículum exportado a Excel');
+  }
+
   // -- Documentos (US-808) --
   function filaDocumento(d, exp) {
     const versiones = cadenaVersiones(exp.documentos, d.id).length;
@@ -672,12 +854,16 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
   function panelHtml(exp) {
     if (tab === 'datos') return panelDatos(exp);
     if (tab === 'personal') return panelPersonal(exp);
+    if (tab === 'obras') return panelObras(exp);
     return panelDocumentos(exp);
   }
   /** Repinta pestañas y panel con D.exp sin volver a pedir datos. */
   function pintarPanel() {
     const el = $('exCuerpo'); if (!el || !D.exp || M !== 'ex') return;
     el.innerHTML = tabsHtml(D.exp) + `<div id="exPanel" role="tabpanel" aria-labelledby="exTab-${tab}">${panelHtml(D.exp)}</div>`;
+    // En móvil las pestañas se desplazan: la activa siempre a la vista (sin mover la página en vertical)
+    const t = $('exTab-' + tab), barra = t && t.parentElement;
+    if (t && barra && barra.scrollWidth > barra.clientWidth) barra.scrollLeft = Math.max(0, t.offsetLeft - barra.offsetLeft - 16);
   }
   function setTab(k) {
     if (!TABS.some((t) => t.k === k)) return;
@@ -707,10 +893,12 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     render, cargar, recargar, setTab, guardarDatos, abrirArchivo,
     nuevoDocumento, renovarDocumento, editarDocumento, guardarDocumento, historialDocumento, eliminarDocumento, sugerirVencimiento,
     nuevaPersona, editarPersona, guardarPersona, alternarActivo, eliminarPersona, traerEmpleados, filtrarTraer, elegirEmpleado,
+    nuevaObra, editarObra, guardarObra, eliminarObra, traerObras, agregarObrasTraidas, exportarCurriculum,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
     tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,
     empleadosDisponibles, personaDesdeEmpleado, ordenarPersonal,
+    obrasParaCurriculum, obraEjecutadaDesdeObra, periodo, filasCurriculum, MODALIDADES,
     CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS, TIPOS_ARCHIVO, MAX_BYTES,
   };
 })();

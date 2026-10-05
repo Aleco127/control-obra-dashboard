@@ -336,7 +336,79 @@ def caso_personal(page, tag):
     page.wait_for_function("m=>!D.exp.personal.some(p=>p.nombre===m)", arg=MARCA + ' Ing. Prueba', timeout=15000)
     check(True, f'{tag}: eliminar persona')
 
-CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal}
+# ---- US-811 ---------------------------------------------------------------------------------------------------------
+def leer_xlsx(dl):
+    import openpyxl, tempfile
+    ruta = os.path.join(tempfile.gettempdir(), 'qa_exp_' + str(int(time.time() * 1000)) + '.xlsx')
+    dl.save_as(ruta)
+    ws = openpyxl.load_workbook(ruta).active
+    filas = [[c.value for c in r] for r in ws.iter_rows()]
+    os.remove(ruta)
+    return filas
+
+def caso_obras(page, tag):
+    abrir_ex(page, 'obras')
+    antes = page.evaluate("()=>D.exp.obras.map(o=>o.id)")
+    # Traer de mis obras: propone las terminadas con cliente, monto y fechas llenos
+    page.evaluate("()=>Expediente.traerObras()")
+    esperar_modal(page, 'mdlExpTraerObras')
+    cand = page.evaluate("()=>Expediente.obrasParaCurriculum(D.o,D.exp.obras,false).map(o=>({id:o.id,estatus:o.estatus,x:Expediente.obraEjecutadaDesdeObra(o,D.cli)}))")
+    print('  candidatas terminadas:', len(cand))
+    if not cand:
+        page.click('#exTOProceso'); page.wait_for_timeout(300)
+        cand = page.evaluate("()=>Expediente.obrasParaCurriculum(D.o,D.exp.obras,true).map(o=>({id:o.id,estatus:o.estatus,x:Expediente.obraEjecutadaDesdeObra(o,D.cli)}))")
+        page.evaluate("ids=>document.querySelectorAll('#exTOLista input').forEach(i=>i.checked=ids.includes(+i.value))", [cand[0]['id']] if cand else [])
+    check(len(cand) > 0, f'{tag}: hay obras para proponer')
+    axe(page, '#mdlExpTraerObras', tag + ' traer obras')
+    if tag == 'escritorio': snap(page, 'obras-traer-escritorio.png')
+    marcadas = page.evaluate("()=>[...document.querySelectorAll('#exTOLista input:checked')].map(i=>+i.value)")
+    page.click('#exTOAgregar')
+    page.wait_for_function("n=>D.exp.obras.filter(o=>o.obra_id).length>=n", arg=len(marcadas), timeout=15000)
+    nuevas = page.evaluate("a=>D.exp.obras.filter(o=>!a.includes(o.id))", antes)
+    esperado = {c['id']: c['x'] for c in cand}
+    ok = len(nuevas) == len(marcadas) and all(n['obra_id'] in esperado and n['cliente'] == esperado[n['obra_id']]['cliente'] and
+        (n['monto'] is None and esperado[n['obra_id']]['monto'] is None or float(n['monto']) == float(esperado[n['obra_id']]['monto'])) and
+        n['fecha_inicio'] == esperado[n['obra_id']]['fecha_inicio'] for n in nuevas)
+    check(ok, f'{tag}: «Traer de mis obras» liga obra_id con cliente, monto y fechas llenos ({len(nuevas)} obras: {[(n["nombre"], n["cliente"], n["monto"], n["fecha_inicio"], n["fecha_fin"]) for n in nuevas][:2]})')
+    check(not page.evaluate("ids=>Expediente.obrasParaCurriculum(D.o,D.exp.obras,true).some(o=>ids.includes(o.id))", marcadas), f'{tag}: las obras traídas ya no se proponen otra vez')
+    # Alta manual de una obra anterior al panel con contrato, acta y evidencia
+    page.evaluate("()=>Expediente.nuevaObra()")
+    esperar_modal(page, 'mdlExpObra')
+    page.fill('#exObrNombre', MARCA + ' Escuela 2019')
+    page.fill('#exObrCliente', 'ICHIFE'); page.fill('#exObrContratoNum', 'ICHIFE-OP-019-2019'); page.fill('#exObrMonto', '2,345,678.90')
+    page.select_option('#exObrModalidad', 'licitacion_publica'); page.fill('#exObrIni', '2019-03-01'); page.fill('#exObrFin', '2019-09-30')
+    page.set_input_files('#exObrContrato', archivo('Contrato.pdf'))
+    page.set_input_files('#exObrActa', archivo('Acta entrega.pdf'))
+    page.set_input_files('#exObrEv', [archivo('foto1.jpg', b'\xff\xd8\xff\xe0qa1', 'image/jpeg'), archivo('foto2.jpg', b'\xff\xd8\xff\xe0qa2', 'image/jpeg')])
+    axe(page, '#mdlExpObra', tag + ' modal obra')
+    page.click('#exObrGuardar')
+    page.wait_for_function("m=>D.exp.obras.some(o=>o.nombre===m)", arg=MARCA + ' Escuela 2019', timeout=20000)
+    o = page.evaluate("m=>D.exp.obras.find(o=>o.nombre===m)", MARCA + ' Escuela 2019')
+    check(o['obra_id'] is None and float(o['monto']) == 2345678.9 and o['contrato_path'] and o['acta_path'] and len(o['evidencia_paths']) == 2 and all(x.startswith('empresa/1/expediente/obras/') for x in [o['contrato_path'], o['acta_path']] + o['evidencia_paths']), f'{tag}: alta manual con contrato, acta y 2 evidencias en el bucket')
+    # Quitar una evidencia
+    quitada = o['evidencia_paths'][0]
+    page.evaluate("id=>Expediente.editarObra(id)", o['id'])
+    esperar_modal(page, 'mdlExpObra')
+    page.check('#exObrEvQuitar0')
+    page.click('#exObrGuardar')
+    page.wait_for_function("m=>D.exp.obras.find(o=>o.nombre===m).evidencia_paths.length===1", arg=MARCA + ' Escuela 2019', timeout=15000)
+    check(True, f'{tag}: quitar una evidencia')
+    # Exportar a Excel
+    with page.expect_download(timeout=15000) as dl:
+        page.evaluate("()=>Expediente.exportarCurriculum()")
+    filas = leer_xlsx(dl.value)
+    enc = filas[0]
+    fila = next((r for r in filas[1:] if r[0] == MARCA + ' Escuela 2019'), None)
+    check(enc[:5] == ['Obra', 'Cliente', 'Contrato', 'Monto', 'Periodo'] and fila and fila[1] == 'ICHIFE' and fila[2] == 'ICHIFE-OP-019-2019' and abs(float(fila[3]) - 2345678.9) < 0.001 and fila[4] == 'mar 2019 a sep 2019',
+          f'{tag}: Excel con obra, cliente, contrato, monto y periodo ({dl.value.suggested_filename}; {fila})')
+    check(len(filas) - 1 == page.evaluate("()=>D.exp.obras.length"), f'{tag}: el Excel trae todas las obras del currículum')
+    check(not desborde(page), f'{tag}: sin desborde horizontal')
+    snap(page, f'obras-{tag}.png')
+    axe(page, '#c', tag + ' obras')
+    # Quitar las traídas (no son de prueba con marca)
+    page.evaluate("async a=>{const ids=D.exp.obras.filter(o=>!a.includes(o.id)&&o.obra_id).map(o=>o.id);if(ids.length)await sb.from('obras_ejecutadas').delete().in('id',ids);}", antes)
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal, 'obras': caso_obras}
 
 def main():
     previo = None

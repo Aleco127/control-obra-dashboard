@@ -170,3 +170,32 @@ test('personal: empleados disponibles (sin los ya ligados, activos primero) y pe
   assert.equal(Expediente.personaDesdeEmpleado({ id: 3, nombre_completo: 'Beto' }).puesto, null);
   assert.deepEqual(Expediente.ordenarPersonal([{ nombre: 'B', activo: false }, { nombre: 'C', activo: true }, { nombre: 'A', activo: true }]).map((p) => p.nombre), ['A', 'C', 'B']);
 });
+
+// ---- US-811: obras ejecutadas ---------------------------------------------------------------------------------------
+test('obras: candidatas del panel, fila desde una obra, periodo y renglones del Excel', () => {
+  const obras = [
+    { id: 1, nombre_obra: 'Escuela', estatus: 'Completada', cliente_id: 7, presupuesto_total: 1160000, fecha_inicio: '2025-01-10', fecha_fin_estimada: '2025-06-30', ubicacion: 'Cuauhtémoc' },
+    { id: 2, nombre_obra: 'Bodega', estatus: 'Activa', avance_porcentaje: 100, cliente: 'Particular', presupuesto_total: 0, fecha_inicio: '2025-08-01T00:00:00' },
+    { id: 3, nombre_obra: 'Casa', estatus: 'En Proceso', avance_porcentaje: 40 },
+    { id: 4, nombre_obra: 'Cancelada', estatus: 'Cancelada', avance_porcentaje: 100 },
+    { id: 5, nombre_obra: 'Ejemplo', estatus: 'Completada', es_ejemplo: true },
+    { id: 6, nombre_obra: 'Ya en currículum', estatus: 'Archivada' },
+  ];
+  const ej = [{ obra_id: 6 }];
+  assert.deepEqual(Expediente.obrasParaCurriculum(obras, ej, false).map((o) => o.id).sort(), [1, 2]);
+  assert.deepEqual(Expediente.obrasParaCurriculum(obras, ej, true).map((o) => o.id).sort(), [1, 2, 3]);
+  const f = Expediente.obraEjecutadaDesdeObra(obras[0], [{ id: 7, nombre: 'ICHIFE', razon_social: 'Instituto Chihuahuense de Infraestructura Física Educativa' }]);
+  assert.deepEqual(f, { obra_id: 1, nombre: 'Escuela', cliente: 'Instituto Chihuahuense de Infraestructura Física Educativa', monto: 1160000, fecha_inicio: '2025-01-10', fecha_fin: '2025-06-30', ubicacion: 'Cuauhtémoc', descripcion: null });
+  const g = Expediente.obraEjecutadaDesdeObra(obras[1], []);
+  assert.equal(g.cliente, 'Particular'); assert.equal(g.monto, null); assert.equal(g.fecha_inicio, '2025-08-01');
+  assert.equal(Expediente.periodo('2025-01-10', '2025-06-30'), 'ene 2025 a jun 2025');
+  assert.equal(Expediente.periodo('2025-01-10', null), 'desde ene 2025');
+  assert.equal(Expediente.periodo(null, null), '');
+  const filas = Expediente.filasCurriculum([
+    { nombre: 'Vieja', fecha_fin: '2019-09-30', monto: '100.5', modalidad: 'invitacion' },
+    { nombre: 'Nueva', cliente: 'ICHIFE', contrato: 'C-1', fecha_inicio: '2025-01-01', fecha_fin: '2025-12-31', monto: null },
+  ]);
+  assert.deepEqual(filas.map((x) => x.Obra), ['Nueva', 'Vieja']);
+  assert.deepEqual(Object.keys(filas[0]).slice(0, 5), ['Obra', 'Cliente', 'Contrato', 'Monto', 'Periodo']);
+  assert.equal(filas[1].Monto, 100.5); assert.equal(filas[0].Monto, ''); assert.equal(filas[1].Modalidad, 'Invitación a cuando menos tres');
+});
