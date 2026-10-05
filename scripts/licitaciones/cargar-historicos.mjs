@@ -50,12 +50,15 @@ export const PROYECTOS = [
       presentacion: '2026-04-30T10:00:00-06:00', fallo: '2026-05-12T10:00:00-06:00', inicio_obra: '2026-05-21', plazo_dias: 90, anticipo_pct: 30,
       estatus: 'presentada', opus_proyecto: 'ICHIFE-LO-67-010-908029999-N-12-2026',
       notas: 'Carga inicial del banco (US-828). Se prepararon las partidas 1, 4 y 6; el proyecto de OPUS es la partida 4 (Paquimé). El resultado no está registrado: estatus «presentada» hasta capturarlo. Las horas de presentación y fallo son aproximadas (las bases sólo dan el día).' } },
-  { archivo: 'banregio-cuauhtemoc-CR-152.opus-insumos.json', plaza: 'cuauhtemoc', fecha: '2026-03-31',
+  // BanRegio: se carga BanRegio.mdf (la versión CON análisis de precios del mismo concurso, exportada de una copia el
+  // 4-oct-2026). Sus conceptos con clave temporal de OPUS (TEMP*n) toman la clave del catálogo del concurso
+  // (BANREGIO CUAUHTEMOC CR 152.mdf) cuando la descripción y la unidad coinciden, para que esos conceptos ganen matriz.
+  { archivo: 'banregio.opus-insumos.json', catalogo: 'banregio-cuauhtemoc-CR-152.opus-insumos.json', sufijoCompuestos: 'BR', plaza: 'cuauhtemoc', fecha: '2026-03-31',
     licitacion: { codigo: 'IBR-TRT-CUU-8721-2026-AI', nombre: 'Adaptación de local para Sucursal Banregio Cd. Cuauhtémoc CR 152',
       convocante: 'Inmobiliaria Banregio, S.A.', modalidad: 'privada', ubicacion: 'Calz. 16 de Septiembre, San Antonio, 31500 Cuauhtémoc, Chih.', plaza: 'cuauhtemoc',
       presentacion: '2026-03-31T12:00:00-06:00', inicio_obra: '2026-04-13', plazo_dias: 95, anticipo_pct: 30, estatus: 'presentada',
-      opus_proyecto: 'BANREGIO CUAUHTEMOC CR 152',
-      notas: 'Carga inicial del banco (US-828). El .mdf exportado es sólo el catálogo (193 conceptos sin matriz ni precios): entran los conceptos, no precios. Los APU reales viven en BanRegio.mdf, que no se exportó. El resultado no está registrado.' } },
+      opus_proyecto: 'BanRegio',
+      notas: 'Carga inicial del banco (US-828). Precios y matrices de BanRegio.mdf (versión con APU del mismo concurso: mismo número, objeto y fechas; 187 de sus 195 conceptos coinciden con el catálogo CR 152). Su último cambio de precios es del 10-abr-2026, posterior a la presentación del 31-mar: el monto propuesto no se capturó porque no hay certeza de que el .mdf sea el entregado (importe del .mdf $4,208,793.94 sin IVA). El resultado no está registrado.' } },
 ];
 
 async function rest(path, opts = {}) {
@@ -71,6 +74,40 @@ async function insumosDelBanco() {
   return out;
 }
 /** Decisiones de la carga: sólo parecidos ≥ 0.80 con la misma unidad (función pura, la prueba la usa). */
+/**
+ * Pone la clave del catálogo del concurso a los conceptos que OPUS dejó con clave temporal o vacía, cuando su
+ * descripción normalizada y su unidad (sin mayúsculas) coinciden con UN solo concepto del catálogo; también toma la
+ * unidad tal como la escribe el catálogo, para que sea el mismo concepto histórico (función pura).
+ */
+export function clavesDelCatalogo(doc, catalogo) {
+  const llave = (c) => `${BP.normalizarTexto(c.descripcion)}|${String(c.unidad || '').trim().toLowerCase()}`;
+  const porLlave = new Map(); for (const c of catalogo.conceptos || []) { const k = llave(c); porLlave.set(k, porLlave.has(k) ? null : c); }
+  let asignadas = 0; const sinPar = [];
+  const conceptos = (doc.conceptos || []).map((c) => {
+    const actual = String(c.clave || '').trim();
+    if (actual && !/^TEMP\*/i.test(actual)) return c;
+    const o = porLlave.get(llave(c));
+    if (o && o.clave) { asignadas++; return { ...c, clave: o.clave, unidad: o.unidad }; } // misma unidad que el catálogo (OPUS la escribe a veces en minúsculas)
+    sinPar.push(c.clave_matriz || c.clave); return c;
+  });
+  return { doc: { ...doc, conceptos }, asignadas, sinPar };
+}
+/**
+ * Las cuadrillas y auxiliares de OPUS (recursos compuestos) usan claves locales de cada proyecto (C#1, C#2…): una
+ * misma clave puede ser otra cuadrilla. Si un compuesto coincide por clave + unidad + tipo con un insumo de
+ * descripción distinta, se le pone sufijo (C#1 → C#1-BR) en recursos y componentes para no mezclar dos matrices en un
+ * mismo insumo (función pura). Devuelve el documento y las claves renombradas.
+ */
+export function separarCompuestosAjenos(doc, conc, sufijo) {
+  const ren = new Map();
+  for (const c of conc.coincide) if (c.aviso === 'descripcion_distinta' && c.recurso.tiene_matriz) ren.set(String(c.recurso.clave), `${c.recurso.clave}-${sufijo}`);
+  if (!ren.size) return { doc, renombradas: [] };
+  const r = (k) => (ren.has(String(k)) ? ren.get(String(k)) : k);
+  return { doc: { ...doc,
+    recursos: doc.recursos.map((x) => ({ ...x, clave: r(x.clave) })),
+    componentes: doc.componentes.map((x) => ({ ...x, insumo_clave: r(x.insumo_clave), concepto_clave: x.matriz === 'auxiliar' ? r(x.concepto_clave) : x.concepto_clave })) },
+    renombradas: [...ren.entries()].map(([de, a]) => ({ de, a })) };
+}
 export function decisionesCarga(conc, umbral = UMBRAL_CARGA) {
   const d = {}; const aceptados = []; const pendientes = [];
   for (const p of conc.parecido) {
@@ -99,15 +136,20 @@ async function main() {
   const rep = { fecha: new Date().toISOString(), dry_run: DRY, umbral: UMBRAL_CARGA, proyectos: [] };
   let falso = -1; const aliasDry = {};
   for (const p of PROYECTOS) {
-    const doc = BP.leerOpusInsumos(readFileSync(resolve(DIR, p.archivo), 'utf8'));
+    let doc = BP.leerOpusInsumos(readFileSync(resolve(DIR, p.archivo), 'utf8'));
+    let claves = null;
+    if (p.catalogo) { const cat = BP.leerOpusInsumos(readFileSync(resolve(DIR, p.catalogo), 'utf8')); const r = clavesDelCatalogo(doc, cat); doc = r.doc; claves = { asignadas: r.asignadas, sin_par: r.sinPar }; }
     // Mismo alias que la pestaña: una clave de OPUS ya ligada en otra importación se respeta (excepto la de esta licitación)
     const maps = DRY ? [] : await rest('banco_importaciones?select=mapa,updated_at,licitacion_id&order=updated_at');
-    const conc = BP.conciliarInsumos(doc.recursos, existentes, { alias: { ...aliasDry, ...BP.aliasDeImportaciones(maps) } });
+    const alias = { ...aliasDry, ...BP.aliasDeImportaciones(maps.filter((m) => m.licitacion_id !== undefined)) };
+    let conc = BP.conciliarInsumos(doc.recursos, existentes, { alias });
+    let renombradas = [];
+    if (p.sufijoCompuestos) { const s2 = separarCompuestosAjenos(doc, conc, p.sufijoCompuestos); if (s2.renombradas.length) { doc = s2.doc; renombradas = s2.renombradas; conc = BP.conciliarInsumos(doc.recursos, existentes, { alias }); } }
     const { decisiones, aceptados, pendientes } = decisionesCarga(conc);
     const mapa = BP.mapaImportacion(conc, decisiones);
     const lic = await asegurarLicitacion(p.licitacion);
     const r = { archivo: p.archivo, licitacion: p.licitacion.codigo, licitacion_id: lic.id, licitacion_creada: lic.creada, campos_llenados: lic.llenados,
-      plaza: p.plaza, fecha: p.fecha, esperado: doc.resumen, coincide: conc.coincide.map((x) => ({ clave: x.recurso.clave, con: x.insumo.clave, aviso: x.aviso })),
+      plaza: p.plaza, fecha: p.fecha, esperado: doc.resumen, claves_del_catalogo: claves, compuestos_renombrados: renombradas, coincide: conc.coincide.map((x) => ({ clave: x.recurso.clave, con: x.insumo.clave, aviso: x.aviso })),
       parecidos_aceptados: aceptados, parecidos_como_nuevos: pendientes, nuevos: conc.nuevo.length, omitidos: conc.omitidos.length };
     if (!DRY) {
       r.resultado = await rest('rpc/importar_opus_insumos', { method: 'POST', body: JSON.stringify({ p_licitacion_id: lic.id, p_plaza: p.plaza, p_fecha: p.fecha, p_doc: doc, p_mapa: mapa, p_archivo: p.archivo }) });

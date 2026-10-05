@@ -236,6 +236,8 @@ test('alias de importaciones anteriores y regla de la carga inicial (US-828)', a
   assert.deepEqual(alias, { cami: 7 }, 'la importación más reciente manda');
   const c = BP.conciliarInsumos([{ clave: 'CAMI', descripcion: 'Camion de volteo de 7 m3', unidad: 'HR', tipo: 'equipo' }], ex, { alias });
   assert.deepEqual(c.coincide.map((x) => [x.insumo.id, x.aviso]), [[7, 'alias']]);
+  const otraUnidad = BP.conciliarInsumos([{ clave: 'CAMI', descripcion: 'Camión', unidad: 'JOR', tipo: 'equipo' }], ex, { alias });
+  assert.equal(otraUnidad.coincide.length, 0, 'el alias exige la misma unidad');
   const { decisionesCarga } = await import('../licitaciones/cargar-historicos.mjs');
   const ex2 = [...ex, { id: 8, clave: 'REF-CEM', descripcion: 'Cemento CPC 30R (saco 50 kg)', unidad: 'SACO', tipo: 'material' }];
   const conc = BP.conciliarInsumos([
@@ -245,4 +247,15 @@ test('alias de importaciones anteriores y regla de la carga inicial (US-828)', a
   const d = decisionesCarga(conc);
   assert.deepEqual(d.decisiones, { cami: 7, cem: 'nuevo' }, '≥ 0.80 con la misma unidad se liga; lo demás entra nuevo');
   assert.equal(d.pendientes[0].candidato, 'REF-CEM');
+});
+
+test('recalcularMatriz: el % de mano de obra se reconoce por la unidad aunque OPUS lo tipifique como mano de obra (BanRegio.mdf)', () => {
+  // Cuadrilla C#1 de BanRegio.mdf: 0.1 × 1275.24 + 1 × 556.55 + 3 % de esa mano de obra = 704.59
+  const r = BP.recalcularMatriz([
+    { insumo_id: 1, cantidad: 0.1, tipo: 'mano_obra', unidad: 'jor' },
+    { insumo_id: 2, cantidad: 0.03, tipo: 'mano_obra', unidad: '(%)mo' },
+    { insumo_id: 3, cantidad: 1, tipo: 'mano_obra', unidad: 'jor' },
+  ], { 1: 1275.24, 2: 0, 3: 556.55 });
+  assert.equal(r.total, 704.59);
+  assert.equal(r.porTipo.mano_obra, 704.59, 'cuenta en el tipo con el que vino');
 });

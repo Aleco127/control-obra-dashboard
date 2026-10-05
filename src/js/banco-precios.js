@@ -124,10 +124,11 @@ const BancoPrecios = (() => {
       const tri = trigramas(r.descripcion);
       const m = idx.get(llaveInsumo(r.clave, r.unidad, r.tipo));
       if (m) { res.coincide.push({ recurso: r, insumo: m, aviso: similitud(tri, trigramas(m.descripcion)) < 0.3 ? 'descripcion_distinta' : null }); continue; }
-      // La misma clave de OPUS ya se ligó (y confirmó) en una importación anterior: se respeta esa decisión
+      // La misma clave de OPUS ya se ligó (y confirmó) en una importación anterior: se respeta si el tipo y la unidad son
+      // los mismos (otro proyecto puede usar la misma clave con otra unidad: AGUA lt contra AGUA M3)
       const al = alias[String(r.clave).trim().toLowerCase()];
       const ai = al !== undefined ? porId.get(Number(al)) : null;
-      if (ai && ai.tipo === r.tipo) { res.coincide.push({ recurso: r, insumo: ai, aviso: 'alias' }); continue; }
+      if (ai && ai.tipo === r.tipo && String(ai.unidad || '').trim().toLowerCase() === String(r.unidad || '').trim().toLowerCase()) { res.coincide.push({ recurso: r, insumo: ai, aviso: 'alias' }); continue; }
       const cands = (porTipo[r.tipo] || []).map((x) => ({ insumo: x.e, puntaje: Math.round(similitud(tri, x.tri) * 1000) / 1000 }))
         .filter((x) => x.puntaje >= umbral).sort((a, b) => b.puntaje - a.puntaje || String(a.insumo.clave).localeCompare(String(b.insumo.clave))).slice(0, 3);
       if (cands.length) res.parecido.push({ recurso: r, candidato: cands[0].insumo, puntaje: cands[0].puntaje, candidatos: cands });
@@ -236,7 +237,8 @@ const BancoPrecios = (() => {
   }
 
   // ---- Matrices (US-826) ----------------------------------------------------------------------------------------------
-  const esHerramientaPctMo = (c) => c && c.tipo === 'herramienta' && /^\(%\)\s*mo$/i.test(String(c.unidad || '').trim());
+  // OPUS la modela como herramienta y a veces como mano de obra (BanRegio.mdf: «HERRAMIENTA M», tipo 2): manda la unidad
+  const esHerramientaPctMo = (c) => c && /^\(%\)\s*mo$/i.test(String(c.unidad || '').trim());
   /**
    * Recalcula una matriz a precios vigentes: Σ cantidad × precio. Un componente compuesto (cuadrilla o auxiliar) se
    * recalcula primero con su propia matriz (auxiliares[insumo_id]) y cuenta en el tipo del compuesto (una cuadrilla en
@@ -264,7 +266,7 @@ const BancoPrecios = (() => {
     });
     for (const r of renglones) if (!r.pctMo && porTipo[r.tipo] !== undefined) porTipo[r.tipo] = red(porTipo[r.tipo] + r.importe);
     const mo = porTipo.mano_obra;
-    for (const r of renglones) if (r.pctMo) { r.precio = mo; r.importe = red(Number(r.cantidad) * mo); porTipo.herramienta = red(porTipo.herramienta + r.importe); }
+    for (const r of renglones) if (r.pctMo) { const t = porTipo[r.tipo] !== undefined ? r.tipo : 'herramienta'; r.precio = mo; r.importe = red(Number(r.cantidad) * mo); porTipo[t] = red(porTipo[t] + r.importe); }
     const total = red(renglones.reduce((s, r) => s + r.importe, 0));
     return { total, porTipo, renglones, sinPrecio };
   }
