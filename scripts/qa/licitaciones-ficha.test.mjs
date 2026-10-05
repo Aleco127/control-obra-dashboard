@@ -263,3 +263,16 @@ test('US-820: nombres con el naming_pattern del perfil, carpetas por sobre, plan
   assert.ok(csv.startsWith('﻿sobre,anexo,descripcion,archivo,sha256,origen,estado\r\n'));
   assert.ok(csv.includes('Legal,L-1,"Correo, ""domicilio""",1_Legal/01_L-1.docx,ab,requisito,Listo'));
 });
+
+test('US-821: datos para «Convertir en obra» y catálogo propuesto', () => {
+  const lic = { nombre: 'Archivo Municipal II', codigo: 'MC-2617057-057', convocante: 'Municipio de Cuauhtémoc', ubicacion: 'Cd. Cuauhtémoc', inicio_obra: '2026-09-15', plazo_dias: 100, monto_propuesto: '2996882.50', monto_ganador: null, bases: { concurso: { objeto: 'Construcción del archivo' } } };
+  assert.equal(L.finDeObra(lic), '2026-12-23', '100 días naturales del 15-sep al 23-dic');
+  assert.equal(L.finDeObra({ ...lic, bases: { fechas: { termino_obra: '2026-12-31' } } }), '2026-12-31', 'manda la fecha de las bases');
+  assert.equal(L.finDeObra({ inicio_obra: null }), '');
+  assert.deepEqual(L.prefillObra(lic), { nombre_obra: 'Archivo Municipal II', codigo_obra: 'MC-2617057-057', cliente: 'Municipio de Cuauhtémoc', ubicacion: 'Cd. Cuauhtémoc', fecha_inicio: '2026-09-15', fecha_fin_estimada: '2026-12-23', descripcion: 'Construcción del archivo', tipo_proyecto: 'Obra', monto: 2996882.5, ivaMode: 'sin' });
+  assert.equal(L.prefillObra({ ...lic, monto_propuesto: null, monto_ganador: 10 }).monto, 10);
+  const c = L.catalogoPropuesto([{ categoria: 'catalogo', nombre: 'viejo.xlsx', created_at: '2026-09-01' }, { categoria: 'catalogo', nombre: 'nuevo.xlsx', created_at: '2026-09-10' }, { categoria: 'catalogo', nombre: 'planos.pdf', created_at: '2026-09-20' }, { categoria: 'bases', nombre: 'x.xlsx', created_at: '2026-09-30' }]);
+  assert.equal(c.nombre, 'nuevo.xlsx');
+  assert.equal(L.catalogoPropuesto([]), null);
+  assert.deepEqual(L.ESTATUS_CERRADOS, ['ganada', 'perdida', 'desierta', 'cancelada', 'no_participamos']);
+});

@@ -17222,6 +17222,8 @@ const DOC_CATEGORIAS=['Contrato','Permiso','Plano','Reporte','Legal','Certificad
 const DOC_ESTATUS=['Activo','Vencido','Archivado','Pendiente'];
 
 function Docs(c){
+// Licitaciones (US-821): archivos de la convocante de la licitación ligada a la obra (enlace, no copia)
+if(selectedObra&&(currentUser?.nivel||0)>=80&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc'))setTimeout(()=>conModuloArchivo('lc').then(m=>{const el=$('docsLicitacion');if(m&&el)m.pintarArchivosDeObra(el,selectedObra);}),0);
 const docs=getFilteredDocs();
 const catFilter=$('docCatFilter')?.value||'';
 const estatusFilter=$('docEstatusFilter')?.value||'';
@@ -17252,6 +17254,7 @@ c.innerHTML=`
 </div>
 <button onclick="openMdlDoc()" class="btn btn-p flex items-center gap-2"><i class="ri-upload-2-line"></i> Subir Documento</button>
 </div>
+${selectedObra&&(currentUser?.nivel||0)>=80&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc')?'<div id="docsLicitacion"></div>':''}
 
 <!-- KPIs -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

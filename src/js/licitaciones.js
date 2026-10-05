@@ -286,7 +286,7 @@ const Licitaciones = (() => {
 <button type="button" class="btn btn-p" onclick="Licitaciones.nueva()"><i class="ri-add-line" aria-hidden="true"></i> Nueva licitación</button></div>`;
   }
   function chipEstatus(s) {
-    const tono = { ganada: 'ok', presentada: 'info', en_preparacion: 'warn', perdida: 'danger' }[s];
+    const tono = { ganada: 'ok', presentada: 'accent', en_preparacion: 'warn', perdida: 'danger' }[s];   // --info sobre --info-soft no llega a 4.5:1
     const estilo = tono ? `background:var(--${tono}-soft);color:var(--${tono})` : 'background:var(--surface-2);color:var(--ink-muted)';
     return `<span class="chip" style="${estilo}">${S(etiqueta(ESTATUS, s))}</span>`;
   }
@@ -1195,7 +1195,122 @@ ${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2
       action: { label: 'Abrir el Banco de precios', icon: 'ri-database-2-line', onClick: "irAModulo('bp')" },
     });
   }
-  function pintarCierre(el) { el.innerHTML = EmptyState({ icon: 'ri-flag-2-line', title: 'Cierre', body: 'Aquí registrarás el resultado del fallo.' }); }
+  // Cierre y «Convertir en obra» (US-821) ------------------------------------------------------------------------------
+  const ESTATUS_CERRADOS = ['ganada', 'perdida', 'desierta', 'cancelada', 'no_participamos'];
+  /** Fecha de término: la de las bases o inicio + plazo − 1 (días naturales). Función pura. */
+  function finDeObra(lic) {
+    const t = lic && lic.bases && lic.bases.fechas && lic.bases.fechas.termino_obra;
+    if (t) return String(t).slice(0, 10);
+    if (!lic || !lic.inicio_obra || !lic.plazo_dias) return '';
+    const d = new Date(String(lic.inicio_obra).slice(0, 10) + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + Number(lic.plazo_dias) - 1);
+    return d.toISOString().slice(0, 10);
+  }
+  /** Datos que «Convertir en obra» le pasa a WizardObra (columnas de obras). Montos de licitación: sin IVA. Pura. */
+  function prefillObra(lic) {
+    return {
+      nombre_obra: lic.nombre, codigo_obra: lic.codigo, cliente: lic.convocante || '', ubicacion: lic.ubicacion || '',
+      fecha_inicio: lic.inicio_obra ? String(lic.inicio_obra).slice(0, 10) : '', fecha_fin_estimada: finDeObra(lic),
+      descripcion: (lic.bases && lic.bases.concurso && lic.bases.concurso.objeto) || `Obra ganada en la licitación ${lic.codigo}`,
+      tipo_proyecto: 'Obra', monto: lic.monto_propuesto != null ? Number(lic.monto_propuesto) : (lic.monto_ganador != null ? Number(lic.monto_ganador) : 0), ivaMode: 'sin',
+    };
+  }
+  /** Archivo del catálogo propuesto: el más reciente de la categoría «catalogo» en Excel o CSV. Pura. */
+  function catalogoPropuesto(archivos) {
+    return (archivos || []).filter((a) => a.categoria === 'catalogo' && /\.(xlsx|xls|csv)$/i.test(a.nombre || ''))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] || null;
+  }
+  function pintarCierre(el, ctx) {
+    const l = ctx.lic;
+    const cerr = ESTATUS_CERRADOS.includes(l.estatus);
+    const obra = l.obra_id ? (D.o || []).find((o) => o.id === l.obra_id) : null;
+    const cat = catalogoPropuesto(ctx.archivos);
+    el.innerHTML = `<div class="grid lg:grid-cols-3 gap-4">
+<form id="lcFormCierre" class="g rounded-xl p-4 lg:col-span-2 space-y-3" onsubmit="event.preventDefault();Licitaciones.guardarCierre()" aria-labelledby="lcCiT">
+<h2 id="lcCiT" class="font-bold text-sm"><i class="ri-flag-2-line" aria-hidden="true"></i> Resultado del concurso</h2>
+<div class="grid sm:grid-cols-2 gap-3">
+${campo('lcCiRes', 'Resultado', `<select id="lcCiRes" class="inp">${opciones(ESTATUS, l.estatus)}</select>`)}
+${campo('lcCiFallo', 'Fecha del fallo', `<input id="lcCiFallo" type="datetime-local" class="inp" value="${S(aLocalMx(l.fallo))}">`)}
+${campo('lcCiProp', 'Nuestra propuesta (sin IVA)', `<input id="lcCiProp" type="number" step="0.01" min="0" class="inp" value="${l.monto_propuesto ?? ''}">`)}
+${campo('lcCiMonto', 'Monto ganador (sin IVA)', `<input id="lcCiMonto" type="number" step="0.01" min="0" class="inp" value="${l.monto_ganador ?? ''}">`)}
+${campo('lcCiGan', 'Ganador', `<input id="lcCiGan" class="inp" maxlength="200" value="${S(l.ganador || '')}" placeholder="Razón social de quien ganó">`, 'sm:col-span-2')}
+${campo('lcCiLec', 'Lecciones aprendidas', `<textarea id="lcCiLec" class="inp" rows="4" placeholder="Qué funcionó, qué faltó, en qué precio nos ganaron">${S(l.lecciones || '')}</textarea>`, 'sm:col-span-2')}
+</div><div class="flex justify-end"><button type="submit" class="btn btn-p"><i class="ri-save-line" aria-hidden="true"></i> Guardar cierre</button></div></form>
+<div class="space-y-4">
+${l.estatus === 'ganada' ? `<section class="g rounded-xl p-4" aria-labelledby="lcCiObra"><h2 id="lcCiObra" class="font-bold text-sm mb-2"><i class="ri-building-2-line" aria-hidden="true"></i> Obra</h2>
+${l.obra_id ? `<p class="text-sm mb-3">Esta licitación ya es la obra ${obra ? `<b>${S(obra.codigo_obra || '')} ${S(obra.nombre_obra || '')}</b>` : `#${+l.obra_id}`}. Sus archivos se ven en Documentos de la obra.</p><button type="button" class="btn btn-s" onclick="Licitaciones.verObra()"><i class="ri-external-link-line" aria-hidden="true"></i> Abrir la obra</button>`
+    : `<p class="text-sm mb-3">Crea la obra con el asistente: nombre, cliente (convocante), monto, fechas${cat ? ' y el catálogo propuesto' : ''} ya vienen llenos.</p>${cat ? `<p class="text-xs text-ink-muted mb-3">Catálogo: ${S(cat.nombre)}</p>` : '<p class="text-xs text-ink-muted mb-3">Sube el catálogo propuesto (Excel) en Archivos, categoría «Catálogo», para que entre al asistente.</p>'}<button type="button" class="btn btn-p" onclick="Licitaciones.convertirEnObra()"><i class="ri-building-2-line" aria-hidden="true"></i> Convertir en obra</button>`}</section>` : ''}
+${cerr ? `<section class="g rounded-xl p-4" aria-labelledby="lcCiBp"><h2 id="lcCiBp" class="font-bold text-sm mb-2"><i class="ri-database-2-line" aria-hidden="true"></i> Banco de precios</h2>
+<p class="text-sm mb-3">Gane o pierda, los precios de esta propuesta sirven para la siguiente. Manda al banco los insumos del proyecto de OPUS${l.opus_proyecto ? ` (${S(l.opus_proyecto)})` : ''} ligados a esta licitación.</p>
+<button type="button" class="btn btn-s" onclick="Licitaciones.irAlBanco()"><i class="ri-arrow-right-line" aria-hidden="true"></i> Mandar la propuesta al banco de precios</button></section>` : ''}
+</div></div>`;
+  }
+  async function guardarCierre() {
+    const num = (id) => { const v = val(id); return v === '' ? null : Number(v); };
+    const antes = F.lic.estatus;
+    const datos = { id: F.lic.id, estatus: val('lcCiRes'), fallo: aIsoMx(val('lcCiFallo')), monto_propuesto: num('lcCiProp'), monto_ganador: num('lcCiMonto'), ganador: val('lcCiGan'), lecciones: val('lcCiLec') };
+    try {
+      const r = await rpc('guardar_licitacion', { p_datos: datos });
+      Object.assign(F.lic, r.licitacion); actualizarEnLista(r.licitacion);
+      Toast.success('Cierre guardado');
+      repintarFicha();
+      if (ESTATUS_CERRADOS.includes(r.licitacion.estatus) && !ESTATUS_CERRADOS.includes(antes)) {
+        const ir = await Dialog.confirm({ title: 'Mandar la propuesta al banco de precios', body: `La licitación quedó como «${etiqueta(ESTATUS, r.licitacion.estatus)}». ¿Quieres llevar los precios de esta propuesta al Banco de precios para reutilizarlos?`, confirmText: 'Ir al banco de precios', cancelText: 'Después' });
+        if (ir) irAlBanco();
+      }
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó el cierre')); }
+  }
+  /** Banco de precios (épica D): la importación de la propuesta (US-825) vive en el módulo bp; aquí sólo se enlaza. */
+  function irAlBanco() {
+    try { sessionStorage.setItem('bp_desde_licitacion', JSON.stringify({ id: F.lic.id, codigo: F.lic.codigo, opus_proyecto: F.lic.opus_proyecto || null })); } catch (e) { /* sin almacenamiento */ }
+    cerrarModal();
+    if (typeof irAModulo === 'function') irAModulo('bp');
+  }
+  function verObra() { if (F && F.lic.obra_id && typeof abrirFichaObra === 'function') abrirFichaObra(F.lic.obra_id); }
+  async function convertirEnObra() {
+    if (!F || F.lic.estatus !== 'ganada') { Toast.warning('Primero guarda el resultado «Ganada».'); return; }
+    if (typeof WizardObra === 'undefined') { Toast.error('No se cargó el asistente de obras; recarga la página.'); return; }
+    const lic = F.lic;
+    let catalogo = null;
+    const cat = catalogoPropuesto(F.archivos);
+    if (cat) { try { const blob = await blobDe(cat.archivo_path); catalogo = new File([blob], cat.nombre, { type: blob.type }); } catch (e) { Toast.warning('No se pudo leer el catálogo propuesto; podrás cargarlo en el asistente.'); } }
+    await WizardObra.open({
+      prefill: prefillObra(lic), catalogo,
+      alCrearObra: async (obraId) => {
+        const r = await rpc('guardar_licitacion', { p_datos: { id: lic.id, obra_id: obraId } });
+        Object.assign(lic, r.licitacion); actualizarEnLista(r.licitacion);
+        Toast.success(`Licitación ${lic.codigo} ligada a la obra`);
+        if (F && F.lic.id === lic.id && M === 'lc') repintarFicha();
+      },
+    });
+  }
+
+  // Archivos de la convocante desde Documentos de la obra (US-821): enlace, no copia ---------------------------------------
+  const archivosObra = {};
+  async function pintarArchivosDeObra(el, obraId) {
+    if (!el || !obraId) return;
+    try {
+      const { data: ls, error } = await sb.from('licitaciones').select('id,codigo,nombre').eq('obra_id', obraId);
+      if (error) throw error;
+      if (!ls || !ls.length) { el.innerHTML = ''; return; }
+      const { data: as, error: e2 } = await sb.from('licitacion_archivos').select('id,licitacion_id,categoria,nombre,archivo_path,tamano,created_at').in('licitacion_id', ls.map((l) => l.id)).order('categoria').order('created_at');
+      if (e2) throw e2;
+      (as || []).forEach((a) => { archivosObra[a.id] = a; });
+      el.innerHTML = ls.map((l) => {
+        const mios = (as || []).filter((a) => a.licitacion_id === l.id);
+        return `<section class="g rounded-xl p-4 mb-4" aria-labelledby="docLic-${+l.id}"><div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h3 id="docLic-${+l.id}" class="font-bold text-sm"><i class="ri-auction-line" aria-hidden="true"></i> Archivos de la convocante · ${S(l.codigo)}</h3>
+<button type="button" class="btn btn-s text-xs" onclick="Licitaciones.abrir(${+l.id},'archivos')"><i class="ri-external-link-line" aria-hidden="true"></i> Abrir la licitación</button></div>
+<p class="text-xs text-ink-muted mb-2">Vienen de la licitación (no son copias): bases, anexos, actas y planos tal como los publicó la dependencia.</p>
+${mios.length ? `<ul class="text-sm divide-y" style="border-color:var(--line)">${mios.map((a) => `<li class="py-2 flex items-center justify-between gap-2"><span class="min-w-0 break-all">${S(a.nombre)} <span class="text-xs text-ink-muted">· ${S(etiqueta(CATEGORIAS_ARCHIVO, a.categoria))} · ${fmtBytes(a.tamano)}</span></span><button type="button" class="btn-icon" onclick="Licitaciones.verArchivoObra(${+a.id})" aria-label="Ver ${S(a.nombre)}"><i class="ri-eye-line" aria-hidden="true"></i></button></li>`).join('')}</ul>` : '<p class="text-sm text-ink-muted">La licitación no tiene archivos.</p>'}</section>`;
+      }).join('');
+    } catch (e) { el.innerHTML = ''; }
+  }
+  async function verArchivoObra(id) {
+    const a = archivosObra[id]; if (!a) return;
+    const w = window.open('', '_blank');
+    try { const u = await urlFirmada(a.archivo_path); if (w) { w.opener = null; w.location.href = u; } else window.location.assign(u); }
+    catch (e) { if (w) w.close(); Toast.error(errTxt(e, 'No se pudo abrir el archivo')); }
+  }
   // Importar bases desde un archivo licitacion-bases/v1 preparado con Claude Code (US-819) ---------------------------------
   /** Esquema versionado: copia exacta de docs/licitaciones/licitacion-bases.schema.json (la prueba lo compara). */
   const ESQUEMA_BASES = {"$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://app.supernovarquitectos.com/schemas/licitacion-bases/v1.json", "title": "licitacion-bases/v1", "description": "Bases de una licitación leídas de la convocatoria (PDF) por Claude Code en la PC del usuario, para importarlas en Control de Obra › Licitaciones › Bases › Importar bases. Toma los campos de licitagen/schemas/bases.schema.json y agrega requisitos[] por sobre, causas de desechamiento y la página de origen de cada dato. Fechas: 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:MM' en hora de México; si el texto no permite fecha exacta, null y el texto en notas_importantes.", "type": "object", "additionalProperties": false, "required": ["formato", "concurso"], "properties": {"formato": {"const": "licitacion-bases/v1"}, "fuente": {"type": "object", "additionalProperties": false, "properties": {"archivo": {"type": ["string", "null"]}, "generado_por": {"type": ["string", "null"]}, "fecha": {"type": ["string", "null"]}}}, "concurso": {"type": "object", "additionalProperties": false, "required": ["numero", "convocante", "objeto"], "properties": {"numero": {"type": ["string", "null"], "maxLength": 120}, "nombre": {"type": ["string", "null"], "maxLength": 300}, "modalidad": {"type": ["string", "null"]}, "convocante": {"type": ["string", "null"], "maxLength": 200}, "objeto": {"type": ["string", "null"]}, "ubicacion": {"type": ["string", "null"]}, "plaza": {"type": ["string", "null"], "enum": ["cuauhtemoc", "chihuahua", "juarez", "parral", "casas_grandes", "otra", null]}, "fuente_recursos": {"type": ["string", "null"]}}}, "fechas": {"type": "object", "additionalProperties": false, "properties": {"publicacion": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "visita_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "junta_aclaraciones": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "presentacion_propuestas": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "fallo": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "firma_contrato": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "inicio_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "termino_obra": {"type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}"}, "plazo_dias": {"type": ["integer", "null"], "minimum": 0}, "tipo_dias": {"type": ["string", "null"], "enum": ["naturales", "habiles", null]}}}, "economicos": {"type": "object", "additionalProperties": false, "properties": {"anticipo_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100}, "financiamiento_pct": {"type": ["number", "null"]}, "forma_pago": {"type": ["string", "null"]}, "moneda": {"type": ["string", "null"]}, "presupuesto_referencial": {"type": ["number", "null"], "minimum": 0}, "ajuste_costos": {"type": ["string", "null"]}, "garantias": {"type": "object", "additionalProperties": false, "properties": {"seriedad_propuesta": {"type": ["string", "null"]}, "anticipo": {"type": ["string", "null"]}, "cumplimiento": {"type": ["string", "null"]}, "vicios_ocultos": {"type": ["string", "null"]}}}}}, "requisitos_empresa": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["clave", "descripcion"], "properties": {"clave": {"type": "string"}, "descripcion": {"type": "string"}, "obligatorio": {"type": ["boolean", "null"]}, "minimo": {"type": ["string", "null"]}}}}, "partidas": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["clave", "descripcion"], "properties": {"clave": {"type": "string"}, "descripcion": {"type": "string"}, "unidad": {"type": ["string", "null"]}, "cantidad": {"type": ["number", "null"]}, "monto_estimado": {"type": ["number", "null"]}}}}, "documentos_requeridos": {"description": "Compatibilidad con LicitaGen: si no viene requisitos[], se toman de aquí (sobre tecnica/economica).", "type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sobre", "anexo_id", "descripcion"], "properties": {"sobre": {"type": "string", "enum": ["legal", "tecnica", "economica"]}, "anexo_id": {"type": "string"}, "descripcion": {"type": "string"}, "requiere_firma": {"type": ["boolean", "null"]}, "formato": {"type": ["string", "null"]}, "obligatorio": {"type": ["boolean", "null"]}, "fuente": {"type": ["string", "null"]}}}}, "anexos_convocante": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["anexo_id", "nombre"], "properties": {"anexo_id": {"type": "string"}, "nombre": {"type": "string"}, "tipo": {"type": ["string", "null"]}, "paginas": {"type": ["string", "null"]}, "archivo_referencia": {"type": ["string", "null"]}}}}, "notas_importantes": {"type": "array", "items": {"type": "string"}}, "causas_desechamiento": {"type": "array", "items": {"type": "string"}}, "criterios_evaluacion": {"type": "object", "additionalProperties": false, "properties": {"metodo": {"type": ["string", "null"], "enum": ["puntos_y_porcentajes", "binario", "precio_mas_bajo", "otro", null]}, "puntos_legal": {"type": ["number", "null"]}, "puntos_tecnico": {"type": ["number", "null"]}, "puntos_economico": {"type": ["number", "null"]}, "subcriterios": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["criterio", "peso"], "properties": {"criterio": {"type": "string"}, "peso": {"type": "number"}, "descripcion": {"type": ["string", "null"]}}}}}}, "requisitos": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["anexo_id", "sobre", "descripcion"], "properties": {"anexo_id": {"type": "string", "minLength": 1, "maxLength": 40}, "sobre": {"type": "string", "enum": ["legal", "tecnico", "economico"]}, "descripcion": {"type": "string", "maxLength": 500}, "origen": {"type": ["string", "null"], "enum": ["expediente", "se_genera", "opus", "dependencia", null]}, "requiere_firma": {"type": ["boolean", "null"]}, "categoria_expediente": {"type": ["string", "null"], "enum": ["opinion_sat", "opinion_imss", "opinion_infonavit", "identificacion", "acta_constitutiva", "poder", "constancia_fiscal", "comprobante_domicilio", "estados_financieros", "cmic", "colegio", "poliza_rc", "curriculum", "otro", "padron_contratistas", "declaracion_anual", null]}, "pagina": {"type": ["integer", "null"], "minimum": 1}}}}, "paginas": {"description": "Página del PDF de donde salió cada dato, por ruta: {\"concurso.objeto\": 3, \"fechas.presentacion_propuestas\": 5}.", "type": "object", "additionalProperties": {"type": "integer", "minimum": 1}}}};
@@ -1453,6 +1568,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil, llenarDesdeExpediente,
     leerArchivoBases, revisarBases, aplicarBases,
     armarPaquete, generarPaquete,
+    guardarCierre, convertirEnObra, irAlBanco, verObra, pintarArchivosDeObra, verArchivoObra,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
@@ -1461,6 +1577,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil, docsUsables, venceAntes,
     validarBases, propuestaDeBases, datosDeRevision, modalidadDe, requisitosDeBases, ESQUEMA_BASES, MAPA_BASES,
     nombrePaquete, carpetaSobre, planPaquete, manifestCsv,
+    finDeObra, prefillObra, catalogoPropuesto, ESTATUS_CERRADOS,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };

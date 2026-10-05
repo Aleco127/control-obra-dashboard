@@ -7,6 +7,9 @@ navegador. Cada historia es una función `paso_*`; --pasos elige cuáles correr 
 Crea datos de prueba con códigos `QA-C-*` y los BORRA al final (filas y objetos del bucket), aunque algo falle.
 No cambia nav_prefs (navega con irAModulo); aun así las compara al final y las restaura si cambiaron.
 
+US-821 crea obras reales «QA-C obra ganada …» con WizardObra: el smoke imprime sus ids al final y hay que borrarlas
+por SQL con sus hijos (tablas con obra_id) porque la app no tiene un borrado de obra completo.
+
 Uso (OBRA_QA_TOKEN en el entorno; dist servido con node scripts/serve-dist.mjs dist 8772):
   PYTHONIOENCODING=utf-8 python scripts/qa/licitaciones-epica-c-smoke.py --app http://127.0.0.1:8772/index.html?app=1 --out docs/qa/licitaciones-c
 """
@@ -429,6 +432,7 @@ def paso_820(page, tag, ancho):
     for an, so, firma in [('L-1', 'legal', 'true'), ('L-2', 'legal', 'false'), ('T-1', 'tecnico', 'true')]:
         sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'{an}',sobre:'{so}',descripcion:'Anexo {an}',requiere_firma:{firma}}}}});")
     abrir_ficha(page, lid, 'requisitos')
+    page.evaluate("()=>Licitaciones.verSobre('legal')")
     for an in ['L-1', 'L-2']:
         f = pdf_falso(f'{an} final {ancho}.pdf', f'{an} {ancho}')
         with page.expect_file_chooser() as fc:
@@ -453,7 +457,58 @@ def paso_820(page, tag, ancho):
     check(man[0] == ['sobre', 'anexo', 'descripcion', 'archivo', 'sha256', 'origen', 'estado'] and fila and fila[4] == real, f'{tag} 820: manifest.csv con anexo, archivo y SHA-256 correcto')
     check(any(r[1] == 'T-1' and r[5] == 'FALTA' for r in man) and 'LEEME.txt' in nombres and 'LicitaGen' in z.read('LEEME.txt').decode('utf-8'), f'{tag} 820: faltantes en el manifiesto y LEEME para foliar en LicitaGen')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818, '819': paso_819, '820': paso_820}
+def xlsx_catalogo(nombre):
+    import openpyxl
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(['Clave', 'Descripción', 'Unidad', 'Cantidad', 'P.U.'])
+    ws.append(['1', 'OBRA CIVIL', '', '', ''])
+    ws.append(['1.01', 'Excavación a mano', 'm3', 10, 250.5])
+    ws.append(['1.02', 'Plantilla de concreto', 'm2', 20, 180])
+    p = os.path.join(TMP, nombre); wb.save(p); return p
+
+def paso_821(page, tag, ancho):
+    cod = f'QA-C-{ancho}-7'
+    lid = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'{cod}',nombre:'QA-C obra ganada {ancho}',convocante:'Municipio de Prueba',inicio_obra:'2026-11-02',plazo_dias:60,monto_propuesto:9100,estatus:'presentada'}}}});return r.data.id;")
+    abrir_ficha(page, lid, 'archivos')
+    page.select_option('#lcArchCat', 'catalogo')
+    page.set_input_files('#lcArchFiles', [xlsx_catalogo(f'Catalogo propuesto {ancho}.xlsx'), pdf_falso(f'Bases {ancho} 821.pdf', f'b821 {ancho}')])
+    page.click('#lcPanel form button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.archivos.length===2", timeout=20000)
+    page.evaluate("()=>Licitaciones.tabFicha('cierre')")
+    for c in ['Resultado', 'Fecha del fallo', 'Monto ganador', 'Ganador', 'Lecciones aprendidas']:
+        check(c in page.inner_text('#lcFormCierre'), f'{tag} 821: pestaña Cierre con «{c}»')
+    page.select_option('#lcCiRes', 'ganada'); page.fill('#lcCiFallo', '2026-10-20T12:00'); page.fill('#lcCiMonto', '9100'); page.fill('#lcCiGan', 'Supernova (prueba)'); page.fill('#lcCiLec', 'Lección de prueba')
+    page.click('#lcFormCierre button[type=submit]')
+    page.wait_for_selector('dialog.dlg[open]', timeout=8000)
+    check('banco de precios' in page.inner_text('dialog.dlg'), f'{tag} 821: al cerrar ofrece mandar la propuesta al banco de precios')
+    page.click('#dlgCancel')
+    d = sql(page, f"const {{data}}=await sb.from('licitaciones').select('estatus,fallo,monto_ganador,ganador,lecciones').eq('id',{lid}).single();return data;")
+    check(d['estatus'] == 'ganada' and d['fallo'].startswith('2026-10-20T18:00') and float(d['monto_ganador']) == 9100 and d['lecciones'] == 'Lección de prueba', f'{tag} 821: cierre guardado')
+    check(page.locator('#lcPanel button:has-text("Mandar la propuesta al banco de precios")').count() == 1, f'{tag} 821: enlace al Banco de precios en el cierre')
+    axe(page, '#c', f'{tag} 821 cierre')
+    page.click('#lcPanel button:has-text("Convertir en obra")')
+    page.wait_for_selector('#mdlWizardObra.ac #wzNombre', timeout=15000)
+    vals = page.evaluate("()=>({n:wzNombre.value,c:wzCodigo.value,cli:document.getElementById('wzCliente').value,m:wzMonto.value,i:wzInicio.value,f:wzFin.value,iva:document.querySelector('input[name=wzIva]:checked').value})")
+    check(vals == {'n': f'QA-C obra ganada {ancho}', 'c': cod, 'cli': 'Municipio de Prueba', 'm': '9100', 'i': '2026-11-02', 'f': '2026-12-31', 'iva': 'sin'}, f'{tag} 821: WizardObra abre con nombre, cliente, monto y fechas {vals}')
+    page.click('#wzF1 button:has-text("Guardar y continuar")')
+    page.wait_for_function("()=>WizardObra.state&&WizardObra.state.step===2&&WizardObra.state.conceptos.length>=2", timeout=20000)
+    conc = page.evaluate("()=>WizardObra.state.conceptos.map(c=>c.clave)")
+    check(conc[:2] == ['1.01', '1.02'], f'{tag} 821: el catálogo propuesto entra al asistente {conc}')
+    page.wait_for_function(f"()=>Licitaciones.ficha&&Licitaciones.ficha.lic.obra_id", timeout=15000)
+    obra = page.evaluate("()=>Licitaciones.ficha.lic.obra_id")
+    en_bd = sql(page, f"const {{data}}=await sb.from('licitaciones').select('obra_id').eq('id',{lid}).single();return data.obra_id;")
+    check(obra and en_bd == obra, f'{tag} 821: guarda obra_id en la licitación ({en_bd})')
+    page.evaluate("()=>WizardObra.close()")
+    # Documentos de la obra: enlace a los archivos de la convocante
+    page.evaluate("id=>{seleccionarObraGlobal(id);irAModulo('k')}", obra)
+    page.wait_for_selector('#docsLicitacion section', timeout=20000)
+    t = page.inner_text('#docsLicitacion')
+    check(cod in t and f'Catalogo propuesto {ancho}.xlsx' in t and 'no son copias' in t, f'{tag} 821: los archivos de la convocante se ven en Documentos de la obra')
+    page.evaluate("()=>seleccionarObraGlobal(null)")
+    QA_OBRAS.append(obra)
+
+QA_OBRAS = []
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818, '819': paso_819, '820': paso_820, '821': paso_821}
 
 def main():
     with sync_playwright() as pw:
@@ -475,6 +530,7 @@ def main():
                     sql(page, f"await sb.rpc('guardar_nav_prefs',{{p_prefs:{json.dumps(prefs0)}}});")
                     print('  nav_prefs restauradas')
                 ctx.close()
+    if QA_OBRAS: print('  OBRAS DE PRUEBA CREADAS (borrarlas por SQL con sus hijos):', QA_OBRAS)
     check(not errores, f'cero errores de consola {errores[:5]}')
     print(f'\n{len(fallos)} fallas')
     sys.exit(1 if fallos else 0)
