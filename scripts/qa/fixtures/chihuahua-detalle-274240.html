@@ -1,0 +1,629 @@
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Contrataciones públicas</title>
+  <link rel="shortcut icon" href="https://app.chihuahua.gob.mx/framework-gob-chihuahua/img/iconogob.ico" />
+  <meta property="og:title" content="Contrataciones públicas" />
+  <meta property="og:description"
+    content="Consulta aquí la información de las contrataciones públicas que realiza el Gobierno del Estado de Chihuahua." />
+  <meta property="og:image" content="/static/portal/img/contrataciones.png" />
+
+  
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="/static/portal/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/portal/css/dataTables.bootstrap4.min.css">
+  <link rel="stylesheet" href="/static/portal/css/animate.css">
+  <link rel="stylesheet" href="/static/portal/css/custom.css?1.6">
+  <link rel="stylesheet" href="/static/portal/fonts/fontawesome-5.0.6/css/fontawesome-all.css">
+  <!--<link rel="stylesheet" href="//app.chihuahua.gob.mx/framework-gob-chihuahua/v1-b4/css/gob-chih-b4.min.css" />-->
+  <link rel="stylesheet" type="text/css" href="https://app.chihuahua.gob.mx/framework-gob-chihuahua/v4-b4/css/style.min.css" />
+  <!--<link href="https://app.chihuahua.gob.mx/webmaster/css/encuesta.css" type="text/css" rel="stylesheet" />-->
+  <link rel="stylesheet" type="text/css" href="//app.chihuahua.gob.mx/masterapp/encuesta-b5.css" />
+  <script src='https://code.jquery.com/jquery-3.4.1.min.js' type='text/javascript'></script>
+  <script src=https://www.infomexsinaloa.org/accesibilidadweb/js_api.aspx?api_key=75C91F2C-2FB0-4C7C-A271-AFE6F46F8FF4&tipo=header&aut=chihuahua.gob.mx type="text/javascript"></script>
+
+  
+  <style type="text/css">
+    #integra2_myBtn{
+     left: 0;
+    }
+
+    .integra2_modale-content {
+        left: 0px;
+    }
+
+    .navbar-gris {
+      display: none;
+    }
+
+    #headerN {
+      margin-bottom: 150px !important;
+    }
+    nav.stg-main-menu {
+      height: 35px !important;
+    }
+
+    body {
+      display: inherit !important;
+    }
+
+    .stg-title-app a:hover {
+      text-decoration: none !important;
+    }
+
+    @media(max-width: 767px) {
+      .stg-container button {
+        display: none !important;
+      }
+
+      .stg-navbar-brand {
+        height: 40px;
+      }
+
+      .stg-title-app {
+        margin-top: 20px !important;
+      }
+
+      #headerN {
+        margin-bottom: 120px !important;
+      }
+    }
+
+  </style>
+  
+</head>
+
+<body>
+  <script src=https://www.infomexsinaloa.org/accesibilidadweb/js_api.aspx?api_key=75C91F2C-2FB0-4C7C-A271-AFE6F46F8FF4&tipo=body&aut=chihuahua.gob.mx type="text/javascript"></script>
+  
+  <!--<nav class="navbar navbar-expand-lg navbar-light">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">
+        <img src="/static/portal/img/logo2.png" width="200">
+      </a>
+      <div class="collapse navbar-collapse">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" target="_blank" href="https://www.facebook.com/gobiernochihuahua"
+              title="Facebook Gobierno del Estado de Chihuahua" style="color: #3b5998 ;"><i
+                class="fab fa-facebook-square fa-lg"></i></a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" target="_blank" href="https://twitter.com/GobiernoEdoChih"
+              title="Twitter Gobierno del Estado de Chihuahua" style="color: #00acee ;"><i
+                class="fab fa-twitter-square fa-lg"></i></a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>-->
+  <nav id="menu-navbar" class="navbar navbar-custom navbar-expand-lg navbar-light border-inferior border-superior">
+    <div class="container-fluid">
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mx-auto">
+          <!--<li class="nav-item">
+            <a class="nav-link " href="/">Inicio <span class="sr-only">(current)</span></a>
+          </li>-->
+
+          <li class="nav-item">
+            <a class="nav-link " href="/normatividad/">Normatividad</a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#"
+              role="button">Proveedores/contratistas</a>
+            <div class="dropdown-menu">
+              <a class="dropdown-item" href="/provsans/">Proveedores / contratistas sancionados</a>
+              <a class="dropdown-item" href="/catprvcon/">Catálogo proveedores / contratistas</a>
+              <a class="dropdown-item" href="/contrato_resci/">Contratos rescindidos</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link " href="/comite/">Directorio comité</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link " href="/programa_anual/">Programa anual</a>
+          </li>
+          <!-- <li class="nav-item text-left"> 
+            <a class="nav-link " href="/testigossociales/">Testigos sociales/Testimonios</a> 
+          </li> -->
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle " data-toggle="dropdown" href="#" role="button">Testigos
+              sociales</a>
+            <div class="dropdown-menu">
+              <a class="dropdown-item" href="/testigossociales/">¿Qué es?</a>
+              <a class="dropdown-item" href="/consultatestigossociales/">testigos sociales acreditados antes del 2021</a>
+              <a class="dropdown-item" href="/testimonios/">Testimonios</a>
+            </div>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link " href="/estadisticas/">Estadísticas</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link " href="/inconformidades/">Inconformidades</a>
+          </li>
+          <!-- <li class="nav-item">
+            <a class="nav-link " href="/contacto/">Contáctanos</a>
+          </li> -->
+          <!--<li class="nav-item">
+            <a class="nav-link" target="blank" href="https://contratosadm.chihuahua.gob.mx/">Iniciar sesión</a>
+          </li>
+          <!-- <li class="nav-item"> 
+            <a class="nav-link " href="/contacto/">Manual</a> 
+          </li>  -->
+        </ul>
+      </div>
+    </div>
+  </nav>
+  
+
+  
+<div style="background: #e9ecef ">
+  <div class="container">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="/">Inicio</a></li>
+      <li class="breadcrumb-item ">Detalles de licitación</li>
+      <li class="breadcrumb-item ">Licitación pública</li>
+      <li class="breadcrumb-item active">OP-174-2026</li>
+    </ol>
+    </nav>
+  </div>
+</div>
+<div class="container">
+  <div class="row align-items-center justify-content-between">
+    <div class="col-md col-12">
+      <div class="text-center text-gris">
+        <!-- <h2 class="bold text-gris" >Detalles de licitación</h2> -->
+        <h2 class="bold text-gris">Licitación pública</h4>
+          <h3 class="ultra text-cyan">OP-174-2026 </h3>
+      </div>
+    </div>
+    
+
+    <div class="col-md-4 col-6">
+      <div class="text-center bg-cyan py-1" style="border-radius: 5px;">
+        <h4>Estatus del Procedimiento</h4>
+        <h4 class="bold">Vigente</h4>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+  
+<div class="container">
+  <div class="row mt-3">
+    <div class="col-12">
+      <h3 class="bold">Información general</h3>
+      <hr>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3 col-5">
+      <p class="bold">Descripción ente público contratante</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Municipio de Juárez</p>
+    </div>
+  </div>
+
+  
+  <div class="row">
+    <div class="col-md-3 col-5">
+      <p class="bold">Descripción ente público solicitante</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Municipio de Juárez</p>
+    </div>
+  </div>
+  
+  
+  <div class="row">
+    <div class="col-md-3 col-5">
+      <p class="bold">Documento programado</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Contrato</p>
+    </div>
+  </div>
+  
+
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Materia</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Obra pública</p>
+    </div>
+    
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Tipo de contrato</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Fijo</p>
+    </div>
+    
+  </div>
+
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Concepto de contratación</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Edificación no habitacional en bienes de dominio público</p>
+    </div>
+    
+  </div>
+
+
+  
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Descripción del procedimiento</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Trabajos de Construcción de Cancha de Futbol en Esc. Secundaria Federal No. 5, ubicada en C. Laguna de Guzmán y C. Canal de Corintio de Infonavit San Lorenzo, en el Municipio de Juárez, Chihuahua.</p>
+    </div>
+    
+  </div>
+
+
+  
+  <div class="row">
+    
+  </div>
+
+  <div class="row">
+    
+  </div>
+  <div class="row">
+    
+    
+  </div>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Fecha de publicación de la convocatoria</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>03/10/2026</p>
+    </div>
+    
+  </div>
+  <br>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Fecha de junta de aclaraciones</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>09/10/2026</p>
+    </div>
+    
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Hora junta de aclaraciones</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>10:00</p>
+    </div>
+    
+  </div>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Lugar de junta de aclaraciones</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Dirección General de Obras Públicas (Edificio Abraham González), sita en C. José María Pino Suárez No.100, Zona Centro, C.P. 32000 en Juárez, Chih.</p>
+    </div>
+    
+  </div>
+  <br>
+
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Fecha de apertura de propuestas</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>20/10/2026</p>
+    </div>
+    
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Hora apertura de propuestas</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>11:30</p>
+    </div>
+    
+  </div>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Lugar de apertura de propuestas</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Dirección General de Obras Públicas (Edificio Abraham González), sita en C. José María Pino Suárez No.100, Zona Centro, C.P. 32000 en Juárez, Chih.</p>
+    </div>
+    
+  </div>
+  <br>
+  <div class="row">
+    
+  </div>
+  <br>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Fecha del fallo</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>06/11/2026</p>
+    </div>
+    
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Hora del fallo</p>
+    </div>
+    <div class="col-md-3 col-5">
+      <p>14:45</p>
+    </div>
+    
+  </div>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Lugar del fallo</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>Dirección General de Obras Públicas (Edificio Abraham González), sita en C. José María Pino Suárez No.100, Zona Centro, C.P. 32000 en Juárez, Chih.</p>
+    </div>
+    
+  </div>
+  <div class="row">
+    
+  </div>  
+  <br>
+  <div class="row">
+    
+    <div class="col-md-3 col-5">
+      <p class="bold">Costo de participación</p>
+    </div>
+    <div class="col-md-9 col-7">
+      <p>$2346.2 MEX</p>
+    </div>
+    
+  </div>
+  <br>
+<!-- URL 2023 -->
+  <div class="row">
+  </div>
+  <br>
+
+  <div class="row">
+  </div>
+  <br>
+<!-- URL 2023 -->
+  <div class="row">
+    
+    
+  </div>
+
+  <!--  -->
+  
+  <div class="row mt-5">
+    <div class="col-12">
+      <h3 class="bold">Documentos</h3>
+      <hr>
+      <h5 class="bold">Procedimiento</h5>
+    </div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-12">
+      <div class="table-responsive">
+        <table class="table table-striped table-bordered table-hover">
+          <thead>
+            <th>Tipo</th>
+            <th>Fecha de actualización</th>
+            <th>Link</th>
+          </thead>
+          <tbody>
+            
+            <tr>
+              
+                <td>Convocatoria</td>
+
+              
+              <td style="font-size:14px;">02/10/2026</td>
+              <td style="text-align: center;"><a class="btn btn-Aqua" style="text-align: center; justify-content: center;"  href="https://contratosadm.chihuahua.gob.mx/descarga_portal.aspx?hg=LELFNHGJXYRIEEPWTSICQRRMH&amp;ps=VXRFPNSJWHEZZTBTCOOMATCXW&amp;dj=OWHLGWKDTHWRJINONXYYKWEYQ&amp;xm=USTPQTAJWTWTCHUYNDEIYNUWR">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="IconChangeColor" height="20" width="20"><path d="M19,20H5a1,1,0,0,0,0,2H19a1,1,0,0,0,0-2Zm-7.71-2.29a1,1,0,0,0,.33.21.94.94,0,0,0,.76,0,1,1,0,0,0,.33-.21l4-4a1,1,0,0,0-1.42-1.42L13,14.59V3a1,1,0,0,0-2,0V14.59l-2.29-2.3a1,1,0,1,0-1.42,1.42Z" id="mainIconPathAttribute" fill="white"></path></svg>
+              </a></td>
+            </tr>
+            
+            <tr>
+              
+                <td>Bases</td>
+
+              
+              <td style="font-size:14px;">02/10/2026</td>
+              <td style="text-align: center;"><a class="btn btn-Aqua" style="text-align: center; justify-content: center;"  href="https://contratosadm.chihuahua.gob.mx/descarga_portal.aspx?hg=CRLPFSRKZFEMJGDYVTVIOABRQ&amp;ps=IRQSSLVLAFYSBGSBYOQACLZYE&amp;dj=ASMTRPHGLZCQUQGSKQXAROIRB&amp;xm=GBUXJTACFXLDFKFKLCHKQXSKZ">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="IconChangeColor" height="20" width="20"><path d="M19,20H5a1,1,0,0,0,0,2H19a1,1,0,0,0,0-2Zm-7.71-2.29a1,1,0,0,0,.33.21.94.94,0,0,0,.76,0,1,1,0,0,0,.33-.21l4-4a1,1,0,0,0-1.42-1.42L13,14.59V3a1,1,0,0,0-2,0V14.59l-2.29-2.3a1,1,0,1,0-1.42,1.42Z" id="mainIconPathAttribute" fill="white"></path></svg>
+              </a></td>
+            </tr>
+            
+            <tr>
+              
+                <td>Oficio de autorización del estudio de impacto urbano y ambiental</td>
+
+              
+              <td style="font-size:14px;">02/10/2026</td>
+              <td style="text-align: center;"><a class="btn btn-Aqua" style="text-align: center; justify-content: center;"  href="https://contratosadm.chihuahua.gob.mx/descarga_portal.aspx?hg=HDXHLIVPXWGDKXMYTVCZJWFQK&amp;ps=OWCSNPQMKFTYHBTJGVECHGPDS&amp;dj=TCKKEIWPYZBDJZJSTEEVYHGOD&amp;xm=JHFKBRSTJDVKGJHLWIFORCBXD">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="IconChangeColor" height="20" width="20"><path d="M19,20H5a1,1,0,0,0,0,2H19a1,1,0,0,0,0-2Zm-7.71-2.29a1,1,0,0,0,.33.21.94.94,0,0,0,.76,0,1,1,0,0,0,.33-.21l4-4a1,1,0,0,0-1.42-1.42L13,14.59V3a1,1,0,0,0-2,0V14.59l-2.29-2.3a1,1,0,1,0-1.42,1.42Z" id="mainIconPathAttribute" fill="white"></path></svg>
+              </a></td>
+            </tr>
+            
+          </tbody>
+          <!-- <tbody>
+            
+            <tr>
+            
+            </tr>
+            
+            <tr>
+            
+            </tr>
+            
+            <tr>
+            
+            </tr>
+            
+          </tbody> -->
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- <div class="row mt-3">
+    <div class="col-12">
+      <h5 class="bold">Seguimiento del contrato</h5>
+      <hr>
+    </div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-12">
+      <div class="table-responsive">
+        <table class="table table-striped table-bordered table-hover">
+          <thead>
+            <th>Tipo</th>
+            <th>Fecha de actualización</th>
+            <th>Link</th>
+          </thead>
+          <tbody>
+            
+            <tr>
+            
+            </tr>
+            
+            <tr>
+            
+            </tr>
+            
+            <tr>
+            
+            </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div> -->
+  
+  
+</div>
+
+  <div class="container-fluid">
+    <div class="row justify-content-center">
+      <div class="col-md-11 py-3">
+        <p class="text-grisBajito pb-0" style="font-size: 12px;">
+          * Información actualizada al: <span id="date"></span><br>
+          * La información contenida en el Portal de Contrataciones Abiertas proviene del Sistema de Contrataciones
+          Públicas del Estado de Chihuahua. 
+
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="divEncuestaGlobo" class="encuesta" style="z-index: 1100;">
+  </div>
+  <!-- Modal -->
+
+  
+  <!-- jQuery first, then Tether, then Bootstrap JS. -->
+  <script src="/static/portal/js/jquery-3.3.1.min.js"></script>
+  <script src="/static/portal/js/popper.min.js"></script>
+  <script src="/static/portal/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-fQybjgWLrvvRgtW6bFlB7jaZrFsaBXjsOMm/tB9LTS58ONXgqbR9W8oWht/amnpF" crossorigin="anonymous"></script>
+  <!--<script src="https://app.chihuahua.gob.mx/framework-gob-chihuahua/v2-b4/js/gob-chih-b4.min.js?1.2" type="text/javascript"></script>-->
+  <script src="https://app.chihuahua.gob.mx/framework-gob-chihuahua/v4-b4/js/main.min.js"></script>
+  <script type="text/javascript" src="https://app.chihuahua.gob.mx/masterapp/encuesta-v2-b4.js"></script>
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-133682640-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    $(document).ready(function () {
+     setTimeout(function () {
+        let menuHTML = '<li class="stg-nav-item"><a href=https://cecoci.chihuahua.gob.mx/ class="stg-nav-link">CECOCI</a></li>';
+            menuHTML += '<li class="stg-nav-item"><a href=https://app.chihuahua.gob.mx/contacto/ class="stg-nav-link">CONTACTO</a></li>';
+            menuHTML += '<li class="stg-nav-item"><a href=https://contratosadm.chihuahua.gob.mx/ class="stg-nav-link">INICIAR SESIÓN</a></li>';
+            $("#stgNavMain").html(menuHTML);
+        document.getElementById("showEncuesta").outerHTML = "<button type='button' class='btn btn-link img-encuesta' id='showEncuesta' data-toggle='tooltip' data-html='true' aria-expanded='true'><img src='/static/portal/img/encuesta.png' /></button>";
+        //document.getElementById("showEncuesta").outerHTML = "<button type='button' class='btn btn-link img-encuesta' id='showEncuesta' data-toggle='tooltip' data-html='true' aria-expanded='true'></button>";
+     }, 200);
+   });
+
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'UA-133682640-1');
+    function avisos(encabezado, mensaje) {
+      $("#mdlEncabezado").html(encabezado);
+      $("#mdlMensaje").html(mensaje);
+      $("#mdlAvisos").modal("show");
+    }
+    $(window).on("load", function () {
+      setTimeout(function () {
+        $('#gob-nombre-sistema').html('<a href="/"><h1>SFP / PORTAL CONTRATACIONES ABIERTAS</h1></a>');
+        $('#EnUsIdentificador').val('19');
+        $("#copyanio").html('- 2020');
+        $('.EnUsnomApp').html('el portal de contrataciones abiertas');
+        acercaDe = "Para brindarle un mejor servicio el <strong class='bold'>portal de Contrataciones Abiertas del Gobierno del Estado de Chihuahua </strong> cuenta con todas las medidas de seguridad de la información, protegiendo sus datos personales e información en cumplimiento al marco jurídico correspondiente.<br><br>" +
+          "El <b class='bold'>portal de Contrataciones Abiertas del Gobierno del Estado de Chihuahua</b>, tiene como objetivo:<br><br>" +
+          "Ofrecer a la ciudadanía la consulta de la información disponible, relativa a los procedimientos de contrataciones públicas, normatividad aplicable, proveedores y contratistas activos y sancionados, inconformidades, integrantes del Comité, testigos sociales, programas anuales y contacto.<br><br>";
+        acercaDe += "<h4 class='bold'> Información</h4>" +
+          "<p> Los ciudadanos pueden consultar contenido de interés de una manera confiable, oportuna y actualizada.</p><br> " +
+          "<h4 class='bold'>Participación ciudana</h4>" +
+          "<p> El ciudadano puede participar a través de las diversas herramientas e interactuar con el gobierno, enviando sus sugerencias, quejas, felicitaciones, sugerencias o peticiones.</p><br>" +
+          "<h4 class='bold'> Tecnología</h4> " +
+          "<p> Soporta los navegadores (Firefox, Safari, Chrome, Explorer, etc.), es de código abierto mismo que permite acceso a la transparencia de la información, es de acceso rápido a la web, es más seguro y más estable.</p>" +
+          "<p> Se requiere de Adobe Reader para visualizar los documentos en pdf. </p><br>" +
+          " <h4 class='bold'>Redes sociales</h4> " +
+          "<p>Incluye las cuentas de Twitter, Facebook, YouTube, para mejorar la interacción con la ciudadanía y ofrecer mejores servicios e información.</p><br>" +
+          "<h4 class='bold'>Lenguaje ciudadano</h4>" +
+          " <p>Mantiene un lenguaje ciudadano, para su mejor comprensión para el ciudadano, dejando de lado lenguajes técnicos, burocráticos o legales.</p><br>" +
+          "<h4 class='bold'>Diseño</h4>" +
+          " <p>La propuesta gráfica busca facilitar la localización de la información y mejorar la experiencia del usuario para navegar.</p><br>";
+        $('#gob-modal-acerda-de-contenido').html(acercaDe);
+        $('#gob-modal-acerda-de-contenido').addClass('text-justify');
+        $('#gob-modal-acerda-de-descargar').attr('href', "/static/portal/doc/acerca_de.pdf");
+        $('#gob-modal-acerda-de-descargar').attr('download', "Acerca de Portal de Contrataciones");
+      }, 50);
+      fechaActual();
+    });
+
+    const fechaActual= () =>{
+      let today = new Date();
+      let dateFormat = today.getDate() + '/' + ("0"+(today.getMonth()+1)).slice(-2) + '/' + today.getFullYear() + ' '+ ("0" + today.getHours()).slice(-2) + ":" + ("0" + today.getMinutes()).slice(-2) ;
+      $("#date").html(dateFormat);
+    }
+  </script>
+
+  
+  <script src=https://www.infomexsinaloa.org/accesibilidadweb/js_api.aspx?api_key=75C91F2C-2FB0-4C7C-A271-AFE6F46F8FF4&tipo=footer&aut=chihuahua.gob.mx type="text/javascript"></script>
+</body>
+
+</html> 
