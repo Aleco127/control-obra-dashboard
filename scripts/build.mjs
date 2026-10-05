@@ -71,17 +71,24 @@ const lazyMap = {};
 // 3c) Licitaciones (US-806): módulos que viven en su propio archivo de src/js y NO se enlazan en index.html; salen
 //     como diferidos con el nombre con hash de jsMap y R() los espera igual que a los de arriba.
 const LAZY_ARCHIVOS = [
-  { key: 'lc', file: 'licitaciones.js' },
+  { key: 'lc', file: 'licitaciones.js', extra: ['convocatorias.js'] },   // US-843: Convocatorias viaja con Licitaciones
   { key: 'ex', file: 'expediente.js' },
   { key: 'bp', file: 'banco-precios.js' },
   // Precios de una licitación (US-829/833): no es módulo de la barra; la pestaña Precios de lc lo pide con
   // conModuloArchivo('lcp'). precargarModulos lo salta (NavRules no conoce la clave).
   { key: 'lcp', file: 'licitacion-precios.js' },
 ];
-for (const { key, file } of LAZY_ARCHIVOS) {
-  if (!jsMap[file]) throw new Error(`build: falta src/js/${file} (módulo diferido '${key}')`);
-  if (html.includes(`<script src="js/${file.replace(/\.js$/, '')}.`)) throw new Error(`build: ${file} es diferido; no debe enlazarse con <script> en index.html`);
+for (const { key, file, extra } of LAZY_ARCHIVOS) {
+  for (const f of [file, ...(extra || [])]) {
+    if (!jsMap[f]) throw new Error(`build: falta src/js/${f} (módulo diferido '${key}')`);
+    if (html.includes(`<script src="js/${f.replace(/\.js$/, '')}.`)) throw new Error(`build: ${f} es diferido; no debe enlazarse con <script> en index.html`);
+  }
   lazyMap[key] = 'js/' + jsMap[file];
+  if (extra && extra.length) {   // un solo archivo: el módulo y luego sus extras (que se registran en él al cargar)
+    const code = [file, ...extra].map((f) => readFileSync(join(DIST, 'js', jsMap[f]), 'utf8')).join(';\n');
+    const name = `${basename(file, '.js')}.${hash(code)}.js`;
+    writeFileSync(join(DIST, 'js', name), code); lazyMap[key] = 'js/' + name;
+  }
 }
 {
   const mainMatch = html.match(/<script>([\s\S]*?)<\/script>/g).map((m) => m).sort((x, y) => y.length - x.length)[0];

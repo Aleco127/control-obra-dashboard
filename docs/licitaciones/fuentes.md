@@ -67,25 +67,22 @@ Las horas se guardan como UTC-6 (Chihuahua; Juárez usa horario de verano de EE.
 - Autorización: cabecera `x-internal-key` (= `app_secrets.internal_key`, la de `jobs`) o `x-convocatorias-secret`.
   Sin llave: 401.
 
-### Cómo conectarlo al job diario (para el coordinador; `jobs` es del agente B)
-Agregar a `supabase/functions/jobs/index.ts` una acción `convocatorias` que corra una vez al día a las **7:00 de
-Chihuahua (13:00 UTC)**. Hoy el cron del VPS llama a `jobs` a las 14:00 UTC con `action:"all"`; dos opciones:
-(a) una entrada de cron aparte a las 13:00 UTC con `{"action":"convocatorias"}`, o (b) incluirla en `all` (correría a las 8:00).
-
-```ts
-async function jobConvocatorias(internalKey: string) {
-  const r = await fetch(FN_URL + "/convocatorias-chihuahua", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-internal-key": internalKey },
-    body: JSON.stringify({ max_detalles: 30 }),
-  });
-  return { status: r.status, ...(await r.json().catch(() => ({}))) };
-}
-// en Deno.serve:
-if (action === "convocatorias" || action === "all") result.convocatorias = await jobConvocatorias(internalKey);
-```
-La propia función registra la corrida en `convocatoria_corridas` (con error si falla). Tarda ~100 s: si `all` se acerca al
-límite de tiempo de la función `jobs`, usar la opción (a).
+### Búsqueda a petición desde la app (US-850; sustituye a la corrida diaria, D12 del 5-oct-2026)
+No hay cron ni acción en `jobs`: la función sólo corre cuando un usuario pulsa «Buscar en los portales» en
+Licitaciones › Convocatorias (o, con llave de servidor, para una carga completa manual).
+- Cabecera `x-obra-token` (sesión de la app, nivel >= 80) y cuerpo `{texto, tipo_contratacion, tipo_procedimiento, estatus,
+  desde, hasta, max_resultados, max_detalles}`. Los filtros viajan en el `POST /busqueda/`: `desc_procedimiento` (texto; el
+  portal ignora acentos), `TipoProc` (3 obra, 1 servicios), `Tipo_de_Licitaci_n` (1/2/3 o -1), `Estatus` (0/2/1/3 o -1),
+  `fechainicio`/`fechafin` en **dd/mm/aaaa** con `rdFechas=2` (fechas del procedimiento). Probado el 5-oct-2026:
+  «pavimentacion» vigente/obra → 31; con 01/09/2026-05/10/2026 → 3.
+- Una consulta por tipo de contratación pedido (sin tipo: obra y servicios, 2 consultas) y sólo las páginas de detalle de
+  lo encontrado que nunca se leyó o se leyó hace más de 72 h (tope 8, máx. 15) con 1.5 s de pausa.
+- Límite en el servidor (`convocatoria_busqueda_iniciar`, migración 105b): una búsqueda a la vez por usuario y fuente y
+  30 s entre búsquedas (429 con el mensaje). La corrida guarda `usuario_id`, `empresa_id` y `filtros`.
+- La app muestra sólo lo de esa búsqueda con `convocatorias_buscar(p_corrida_id)` (convocatorias de la fuente con
+  `ultima_vez_vista` dentro de la ventana de la corrida) y el resumen con `get_convocatoria_corrida_resumen`.
+- ComprasMX lo busca el conector local de la PC (US-851, `http://127.0.0.1:8879`); la app firma la corrida que abrió el
+  conector con `convocatoria_corrida_asignar` para que el pie diga quién la lanzó.
 
 ## ComprasMX (`https://comprasmx.buengobierno.gob.mx/sitiopublico/`)
 
@@ -224,3 +221,9 @@ palabras clave = basta una (texto sin acentos ni mayúsculas, como subcadena de 
 municipio); palabras a excluir = ninguna; fuentes, entidades y tipos vacíos = todos; entidad comparada normalizada.
 Filtros de fábrica de la empresa 1: «Obra pública en Chihuahua (estatal)» (fuente chihuahua, obra y servicios) y
 «Obra pública federal en Chihuahua» (comprasmx, entidad Chihuahua, obra y servicios).
+
+**Fuente de verdad (US-844, 5-oct-2026):** la regla vive en SQL, `control_obra.convocatoria_cumple_filtro`, y la usan
+`convocatorias_buscar` (`p_mis_filtros`), la vista previa de un filtro (`get_convocatorias_conteo_filtro`), el contador
+de la barra (`get_convocatorias_avisos`) y el resumen tras una búsqueda (`get_convocatoria_corrida_resumen`).
+`cumpleFiltro()` de `src/js/convocatorias.js` es la misma regla en JS; `scripts/qa/convocatorias.test.mjs` cuenta con
+ambas sobre las convocatorias vigentes reales y exige el mismo resultado. Si cambia una, cambia la otra.

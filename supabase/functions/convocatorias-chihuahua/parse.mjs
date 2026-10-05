@@ -8,14 +8,55 @@ export const BASE = 'https://contrataciones.chihuahua.gob.mx';
 export const MATERIA = { obra_publica: '3', servicios_obra: '1' };
 export const ESTATUS = { vigente: '0', en_seguimiento: '2' };
 
+// Búsqueda a petición (US-850): catálogos del formulario del portal.
+export const TIPO_LICITACION = { licitacion_publica: '1', invitacion: '2', adjudicacion_directa: '3' };
+export const ESTATUS_PORTAL = { vigente: '0', en_seguimiento: '2', terminado: '1', cancelado: '3' };
+
 // Lo que manda el navegador al pulsar «Buscar»: los <select> sin elegir van como -1 y los textos vacíos como ''.
 // Con Tipo_de_Licitaci_n vacío ('') el servidor responde [] — por eso fallaban las pruebas del 4-oct.
-export function formBusqueda(token, { materia, estatus }) {
+// Fechas en dd/mm/aaaa (bootstrap-datepicker del portal); rdFechas 2 = «Fechas por procedimiento» (1 = por contrato).
+// Probado el 5-oct-2026: desc_procedimiento='pavimentacion' vigente/obra → 31; con 01/09/2026-05/10/2026 → 3.
+export function formBusqueda(token, { materia, estatus, texto = '', tipoLicitacion = '-1', desde = '', hasta = '' }) {
   return new URLSearchParams({
-    Unidades_Responsables: '', Tipo_de_Licitaci_n: '-1', Estatus: String(estatus), num_pricedimineto: '',
-    num_contrato: '', fechainicio: '', fechafin: '', TipoProc: String(materia), nom_proveedor: '',
-    concepto_contratacion: '', rdFechas: '2', desc_procedimiento: '', csrfmiddlewaretoken: token,
+    Unidades_Responsables: '', Tipo_de_Licitaci_n: String(tipoLicitacion), Estatus: String(estatus), num_pricedimineto: '',
+    num_contrato: '', fechainicio: String(desde), fechafin: String(hasta), TipoProc: String(materia), nom_proveedor: '',
+    concepto_contratacion: '', rdFechas: '2', desc_procedimiento: String(texto), csrfmiddlewaretoken: token,
   });
+}
+
+// 'AAAA-MM-DD' → 'DD/MM/AAAA' ('' si no es una fecha válida).
+export function fechaDmy(iso) {
+  const m = String(iso ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+// Valida los filtros de una búsqueda de usuario y arma las consultas al portal: UNA por tipo de contratación pedido
+// (obra pública o servicios relacionados; sin tipo = las dos, máximo 2 consultas). Devuelve {error} o
+// {filtros (normalizados, para la bitácora), consultas: [{materia, estatus, texto, tipoLicitacion, desde, hasta}]}.
+export function filtrosManual(b) {
+  const x = b && typeof b === 'object' ? b : {};
+  const texto = String(x.texto ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const tipo = String(x.tipo_contratacion ?? '');
+  if (tipo && !MATERIA[tipo]) return { error: 'Tipo de contratación no válido.' };
+  const proc = String(x.tipo_procedimiento ?? '');
+  if (proc && !TIPO_LICITACION[proc]) return { error: 'Tipo de procedimiento no válido.' };
+  const est = x.estatus === undefined || x.estatus === null ? 'vigente' : String(x.estatus);
+  if (est && !ESTATUS_PORTAL[est]) return { error: 'Estatus no válido.' };
+  const desde = x.desde ? fechaDmy(x.desde) : '';
+  const hasta = x.hasta ? fechaDmy(x.hasta) : '';
+  if ((x.desde && !desde) || (x.hasta && !hasta)) return { error: 'Las fechas van como AAAA-MM-DD.' };
+  if (desde && hasta && String(x.desde) > String(x.hasta)) return { error: 'La fecha inicial es posterior a la final.' };
+  if (!est && !texto && !desde && !hasta) return { error: 'Con «Todos los estatus» escribe un texto o un rango de fechas: sin eso el portal devolvería miles de registros.' };
+  const max = Math.max(1, Math.min(200, Math.trunc(Number(x.max_resultados ?? 50)) || 50));
+  const tipos = tipo ? [tipo] : Object.keys(MATERIA);
+  const filtros = { texto, tipo_contratacion: tipo, tipo_procedimiento: proc, estatus: est,
+                    desde: desde ? String(x.desde) : '', hasta: hasta ? String(x.hasta) : '', max_resultados: max };
+  const consultas = tipos.map((t) => ({ materia: MATERIA[t], estatus: est ? ESTATUS_PORTAL[est] : '-1', texto,
+                                        tipoLicitacion: proc ? TIPO_LICITACION[proc] : '-1', desde, hasta }));
+  return { filtros, consultas };
 }
 
 export function tokenCsrf(html) {
