@@ -158,7 +158,7 @@ ${filas.map((r, i) => {
   }
   async function confirmar() {
     const btn = $('cfdiConfirmar'); btn.disabled = true;
-    let ok = 0, emparejadas = 0, creadas = 0; const errores = [];
+    let ok = 0, emparejadas = 0, creadas = 0, propuestas = 0; const errores = [];
     try {
       for (const r of filas) {
         if (!['recibida', 'emitida'].includes(r.tipo)) continue;
@@ -183,6 +183,8 @@ ${filas.map((r, i) => {
             }
             const { data: fr, error: e2 } = await sb.from('facturas_recibidas').insert({ empresa_id: currentUser.empresa_id, obra_id: g?.obra_id || null, proveedor_id: prov?.id || g?.proveedor_id || null, uuid_cfdi: c.uuid, serie: c.serie || null, folio: c.folio || null, fecha_emision: c.fecha, fecha_timbrado: c.fechaTimbrado, rfc_emisor: c.emisorRfc, nombre_emisor: c.emisorNombre, uso_cfdi: c.receptorUso || null, subtotal: c.subtotal, descuento: c.descuento, iva_tasa: c.ivaTasa, iva_monto: c.iva, isr_retenido: c.isrRet, iva_retenido: c.ivaRet, total: c.total, metodo_pago: c.metodoPago, forma_pago: c.formaPago, moneda: c.moneda, tipo_comprobante: c.tipoComprobante, categoria: g?.categoria || null, es_deducible: true, estatus: g && g.estatus_pago === 'Pagado' ? 'Pagada' : 'Registrada', fecha_pago: g && g.estatus_pago === 'Pagado' ? (g.fecha_solicitud || null) : null, gasto_id: g?.id || null, archivo_path: path }).select().single();
             if (e2) throw e2; (D.fr = D.fr || []).unshift(fr);
+            // US-832: los conceptos van a la bandeja «Por clasificar» del banco de precios (nivel >= 80; no bloquea)
+            if ((currentUser?.nivel || 0) >= 80 && c.conceptos?.length) { try { const { data: bp } = await sb.rpc('proponer_precios_cfdi', { p_uuid: c.uuid, p_fecha: c.fecha, p_conceptos: c.conceptos, p_gasto_id: g?.id || null, p_proveedor_id: prov?.id || g?.proveedor_id || null, p_factura_id: fr?.id || null, p_rfc: c.emisorRfc || null, p_nombre: c.emisorNombre || null, p_moneda: c.moneda || 'MXN' }); if (bp?.propuestas) propuestas += bp.propuestas; } catch (e) { } }
           } else {
             let pago = null; if (r.sel.startsWith('p:')) pago = (D.prc || []).find(x => x.id === parseInt(r.sel.slice(2)));
             const { data: ce, error: e3 } = await sb.from('cfdis_emitidos').insert({ empresa_id: currentUser.empresa_id, obra_id: pago?.obra_id || null, uuid: c.uuid, serie: c.serie || null, folio: parseInt(c.folio) || null, fecha_emision: c.fechaHora || c.fecha, fecha_timbrado: c.fechaTimbrado, tipo_comprobante: c.tipoComprobante, forma_pago: c.formaPago, metodo_pago: c.metodoPago, uso_cfdi: c.receptorUso, receptor_rfc: c.receptorRfc, receptor_nombre: c.receptorNombre, receptor_domicilio_cp: c.receptorCp || null, subtotal: c.subtotal, descuento: c.descuento, iva_tasa: c.ivaTasa, iva_monto: c.iva, isr_retenido: c.isrRet, iva_retenido: c.ivaRet, total: c.total, moneda: c.moneda, conceptos: c.conceptos, estatus: 'Vigente', pago_recibido_id: pago?.id || null, archivo_path: path, created_by: currentUser.nombre || null }).select().single();
@@ -194,7 +196,7 @@ ${filas.map((r, i) => {
       }
       try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e) { }
       try { Telemetry.track('xml_importado', { n: ok, emparejadas, creadas, errores: errores.length }); } catch (e) { }
-      if (ok) Toast.success(`${ok} factura${ok === 1 ? '' : 's'} importada${ok === 1 ? '' : 's'}: ${emparejadas} emparejadas, ${creadas} gastos nuevos.`, 6000);
+      if (ok) Toast.success(`${ok} factura${ok === 1 ? '' : 's'} importada${ok === 1 ? '' : 's'}: ${emparejadas} emparejadas, ${creadas} gastos nuevos.${propuestas ? ` ${propuestas} concepto${propuestas === 1 ? '' : 's'} esperan en Banco de precios › Por clasificar.` : ''}`, 6000);
       if (errores.length) Toast.error('No se importaron: ' + errores.slice(0, 3).join(' | '), 8000);
       closeMdl('mdlCfdiImp');
       if (typeof Compras !== 'undefined') Compras.refrescar(); else if (typeof R === 'function') R();
