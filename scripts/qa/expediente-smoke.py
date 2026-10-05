@@ -130,7 +130,114 @@ def caso_datos(page, tag):
     snap(page, f'datos-{tag}.png')
     axe(page, '#c', tag)
 
-CASOS_FN = {'datos': caso_datos}
+# ---- US-808 ---------------------------------------------------------------------------------------------------------
+def archivo(nombre, datos=PDF, mime='application/pdf'):
+    return {'name': nombre, 'mimeType': mime, 'buffer': datos}
+
+def esperar_modal(page, mid):
+    page.wait_for_function("id=>{const m=document.getElementById(id);return m&&m.classList.contains('ac');}", arg=mid, timeout=10000)
+
+def toasts(page):
+    return page.evaluate("()=>[...document.querySelectorAll('#toastContainer *')].map(x=>x.textContent).join(' | ')")
+
+def caso_documentos(page, tag):
+    import hashlib
+    abrir_ex(page, 'documentos')
+    # Faltantes arriba como pendientes, con un botón por categoría
+    pend = page.evaluate("""()=>{const s=document.getElementById('exPend');if(!s)return null;const sec=s.closest('section');
+      const prim=[...document.querySelectorAll('#exPanel section')][0];
+      return {primero:prim===sec, botones:[...sec.querySelectorAll('button')].map(b=>b.textContent.trim())};}""")
+    sat_pend = pend and any('Opinión de cumplimiento SAT' in b for b in pend['botones'])
+    check(pend is not None and pend['primero'], f'{tag}: las categorías sin documento vigente salen arriba como pendientes')
+    check(sat_pend, f'{tag}: opinión SAT aparece como pendiente (empresa sin documento SAT vigente)')
+    # Alta desde el botón de la categoría pendiente: el modal trae la categoría y sugiere el vencimiento a 30 días
+    page.evaluate("()=>Expediente.nuevoDocumento('opinion_sat')")
+    esperar_modal(page, 'mdlExpDoc')
+    m = page.evaluate("()=>({cat:document.getElementById('exDocCat').value,emi:document.getElementById('exDocEmi').value,ven:document.getElementById('exDocVence').value,hoy:Expediente.hoyMx(),sug:Expediente.vencimientoSugerido('opinion_sat',Expediente.hoyMx())})")
+    check(m['cat'] == 'opinion_sat' and m['emi'] == m['hoy'] and m['ven'] == m['sug'], f'{tag}: mdlExpDoc sugiere vencimiento a 30 días para opinión SAT {m}')
+    # El vencimiento sugerido es editable y no se pisa al cambiar la emisión una vez escrito a mano
+    page.fill('#exDocVence', '2026-12-31')
+    page.dispatch_event('#exDocVence', 'input')
+    page.fill('#exDocEmi', '2026-10-01'); page.dispatch_event('#exDocEmi', 'change')
+    check(page.input_value('#exDocVence') == '2026-12-31', f'{tag}: el vencimiento escrito a mano no se pisa')
+    page.fill('#exDocVence', m['sug']); page.fill('#exDocEmi', m['hoy'])
+    axe(page, '#mdlExpDoc', tag + ' modal documento')
+    if tag == 'escritorio': snap(page, f'doc-modal-{tag}.png')
+    page.fill('#exDocNombre', MARCA + ' SAT v1')
+    page.set_input_files('#exDocArchivo', archivo('Opinión SAT v1.pdf'))
+    page.click('#exDocGuardar')
+    page.wait_for_function("m=>D.exp.documentos.some(d=>d.nombre===m)", arg=MARCA + ' SAT v1', timeout=20000)
+    d1 = page.evaluate("m=>D.exp.documentos.find(d=>d.nombre===m)", MARCA + ' SAT v1')
+    check(d1['hash_sha256'] == hashlib.sha256(PDF).hexdigest(), f'{tag}: hash SHA-256 calculado en el cliente coincide')
+    check(d1['archivo_path'].startswith('empresa/1/expediente/opinion_sat/') and d1['archivo_path'].endswith('_Opinion_SAT_v1.pdf'), f'{tag}: ruta empresa/<id>/expediente/<categoria>/… ({d1["archivo_path"]})')
+    check(d1['estado'] == 'por_vencer' and d1['dias_restantes'] == 30, f'{tag}: estado por vencer con 30 días ({d1["estado"]}, {d1["dias_restantes"]})')
+    page.wait_for_timeout(300)
+    lista = page.evaluate("""()=>{const s=document.getElementById('exCat-opinion_sat');const sec=s&&s.closest('section');
+      return sec?{chips:[...sec.querySelectorAll('.chip')].map(c=>c.textContent),pend:!!document.getElementById('exPend')&&[...document.getElementById('exPend').closest('section').querySelectorAll('button')].some(b=>/SAT/.test(b.textContent))}:null;}""")
+    check(lista and any('Por vencer · 30 d' in c for c in lista['chips']), f'{tag}: lista agrupada por categoría con chip de estado y días {lista}')
+    check(lista and not lista['pend'], f'{tag}: opinión SAT ya no está en pendientes')
+    # Ver (URL firmada) y descargar
+    page.evaluate("()=>{window.__abiertas=[];window.open=(u)=>{window.__abiertas.push(u);return null;};}")
+    page.evaluate("p=>Expediente.abrirArchivo(p)", d1['archivo_path'])
+    page.wait_for_function("()=>window.__abiertas.length>0", timeout=10000)
+    url = page.evaluate("()=>window.__abiertas[0]")
+    r = page.request.get(url)
+    check('/object/sign/licitaciones/' in url and r.status == 200 and r.body() == PDF, f'{tag}: «Ver» abre una URL firmada que devuelve el archivo')
+    with page.expect_download(timeout=15000) as dl:
+        page.evaluate("p=>Expediente.abrirArchivo(p,true)", d1['archivo_path'])
+    check(dl.value.suggested_filename.endswith('Opinion_SAT_v1.pdf'), f'{tag}: «Descargar» baja el archivo ({dl.value.suggested_filename})')
+    # Renovar: sube versión nueva y marca la anterior como reemplazada
+    page.evaluate("id=>Expediente.renovarDocumento(id)", d1['id'])
+    esperar_modal(page, 'mdlExpDoc')
+    page.fill('#exDocNombre', MARCA + ' SAT v2')
+    page.fill('#exDocVence', '2027-12-31'); page.dispatch_event('#exDocVence', 'input')
+    v2bytes = PDF + b'%v2\n'
+    page.set_input_files('#exDocArchivo', archivo('Opinión SAT v2.pdf', v2bytes))
+    page.click('#exDocGuardar')
+    page.wait_for_function("m=>D.exp.documentos.some(d=>d.nombre===m)", arg=MARCA + ' SAT v2', timeout=20000)
+    page.wait_for_timeout(300)
+    est = page.evaluate("""m=>{const v1=D.exp.documentos.find(d=>d.nombre===m+' SAT v1'),v2=D.exp.documentos.find(d=>d.nombre===m+' SAT v2');
+      return {v1:v1.estado,por:v1.reemplazado_por_id,v2id:v2.id,v2r:v2.reemplaza_id,v1id:v1.id,v2e:v2.estado,
+        visibles:[...document.querySelectorAll('#exPanel li.ex-doc')].map(li=>li.textContent).filter(t=>t.includes(m)).length,
+        hist:!!document.querySelector('[aria-label^="Historial de '+m+' SAT v2"]')};}""", MARCA)
+    check(est['v1'] == 'reemplazado' and est['por'] == est['v2id'] and est['v2r'] == est['v1id'] and est['v2e'] == 'vigente', f'{tag}: «Renovar» marca la anterior como reemplazada con reemplaza_id {est}')
+    check(est['visibles'] == 1, f'{tag}: la lista sólo muestra la versión vigente')
+    check(est['hist'], f'{tag}: botón Historial visible')
+    page.click(f'[aria-label^="Historial de {MARCA} SAT v2"]')
+    esperar_modal(page, 'mdlExpHist')
+    h = page.evaluate("()=>[...document.querySelectorAll('#mdlExpHist ol > li')].map(li=>li.textContent.replace(/\\s+/g,' ').trim())")
+    check(len(h) == 2 and 'v2' in h[0] and 'v1' in h[1] and 'Reemplazado' in h[1], f'{tag}: el historial muestra las dos versiones {h}')
+    axe(page, '#mdlExpHist', tag + ' historial')
+    page.evaluate("()=>closeMdl('mdlExpHist')")
+    # Editar (sin archivo)
+    page.evaluate("id=>Expediente.editarDocumento(id)", est['v2id'])
+    esperar_modal(page, 'mdlExpDoc')
+    check(page.evaluate("()=>!document.getElementById('exDocArchivo')&&document.getElementById('exDocCat').disabled"), f'{tag}: editar no pide archivo ni deja cambiar la categoría')
+    page.fill('#exDocNombre', MARCA + ' SAT v2 editado')
+    page.click('#exDocGuardar')
+    page.wait_for_function("m=>D.exp.documentos.some(d=>d.nombre===m)", arg=MARCA + ' SAT v2 editado', timeout=15000)
+    check(True, f'{tag}: editar guarda el nombre')
+    # Archivo no admitido
+    page.evaluate("()=>Expediente.nuevoDocumento('otro')")
+    esperar_modal(page, 'mdlExpDoc')
+    page.fill('#exDocNombre', MARCA + ' malo')
+    page.set_input_files('#exDocArchivo', archivo('programa.exe', b'MZ', 'application/octet-stream'))
+    page.click('#exDocGuardar'); page.wait_for_timeout(500)
+    check('no es de un tipo admitido' in toasts(page), f'{tag}: un .exe se rechaza en el cliente')
+    page.evaluate("()=>closeMdl('mdlExpDoc')")
+    check(not desborde(page), f'{tag}: sin desborde horizontal')
+    snap(page, f'documentos-{tag}.png')
+    axe(page, '#c', tag + ' documentos')
+    # Eliminar con Dialog.confirm (borra fila y archivo)
+    v2path = page.evaluate("m=>D.exp.documentos.find(d=>d.nombre===m).archivo_path", MARCA + ' SAT v2 editado')
+    page.click(f'[aria-label="Eliminar {MARCA} SAT v2 editado"]')
+    page.wait_for_selector('dialog.dlg[open]')
+    page.click('#dlgOk')
+    page.wait_for_function("m=>!D.exp.documentos.some(d=>d.nombre===m)", arg=MARCA + ' SAT v2 editado', timeout=15000)
+    quedan = page.evaluate("async p=>{const{data}=await sb.storage.from('licitaciones').list(p.split('/').slice(0,-1).join('/'));return (data||[]).map(x=>x.name).filter(n=>p.endsWith(n)).length;}", v2path)
+    check(quedan == 0, f'{tag}: eliminar borra también el objeto del bucket')
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos}
 
 def main():
     previo = None

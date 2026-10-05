@@ -131,6 +131,76 @@ const Expediente = (() => {
     }
     return out;
   }
+  // -- Archivos (bucket privado `licitaciones`, ruta empresa/<id>/expediente/<carpeta>/<ts>_<nombre>) --
+  /** Tipos que admite el bucket (085). El navegador da '' u octet-stream para .dwg: se manda el tipo por extensión. */
+  const TIPOS_ARCHIVO = {
+    pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dwg: 'image/vnd.dwg', zip: 'application/zip',
+  };
+  const ACCEPT = Object.keys(TIPOS_ARCHIVO).map((x) => '.' + x).join(',');
+  const MAX_BYTES = 50 * 1024 * 1024;
+  /** contentType a mandar al bucket, por extensión (manda sobre file.type); null si el tipo no se admite. */
+  function tipoArchivo(nombre) {
+    const ext = String(nombre || '').toLowerCase().split('.').pop();
+    return TIPOS_ARCHIVO[ext] || null;
+  }
+  /** Valida tamaño y tipo. Devuelve null si está bien o el mensaje de error en español. */
+  function validarArchivo(f) {
+    if (!f) return 'Elige un archivo.';
+    if (!tipoArchivo(f.name)) return `«${f.name}» no es de un tipo admitido (PDF, imagen, Word, Excel, DWG o ZIP).`;
+    if (f.size > MAX_BYTES) return `«${f.name}» pesa ${(f.size / 1048576).toFixed(1)} MB y el máximo es 50 MB. Comprímelo o divídelo.`;
+    if (f.size === 0) return `«${f.name}» está vacío.`;
+    return null;
+  }
+  /** Nombre de archivo sin acentos ni caracteres raros (Storage no admite algunos), conservando la extensión. */
+  function nombreSeguro(nombre) {
+    const s = String(nombre || 'archivo').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^[_.]+/, '');
+    return (s || 'archivo').slice(-120);
+  }
+  /** Ruta del objeto en el bucket. carpeta = categoría del documento, o personal/obras/maquinaria. */
+  function rutaArchivo(empresaId, carpeta, nombre, ts) {
+    return `empresa/${empresaId}/expediente/${carpeta}/${ts || Date.now()}_${nombreSeguro(nombre)}`;
+  }
+  /** SHA-256 en hexadecimal (Web Crypto: navegador y Node 18+). */
+  async function sha256Hex(buffer) {
+    const h = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+    return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  /** Último segmento de una ruta sin el prefijo de tiempo: lo que ve el usuario. */
+  function nombreDeRuta(path) {
+    return String(path || '').split('/').pop().replace(/^\d{10,}_/, '');
+  }
+
+  // -- Documentos (US-808) --
+  /** Documentos vigentes (no reemplazados) agrupados en el orden de CATEGORIAS; dentro, el que vence antes primero. */
+  function agruparPorCategoria(documentos) {
+    const vivos = (documentos || []).filter((d) => d.estado !== 'reemplazado');
+    return CATEGORIAS.map((c) => ({
+      cat: c,
+      docs: vivos.filter((d) => d.categoria === c.k).sort((a, b) => String(a.fecha_vencimiento || '9999').localeCompare(String(b.fecha_vencimiento || '9999')) || b.id - a.id),
+    })).filter((g) => g.docs.length);
+  }
+  /** Versiones de un documento de la más nueva a la más vieja (sigue reemplaza_id hacia atrás desde la vigente). */
+  function cadenaVersiones(documentos, id) {
+    const porId = new Map((documentos || []).map((d) => [d.id, d]));
+    const porReemplaza = new Map((documentos || []).filter((d) => d.reemplaza_id).map((d) => [d.reemplaza_id, d]));
+    let actual = porId.get(id); if (!actual) return [];
+    while (porReemplaza.has(actual.id)) actual = porReemplaza.get(actual.id);   // subir a la versión más nueva
+    const out = []; const vistos = new Set();
+    while (actual && !vistos.has(actual.id)) { out.push(actual); vistos.add(actual.id); actual = actual.reemplaza_id ? porId.get(actual.reemplaza_id) : null; }
+    return out;
+  }
+  /** Valida el formulario de un documento. Devuelve null o el mensaje de error. */
+  function validarDocumento(v, conArchivo) {
+    if (!v.categoria || !CATEGORIAS.some((c) => c.k === v.categoria)) return 'Elige la categoría.';
+    if (!String(v.nombre || '').trim()) return 'Escribe el nombre del documento.';
+    if (v.fecha_emision && v.fecha_vencimiento && v.fecha_vencimiento < v.fecha_emision) return 'El vencimiento no puede ser anterior a la emisión.';
+    if (conArchivo) return validarArchivo(v.archivo);
+    return null;
+  }
+
   /** Domicilio en una línea a partir de la fila de empresas. */
   function domicilio(e) {
     if (!e) return '';
@@ -191,16 +261,185 @@ const Expediente = (() => {
     }).join('')}</div>`;
   }
 
-  // -- Documentos (resumen; la gestión completa llega con US-808) --
+  // -- Utilidades de interfaz: modales y archivos --
+  const fechaCorta = (f) => (f ? new Date(String(f).slice(0, 10) + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
+  const empresaId = () => (typeof currentUser !== 'undefined' && currentUser && currentUser.empresa_id) || (D.exp && D.exp.empresa && D.exp.empresa.id) || null;
+  /** Crea (o reemplaza) un modal inyectado en el body y lo abre. html = cuerpo completo (con su <form>). */
+  function abrirModal(id, titulo, html, ancho) {
+    let el = $(id);
+    if (!el) { el = document.createElement('div'); el.id = id; el.className = 'modal'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="modal-content g rounded-2xl p-5 w-full ${ancho || 'max-w-lg'} mx-4 max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="${id}T">
+<div class="flex items-center justify-between gap-2 mb-4"><h2 id="${id}T" class="text-lg font-bold">${titulo}</h2>
+<button type="button" class="btn-icon" onclick="closeMdl('${id}')" aria-label="Cerrar"><i class="ri-close-line" aria-hidden="true"></i></button></div>${html}</div>`;
+    openMdl(id);
+    setTimeout(() => { const f = el.querySelector('input:not([type=hidden]):not([disabled]),select,textarea'); if (f) f.focus(); }, 60);
+    return el;
+  }
+  const lbl = (id, t, req) => `<label class="text-xs text-ink-muted mb-1 block" for="${id}">${t}${req ? ' <span aria-hidden="true">*</span>' : ''}</label>`;
+  /** Sube un archivo al bucket y devuelve {path, tamano, mime, hash}. */
+  async function subirArchivo(file, carpeta) {
+    const err = validarArchivo(file); if (err) throw new Error(err);
+    const emp = empresaId(); if (!emp) throw new Error('No se encontró la empresa de tu sesión.');
+    const buf = await file.arrayBuffer();
+    const hash = await sha256Hex(buf);
+    const mime = tipoArchivo(file.name);
+    const path = rutaArchivo(emp, carpeta, file.name);
+    const { error } = await sb.storage.from('licitaciones').upload(path, new Blob([buf], { type: mime }), { contentType: mime, upsert: false });
+    if (error) throw error;
+    return { path, tamano: file.size, mime, hash };
+  }
+  async function borrarObjetos(paths) {
+    const p = (paths || []).filter(Boolean); if (!p.length) return;
+    try { await sb.storage.from('licitaciones').remove(p); } catch (e) { /* el objeto huérfano no bloquea la operación */ }
+  }
+  /** Abre (ver) o descarga un archivo del bucket con una URL firmada de 5 minutos. */
+  async function abrirArchivo(path, descargar) {
+    if (!path) return;
+    try {
+      const { data, error } = await sb.storage.from('licitaciones').createSignedUrl(path, 300, descargar ? { download: nombreDeRuta(path) } : undefined);
+      if (error) throw error;
+      if (descargar) { const a = document.createElement('a'); a.href = data.signedUrl; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+      else window.open(data.signedUrl, '_blank', 'noopener');
+    } catch (e) { Toast.error(humanizeError(e, 'No se pudo abrir el archivo')); }
+  }
+  /** Botones ver / descargar de una ruta (para tablas y listas). */
+  function botonesArchivo(path, etiqueta) {
+    if (!path) return '';
+    const p = S(JSON.stringify(path));
+    return `<button type="button" class="btn-icon" onclick="Expediente.abrirArchivo(${p})" aria-label="Ver ${S(etiqueta)}" title="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Expediente.abrirArchivo(${p},true)" aria-label="Descargar ${S(etiqueta)}" title="Descargar"><i class="ri-download-2-line" aria-hidden="true"></i></button>`;
+  }
+
+  // -- Documentos (US-808) --
+  function filaDocumento(d, exp) {
+    const versiones = cadenaVersiones(exp.documentos, d.id).length;
+    const fechas = [d.fecha_emision ? 'Emitido ' + fechaCorta(d.fecha_emision) : '', d.fecha_vencimiento ? 'Vence ' + fechaCorta(d.fecha_vencimiento) : 'Sin vencimiento'].filter(Boolean).join(' · ');
+    return `<li class="ex-doc flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+<div class="flex-1 min-w-[12rem]"><p class="font-medium break-words">${S(d.nombre)}</p><p class="text-xs text-ink-muted">${S(fechas)}${d.archivo_path ? ' · ' + S(nombreDeRuta(d.archivo_path)) : ''}</p></div>
+${d.estado === 'sin_vencimiento' ? '' : chipEstado(d.estado, d.dias_restantes)}
+<div class="flex items-center">${botonesArchivo(d.archivo_path, d.nombre)}
+<button type="button" class="btn-icon" onclick="Expediente.renovarDocumento(${d.id})" aria-label="Renovar ${S(d.nombre)}" title="Renovar (subir la versión nueva)"><i class="ri-refresh-line" aria-hidden="true"></i></button>
+${versiones > 1 ? `<button type="button" class="btn-icon" onclick="Expediente.historialDocumento(${d.id})" aria-label="Historial de ${S(d.nombre)} (${versiones} versiones)" title="Historial"><i class="ri-history-line" aria-hidden="true"></i></button>` : ''}
+<button type="button" class="btn-icon" onclick="Expediente.editarDocumento(${d.id})" aria-label="Editar ${S(d.nombre)}" title="Editar"><i class="ri-pencil-line" aria-hidden="true"></i></button>
+<button type="button" class="btn-icon" onclick="Expediente.eliminarDocumento(${d.id})" aria-label="Eliminar ${S(d.nombre)}" title="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div></li>`;
+  }
   function panelDocumentos(exp) {
-    const docs = exp.documentos.filter((d) => d.estado !== 'reemplazado');
     const r = resumen(exp.documentos);
     const falta = faltantes(exp.documentos);
+    const grupos = agruparPorCategoria(exp.documentos);
     const kpi = (t, v) => `<div class="kpi"><p class="kpi-v">${v}</p><p class="kpi-l">${t}</p></div>`;
-    const filas = docs.map((d) => `<tr><td>${S(categoria(d.categoria).t)}</td><td>${S(d.nombre)}</td><td>${S(d.fecha_vencimiento || '—')}</td><td>${chipEstado(d.estado, d.dias_restantes)}</td></tr>`).join('');
-    if (!docs.length) return vacio();
-    return `<div class="kpi-strip">${kpi('Vigentes', r.vigente + r.sin_vencimiento)}${kpi('Por vencer', r.por_vencer)}${kpi('Vencidos', r.vencido)}${kpi('Categorías faltantes', falta.length)}</div>
-<div class="table-wrap g rounded-xl mb-4" tabindex="0" role="region" aria-label="Documentos de la empresa"><table class="table-modern w-full text-sm"><thead><tr><th scope="col">Categoría</th><th scope="col">Documento</th><th scope="col">Vence</th><th scope="col">Estado</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">Sube cada documento una vez con su vencimiento; las licitaciones lo toman de aquí.</p>
+<button type="button" class="btn btn-p" onclick="Expediente.nuevoDocumento()"><i class="ri-upload-2-line" aria-hidden="true"></i> Subir documento</button></div>`;
+    const pendientes = falta.length ? `<section class="g rounded-xl p-4 mb-4" aria-labelledby="exPend"><h2 id="exPend" class="font-bold text-sm mb-1"><i class="ri-error-warning-line text-warn" aria-hidden="true"></i> Pendientes: ${falta.length} categoría${falta.length === 1 ? '' : 's'} sin documento vigente</h2>
+<p class="text-xs text-ink-muted mb-2">Un concurso suele pedirlas en el sobre legal. Las vencidas también cuentan como pendientes.</p>
+<ul class="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-4">${falta.map((k) => { const c = categoria(k); return `<li><button type="button" class="w-full min-h-[44px] flex items-center gap-2 text-left text-sm text-accent hover:underline" onclick="Expediente.nuevoDocumento('${k}')"><i class="${c.ic}" aria-hidden="true"></i><span>Subir ${S(c.t)}</span></button></li>`; }).join('')}</ul></section>` : '';
+    if (!grupos.length) return (vacioTotal(exp) ? vacio() : barra) + pendientes;
+    return `<div class="kpi-strip">${kpi('Vigentes', r.vigente + r.sin_vencimiento)}${kpi('Por vencer', r.por_vencer)}${kpi('Vencidos', r.vencido)}${kpi('Categorías pendientes', falta.length)}</div>${barra}${pendientes}
+${grupos.map((g) => `<section class="g rounded-xl px-4 py-2 mb-3" aria-labelledby="exCat-${g.cat.k}"><h2 id="exCat-${g.cat.k}" class="font-bold text-sm pt-2"><i class="${g.cat.ic}" aria-hidden="true"></i> ${S(g.cat.t)} <span class="text-ink-muted font-normal">${g.docs.length}</span></h2>
+<ul class="divide-y divide-slate-100">${g.docs.map((d) => filaDocumento(d, exp)).join('')}</ul></section>`).join('')}`;
+  }
+  /** Modal mdlExpDoc. modo: nuevo | renovar | editar. */
+  function modalDocumento(modo, base, catInicial) {
+    const b = base || {};
+    const cat = modo === 'nuevo' ? (catInicial || '') : b.categoria;
+    const titulo = modo === 'renovar' ? 'Renovar documento' : modo === 'editar' ? 'Editar documento' : 'Subir documento';
+    const conArchivo = modo !== 'editar';
+    const sugerencia = (k) => { const c = CATEGORIAS.find((x) => x.k === k); return c && c.vence ? `Vence a los ${c.vence} días de emitido (se sugiere solo; puedes cambiarlo).` : 'Esta categoría no vence sola: deja el vencimiento vacío si no aplica.'; };
+    const html = `<form id="exDocForm" onsubmit="Expediente.guardarDocumento(event)" novalidate class="space-y-3">
+<input type="hidden" id="exDocModo" value="${modo}"><input type="hidden" id="exDocBase" value="${b.id || ''}">
+${modo === 'renovar' ? `<p class="text-sm text-ink-muted">La versión actual («${S(b.nombre)}», ${b.fecha_vencimiento ? 'vence ' + S(fechaCorta(b.fecha_vencimiento)) : 'sin vencimiento'}) quedará como reemplazada y seguirá en el historial.</p>` : ''}
+<div>${lbl('exDocCat', 'Categoría', true)}<select id="exDocCat" class="inp" required ${modo === 'nuevo' ? '' : 'disabled'} onchange="Expediente.sugerirVencimiento(true)">
+<option value="">Elige una categoría</option>${CATEGORIAS.map((c) => `<option value="${c.k}" ${c.k === cat ? 'selected' : ''}>${S(c.t)}</option>`).join('')}</select>
+<p id="exDocSug" class="text-xs text-ink-muted mt-1">${cat ? S(sugerencia(cat)) : ''}</p></div>
+<div>${lbl('exDocNombre', 'Nombre', true)}<input type="text" id="exDocNombre" class="inp" required maxlength="200" value="${S(modo === 'nuevo' ? '' : b.nombre || '')}" placeholder="Ej.: Opinión SAT positiva octubre 2026"></div>
+<div class="grid grid-cols-2 gap-3"><div>${lbl('exDocEmi', 'Emisión')}<input type="date" id="exDocEmi" class="inp" value="${modo === 'editar' ? S(b.fecha_emision || '') : modo === 'renovar' ? S(hoyMx()) : ''}" onchange="Expediente.sugerirVencimiento(false)"></div>
+<div>${lbl('exDocVence', 'Vencimiento')}<input type="date" id="exDocVence" class="inp" value="${modo === 'editar' ? S(b.fecha_vencimiento || '') : modo === 'renovar' ? S(vencimientoSugerido(b.categoria, hoyMx()) || '') : ''}" data-auto="${modo === 'editar' ? '' : '1'}" oninput="this.dataset.auto=''"></div></div>
+${conArchivo ? `<div>${lbl('exDocArchivo', 'Archivo', true)}<input type="file" id="exDocArchivo" class="inp" accept="${ACCEPT}" required>
+<p class="text-xs text-ink-muted mt-1">PDF, imagen, Word, Excel o ZIP de hasta 50 MB. Se guarda con su huella SHA-256.</p></div>` : `<p class="text-xs text-ink-muted">Para cambiar el archivo usa «Renovar»: la versión anterior queda en el historial.</p>`}
+<div>${lbl('exDocNotas', 'Notas')}<textarea id="exDocNotas" class="inp" rows="2">${S(modo === 'editar' ? b.notas || '' : '')}</textarea></div>
+<div class="flex flex-wrap justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpDoc')">Cancelar</button>
+<button type="submit" class="btn btn-p" id="exDocGuardar"><i class="ri-save-line" aria-hidden="true"></i> ${modo === 'renovar' ? 'Subir versión nueva' : modo === 'editar' ? 'Guardar cambios' : 'Subir documento'}</button></div></form>`;
+    abrirModal('mdlExpDoc', titulo, html);
+    if (modo === 'nuevo' && cat) sugerirVencimiento(false);
+  }
+  /** Sugiere el vencimiento según la categoría y la emisión, sin pisar lo que el usuario escribió a mano. */
+  function sugerirVencimiento(cambioCategoria) {
+    const cat = $('exDocCat') && $('exDocCat').value; const emi = $('exDocEmi'); const ven = $('exDocVence');
+    if (!cat || !ven) return;
+    if (emi && !emi.value && cambioCategoria !== null) emi.value = hoyMx();
+    const c = CATEGORIAS.find((x) => x.k === cat);
+    const sug = $('exDocSug');
+    if (sug) sug.textContent = c && c.vence ? `Vence a los ${c.vence} días de emitido (se sugiere solo; puedes cambiarlo).` : 'Esta categoría no vence sola: deja el vencimiento vacío si no aplica.';
+    if (ven.dataset.auto === '1' || !ven.value) {
+      const v = vencimientoSugerido(cat, emi && emi.value);
+      if (v || ven.dataset.auto === '1') { ven.value = v || ''; ven.dataset.auto = '1'; }
+    }
+  }
+  function nuevoDocumento(cat) { modalDocumento('nuevo', null, cat); }
+  function docPorId(id) { return D.exp && D.exp.documentos.find((d) => d.id === id); }
+  function renovarDocumento(id) { const d = docPorId(id); if (d) modalDocumento('renovar', d); }
+  function editarDocumento(id) { const d = docPorId(id); if (d) modalDocumento('editar', d); }
+  async function recargarDocumentos() {
+    const { data, error } = await sb.from('empresa_documentos_estado').select('*').order('categoria').order('fecha_vencimiento', { ascending: false, nullsFirst: false });
+    if (error) throw error;
+    if (D.exp) D.exp.documentos = data || [];
+    avisarCambio();
+  }
+  async function guardarDocumento(ev) {
+    if (ev) ev.preventDefault();
+    const modo = $('exDocModo').value; const baseId = +$('exDocBase').value || null;
+    const base = baseId ? docPorId(baseId) : null;
+    const f = $('exDocArchivo') && $('exDocArchivo').files[0];
+    const v = { categoria: base ? base.categoria : $('exDocCat').value, nombre: $('exDocNombre').value.trim(), fecha_emision: $('exDocEmi').value || null, fecha_vencimiento: $('exDocVence').value || null, notas: $('exDocNotas').value.trim() || null, archivo: f };
+    const err = validarDocumento(v, modo !== 'editar'); if (err) { Toast.error(err); return; }
+    const btn = $('exDocGuardar'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    let subido = null;
+    try {
+      if (modo === 'editar') {
+        const { error } = await sb.from('empresa_documentos').update({ nombre: v.nombre, fecha_emision: v.fecha_emision, fecha_vencimiento: v.fecha_vencimiento, notas: v.notas }).eq('id', baseId);
+        if (error) throw error;
+      } else {
+        subido = await subirArchivo(f, v.categoria);
+        const fila = { categoria: v.categoria, nombre: v.nombre, archivo_path: subido.path, tamano: subido.tamano, mime: subido.mime, hash_sha256: subido.hash, fecha_emision: v.fecha_emision, fecha_vencimiento: v.fecha_vencimiento, notas: v.notas, reemplaza_id: modo === 'renovar' ? baseId : null };
+        const { error } = await sb.from('empresa_documentos').insert(fila);
+        if (error) throw error;
+        const igual = (D.exp.documentos || []).find((d) => d.hash_sha256 === subido.hash && d.id !== baseId);
+        if (igual) Toast.warning(`Este archivo es idéntico a «${igual.nombre}», que ya estaba en el expediente.`);
+      }
+      await recargarDocumentos();
+      closeMdl('mdlExpDoc');
+      Toast.success(modo === 'renovar' ? 'Documento renovado; la versión anterior quedó en el historial' : modo === 'editar' ? 'Documento actualizado' : 'Documento subido al expediente');
+      pintarPanel();
+    } catch (e) {
+      if (subido) await borrarObjetos([subido.path]);
+      Toast.error(e && e.message && !e.code && !e.statusCode ? e.message : humanizeError(e, 'No se guardó el documento'));
+    } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
+  function historialDocumento(id) {
+    const vers = cadenaVersiones(D.exp.documentos, id);
+    if (!vers.length) return;
+    const html = `<p class="text-sm text-ink-muted mb-3">${S(categoria(vers[0].categoria).t)} · ${vers.length} versiones, de la más nueva a la más vieja.</p>
+<ol class="divide-y divide-slate-100">${vers.map((d, i) => `<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"><div class="flex-1 min-w-[10rem]"><p class="font-medium break-words">${i === 0 ? '' : '<span class="sr-only">Versión anterior: </span>'}${S(d.nombre)}</p>
+<p class="text-xs text-ink-muted">Subido ${S(fechaCorta(d.created_at ? hoyMx(new Date(d.created_at)) : ''))}${d.fecha_vencimiento ? ' · vence ' + S(fechaCorta(d.fecha_vencimiento)) : ''}${d.hash_sha256 ? ' · SHA-256 ' + S(d.hash_sha256.slice(0, 12)) + '…' : ''}</p></div>
+${chipEstado(d.estado, d.dias_restantes)}<div class="flex items-center">${botonesArchivo(d.archivo_path, d.nombre)}</div></li>`).join('')}</ol>
+<div class="flex justify-end pt-3"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpHist')">Cerrar</button></div>`;
+    abrirModal('mdlExpHist', 'Historial del documento', html);
+  }
+  async function eliminarDocumento(id) {
+    const d = docPorId(id); if (!d) return;
+    const ok = await Dialog.confirm({ title: 'Eliminar documento', body: `Se borrará «${d.nombre}» y su archivo. Las licitaciones que lo usaban se quedarán sin documento ligado.`, confirmText: 'Eliminar documento', tone: 'danger' });
+    if (!ok) return;
+    try {
+      const { error } = await sb.from('empresa_documentos').delete().eq('id', id);
+      if (error) throw error;
+      await borrarObjetos([d.archivo_path]);
+      await recargarDocumentos();
+      Toast.success('Documento eliminado');
+      pintarPanel();
+    } catch (e) { Toast.error(humanizeError(e, 'No se eliminó el documento')); }
+  }
+  /** Aviso a la app de que cambió el expediente (contador de la barra y tarjeta de Inicio, US-809). */
+  function avisarCambio() {
+    if (typeof expAvisosCargar === 'function') expAvisosCargar();
   }
 
   // -- Datos legales (US-807) --
@@ -298,14 +537,14 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     }
   }
   function recargar() { const c = $('c'); if (c) render(c, true); }
-  /** Alta de documento (US-808). Por ahora sólo avisa. */
-  function nuevoDocumento() { Toast.info('La subida de documentos al expediente se habilita en la siguiente entrega de este módulo.'); }
 
   return {
-    render, cargar, recargar, setTab, guardarDatos, nuevoDocumento,
+    render, cargar, recargar, setTab, guardarDatos, abrirArchivo,
+    nuevoDocumento, renovarDocumento, editarDocumento, guardarDocumento, historialDocumento, eliminarDocumento, sugerirVencimiento,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
-    CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS,
+    tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,
+    CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS, TIPOS_ARCHIVO, MAX_BYTES,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Expediente;

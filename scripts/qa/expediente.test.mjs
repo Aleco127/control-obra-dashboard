@@ -85,3 +85,48 @@ test('guardar_empresa_expediente: nivel 100 guarda en su empresa; sin sesión y 
     if (!previoB) await rest('empresa_expediente?empresa_id=not.is.null', B, { method: 'DELETE' });
   }
 });
+
+// ---- US-808: documentos con vigencia --------------------------------------------------------------------------------
+test('archivos: tipo por extensión, validación de 50 MB, nombre seguro, ruta del bucket y SHA-256', async () => {
+  assert.equal(Expediente.tipoArchivo('Opinión SAT.PDF'), 'application/pdf');
+  assert.equal(Expediente.tipoArchivo('plano.dwg'), 'image/vnd.dwg');
+  assert.equal(Expediente.tipoArchivo('virus.exe'), null);
+  assert.equal(Expediente.validarArchivo({ name: 'a.pdf', size: 10 }), null);
+  assert.match(Expediente.validarArchivo({ name: 'a.exe', size: 10 }), /no es de un tipo admitido/);
+  assert.match(Expediente.validarArchivo({ name: 'a.pdf', size: 51 * 1024 * 1024 }), /máximo es 50 MB/);
+  assert.match(Expediente.validarArchivo(null), /Elige un archivo/);
+  assert.equal(Expediente.nombreSeguro('Opinión de cumplimiento (SAT) #1.pdf'), 'Opinion_de_cumplimiento_SAT_1.pdf');
+  assert.equal(Expediente.rutaArchivo(1, 'opinion_sat', 'Opinión.pdf', 1700000000000), 'empresa/1/expediente/opinion_sat/1700000000000_Opinion.pdf');
+  assert.equal(Expediente.nombreDeRuta('empresa/1/expediente/opinion_sat/1700000000000_Opinion.pdf'), 'Opinion.pdf');
+  const h = await Expediente.sha256Hex(new TextEncoder().encode('abc'));
+  assert.equal(h, 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+});
+
+test('documentos: agrupados por categoría sin reemplazados, cadena de versiones y validación del formulario', () => {
+  const docs = [
+    { id: 1, categoria: 'opinion_sat', nombre: 'SAT agosto', estado: 'reemplazado', fecha_vencimiento: '2026-09-01' },
+    { id: 2, categoria: 'opinion_sat', nombre: 'SAT septiembre', estado: 'reemplazado', reemplaza_id: 1, fecha_vencimiento: '2026-10-01' },
+    { id: 3, categoria: 'opinion_sat', nombre: 'SAT octubre', estado: 'por_vencer', reemplaza_id: 2, fecha_vencimiento: '2026-10-31' },
+    { id: 4, categoria: 'acta_constitutiva', nombre: 'Acta', estado: 'sin_vencimiento' },
+    { id: 5, categoria: 'identificacion', nombre: 'INE vieja', estado: 'vencido', fecha_vencimiento: '2026-01-01' },
+    { id: 6, categoria: 'identificacion', nombre: 'Pasaporte', estado: 'vigente', fecha_vencimiento: '2030-01-01' },
+  ];
+  const g = Expediente.agruparPorCategoria(docs);
+  assert.deepEqual(g.map((x) => x.cat.k), ['opinion_sat', 'acta_constitutiva', 'identificacion'], 'en el orden de CATEGORIAS');
+  assert.deepEqual(g[0].docs.map((d) => d.id), [3], 'sin reemplazados');
+  assert.deepEqual(g[2].docs.map((d) => d.id), [5, 6], 'el que vence antes primero');
+  assert.deepEqual(Expediente.cadenaVersiones(docs, 3).map((d) => d.id), [3, 2, 1]);
+  assert.deepEqual(Expediente.cadenaVersiones(docs, 1).map((d) => d.id), [3, 2, 1], 'desde una versión vieja también sube a la vigente');
+  assert.deepEqual(Expediente.cadenaVersiones(docs, 4).map((d) => d.id), [4]);
+  const falta = Expediente.faltantes(docs);
+  assert.ok(!falta.includes('opinion_sat') && !falta.includes('identificacion') && !falta.includes('acta_constitutiva'));
+  assert.ok(falta.includes('opinion_imss') && !falta.includes('otro'));
+  assert.equal(Expediente.validarDocumento({ categoria: 'opinion_sat', nombre: 'x' }, false), null);
+  assert.match(Expediente.validarDocumento({ categoria: '', nombre: 'x' }, false), /categoría/);
+  assert.match(Expediente.validarDocumento({ categoria: 'poder', nombre: ' ' }, false), /nombre/);
+  assert.match(Expediente.validarDocumento({ categoria: 'poder', nombre: 'x', fecha_emision: '2026-10-02', fecha_vencimiento: '2026-10-01' }, false), /anterior a la emisión/);
+  assert.match(Expediente.validarDocumento({ categoria: 'poder', nombre: 'x' }, true), /Elige un archivo/);
+  assert.equal(Expediente.vencimientoSugerido('opinion_imss', '2026-10-04'), '2026-11-03');
+  assert.equal(Expediente.vencimientoSugerido('opinion_infonavit', '2026-10-04'), '2026-11-03');
+  assert.equal(Expediente.vencimientoSugerido('acta_constitutiva', '2026-10-04'), null);
+});
