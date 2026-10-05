@@ -965,7 +965,7 @@ sb=wrapReadOnly(supabase.createClient(SB,SK,{global:{headers:{'x-obra-token':tok
 }
 // ===== MODO LECTURA (baja programada o suscripción vencida): bloquea escrituras desde el cliente =====
 window.READ_ONLY=false;window.READ_ONLY_MOTIVO='';
-const READ_ONLY_RPC_OK=new Set(['validar_sesion','cerrar_sesion','cancelar_baja_empresa','solicitar_baja_empresa','load_all_data_seguro','load_secondary_data_seguro','get_empresa_config','get_email_log','log_client_error','cambiar_password_usuario','update_user_password','guardar_nav_prefs']);
+const READ_ONLY_RPC_OK=new Set(['validar_sesion','cerrar_sesion','cancelar_baja_empresa','solicitar_baja_empresa','load_all_data_seguro','load_secondary_data_seguro','get_empresa_config','get_email_log','log_client_error','cambiar_password_usuario','update_user_password','guardar_nav_prefs','buscar_insumos']);
 function readOnlyFake(){const err={message:'La cuenta está en modo lectura: '+(window.READ_ONLY_MOTIVO||'sin cambios permitidos'),code:'MODO_LECTURA'};if(typeof Toast!=='undefined')Toast.warning(err.message,4000);const fake=new Proxy(function(){},{get:(t,p)=>p==='then'?(res)=>res({data:null,error:err,count:null}):()=>fake,apply:()=>fake});return fake;}
 function wrapReadOnly(client){
 const from=client.from.bind(client);
@@ -1993,6 +1993,7 @@ function isModuloEnabled(key){
 const _nv=currentUser?.nivel||0;
 if(key==='so'&&_nv<100)return false;
 if(key==='ci'&&_nv<45)return false;
+if((key==='lc'||key==='ex'||key==='bp')&&_nv<80)return false;   // licitaciones (D3): sólo admin y gerente; la RLS exige lo mismo
 const config=empresaModulosConfig&&empresaModulosConfig[key];
 if(!config)return true;   // sin fila para la empresa = visible
 return config.enabled!==false;
@@ -2889,9 +2890,10 @@ return pendiente;
 }
 return{get,guardar,setServidor,get version(){return version;},get pendiente(){return pendiente;}};
 })();
-const NAV_COLAPSADOS_DEFECTO={contabilidad:true,administracion:true};
+const NAV_COLAPSADOS_DEFECTO={licitaciones:true,contabilidad:true,administracion:true};
 const NAV_ROL_LABEL={admin_general:'Administrador',gerente_obra:'Gerente de obra',supervisor_general:'Supervisor',contador:'Contador',residente_obra:'Residente',contador_externo:'Contador externo',inspector_calidad:'Inspector de calidad',trabajador:'Trabajador'};
-function navColapsados(){const p=NavPrefs.get();return(p.colapsados&&typeof p.colapsados==='object')?p.colapsados:Object.assign({},NAV_COLAPSADOS_DEFECTO);}
+// Un grupo que el usuario nunca ha tocado (p. ej. uno nuevo como Licitaciones) toma el valor de fábrica
+function navColapsados(){const p=NavPrefs.get();return Object.assign({},NAV_COLAPSADOS_DEFECTO,(p.colapsados&&typeof p.colapsados==='object')?p.colapsados:{});}
 function navRolLabel(){const r=String(currentUser?.rol||'');return NAV_ROL_LABEL[r]||r.replace(/_/g,' ').replace(/^\w/,l=>l.toUpperCase());}
 // ---- «Mi trabajo» (US-608): módulos fijados por el usuario ----
 // Viven en nav_prefs.fijados (hasta 6, en el orden que el usuario decide). La primera vez se siembran con los 4 módulos
@@ -3315,7 +3317,7 @@ if(R._last!==M){registrarUsoModulo(M);if(typeof Telemetry!=='undefined')Telemetr
 if(location.hash.slice(1)!==M)history.replaceState(null,null,'#'+M);
 if(selectedObra)localStorage.setItem('selectedObra',selectedObra);
 else localStorage.removeItem('selectedObra');
-if(typeof Suscripcion!=='undefined'&&Suscripcion.get()&&!Suscripcion.moduloPermitido(M)){const f={so:'socios',ci:'cierres'}[M];c.innerHTML=EmptyState({icon:'ri-lock-2-line',title:'Esta función no está en tu plan',body:(Suscripcion.FEATURE_LABEL[f]||'Esta función')+' está disponible en los planes Estudio y Constructora. Tu plan actual es '+(Suscripcion.get().plan.nombre)+'.',action:{label:'Ver planes',onClick:'Suscripcion.irAPlan()'}});Telemetry.track('plan_limit',{resource:'feature:'+f,plan:Suscripcion.get().plan.slug});return;}
+if(typeof Suscripcion!=='undefined'&&Suscripcion.get()&&!Suscripcion.moduloPermitido(M)){const f=(Suscripcion.FEATURE_MODULO||{so:'socios',ci:'cierres'})[M];c.innerHTML=EmptyState({icon:'ri-lock-2-line',title:'Esta función no está en tu plan',body:(Suscripcion.FEATURE_LABEL[f]||'Esta función')+' está disponible en los planes Estudio y Constructora. Tu plan actual es '+(Suscripcion.get().plan.nombre)+'.',action:{label:'Ver planes',onClick:'Suscripcion.irAPlan()'}});Telemetry.track('plan_limit',{resource:'feature:'+f,plan:Suscripcion.get().plan.slug});return;}
 // Gestionar auto-refresh segun modulo (d=Dashboard, g=Gastos, x=Ordenes)
 if(M==='x'){M='g';localStorage.setItem('currentTab','g');if(!localStorage.getItem('avisoOrdenes')){localStorage.setItem('avisoOrdenes','1');setTimeout(()=>Toast.info('Las órdenes de compra viven ahora en Compras y gastos (pestaña Por aprobar).',6000),300);}R();Compras.setTab('aprobar');return;}
 {

@@ -359,15 +359,15 @@ test('claves raras se escapan y un modelo vacío no rompe', () => {
   assert.deepEqual(NavShell.render({ grupos: 'no' }).aside.includes('nvs-grupos'), true);
 });
 
-// ---- US-605: NAV_GRUPOS (src/js/nav-grupos.js) es la única fuente de los 34 módulos ----
+// ---- US-605: NAV_GRUPOS (src/js/nav-grupos.js) es la única fuente de los 37 módulos (34 + lc, ex, bp de licitaciones) ----
 const NAV_GRUPOS = require('../../src/js/nav-grupos.js');
 // La lista explícita del PRD (US-605) trae 34 claves aunque el texto diga «27»: la lista manda (el sec anterior también tenía 34).
-const CLAVES_PRD = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h'.split(' ');
+const CLAVES_PRD = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h lc ex bp'.split(' ');
 
-test('NAV_GRUPOS carga en Node con los 7 grupos del PRD y exactamente las claves del PRD sin repetir', () => {
-  assert.deepEqual(NAV_GRUPOS.map((g) => g.k), ['inicio', 'obra', 'calidad', 'dinero', 'equipo', 'contabilidad', 'administracion']);
+test('NAV_GRUPOS carga en Node con los 8 grupos (Licitaciones entre Obra y Calidad) y exactamente las claves del PRD sin repetir', () => {
+  assert.deepEqual(NAV_GRUPOS.map((g) => g.k), ['inicio', 'obra', 'licitaciones', 'calidad', 'dinero', 'equipo', 'contabilidad', 'administracion']);
   const claves = NAV_GRUPOS.flatMap((g) => g.items.map((it) => it.k));
-  assert.equal(CLAVES_PRD.length, 34, 'la lista del PRD tiene 34 claves');
+  assert.equal(CLAVES_PRD.length, 37, 'la lista del PRD tiene 37 claves (34 + licitaciones)');
   assert.equal(claves.length, CLAVES_PRD.length);
   assert.equal(new Set(claves).size, claves.length, 'ninguna clave se repite');
   assert.deepEqual([...claves].sort(), [...CLAVES_PRD].sort());
@@ -397,6 +397,9 @@ test('NAV_GRUPOS: Inicio suelto, Administración plana y separada, fiscales sin 
   assert.equal(por.administracion.plano, true); assert.equal(por.administracion.separador, true);
   assert.deepEqual(por.obra.items.map((it) => it.k), ['o', 'w', 'b', 'f', 'k', 'c']);
   assert.deepEqual(por.calidad.items.map((it) => it.k), ['r', 'u', 'y']);
+  assert.deepEqual(por.licitaciones.items.map((it) => it.k), ['lc', 'ex', 'bp']);
+  assert.equal(por.licitaciones.ic, 'ri-auction-line');
+  assert.ok(!por.licitaciones.suelto && !por.licitaciones.plano, 'Licitaciones es un grupo plegable normal');
   assert.deepEqual(por.dinero.items.map((it) => it.k), ['g', 'pc', 'p', 'ct', 'es', 's', 'm']);
   assert.deepEqual(por.equipo.items.map((it) => it.k), ['e', 'n', 't', 'v', 'l']);
   assert.deepEqual(por.contabilidad.items.filter((it) => it.secundario).map((it) => it.k), ['rt', 'dc', 'rp', 'su']);

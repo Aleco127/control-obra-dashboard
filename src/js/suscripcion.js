@@ -2,8 +2,9 @@
 // pago con Openpay y facturas. Depende de: sb, currentUser, D, S, fmt, Toast, Dialog, setReadOnly, Telemetry, SB.
 const Suscripcion = (() => {
   let info = null; // {plan, sub, uso, planes}
-  const FEATURE_MODULO = { so: 'socios', ci: 'cierres' };
-  const FEATURE_LABEL = { socios: 'Socios y reparto de utilidades', cierres: 'Cierre mensual', portal: 'Portal del cliente', cfdi_emision: 'Facturación electrónica', conciliacion: 'Conciliación bancaria', export_contable: 'Exportación contable', advanced_reports: 'Reportes avanzados' };
+  // lc/ex/bp (licitaciones, US-805): disponibles en Estudio y Constructora; candado en Gratis
+  const FEATURE_MODULO = { so: 'socios', ci: 'cierres', lc: 'licitaciones', ex: 'licitaciones', bp: 'licitaciones' };
+  const FEATURE_LABEL = { socios: 'Socios y reparto de utilidades', cierres: 'Cierre mensual', licitaciones: 'Licitaciones, expediente y banco de precios', portal: 'Portal del cliente', cfdi_emision: 'Facturación electrónica', conciliacion: 'Conciliación bancaria', export_contable: 'Exportación contable', advanced_reports: 'Reportes avanzados' };
   const fecha = (iso) => iso ? new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const dias = (iso) => iso ? Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000) : null;
 
@@ -241,5 +242,5 @@ const Suscripcion = (() => {
     if (error || !data) { Toast.error('No se pudo generar el enlace'); return; }
     window.open(data.signedUrl, '_blank', 'noopener');
   }
-  return { cargar, get, feature, moduloPermitido, aplicarEstado, irAPlan, manejarError, mostrarLimite, verificarFeature, html, elegir, cancelar, checkout, cambiarTarjeta, facturas, descargarCfdi, FEATURE_LABEL };
+  return { cargar, get, feature, moduloPermitido, FEATURE_MODULO, aplicarEstado, irAPlan, manejarError, mostrarLimite, verificarFeature, html, elegir, cancelar, checkout, cambiarTarjeta, facturas, descargarCfdi, FEATURE_LABEL };
 })();

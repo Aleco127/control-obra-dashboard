@@ -1,7 +1,7 @@
 /**
  * NAV_GRUPOS (US-605): arquitectura de información de la barra de la constructora.
- * Siete grupos por lo que hace la persona (Inicio, Obra, Calidad, Dinero, Equipo, Contabilidad, Administración),
- * no por el nombre del departamento. Es la ÚNICA fuente de los 34 módulos: `sec` (breadcrumb, Ctrl+K, barra
+ * Ocho grupos por lo que hace la persona (Inicio, Obra, Licitaciones, Calidad, Dinero, Equipo, Contabilidad,
+ * Administración), no por el nombre del departamento. Es la ÚNICA fuente de los 37 módulos: `sec` (breadcrumb, Ctrl+K, barra
  * inferior, favoritos) se deriva de aquí en index.html y nunca se edita a mano.
  *
  * Forma (compatible con el modelo de NavShell.render):
@@ -9,6 +9,8 @@
  *   - suelto: el grupo se pinta como un solo ítem sin cabecera (Inicio).
  *   - plano: los ítems van sin cabecera plegable (Administración), separador: línea arriba del grupo.
  *   - secundario: el ítem va detrás de «Más» dentro de su grupo (los cuatro fiscales sin uso humano).
+ *
+ * Licitaciones (PRD licitaciones US-805): lc, ex, bp, sólo nivel >= 80 (NavRules + RLS); entra cerrado por defecto.
  *
  * Sin dependencias: carga en el navegador como global y en Node con module.exports (scripts/qa/nav-shell.test.mjs).
  */
@@ -24,6 +26,11 @@ const NAV_GRUPOS = (function () {
       it('f', 'ri-image-line', 'Fotos'),
       it('k', 'ri-folder-3-line', 'Documentos'),
       it('c', 'ri-calendar-line', 'Calendario'),
+    ] },
+    { k: 'licitaciones', t: 'Licitaciones', ic: 'ri-auction-line', items: [
+      it('lc', 'ri-auction-line', 'Licitaciones'),
+      it('ex', 'ri-briefcase-4-line', 'Expediente'),
+      it('bp', 'ri-price-tag-3-line', 'Banco de precios'),
     ] },
     { k: 'calidad', t: 'Calidad', ic: 'ri-shield-check-line', items: [
       it('r', 'ri-questionnaire-line', 'RFIs'),

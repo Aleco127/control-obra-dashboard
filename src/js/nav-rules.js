@@ -1,5 +1,5 @@
 /**
- * NavRules (US-606): visibilidad por rol para las 34 claves de la barra (tabla D3 del PRD de la barra de módulos).
+ * NavRules (US-606): visibilidad por rol para las 37 claves de la barra (tabla D3 del PRD de la barra de módulos).
  * Sustituye al permMap de N() (que sólo conocía 8 claves y dejaba pasar el resto). Ninguna clave cae en `true`
  * por omisión: una clave desconocida o un rol sin fila no se ve.
  *
@@ -13,6 +13,9 @@
  *      más cercano hacia abajo (100 → admin_general, 80 → gerente_obra, 70 → supervisor_general, 50 → residente_obra,
  *      45 → contador_externo, 40 → inspector_calidad, resto → trabajador).
  *
+ * Licitaciones (lc, ex, bp; PRD licitaciones D3): sólo admin_general y gerente_obra, y además exige nivel >= 80
+ * (NIVEL_MINIMO) aunque la fila o los permisos digan otra cosa. El servidor exige lo mismo por RLS.
+ *
  * No decide sobre empresa_modulos ni sobre los candados por nivel de `so` (≥ 100) y `ci` (≥ 45): eso sigue en
  * isModuloEnabled (index.html), que se evalúa antes. Tampoco toca el plan (Suscripcion.moduloPermitido).
  *
@@ -23,6 +26,7 @@ const NavRules = (function () {
 
   const INICIO = ['d'];
   const OBRA = ['o', 'w', 'b', 'f', 'k', 'c'];
+  const LICITACIONES = ['lc', 'ex', 'bp'];
   const CALIDAD = ['r', 'u', 'y'];
   const DINERO = ['g', 'pc', 'p', 'ct', 'es', 's', 'm'];
   const EQUIPO = ['e', 'n', 't', 'v', 'l'];
@@ -30,10 +34,10 @@ const NavRules = (function () {
   const CONTA_SIN_SOCIOS = CONTABILIDAD.filter((k) => k !== 'so');
   const ADMINISTRACION = ['q', 'z', 'h'];
 
-  /** Las 34 claves que existen en la barra (NAV_GRUPOS). «Todo» significa exactamente esta lista. */
-  const TODAS = [].concat(INICIO, OBRA, CALIDAD, DINERO, EQUIPO, CONTABILIDAD, ADMINISTRACION);
+  /** Las 37 claves que existen en la barra (NAV_GRUPOS). «Todo» significa exactamente esta lista. */
+  const TODAS = [].concat(INICIO, OBRA, LICITACIONES, CALIDAD, DINERO, EQUIPO, CONTABILIDAD, ADMINISTRACION);
 
-  /** Tabla D3: qué ve cada rol. Sólo claves explícitas. */
+  /** Tabla D3: qué ve cada rol. Sólo claves explícitas. Licitaciones: sólo admin_general y gerente_obra (vía TODAS). */
   const VISIBILIDAD = {
     admin_general: TODAS,
     gerente_obra: TODAS.filter((k) => !['h', 'z', 'so', 'ci'].includes(k)),
@@ -44,6 +48,9 @@ const NavRules = (function () {
     inspector_calidad: [].concat(INICIO, ['o', 'w', 'b', 'f', 'k'], CALIDAD),
     trabajador: ['b', 'f', 't', 'o'],
   };
+
+  /** Claves con nivel mínimo propio (D3 del PRD de licitaciones): ni la fila ni los permisos lo saltan. */
+  const NIVEL_MINIMO = { lc: 80, ex: 80, bp: 80 };
 
   /** Nivel mínimo de cada fila, para roles que no están en la tabla (de mayor a menor). */
   const POR_NIVEL = [
@@ -99,6 +106,10 @@ const NavRules = (function () {
   function moduloVisible(k, usuario) {
     if (typeof k !== 'string' || !TODAS_SET.has(k)) return false;
     if (!usuario || typeof usuario !== 'object') return false;
+    if (NIVEL_MINIMO[k] !== undefined) {
+      const nivel = Number(usuario.nivel);
+      if (!Number.isFinite(nivel) || nivel < NIVEL_MINIMO[k]) return false;
+    }
     const porPermiso = decidePermiso(k, usuario.permisos);
     if (porPermiso !== null) return porPermiso;
     const fila = filaDe(usuario);
@@ -111,6 +122,6 @@ const NavRules = (function () {
     return TODAS.filter((k) => moduloVisible(k, usuario));
   }
 
-  return { moduloVisible, visibles, filaDe, TODAS: TODAS.slice(), VISIBILIDAD, PERMISO_DE };
+  return { moduloVisible, visibles, filaDe, TODAS: TODAS.slice(), VISIBILIDAD, PERMISO_DE, NIVEL_MINIMO };
 })();
 if (typeof module !== 'undefined') module.exports = NavRules;

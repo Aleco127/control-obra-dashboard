@@ -41,7 +41,8 @@ test('gerente no ve Usuarios, Configuración, Socios ni Cierres', () => {
   assert.equal(v.length, CLAVES.length - 4);
 });
 
-test('admin ve las 34 claves de la barra (el PRD las llama «27 módulos»)', () => {
+test('admin ve las 37 claves de la barra (34 + licitaciones)', () => {
+  assert.equal(CLAVES.length, 37);
   assert.deepEqual(ve(u('admin_general')), CLAVES);
 });
 
@@ -49,6 +50,22 @@ test('supervisor, contador y residente siguen la tabla D3', () => {
   assert.deepEqual(ve(u('supervisor_general')), ['d', 'o', 'w', 'b', 'f', 'k', 'c', 'r', 'u', 'y', 'g', 'pc', 'p', 'es', 'e', 'v', 'q']);
   assert.deepEqual(ve(u('contador')), ['d', 'o', 'w', 'k', 'g', 'pc', 'p', 'ct', 'es', 's', 'm', 'e', 'n', 'v', 'l', 'cb', 'fc', 'ce', 'ci', 'rt', 'dc', 'rp', 'su', 'q']);
   assert.deepEqual(ve(u('residente_obra')), ['d', 'o', 'w', 'b', 'f', 'k', 'c', 'r', 'u', 'y', 'g', 's', 'm', 'e', 't']);
+});
+
+test('licitaciones (lc, ex, bp) sólo para nivel >= 80: admin y gerente sí, el resto no', () => {
+  for (const k of ['lc', 'ex', 'bp']) {
+    assert.equal(NavRules.moduloVisible(k, u('admin_general')), true, `admin ve ${k}`);
+    assert.equal(NavRules.moduloVisible(k, u('gerente_obra')), true, `gerente ve ${k}`);
+    for (const rol of ['supervisor_general', 'contador', 'residente_obra', 'contador_externo', 'inspector_calidad', 'trabajador']) {
+      assert.equal(NavRules.moduloVisible(k, u(rol)), false, `${rol} no ve ${k}`);
+    }
+    // El nivel manda aunque el nombre del rol o los permisos digan otra cosa
+    assert.equal(NavRules.moduloVisible(k, { rol: 'admin_general', nivel: 70, permisos: {} }), false, 'admin con nivel 70 no');
+    assert.equal(NavRules.moduloVisible(k, { rol: 'admin_general' }), false, 'sin nivel no');
+    assert.equal(NavRules.moduloVisible(k, { rol: 'jefe_licitaciones', nivel: 85 }), true, 'rol desconocido de nivel 85 cae a gerente');
+    assert.equal(NavRules.moduloVisible(k, u('supervisor_general', { permisos: { licitaciones: { ver: true }, obras: { ver: true } } })), false, 'ningún permiso lo abre bajo 80');
+  }
+  assert.deepEqual(NavRules.NIVEL_MINIMO, { lc: 80, ex: 80, bp: 80 });
 });
 
 test('ninguna clave cae en true por omisión', () => {
