@@ -903,6 +903,108 @@ ${fila('<b>FSR</b>', '', `<b>${num(r.fsr, 5)}</b>`)}</tbody></table></div>`;
     finally { btn.disabled = false; }
   }
 
+  // ---- Por clasificar: precios de compra desde las facturas (US-832) --------------------------------------------------
+  const cla = { filas: [], ins: {}, actual: null, modo: null, lista: [], destino: null };
+  const plazaCompra = () => { try { return localStorage.getItem('bp_plaza_compra') || 'cuauhtemoc'; } catch (e) { return 'cuauhtemoc'; } };
+  const MDL_SUG = `<div id="mdlBpSug" class="modal"><div class="modal-content g rounded-2xl p-6 w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="bpSugTitulo">
+<div class="flex items-start justify-between gap-3 mb-2"><div><h3 id="bpSugTitulo" class="font-bold">Ligar a un insumo</h3><p id="bpSugConcepto" class="text-xs text-ink-muted"></p></div><button type="button" class="btn-icon" onclick="closeMdl('mdlBpSug')" aria-label="Cerrar"><i class="ri-close-line" aria-hidden="true"></i></button></div>
+<div id="bpSugLigar"><label class="block mb-2"><span class="sr-only">Buscar insumo</span><input id="bpSugBuscar" type="search" class="inp w-full" placeholder="Buscar insumo por clave o descripción" oninput="BancoPrecios.buscarParaSug(this.value)" autocomplete="off"></label><div id="bpSugLista" class="max-h-64 overflow-y-auto" role="radiogroup" aria-label="Insumo al que corresponde"></div></div>
+<div id="bpSugCrear" class="grid grid-cols-2 gap-3" hidden><label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Clave *</span><input id="bpSugClave" class="inp w-full" maxlength="60"></label><label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Tipo *</span><select id="bpSugTipo" class="inp w-full">${Object.entries({ material: 'Material', mano_obra: 'Mano de obra', equipo: 'Equipo', herramienta: 'Herramienta', auxiliar: 'Auxiliar', flete: 'Flete' }).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label><label class="col-span-2"><span class="text-xs mb-1 block">Descripción *</span><input id="bpSugDesc" class="inp w-full" maxlength="400"></label><label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Unidad *</span><input id="bpSugUnidad" class="inp w-full" maxlength="20"></label></div>
+<div class="grid grid-cols-2 gap-3 mt-3"><label><span class="text-xs mb-1 block">Factor de unidad</span><input id="bpSugFactor" type="number" min="0.0001" step="any" value="1" class="inp w-full" inputmode="decimal"></label><p class="text-xs text-ink-muted self-end">Si la factura cobra por caja de 10 y el insumo es por pieza, pon 10: el precio se divide entre el factor.</p></div>
+<label class="flex items-center gap-2 text-sm mt-3"><input type="checkbox" id="bpSugRecordar" class="w-4 h-4 rounded" checked> Recordar esta decisión para este proveedor y esta descripción</label>
+<div class="flex gap-2 justify-end mt-4"><button type="button" class="btn btn-s" onclick="closeMdl('mdlBpSug')">Cancelar</button><button type="button" class="btn btn-p" id="bpSugOk" onclick="BancoPrecios.confirmarSug()"><i class="ri-check-line" aria-hidden="true"></i> Guardar precio de compra</button></div></div></div>`;
+  VISTAS.clasificar = async (el) => {
+    el.innerHTML = Skeleton.table(4, 4);
+    const { data, error } = await sb.from('insumo_sugerencias').select('*').eq('estado', 'pendiente').order('fecha', { ascending: false }).order('id').limit(300);
+    if (error) throw error;
+    cla.filas = data || [];
+    const ids = [...new Set(cla.filas.map((s) => s.insumo_id).filter(Boolean))];
+    const { data: ins } = ids.length ? await sb.from('insumos').select('id,clave,descripcion,unidad,tipo').in('id', ids) : { data: [] };
+    cla.ins = Object.fromEntries((ins || []).map((i) => [i.id, i]));
+    pintarBandeja();
+  };
+  function pintarBandeja() {
+    const el = $('bpCuerpo'); if (!el) return;
+    const n = $('bpNClasificar'); if (n) { n.textContent = String(cla.filas.length); n.hidden = !cla.filas.length; }
+    const sugeridas = cla.filas.filter((s) => s.sugerencia_accion === 'descartar' || (s.sugerencia_accion === 'ligar' && s.insumo_id));
+    const cab = `<div class="flex flex-col md:flex-row md:items-end justify-between gap-3 mb-3"><p class="text-sm text-ink-muted md:max-w-xl">Cada concepto de una factura recibida llega aquí. Nada entra al banco hasta que lo ligas a un insumo, creas uno o lo descartas. El precio es el valor unitario del CFDI, sin IVA.</p>
+<div class="flex flex-wrap gap-2 items-end"><label><span class="text-xs mb-1 block">Plaza de las compras</span><select id="bpClaPlaza" class="inp" onchange="try{localStorage.setItem('bp_plaza_compra',this.value)}catch(e){}">${plazaOpts(plazaCompra())}</select></label>
+${sugeridas.length ? `<button type="button" class="btn btn-s" onclick="BancoPrecios.aplicarSugeridas()"><i class="ri-check-double-line" aria-hidden="true"></i> Aplicar las ${sugeridas.length} recordadas</button>` : ''}</div></div>`;
+    if (!cla.filas.length) { el.innerHTML = cab + EmptyState({ icon: 'ri-inbox-archive-line', title: 'No hay conceptos por clasificar', body: 'Al importar un XML de factura recibida en Compras, sus conceptos aparecen aquí para convertirlos en precios reales de compra.' }); return; }
+    const filas = cla.filas.map((s) => {
+      const i = s.insumo_id ? cla.ins[s.insumo_id] : null;
+      const sug = s.sugerencia_accion === 'ligar' && i ? `<span class="chip chip-obra" title="Decisión recordada">Recordado: ${S(i.clave)}</span>` : (s.sugerencia_accion === 'descartar' ? '<span class="chip chip-ind" title="Decisión recordada">Recordado: descartar</span>' : '');
+      return `<tr><td data-et="Fecha">${S(fechaCorta(s.fecha))}</td><td data-et="Proveedor">${S(s.nombre_emisor || proveedorNombre(s.proveedor_id) || s.rfc_emisor || '—')}</td>
+<td data-et="Concepto">${S(s.descripcion)}${sug ? `<span class="block mt-1">${sug}</span>` : ''}</td><td data-et="Cantidad" class="text-right">${num(s.cantidad, 2)} ${S(s.unidad || '')}</td><td data-et="Valor unitario" class="text-right">${F(s.valor_unitario)}</td>
+<td data-et=""><div class="flex flex-wrap gap-1 justify-end">${sug && s.sugerencia_accion === 'ligar' ? `<button type="button" class="btn btn-p text-xs" onclick="BancoPrecios.aplicarSugerida(${s.id})">Aplicar</button>` : ''}<button type="button" class="btn btn-s text-xs" onclick="BancoPrecios.abrirSug(${s.id},'ligar')">Ligar a insumo</button><button type="button" class="btn btn-s text-xs" onclick="BancoPrecios.abrirSug(${s.id},'crear')">Crear insumo</button><button type="button" class="btn btn-s text-xs" onclick="BancoPrecios.descartarSug(${s.id})">Descartar</button></div></td></tr>`;
+    }).join('');
+    el.innerHTML = cab + `<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Conceptos de facturas por clasificar"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Fecha</th><th scope="col">Proveedor</th><th scope="col">Concepto</th><th scope="col" class="text-right">Cantidad</th><th scope="col" class="text-right">Valor unitario</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  }
+  function abrirSug(id, modo) {
+    if (!$('mdlBpSug')) document.body.insertAdjacentHTML('beforeend', MDL_SUG);
+    const s = cla.filas.find((x) => x.id === id); if (!s) return;
+    cla.actual = s; cla.modo = modo; cla.destino = s.insumo_id || null;
+    $('bpSugTitulo').textContent = modo === 'crear' ? 'Crear insumo con este concepto' : 'Ligar a un insumo';
+    $('bpSugConcepto').textContent = `${s.descripcion} · ${F(s.valor_unitario)} por ${s.unidad || 'unidad'} · ${s.nombre_emisor || ''}`;
+    $('bpSugLigar').hidden = modo !== 'ligar'; $('bpSugCrear').hidden = modo !== 'crear';
+    $('bpSugFactor').value = '1'; $('bpSugRecordar').checked = true; $('bpSugOk').disabled = modo === 'ligar' && !cla.destino;
+    if (modo === 'crear') { $('bpSugClave').value = `CFDI-${s.id}`; $('bpSugDesc').value = s.descripcion; $('bpSugUnidad').value = s.unidad || ''; $('bpSugTipo').value = 'material'; }
+    else { $('bpSugBuscar').value = s.descripcion.split(/\s+/).slice(0, 4).join(' '); buscarParaSug($('bpSugBuscar').value); }
+    openMdl('mdlBpSug');
+  }
+  let tSug = null;
+  function buscarParaSug(q) {
+    clearTimeout(tSug);
+    tSug = setTimeout(async () => {
+      try {
+        const { data, error } = await sb.rpc('buscar_insumos', { p_texto: String(q || ''), p_tipo: null, p_plaza: null, p_limite: 30 });
+        if (error) throw error;
+        cla.lista = data || [];
+        $('bpSugLista').innerHTML = cla.lista.length ? cla.lista.map((x) => `<label class="flex items-start gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer"><input type="radio" name="bpSugDest" value="${x.id}" class="mt-1" onchange="BancoPrecios.elegirSugDestino(${x.id})"${cla.destino === x.id ? ' checked' : ''}><span class="text-sm"><span class="font-mono text-xs">${S(x.clave)}</span> · ${S(x.descripcion)} <span class="text-ink-muted">· ${S(x.unidad)} · ${S(TIPOS[x.tipo] || x.tipo)}</span></span></label>`).join('') : '<p class="text-sm text-ink-muted">Sin coincidencias. Prueba otra palabra o crea el insumo.</p>';
+      } catch (e) { $('bpSugLista').innerHTML = `<p class="text-sm text-danger">${S(humanizeError(e))}</p>`; }
+    }, 250);
+  }
+  function elegirSugDestino(id) { cla.destino = id; $('bpSugOk').disabled = false; }
+  async function clasificar(id, accion, extra) {
+    const { data, error } = await sb.rpc('clasificar_sugerencia', { p_id: id, p_accion: accion, p_insumo_id: extra.insumo_id || null, p_plaza: $('bpClaPlaza') ? $('bpClaPlaza').value : plazaCompra(),
+      p_recordar: extra.recordar !== false, p_nuevo: extra.nuevo || null, p_factor: extra.factor || 1 });
+    if (error) throw error;
+    return data;
+  }
+  async function confirmarSug() {
+    const s = cla.actual; if (!s) return;
+    const factor = parseFloat($('bpSugFactor').value) || 1;
+    const btn = $('bpSugOk'); btn.disabled = true;
+    try {
+      if (cla.modo === 'crear') {
+        const nuevo = { clave: $('bpSugClave').value.trim(), descripcion: $('bpSugDesc').value.trim(), unidad: $('bpSugUnidad').value.trim(), tipo: $('bpSugTipo').value };
+        if (!nuevo.clave || !nuevo.descripcion || !nuevo.unidad) { Toast.warning('Clave, descripción y unidad son obligatorias.'); return; }
+        await clasificar(s.id, 'crear', { nuevo, factor, recordar: $('bpSugRecordar').checked });
+      } else await clasificar(s.id, 'ligar', { insumo_id: cla.destino, factor, recordar: $('bpSugRecordar').checked });
+      closeMdl('mdlBpSug'); Toast.success('Precio de compra guardado en el banco.');
+      await cargar(true); irA('clasificar');
+    } catch (e) { Toast.error(e && e.code === '23505' ? 'Ya existe un insumo con esa clave, unidad y tipo: lígalo en vez de crearlo.' : humanizeError(e, 'Clasificar')); }
+    finally { btn.disabled = false; }
+  }
+  async function descartarSug(id) {
+    const s = cla.filas.find((x) => x.id === id); if (!s) return;
+    const ok = await Dialog.confirm({ title: 'Descartar concepto', body: `«${s.descripcion}» no entrará al banco. La próxima factura de este proveedor con la misma descripción llegará marcada para descartar.`, confirmText: 'Descartar concepto' });
+    if (!ok) return;
+    try { await clasificar(id, 'descartar', {}); Toast.info('Concepto descartado.'); irA('clasificar'); } catch (e) { Toast.error(humanizeError(e, 'Descartar')); }
+  }
+  async function aplicarSugerida(id) {
+    const s = cla.filas.find((x) => x.id === id); if (!s || !s.insumo_id) return;
+    try { await clasificar(id, 'ligar', { insumo_id: s.insumo_id }); Toast.success('Precio de compra guardado.'); await cargar(true); irA('clasificar'); } catch (e) { Toast.error(humanizeError(e, 'Clasificar')); }
+  }
+  async function aplicarSugeridas() {
+    const lista = cla.filas.filter((s) => s.sugerencia_accion === 'descartar' || (s.sugerencia_accion === 'ligar' && s.insumo_id));
+    const ok = await Dialog.confirm({ title: 'Aplicar decisiones recordadas', body: `Se aplicarán ${lista.length} decisiones recordadas por proveedor y descripción (ligar o descartar).`, confirmText: 'Aplicar decisiones' });
+    if (!ok) return;
+    let n = 0;
+    for (const s of lista) { try { await clasificar(s.id, s.sugerencia_accion === 'descartar' ? 'descartar' : 'ligar', { insumo_id: s.insumo_id }); n++; } catch (e) { Toast.error(humanizeError(e, s.descripcion)); } }
+    Toast.success(`${n} concepto${n === 1 ? '' : 's'} clasificado${n === 1 ? '' : 's'}.`); await cargar(true); irA('clasificar');
+  }
+
   // ---- Conceptos y matrices (US-826) ---------------------------------------------------------------------------------
   const con = { q: '', lista: null, actual: null };
   VISTAS.conceptos = async (el) => {
@@ -1020,6 +1122,7 @@ ${pus.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="P
 
   return {
     elegirCategoria, calcularDesglose, guardarFsr,
+    abrirSug, buscarParaSug, elegirSugDestino, confirmarSug, descartarSug, aplicarSugerida, aplicarSugeridas,
     leerArchivo, cambiarLic, decidir, decidirTodos, cancelarImportacion, importar, buscarConcepto, abrirConcepto,
     trigramas, similitud, conciliarInsumos, mapaImportacion, leerOpusInsumos, validarOpusInsumos, fechaPropuesta, plazaSugerida,
     excelAOpusInsumos, recalcularMatriz, composicionCD, COMPOSICION_REFERENCIA, calcularFSR, cesantiaPct, parametrosDelAnio,
