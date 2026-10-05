@@ -199,3 +199,24 @@ test('obras: candidatas del panel, fila desde una obra, periodo y renglones del 
   assert.deepEqual(Object.keys(filas[0]).slice(0, 5), ['Obra', 'Cliente', 'Contrato', 'Monto', 'Periodo']);
   assert.equal(filas[1].Monto, 100.5); assert.equal(filas[0].Monto, ''); assert.equal(filas[1].Modalidad, 'Invitación a cuando menos tres');
 });
+
+// ---- US-812: maquinaria y equipo ------------------------------------------------------------------------------------
+test('maquinaria: estado de la póliza, validación y relación para Excel; estados igual que el CHECK de 081', async () => {
+  assert.deepEqual(Expediente.estadoPoliza({ poliza_vigencia: '2026-10-10' }, '2026-10-04'), { estado: 'por_vencer', dias: 6 });
+  assert.deepEqual(Expediente.estadoPoliza({ poliza_vigencia: '2026-10-01' }, '2026-10-04'), { estado: 'vencido', dias: -3 });
+  assert.equal(Expediente.estadoPoliza({}, '2026-10-04'), null);
+  assert.equal(Expediente.validarMaquina({ descripcion: 'Revolvedora', anio: '2020' }), null);
+  assert.match(Expediente.validarMaquina({ descripcion: ' ' }), /descripción/);
+  assert.match(Expediente.validarMaquina({ descripcion: 'x', anio: '1800' }), /1950 y 2100/);
+  const f = Expediente.filasMaquinaria([
+    { descripcion: 'Revolvedora', marca: 'Joper', anio: 2020, propia: true, estado_operativo: 'operativo', factura: 'A-1', poliza: 'P-9', poliza_vigencia: '2027-01-01' },
+    { descripcion: 'Bailarina', propia: false, estado_operativo: 'en_reparacion' },
+  ], '2026-10-04');
+  assert.deepEqual(f.map((x) => x['Descripción']), ['Bailarina', 'Revolvedora']);
+  assert.equal(f[0].Propiedad, 'Rentada'); assert.equal(f[0].Estado, 'En reparación'); assert.equal(f[1]['Estado de la póliza'], 'Vigente');
+  assert.equal(f[1]['Año'], 2020); assert.equal(f[1].Factura, 'A-1'); assert.equal(f[1]['Póliza'], 'P-9');
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync(new URL('../../migrations/081_expediente_empresa.sql', import.meta.url), 'utf8');
+  const m = sql.match(/estado_operativo IN \(([^)]*)\)/)[1];
+  assert.deepEqual([...m.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort(), Object.keys(Expediente.ESTADOS_MAQ).sort());
+});

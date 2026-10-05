@@ -46,6 +46,7 @@ const Expediente = (() => {
     { k: 'datos', t: 'Datos', ic: 'ri-building-line' },
     { k: 'personal', t: 'Personal técnico', ic: 'ri-team-line' },
     { k: 'obras', t: 'Obras ejecutadas', ic: 'ri-building-2-line' },
+    { k: 'maquinaria', t: 'Maquinaria', ic: 'ri-truck-line' },
   ];
 
   /** Campos editables de empresa_expediente (US-807). tipo: texto | area | fecha | monto. */
@@ -267,6 +268,33 @@ const Expediente = (() => {
       }));
   }
 
+  // -- Maquinaria y equipo (US-812) --
+  const ESTADOS_MAQ = { operativo: 'Operativo', en_reparacion: 'En reparación', fuera_de_servicio: 'Fuera de servicio', vendido: 'Vendido' };
+  /** Estado de la póliza con la regla de los documentos (≤ 30 días = por vencer); null si no tiene vigencia. */
+  function estadoPoliza(m, hoy) {
+    if (!m || !m.poliza_vigencia) return null;
+    return estadoDocumento({ fecha_vencimiento: m.poliza_vigencia }, hoy);
+  }
+  /** Valida el formulario de un equipo. Devuelve null o el mensaje de error. */
+  function validarMaquina(v) {
+    if (!String(v.descripcion || '').trim()) return 'Escribe la descripción del equipo.';
+    if (v.anio != null && v.anio !== '' && (!Number.isInteger(Number(v.anio)) || Number(v.anio) < 1950 || Number(v.anio) > 2100)) return 'El año del modelo debe estar entre 1950 y 2100.';
+    if (v.estado_operativo && !ESTADOS_MAQ[v.estado_operativo]) return 'Elige el estado del equipo.';
+    return null;
+  }
+  /** Renglones de la relación de maquinaria para Excel (en el orden de la lista). */
+  function filasMaquinaria(maquinaria, hoy) {
+    return [...(maquinaria || [])].sort((a, b) => String(a.descripcion).localeCompare(String(b.descripcion), 'es')).map((m) => {
+      const ep = estadoPoliza(m, hoy);
+      return {
+        'Descripción': m.descripcion, Marca: m.marca || '', Modelo: m.modelo || '', 'Año': m.anio == null ? '' : Number(m.anio),
+        Serie: m.serie || '', Capacidad: m.capacidad || '', Propiedad: m.propia === false ? 'Rentada' : 'Propia',
+        Estado: ESTADOS_MAQ[m.estado_operativo] || '', Factura: m.factura || '', 'Póliza': m.poliza || '',
+        'Vigencia de la póliza': m.poliza_vigencia || '', 'Estado de la póliza': ep ? ESTADOS[ep.estado] : '',
+      };
+    });
+  }
+
   /** Domicilio en una línea a partir de la fila de empresas. */
   function domicilio(e) {
     if (!e) return '';
@@ -320,6 +348,7 @@ const Expediente = (() => {
     if (k === 'documentos') return resumen(exp.documentos).total;
     if (k === 'personal') return exp.personal.filter((p) => p.activo).length;
     if (k === 'obras') return exp.obras.length;
+    if (k === 'maquinaria') return exp.maquinaria.length;
     return null;
   }
   function tabsHtml(exp) {
@@ -655,6 +684,106 @@ ${cand.length ? `<button type="button" class="btn btn-p" id="exTOAgregar" onclic
     Toast.success('Currículum exportado a Excel');
   }
 
+  // -- Maquinaria y equipo (US-812) --
+  const ARCH_MAQ = [{ id: 'exMaqFacturaArch', col: 'factura_path', t: 'Factura' }, { id: 'exMaqPolizaArch', col: 'poliza_path', t: 'Póliza' }];
+  function panelMaquinaria(exp) {
+    const lista = [...exp.maquinaria].sort((a, b) => String(a.descripcion).localeCompare(String(b.descripcion), 'es'));
+    const hoy = hoyMx();
+    const porVencer = lista.filter((m) => { const e = estadoPoliza(m, hoy); return m.estado_operativo !== 'vendido' && e && (e.estado === 'vencido' || e.estado === 'por_vencer'); }).length;
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">La relación de maquinaria y equipo para la propuesta técnica, con factura y póliza de seguro.${porVencer ? ` <span class="text-warn font-medium">${porVencer} póliza${porVencer === 1 ? '' : 's'} vencida${porVencer === 1 ? '' : 's'} o por vencer.</span>` : ''}</p>
+<div class="flex flex-wrap gap-2">${lista.length ? `<button type="button" class="btn btn-s" onclick="Expediente.exportarMaquinaria()"><i class="ri-file-excel-2-line" aria-hidden="true"></i> Exportar a Excel</button>` : ''}
+<button type="button" class="btn btn-p" onclick="Expediente.nuevaMaquina()"><i class="ri-add-line" aria-hidden="true"></i> Agregar equipo</button></div></div>`;
+    if (!lista.length) return barra + EmptyState({ icon: 'ri-truck-line', title: 'Sin maquinaria registrada', body: 'Registra tu maquinaria y equipo con su factura y póliza; te avisamos 30, 15 y 3 días antes de que venza la póliza.', action: { label: 'Agregar equipo', icon: 'ri-add-line', onClick: 'Expediente.nuevaMaquina()' } });
+    return barra + `<ul class="g rounded-xl px-4 divide-y divide-slate-100" aria-label="Maquinaria y equipo">${lista.map((m) => {
+      const det = [[m.marca, m.modelo].filter(Boolean).join(' '), m.anio, m.serie ? 'Serie ' + m.serie : '', m.capacidad, m.propia === false ? 'Rentada' : 'Propia'].filter(Boolean).join(' · ');
+      const ep = estadoPoliza(m, hoy);
+      const pol = m.poliza || m.poliza_vigencia ? `Póliza ${S(m.poliza || 'sin número')}${m.poliza_vigencia ? ' · vigente hasta ' + S(fechaCorta(m.poliza_vigencia)) : ''}` : 'Sin póliza';
+      const arch = ARCH_MAQ.filter((a) => m[a.col]).map((a) => `<span class="inline-flex items-center text-xs text-ink-muted">${S(a.t)}${botonesArchivo(m[a.col], a.t + ' de ' + m.descripcion)}</span>`).join('');
+      return `<li class="ex-maq flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+<div class="flex-1 min-w-[12rem]"><p class="font-medium break-words">${S(m.descripcion)}</p><p class="text-xs text-ink-muted">${S(det)}</p><p class="text-xs text-ink-muted">${m.factura ? 'Factura ' + S(m.factura) + ' · ' : ''}${pol}</p>
+<div class="flex flex-wrap gap-x-3">${arch}</div></div>
+${m.estado_operativo !== 'operativo' ? chipSimple(ESTADOS_MAQ[m.estado_operativo] || m.estado_operativo) : ''}${ep && m.estado_operativo !== 'vendido' ? chipEstado(ep.estado, ep.dias) : ''}
+<div class="flex items-center"><button type="button" class="btn-icon" onclick="Expediente.editarMaquina(${m.id})" aria-label="Editar ${S(m.descripcion)}" title="Editar"><i class="ri-pencil-line" aria-hidden="true"></i></button>
+<button type="button" class="btn-icon" onclick="Expediente.eliminarMaquina(${m.id})" aria-label="Eliminar ${S(m.descripcion)}" title="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div></li>`;
+    }).join('')}</ul>`;
+  }
+  const maquinaPorId = (id) => D.exp && D.exp.maquinaria.find((m) => m.id === id);
+  function modalMaquina(m) {
+    const x = m || {};
+    const html = `<form id="exMaqForm" onsubmit="Expediente.guardarMaquina(event)" novalidate class="space-y-3">
+<input type="hidden" id="exMaqId" value="${x.id || ''}">
+<div>${lbl('exMaqDesc', 'Descripción', true)}<input type="text" id="exMaqDesc" class="inp" required maxlength="200" value="${S(x.descripcion || '')}" placeholder="Retroexcavadora"></div>
+<div class="grid grid-cols-2 gap-3"><div>${lbl('exMaqMarca', 'Marca')}<input type="text" id="exMaqMarca" class="inp" value="${S(x.marca || '')}"></div>
+<div>${lbl('exMaqModelo', 'Modelo')}<input type="text" id="exMaqModelo" class="inp" value="${S(x.modelo || '')}"></div>
+<div>${lbl('exMaqAnio', 'Año')}<input type="number" id="exMaqAnio" class="inp" min="1950" max="2100" step="1" value="${x.anio != null ? S(x.anio) : ''}"></div>
+<div>${lbl('exMaqSerie', 'Número de serie')}<input type="text" id="exMaqSerie" class="inp" value="${S(x.serie || '')}"></div>
+<div>${lbl('exMaqCap', 'Capacidad')}<input type="text" id="exMaqCap" class="inp" value="${S(x.capacidad || '')}" placeholder="0.25 m³"></div>
+<div>${lbl('exMaqEstado', 'Estado')}<select id="exMaqEstado" class="inp">${Object.entries(ESTADOS_MAQ).map(([k, t]) => `<option value="${k}" ${(x.estado_operativo || 'operativo') === k ? 'selected' : ''}>${S(t)}</option>`).join('')}</select></div></div>
+<label class="zk-switch"><input type="checkbox" id="exMaqPropia" ${x.propia === false ? '' : 'checked'}><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Equipo propio (apágalo si es rentado)</span></label>
+<fieldset class="space-y-3"><legend class="text-xs font-semibold text-ink-muted uppercase mb-1">Factura</legend>
+<div>${lbl('exMaqFactura', 'Folio o UUID de la factura')}<input type="text" id="exMaqFactura" class="inp" value="${S(x.factura || '')}"></div>
+${campoArchivoHtml('exMaqFacturaArch', 'Archivo de la factura', x.factura_path)}</fieldset>
+<fieldset class="space-y-3"><legend class="text-xs font-semibold text-ink-muted uppercase mb-1">Póliza de seguro</legend>
+<div class="grid grid-cols-2 gap-3"><div>${lbl('exMaqPoliza', 'Número de póliza')}<input type="text" id="exMaqPoliza" class="inp" value="${S(x.poliza || '')}"></div>
+<div>${lbl('exMaqVig', 'Vigente hasta')}<input type="date" id="exMaqVig" class="inp" value="${S(x.poliza_vigencia || '')}" aria-describedby="exMaqVigAyuda"></div></div>
+<p id="exMaqVigAyuda" class="text-xs text-ink-muted">Te avisamos 30, 15 y 3 días antes de que venza.</p>
+${campoArchivoHtml('exMaqPolizaArch', 'Archivo de la póliza', x.poliza_path)}</fieldset>
+<div>${lbl('exMaqNotas', 'Notas')}<textarea id="exMaqNotas" class="inp" rows="2">${S(x.notas || '')}</textarea></div>
+<div class="flex flex-wrap justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpMaq')">Cancelar</button>
+<button type="submit" class="btn btn-p" id="exMaqGuardar"><i class="ri-save-line" aria-hidden="true"></i> ${x.id ? 'Guardar cambios' : 'Agregar equipo'}</button></div></form>`;
+    abrirModal('mdlExpMaq', x.id ? 'Editar equipo' : 'Agregar equipo', html);
+  }
+  function nuevaMaquina() { modalMaquina(null); }
+  function editarMaquina(id) { const m = maquinaPorId(id); if (m) modalMaquina(m); }
+  async function guardarMaquina(ev) {
+    if (ev) ev.preventDefault();
+    const id = +$('exMaqId').value || null; const actual = id ? maquinaPorId(id) : null;
+    const v = { descripcion: $('exMaqDesc').value.trim(), anio: $('exMaqAnio').value.trim(), estado_operativo: $('exMaqEstado').value };
+    const err = validarMaquina(v) || validarCamposArchivo(ARCH_MAQ); if (err) { Toast.error(err); return; }
+    const btn = $('exMaqGuardar'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    let arch = null;
+    try {
+      arch = await aplicarArchivos(ARCH_MAQ, 'maquinaria', actual);
+      const fila = Object.assign({ descripcion: v.descripcion, marca: $('exMaqMarca').value.trim() || null, modelo: $('exMaqModelo').value.trim() || null,
+        anio: v.anio === '' ? null : Number(v.anio), serie: $('exMaqSerie').value.trim() || null, capacidad: $('exMaqCap').value.trim() || null,
+        estado_operativo: v.estado_operativo || 'operativo', propia: $('exMaqPropia').checked, factura: $('exMaqFactura').value.trim() || null,
+        poliza: $('exMaqPoliza').value.trim() || null, poliza_vigencia: $('exMaqVig').value || null, notas: $('exMaqNotas').value.trim() || null }, arch.cambios);
+      const q = id ? sb.from('maquinaria').update(fila).eq('id', id).select().single() : sb.from('maquinaria').insert(fila).select().single();
+      const { data, error } = await q;
+      if (error) throw error;
+      await borrarObjetos(arch.viejos);
+      D.exp.maquinaria = id ? D.exp.maquinaria.map((m) => (m.id === id ? data : m)) : D.exp.maquinaria.concat(data);
+      closeMdl('mdlExpMaq');
+      Toast.success(id ? 'Equipo actualizado' : 'Equipo agregado');
+      avisarCambio();
+      pintarPanel();
+    } catch (e) {
+      if (arch) await borrarObjetos(arch.subidos);
+      Toast.error(errorDe(e, 'No se guardó el equipo'));
+    } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
+  async function eliminarMaquina(id) {
+    const m = maquinaPorId(id); if (!m) return;
+    if (!await Dialog.confirm({ title: 'Eliminar equipo', body: `Se borrará «${m.descripcion}» con su factura y póliza.`, confirmText: 'Eliminar equipo', tone: 'danger' })) return;
+    const { error } = await sb.from('maquinaria').delete().eq('id', id);
+    if (error) { Toast.error(humanizeError(error, 'No se eliminó el equipo')); return; }
+    await borrarObjetos([m.factura_path, m.poliza_path]);
+    D.exp.maquinaria = D.exp.maquinaria.filter((x) => x.id !== id);
+    Toast.success('Equipo eliminado');
+    avisarCambio();
+    pintarPanel();
+  }
+  function exportarMaquinaria() {
+    if (typeof XLSX === 'undefined') { Toast.error('No cargó el generador de Excel. Revisa tu conexión y vuelve a intentar.'); return; }
+    const filas = filasMaquinaria(D.exp.maquinaria, hoyMx());
+    const ws = XLSX.utils.json_to_sheet(filas);
+    ws['!cols'] = [{ wch: 34 }, { wch: 16 }, { wch: 16 }, { wch: 7 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 38 }, { wch: 18 }, { wch: 14 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Maquinaria');
+    XLSX.writeFile(wb, `Relacion_maquinaria_${hoyMx()}.xlsx`);
+    Toast.success('Relación de maquinaria exportada a Excel');
+  }
+
   // -- Documentos (US-808) --
   function filaDocumento(d, exp) {
     const versiones = cadenaVersiones(exp.documentos, d.id).length;
@@ -855,6 +984,7 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     if (tab === 'datos') return panelDatos(exp);
     if (tab === 'personal') return panelPersonal(exp);
     if (tab === 'obras') return panelObras(exp);
+    if (tab === 'maquinaria') return panelMaquinaria(exp);
     return panelDocumentos(exp);
   }
   /** Repinta pestañas y panel con D.exp sin volver a pedir datos. */
@@ -894,11 +1024,13 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     nuevoDocumento, renovarDocumento, editarDocumento, guardarDocumento, historialDocumento, eliminarDocumento, sugerirVencimiento,
     nuevaPersona, editarPersona, guardarPersona, alternarActivo, eliminarPersona, traerEmpleados, filtrarTraer, elegirEmpleado,
     nuevaObra, editarObra, guardarObra, eliminarObra, traerObras, agregarObrasTraidas, exportarCurriculum,
+    nuevaMaquina, editarMaquina, guardarMaquina, eliminarMaquina, exportarMaquinaria,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
     tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,
     empleadosDisponibles, personaDesdeEmpleado, ordenarPersonal,
     obrasParaCurriculum, obraEjecutadaDesdeObra, periodo, filasCurriculum, MODALIDADES,
+    estadoPoliza, filasMaquinaria, validarMaquina, ESTADOS_MAQ,
     CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS, TIPOS_ARCHIVO, MAX_BYTES,
   };
 })();

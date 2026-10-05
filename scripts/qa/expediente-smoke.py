@@ -408,7 +408,57 @@ def caso_obras(page, tag):
     # Quitar las traídas (no son de prueba con marca)
     page.evaluate("async a=>{const ids=D.exp.obras.filter(o=>!a.includes(o.id)&&o.obra_id).map(o=>o.id);if(ids.length)await sb.from('obras_ejecutadas').delete().in('id',ids);}", antes)
 
-CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal, 'obras': caso_obras}
+# ---- US-812 ---------------------------------------------------------------------------------------------------------
+def caso_maquinaria(page, tag):
+    abrir_ex(page, 'maquinaria')
+    base = page.evaluate("async()=>{const a=await expAvisosCargar();return a.por_vencer;}")
+    vig = page.evaluate("()=>{const x=new Date(Expediente.hoyMx()+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+10);return x.toISOString().slice(0,10);}")
+    page.evaluate("()=>Expediente.nuevaMaquina()")
+    esperar_modal(page, 'mdlExpMaq')
+    page.fill('#exMaqDesc', MARCA + ' Retroexcavadora'); page.fill('#exMaqMarca', 'Caterpillar'); page.fill('#exMaqModelo', '416F')
+    page.fill('#exMaqAnio', '2019'); page.fill('#exMaqSerie', 'CAT416F123'); page.fill('#exMaqCap', '1 m³')
+    page.fill('#exMaqFactura', 'FAC-001'); page.fill('#exMaqPoliza', 'POL-778'); page.fill('#exMaqVig', vig)
+    page.set_input_files('#exMaqFacturaArch', archivo('Factura retro.pdf'))
+    page.set_input_files('#exMaqPolizaArch', archivo('Poliza retro.pdf'))
+    axe(page, '#mdlExpMaq', tag + ' modal maquinaria')
+    if tag == 'escritorio': snap(page, 'maquinaria-modal-escritorio.png')
+    page.click('#exMaqGuardar')
+    page.wait_for_function("m=>D.exp.maquinaria.some(x=>x.descripcion===m)", arg=MARCA + ' Retroexcavadora', timeout=20000)
+    m = page.evaluate("m=>D.exp.maquinaria.find(x=>x.descripcion===m)", MARCA + ' Retroexcavadora')
+    check(m['factura'] == 'FAC-001' and m['poliza'] == 'POL-778' and m['poliza_vigencia'] == vig and m['factura_path'].startswith('empresa/1/expediente/maquinaria/') and m['poliza_path'].startswith('empresa/1/expediente/maquinaria/'), f'{tag}: alta con factura y póliza (folio, número, vigencia y archivos)')
+    page.wait_for_timeout(300)
+    chip = page.evaluate("m=>[...document.querySelectorAll('#exPanel li.ex-maq')].find(li=>li.textContent.includes(m))?.querySelector('.chip')?.textContent", MARCA)
+    check(chip and 'Por vencer · 10 d' in chip, f'{tag}: chip de vigencia de la póliza ({chip})')
+    page.wait_for_function("b=>EXP_AVISOS&&EXP_AVISOS.por_vencer===b+1", arg=base, timeout=10000)
+    a = page.evaluate("()=>({p:EXP_AVISOS.por_vencer,badge:navBadges().ex,item:EXP_AVISOS.items.find(i=>i.tipo==='poliza')})")
+    check(a['item'] and a['item']['nombre'] == MARCA + ' Retroexcavadora', f'{tag}: la póliza entra a los avisos de US-809 (contador {a["badge"]})')
+    # Editar: renovar la póliza a un año y marcar como rentada
+    page.evaluate("id=>Expediente.editarMaquina(id)", m['id'])
+    esperar_modal(page, 'mdlExpMaq')
+    page.fill('#exMaqVig', '2027-12-31')
+    page.click('label.zk-switch:has(#exMaqPropia)')
+    page.click('#exMaqGuardar')
+    page.wait_for_function("m=>{const x=D.exp.maquinaria.find(x=>x.descripcion===m);return x&&x.poliza_vigencia==='2027-12-31';}", arg=MARCA + ' Retroexcavadora', timeout=15000)
+    page.wait_for_function("b=>EXP_AVISOS&&EXP_AVISOS.por_vencer===b", arg=base, timeout=10000)
+    check(page.evaluate("m=>D.exp.maquinaria.find(x=>x.descripcion===m).propia===false", MARCA + ' Retroexcavadora'), f'{tag}: editar guarda la vigencia nueva y «rentada»; el aviso desaparece')
+    # Exportar a Excel
+    with page.expect_download(timeout=15000) as dl:
+        page.evaluate("()=>Expediente.exportarMaquinaria()")
+    filas = leer_xlsx(dl.value)
+    fila = next((r for r in filas[1:] if r[0] == MARCA + ' Retroexcavadora'), None)
+    check(filas[0][:4] == ['Descripción', 'Marca', 'Modelo', 'Año'] and fila and fila[1] == 'Caterpillar' and fila[6] == 'Rentada' and fila[8] == 'FAC-001' and fila[9] == 'POL-778' and fila[10] == '2027-12-31',
+          f'{tag}: relación de maquinaria en Excel ({dl.value.suggested_filename}; {fila})')
+    check(not desborde(page), f'{tag}: sin desborde horizontal')
+    snap(page, f'maquinaria-{tag}.png')
+    axe(page, '#c', tag + ' maquinaria')
+    paths = [m['factura_path'], m['poliza_path']]
+    page.click(f'[aria-label="Eliminar {MARCA} Retroexcavadora"]')
+    page.wait_for_selector('dialog.dlg[open]'); page.click('#dlgOk')
+    page.wait_for_function("m=>!D.exp.maquinaria.some(x=>x.descripcion===m)", arg=MARCA + ' Retroexcavadora', timeout=15000)
+    quedan = page.evaluate("async ps=>{let n=0;for(const p of ps){const dir=p.split('/').slice(0,-1).join('/');const{data}=await sb.storage.from('licitaciones').list(dir,{limit:1000});if((data||[]).some(x=>p.endsWith('/'+x.name)))n++;}return n;}", paths)
+    check(quedan == 0, f'{tag}: eliminar borra la fila y los archivos de factura y póliza')
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal, 'obras': caso_obras, 'maquinaria': caso_maquinaria}
 
 def main():
     previo = None
