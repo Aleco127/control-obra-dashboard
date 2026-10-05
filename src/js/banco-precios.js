@@ -82,6 +82,191 @@ const BancoPrecios = (() => {
     return out;
   }
 
+  // ---- Conciliación de un archivo de OPUS (US-825) -------------------------------------------------------------------
+  /** Trigramas como pg_trgm: cada palabra con dos espacios delante y uno detrás. */
+  function trigramas(s) {
+    const out = new Set();
+    for (const w of normalizarTexto(s).split(' ').filter(Boolean)) {
+      const p = `  ${w} `;
+      for (let i = 0; i + 3 <= p.length; i++) out.add(p.slice(i, i + 3));
+    }
+    return out;
+  }
+  /** similarity() de pg_trgm: trigramas comunes entre trigramas totales (0 a 1). */
+  function similitud(a, b) {
+    const A = a instanceof Set ? a : trigramas(a); const B = b instanceof Set ? b : trigramas(b);
+    if (!A.size || !B.size) return 0;
+    let c = 0; for (const t of A) if (B.has(t)) c++;
+    return c / (A.size + B.size - c);
+  }
+  const llaveInsumo = (clave, unidad, tipo) => `${String(clave == null ? '' : clave).trim().toLowerCase()}|${String(unidad == null ? '' : unidad).trim().toLowerCase()}|${tipo}`;
+  /**
+   * Concilia los recursos de un archivo opus-insumos/v1 contra los insumos del banco, en tres cubetas:
+   *   coincide: misma clave + unidad + tipo (sin distinguir mayúsculas). Si la descripción no se parece (< 0.3) lleva
+   *             aviso 'descripcion_distinta';
+   *   parecido: mismo tipo y descripción con similitud ≥ umbral (0.6): A REVISAR, nada se fusiona solo;
+   *   nuevo:    lo demás.
+   * omitidos: sin clave o con un tipo que el banco no maneja (otro_<n>).
+   * recursos: [{clave, descripcion, unidad, tipo, ...}] · existentes: [{id, clave, descripcion, unidad, tipo}]
+   */
+  function conciliarInsumos(recursos, existentes, opts) {
+    const umbral = (opts && opts.umbral) || UMBRAL_PARECIDO;
+    const idx = new Map(); const porTipo = {};
+    for (const e of existentes || []) {
+      if (!idx.has(llaveInsumo(e.clave, e.unidad, e.tipo))) idx.set(llaveInsumo(e.clave, e.unidad, e.tipo), e);
+      (porTipo[e.tipo] = porTipo[e.tipo] || []).push({ e, tri: trigramas(e.descripcion) });
+    }
+    const res = { coincide: [], parecido: [], nuevo: [], omitidos: [] };
+    for (const r of recursos || []) {
+      if (!r || !String(r.clave || '').trim() || !TIPOS[r.tipo]) { res.omitidos.push({ recurso: r, motivo: !r || !String(r.clave || '').trim() ? 'sin_clave' : 'tipo' }); continue; }
+      const tri = trigramas(r.descripcion);
+      const m = idx.get(llaveInsumo(r.clave, r.unidad, r.tipo));
+      if (m) { res.coincide.push({ recurso: r, insumo: m, aviso: similitud(tri, trigramas(m.descripcion)) < 0.3 ? 'descripcion_distinta' : null }); continue; }
+      const cands = (porTipo[r.tipo] || []).map((x) => ({ insumo: x.e, puntaje: Math.round(similitud(tri, x.tri) * 1000) / 1000 }))
+        .filter((x) => x.puntaje >= umbral).sort((a, b) => b.puntaje - a.puntaje || String(a.insumo.clave).localeCompare(String(b.insumo.clave))).slice(0, 3);
+      if (cands.length) res.parecido.push({ recurso: r, candidato: cands[0].insumo, puntaje: cands[0].puntaje, candidatos: cands });
+      else res.nuevo.push({ recurso: r });
+    }
+    return res;
+  }
+  /**
+   * Mapa clave (minúsculas) → insumo_id que se manda a importar_opus_insumos. Las coincidencias entran siempre; un
+   * parecido sólo si el usuario lo confirmó: decisiones[clave] = id del insumo elegido (o 'nuevo' / ausente = nuevo).
+   */
+  function mapaImportacion(conc, decisiones) {
+    const mapa = {}; const d = decisiones || {};
+    for (const c of conc.coincide) mapa[String(c.recurso.clave).trim().toLowerCase()] = c.insumo.id;
+    for (const p of conc.parecido) {
+      const k = String(p.recurso.clave).trim().toLowerCase(); const v = d[k];
+      if (v !== undefined && v !== null && v !== 'nuevo' && p.candidatos.some((c) => c.insumo.id === Number(v))) mapa[k] = Number(v);
+    }
+    return mapa;
+  }
+  /** Lee y valida un archivo opus-insumos/v1 (texto u objeto). Lanza un Error en español si no sirve. */
+  function leerOpusInsumos(entrada) {
+    let doc = entrada;
+    if (typeof entrada === 'string') {
+      if (/Ã[\u0080-¿]|Ã[³©¡­±‘]/.test(entrada)) throw new Error('El archivo trae acentos dañados (por ejemplo «Ã³»). Vuelve a exportarlo desde el bridge en UTF-8.');
+      try { doc = JSON.parse(entrada.replace(/^﻿/, '')); } catch (e) { throw new Error('El archivo no es un JSON válido.'); }
+    }
+    const errores = validarOpusInsumos(doc);
+    if (errores.length) throw new Error(errores.join(' '));
+    return doc;
+  }
+  function validarOpusInsumos(doc) {
+    const e = [];
+    if (!doc || typeof doc !== 'object') return ['El archivo está vacío.'];
+    if (doc.formato !== 'opus-insumos/v1') e.push(`El formato es «${doc.formato || 'desconocido'}»; se espera opus-insumos/v1.`);
+    for (const k of ['recursos', 'conceptos', 'componentes']) if (!Array.isArray(doc[k])) e.push(`Falta la lista «${k}».`);
+    if (Array.isArray(doc.recursos)) {
+      const malos = doc.recursos.filter((r) => r && r.precio !== null && r.precio !== undefined && typeof r.precio !== 'number').length;
+      if (malos) e.push(`${malos} recurso${malos === 1 ? '' : 's'} con precio que no es número.`);
+    }
+    return e;
+  }
+  /** Fecha de la propuesta (D5): fechas.presentacion; si no hay, la última actualización de precios. */
+  function fechaPropuesta(doc) {
+    const f = doc && doc.fechas ? (doc.fechas.presentacion || doc.fechas.concurso || doc.fechas.ultima_actualizacion_precios || doc.fechas.creacion) : null;
+    return f ? String(f).slice(0, 10) : null;
+  }
+  /** Plaza sugerida por la ciudad del proyecto. */
+  function plazaSugerida(doc) {
+    const t = normalizarTexto([doc && doc.proyecto && doc.proyecto.ciudad, doc && doc.proyecto && doc.proyecto.descripcion, doc && doc.proyecto && doc.proyecto.nombre].filter(Boolean).join(' '));
+    if (/cuauhtemoc/.test(t)) return 'cuauhtemoc';
+    if (/casas grandes|paquime/.test(t)) return 'casas_grandes';
+    if (/juarez/.test(t)) return 'juarez';
+    if (/parral/.test(t)) return 'parral';
+    if (/chihuahua/.test(t)) return 'chihuahua';
+    return 'otra';
+  }
+  const TIPO_DE_SECCION = [[/mano de obra|^mo$|cuadrilla/, 'mano_obra'], [/herramienta/, 'herramienta'], [/equipo|maquinaria/, 'equipo'], [/auxiliar|basico/, 'auxiliar'], [/flete/, 'flete'], [/material/, 'material']];
+  /**
+   * Respaldo (US-825): el Excel de «Explosión de insumos» de OPUS. filas = matriz de celdas (XLSX sheet_to_json con
+   * header:1). Busca el renglón de encabezados (Clave, Descripción, Unidad, Costo/Precio) y toma el tipo de una columna
+   * «Tipo» o de los renglones de sección («MATERIALES», «MANO DE OBRA», …). Devuelve un documento opus-insumos/v1 sin
+   * conceptos ni componentes.
+   */
+  function excelAOpusInsumos(filas, nombre) {
+    const norm = (v) => normalizarTexto(v);
+    let h = -1; let col = {};
+    for (let i = 0; i < Math.min((filas || []).length, 40); i++) {
+      const fila = (filas[i] || []).map(norm);
+      const ic = fila.findIndex((c) => c === 'clave' || c === 'codigo');
+      const id = fila.findIndex((c) => c.startsWith('descripcion') || c === 'concepto' || c === 'insumo');
+      if (ic >= 0 && id >= 0) {
+        h = i;
+        col = { clave: ic, descripcion: id,
+          unidad: fila.findIndex((c) => c === 'unidad' || c === 'u' || c === 'um' || c.startsWith('unidad')),
+          tipo: fila.findIndex((c) => c === 'tipo' || c.startsWith('tipo de')),
+          precio: (() => { const pref = ['costo unitario', 'costo', 'precio unitario', 'precio', 'p u', 'pu']; for (const p of pref) { const k = fila.findIndex((c) => c === p); if (k >= 0) return k; } return fila.findIndex((c) => /^(costo|precio)/.test(c)); })() };
+        break;
+      }
+    }
+    if (h < 0 || col.precio < 0) throw new Error('No encontré los encabezados Clave, Descripción y Costo en el Excel. Exporta la «Explosión de insumos» de OPUS o usa el JSON del bridge.');
+    const recursos = []; let tipo = 'material';
+    for (let i = h + 1; i < filas.length; i++) {
+      const f = filas[i] || [];
+      const llenas = f.filter((c) => c !== null && c !== undefined && String(c).trim() !== '');
+      if (!llenas.length) continue;
+      if (llenas.length === 1 && typeof llenas[0] === 'string') {
+        const t = norm(llenas[0]); const s = TIPO_DE_SECCION.find(([re]) => re.test(t)); if (s) tipo = s[1]; continue;
+      }
+      const clave = String(f[col.clave] == null ? '' : f[col.clave]).trim();
+      const precio = typeof f[col.precio] === 'number' ? f[col.precio] : parseFloat(String(f[col.precio] || '').replace(/[$,\s]/g, ''));
+      if (!clave || !(precio >= 0)) continue;
+      let t = tipo;
+      if (col.tipo >= 0 && f[col.tipo]) { const s = TIPO_DE_SECCION.find(([re]) => re.test(norm(f[col.tipo]))); if (s) t = s[1]; }
+      recursos.push({ clave, descripcion: String(f[col.descripcion] || clave).trim(), unidad: col.unidad >= 0 ? String(f[col.unidad] || '').trim() : '', tipo: t, precio: Math.round(precio * 1e6) / 1e6, moneda: 'MXN' });
+    }
+    if (!recursos.length) throw new Error('El Excel no trae insumos con clave y costo.');
+    return { formato: 'opus-insumos/v1', generado: null, origen: { herramienta: 'excel-explosion-de-insumos', archivo: nombre || null },
+      proyecto: { nombre: nombre ? String(nombre).replace(/\.(xlsx?|csv)$/i, '') : 'Excel de OPUS' }, fechas: {}, recursos, conceptos: [], componentes: [] };
+  }
+
+  // ---- Matrices (US-826) ----------------------------------------------------------------------------------------------
+  const esHerramientaPctMo = (c) => c && c.tipo === 'herramienta' && /^\(%\)\s*mo$/i.test(String(c.unidad || '').trim());
+  /**
+   * Recalcula una matriz a precios vigentes: Σ cantidad × precio. Un componente compuesto (cuadrilla o auxiliar) se
+   * recalcula primero con su propia matriz (auxiliares[insumo_id]) y cuenta en el tipo del compuesto (una cuadrilla en
+   * mano de obra). La herramienta nativa de OPUS «(%)mo» vale cantidad × la mano de obra de la matriz.
+   * componentes: [{insumo_id, cantidad, tipo, unidad, compuesto}] · precios: {insumo_id: número|null}
+   * Devuelve {total, porTipo, renglones:[{...componente, precio, importe, sinPrecio}], sinPrecio: n}.
+   */
+  function recalcularMatriz(componentes, precios, auxiliares, nivel) {
+    const aux = auxiliares || {}; const prof = nivel || 0;
+    const porTipo = Object.fromEntries(Object.keys(TIPOS).map((k) => [k, 0]));
+    let sinPrecio = 0;
+    const red = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+    const precioDe = (c) => {
+      if (c.compuesto && aux[c.insumo_id] && aux[c.insumo_id].length && prof < 5) return recalcularMatriz(aux[c.insumo_id], precios, aux, prof + 1).total;
+      const p = precios ? precios[c.insumo_id] : null;
+      return p === null || p === undefined || Number.isNaN(Number(p)) ? null : Number(p);
+    };
+    const renglones = (componentes || []).map((c) => {
+      if (esHerramientaPctMo(c)) return { ...c, precio: null, importe: 0, pctMo: true };
+      const precio = precioDe(c);
+      if (precio === null) sinPrecio++;
+      // Como OPUS: cada importe se redondea a 2 decimales (decimales_costos) y luego se suma
+      const importe = precio === null ? 0 : red(Number(c.cantidad) * precio);
+      return { ...c, precio, importe, sinPrecio: precio === null };
+    });
+    for (const r of renglones) if (!r.pctMo && porTipo[r.tipo] !== undefined) porTipo[r.tipo] = red(porTipo[r.tipo] + r.importe);
+    const mo = porTipo.mano_obra;
+    for (const r of renglones) if (r.pctMo) { r.precio = mo; r.importe = red(Number(r.cantidad) * mo); porTipo.herramienta = red(porTipo.herramienta + r.importe); }
+    const total = red(renglones.reduce((s, r) => s + r.importe, 0));
+    return { total, porTipo, renglones, sinPrecio };
+  }
+  /** Composición del costo directo en porcentaje: materiales, mano de obra y equipo + herramienta (US-826). */
+  function composicionCD(porTipo) {
+    const t = Object.values(porTipo || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    if (!t) return null;
+    const p = (v) => Math.round((Number(v) || 0) / t * 10000) / 100;
+    return { material: p(porTipo.material), mano_obra: p(porTipo.mano_obra), equipo_herramienta: p((porTipo.equipo || 0) + (porTipo.herramienta || 0)),
+      otros: p((porTipo.auxiliar || 0) + (porTipo.flete || 0)), total: Math.round(t * 100) / 100 };
+  }
+  /** Referencia de la skill para una obra de acabados: materiales ~58 %, mano de obra ~37 %, equipo y herramienta ~5 %. */
+  const COMPOSICION_REFERENCIA = { material: 58, mano_obra: 37, equipo_herramienta: 5 };
+
   // ---- Datos (navegador) --------------------------------------------------------------------------------------------
   let enVuelo = null;
   let pintadas = 0;
@@ -475,7 +660,243 @@ ${compHtml}`;
     }
   }
 
+  // ---- Importar de OPUS (US-825) -------------------------------------------------------------------------------------
+  const imp = { doc: null, archivo: '', conc: null, decisiones: {}, lics: [], resumen: null, ocupado: false };
+  async function todosLosInsumos() {
+    const out = [];
+    for (let desde = 0; desde < LIMITE_TOTAL; desde += 1000) {
+      const { data, error } = await sb.from('insumos').select('id,clave,descripcion,unidad,tipo').order('id').range(desde, desde + 999);
+      if (error) throw error;
+      out.push(...(data || [])); if (!data || data.length < 1000) break;
+    }
+    return out;
+  }
+  VISTAS.importar = (el) => {
+    el.innerHTML = `<div class="g rounded-xl p-4">
+<h2 class="font-bold mb-1">Importar los insumos de un proyecto de OPUS</h2>
+<p class="text-sm text-ink-muted mb-3">Sube el JSON <span class="font-mono">opus-insumos/v1</span> que exporta el bridge (o, como respaldo, el Excel de explosión de insumos de OPUS). El banco aprende un precio por insumo con la fecha de la propuesta, su plaza y la licitación; con el JSON también guarda los conceptos con su PU y su matriz. Reimportar no duplica.</p>
+<label class="block"><span class="text-xs mb-1 block">Archivo</span><input id="bpImpArchivo" type="file" accept=".json,.xlsx,.xls,.csv,application/json" class="inp w-full" onchange="BancoPrecios.leerArchivo(this.files[0])"></label>
+<div id="bpImpPaso" class="mt-4"></div></div>`;
+    if (imp.doc) pintarImportacion();
+  };
+  async function leerArchivo(file) {
+    if (!file) return;
+    imp.resumen = null; imp.conc = null; imp.decisiones = {};
+    try {
+      if (/\.json$/i.test(file.name) || file.type === 'application/json') imp.doc = leerOpusInsumos(await file.text());
+      else {
+        if (typeof XLSX === 'undefined') throw new Error('No cargó el lector de Excel. Recarga la página.');
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const filas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
+        imp.doc = excelAOpusInsumos(filas, file.name);
+      }
+      imp.archivo = file.name;
+      const [ins, lics] = await Promise.all([todosLosInsumos(), sb.from('licitaciones').select('id,codigo,nombre,plaza,presentacion,estatus').order('created_at', { ascending: false }).limit(300)]);
+      if (lics.error) throw lics.error;
+      imp.lics = lics.data || [];
+      imp.conc = conciliarInsumos(imp.doc.recursos, ins);
+      for (const p of imp.conc.parecido) imp.decisiones[String(p.recurso.clave).trim().toLowerCase()] = 'nuevo';
+      pintarImportacion();
+    } catch (e) {
+      imp.doc = null;
+      const el = $('bpImpPaso'); if (el) el.innerHTML = `<div class="g rounded-xl p-3 bp-aviso" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> ${S(e.message || humanizeError(e))}</div>`;
+    }
+  }
+  function licSugerida() {
+    const nc = normalizarTexto(imp.doc.proyecto && (imp.doc.proyecto.numero_concurso || imp.doc.proyecto.nombre));
+    return imp.lics.find((l) => nc && (nc.includes(normalizarTexto(l.codigo)) || normalizarTexto(l.codigo).includes(nc)));
+  }
+  function pintarImportacion() {
+    const el = $('bpImpPaso'); if (!el || !imp.doc) return;
+    const d = imp.doc; const c = imp.conc; const sug = licSugerida();
+    const fecha = fechaPropuesta(d) || hoyMx();
+    const res = d.resumen || {};
+    const fila = (r, extra) => `<tr><td data-et="Clave" class="font-mono text-xs">${S(r.clave)}</td><td data-et="Descripción">${S(r.descripcion || '')}</td><td data-et="Unidad">${S(r.unidad || '')}</td><td data-et="Tipo">${S(TIPOS[r.tipo] || r.tipo)}</td><td data-et="Precio" class="text-right">${r.tiene_matriz ? '<span class="text-ink-muted">De su matriz</span>' : (typeof r.precio === 'number' ? F(r.precio) : '—')}</td>${extra || ''}</tr>`;
+    const tabla = (filas, cab, aria) => `<div class="table-wrap mt-2" tabindex="0" role="region" aria-label="${aria}"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Clave</th><th scope="col">Descripción</th><th scope="col">Unidad</th><th scope="col">Tipo</th><th scope="col" class="text-right">Precio</th>${cab || ''}</tr></thead><tbody>${filas}</tbody></table></div>`;
+    const parecidos = c.parecido.map((p) => {
+      const k = String(p.recurso.clave).trim().toLowerCase(); const v = imp.decisiones[k];
+      const opciones = p.candidatos.map((x) => `<label class="flex items-start gap-2 text-xs"><input type="radio" name="bpPar-${S(k)}" value="${x.insumo.id}"${String(v) === String(x.insumo.id) ? ' checked' : ''} onchange="BancoPrecios.decidir('${S(k).replace(/'/g, "\\'")}', ${x.insumo.id})"> <span>Es el mismo que <span class="font-mono">${S(x.insumo.clave)}</span> · ${S(x.insumo.descripcion)} · ${S(x.insumo.unidad)} <span class="text-ink-muted">(${Math.round(x.puntaje * 100)} %)</span></span></label>`).join('');
+      return fila(p.recurso, `<td data-et="Decisión"><div class="flex flex-col gap-1">${opciones}<label class="flex items-center gap-2 text-xs"><input type="radio" name="bpPar-${S(k)}" value="nuevo"${v === 'nuevo' || v === undefined ? ' checked' : ''} onchange="BancoPrecios.decidir('${S(k).replace(/'/g, "\\'")}', 'nuevo')"> Es un insumo nuevo</label></div></td>`);
+    }).join('');
+    const avisos = c.coincide.filter((x) => x.aviso).length;
+    el.innerHTML = `<div class="kpi-strip"><div class="kpi"><div class="kpi-v">${S(d.proyecto && d.proyecto.nombre || imp.archivo)}</div><div class="kpi-l">${S(imp.archivo)}</div></div>
+<div class="kpi"><div class="kpi-v">${d.recursos.length}</div><div class="kpi-l">Recursos</div></div><div class="kpi"><div class="kpi-v">${d.conceptos.length}</div><div class="kpi-l">Conceptos${res.conceptos_con_matriz !== undefined ? ` (${res.conceptos_con_matriz} con matriz)` : ''}</div></div><div class="kpi"><div class="kpi-v">${d.componentes.length}</div><div class="kpi-l">Componentes</div></div></div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-2">
+<label class="md:col-span-2"><span class="text-xs mb-1 block">Licitación *</span><select id="bpImpLic" class="inp w-full" onchange="BancoPrecios.cambiarLic(this.value)"><option value="nueva">Crear una licitación nueva</option>${imp.lics.map((l) => `<option value="${l.id}"${sug && sug.id === l.id ? ' selected' : ''}>${S(l.codigo)} · ${S(l.nombre)}</option>`).join('')}</select></label>
+<label><span class="text-xs mb-1 block">Plaza *</span><select id="bpImpPlaza" class="inp w-full">${plazaOpts((sug && sug.plaza) || plazaSugerida(d))}</select></label>
+<label><span class="text-xs mb-1 block">Fecha de la propuesta *</span><input id="bpImpFecha" type="date" class="inp w-full" value="${S(fecha)}"></label></div>
+<div id="bpImpNueva" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3"${sug ? ' hidden' : ''}>
+<label><span class="text-xs mb-1 block">Código de la licitación *</span><input id="bpImpCodigo" class="inp w-full" maxlength="80" value="${S((d.proyecto && (d.proyecto.numero_concurso || d.proyecto.nombre)) || '')}"></label>
+<label><span class="text-xs mb-1 block">Nombre *</span><input id="bpImpNombre" class="inp w-full" maxlength="300" value="${S((d.proyecto && (d.proyecto.descripcion || d.proyecto.nombre)) || '')}"></label>
+<p class="md:col-span-2 text-xs text-ink-muted">Se crea con estatus «Presentada» y la fecha de la propuesta como presentación; complétala después en Licitaciones.</p></div>
+<h3 class="font-bold mt-5">Conciliación</h3>
+<p class="text-sm text-ink-muted">Coinciden por clave, unidad y tipo: <b>${c.coincide.length}</b>${avisos ? ` (${avisos} con descripción distinta: revísalos)` : ''} · Parecidos a revisar: <b>${c.parecido.length}</b> · Nuevos: <b>${c.nuevo.length}</b>${c.omitidos.length ? ` · Omitidos: <b>${c.omitidos.length}</b>` : ''}</p>
+${c.parecido.length ? `<div class="g rounded-xl p-3 mt-3"><div class="flex flex-wrap items-center justify-between gap-2"><p class="font-bold text-sm">Parecidos por descripción (${c.parecido.length}): confirma uno por uno o en lote</p><div class="flex gap-2"><button type="button" class="btn btn-s text-xs" onclick="BancoPrecios.decidirTodos('mismo')"><i class="ri-check-double-line" aria-hidden="true"></i> Aceptar todos los más parecidos</button><button type="button" class="btn btn-s text-xs" onclick="BancoPrecios.decidirTodos('nuevo')">Todos como nuevos</button></div></div>${tabla(parecidos, '<th scope="col">Decisión</th>', 'Insumos parecidos a revisar')}</div>` : ''}
+<details class="mt-3"><summary class="cursor-pointer text-sm font-bold">Coinciden (${c.coincide.length})</summary>${c.coincide.length ? tabla(c.coincide.map((x) => fila(x.recurso, `<td data-et="En el banco">${S(x.insumo.clave)} · ${S(x.insumo.descripcion)}${x.aviso ? ' <span class="chip chip-ind">Descripción distinta</span>' : ''}</td>`)).join(''), '<th scope="col">En el banco</th>', 'Insumos que coinciden') : '<p class="text-sm text-ink-muted mt-2">Ninguno.</p>'}</details>
+<details class="mt-2"><summary class="cursor-pointer text-sm font-bold">Nuevos (${c.nuevo.length})</summary>${c.nuevo.length ? tabla(c.nuevo.map((x) => fila(x.recurso)).join(''), '', 'Insumos nuevos') : '<p class="text-sm text-ink-muted mt-2">Ninguno.</p>'}</details>
+<div class="flex justify-end gap-2 mt-4"><button type="button" class="btn btn-s" onclick="BancoPrecios.cancelarImportacion()">Cancelar</button><button type="button" id="bpImpOk" class="btn btn-p" onclick="BancoPrecios.importar()"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i> Importar al banco</button></div>
+<div id="bpImpResultado" class="mt-3" aria-live="polite"></div>`;
+  }
+  function cambiarLic(v) {
+    const nueva = v === 'nueva'; $('bpImpNueva').hidden = !nueva;
+    const l = imp.lics.find((x) => String(x.id) === String(v));
+    if (l && l.plaza) $('bpImpPlaza').value = l.plaza;
+    if (l && l.presentacion && !fechaPropuesta(imp.doc)) $('bpImpFecha').value = String(l.presentacion).slice(0, 10);
+  }
+  function decidir(k, v) { imp.decisiones[k] = v; }
+  function decidirTodos(modo) {
+    for (const p of imp.conc.parecido) imp.decisiones[String(p.recurso.clave).trim().toLowerCase()] = modo === 'mismo' ? p.candidato.id : 'nuevo';
+    const lic = $('bpImpLic').value; const plaza = $('bpImpPlaza').value; const fecha = $('bpImpFecha').value;
+    pintarImportacion(); $('bpImpLic').value = lic; cambiarLic(lic); $('bpImpPlaza').value = plaza; $('bpImpFecha').value = fecha;
+  }
+  function cancelarImportacion() { imp.doc = null; imp.conc = null; imp.resumen = null; irA('importar'); }
+  async function importar() {
+    if (!imp.doc || imp.ocupado) return;
+    const plaza = $('bpImpPlaza').value; const fecha = $('bpImpFecha').value; let lic = $('bpImpLic').value;
+    if (!fecha) { Toast.warning('Falta la fecha de la propuesta.'); return; }
+    const btn = $('bpImpOk'); btn.disabled = true; imp.ocupado = true;
+    try {
+      if (lic === 'nueva') {
+        const codigo = $('bpImpCodigo').value.trim(); const nombre = $('bpImpNombre').value.trim();
+        if (!codigo || !nombre) { Toast.warning('Captura el código y el nombre de la licitación.'); return; }
+        const { data, error } = await sb.from('licitaciones').insert({ codigo, nombre, plaza, estatus: 'presentada', presentacion: `${fecha}T12:00:00-06:00`,
+          opus_proyecto: (imp.doc.proyecto && imp.doc.proyecto.nombre) || null, monto_propuesto: imp.doc.proyecto && imp.doc.proyecto.importe_total > 0 ? imp.doc.proyecto.importe_total : null }).select('id').single();
+        if (error) throw error;
+        lic = data.id;
+      }
+      const mapa = mapaImportacion(imp.conc, imp.decisiones);
+      const { data, error } = await sb.rpc('importar_opus_insumos', { p_licitacion_id: Number(lic), p_plaza: plaza, p_fecha: fecha, p_doc: imp.doc, p_mapa: mapa, p_archivo: imp.archivo });
+      if (error) throw error;
+      imp.resumen = data;
+      if (typeof Telemetry !== 'undefined') Telemetry.track('banco_importacion', { recursos: data.recursos, conceptos: data.conceptos, nuevos: data.insumos_nuevos });
+      $('bpImpResultado').innerHTML = `<div class="g rounded-xl p-3 text-sm" role="status"><p class="font-bold"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Importado: ${S(data.proyecto || '')}</p>
+<p class="mt-1">${data.recursos_importados} recursos (${data.insumos_nuevos} nuevos, ${data.insumos_existentes} ya estaban) · ${data.precios} precios · ${data.conceptos} conceptos (${data.conceptos_nuevos} nuevos, ${data.conceptos_con_pu} con PU) · ${data.componentes} componentes${data.componentes_auxiliares ? ` y ${data.componentes_auxiliares} de cuadrillas o auxiliares` : ''}.</p>
+${(data.sin_precio || []).length ? `<p class="text-xs text-ink-muted mt-1">Sin precio guardado: ${(data.sin_precio || []).map((x) => `${S(x.clave)} (${x.motivo === 'compuesto' ? 'sale de su matriz' : x.motivo === 'herramienta_pct_mo' ? '% de la mano de obra' : 'precio cero en OPUS'})`).join(', ')}.</p>` : ''}</div>`;
+      Toast.success('Insumos importados al banco.');
+      await cargar(true);
+    } catch (e) { Toast.error(e && e.code === '23505' ? 'Ya existe una licitación con ese código: elígela de la lista.' : humanizeError(e, 'Importar')); }
+    finally { btn.disabled = false; imp.ocupado = false; }
+  }
+
+  // ---- Conceptos y matrices (US-826) ---------------------------------------------------------------------------------
+  const con = { q: '', lista: null, actual: null };
+  VISTAS.conceptos = async (el) => {
+    el.innerHTML = `<label class="block mb-3"><span class="sr-only">Buscar concepto</span><input id="bpConBuscar" type="search" class="inp w-full" placeholder="Buscar concepto por clave o descripción" value="${S(con.q)}" oninput="BancoPrecios.buscarConcepto(this.value)" autocomplete="off"></label><div id="bpConLista" aria-live="polite">${Skeleton.table(4, 4)}</div>`;
+    await listarConceptos();
+  };
+  let tCon = null;
+  function buscarConcepto(q) { con.q = String(q || ''); clearTimeout(tCon); tCon = setTimeout(listarConceptos, 300); }
+  async function listarConceptos() {
+    const el = $('bpConLista'); if (!el) return;
+    try {
+      let q = sb.from('conceptos_historicos').select('id,clave,descripcion,unidad,partida').order('id', { ascending: false }).limit(60);
+      const t = con.q.trim().replace(/[,()*%]/g, ' ').trim();
+      if (t) { const n = normalizarTexto(t).split(' ').filter(Boolean).join('%'); q = q.or(`clave.ilike.${t}*,descripcion_norm.ilike.*${n}*`); }
+      const { data, error } = await q; if (error) throw error;
+      const ids = (data || []).map((c) => c.id);
+      const { data: pus, error: e2 } = ids.length ? await sb.from('concepto_precios').select('concepto_id,pu,fecha,plaza,licitacion_id').in('concepto_id', ids).order('fecha', { ascending: false }) : { data: [] };
+      if (e2) throw e2;
+      const ult = {}; for (const p of pus || []) if (!ult[p.concepto_id]) ult[p.concepto_id] = p;
+      con.lista = data || [];
+      if (!con.lista.length) { el.innerHTML = EmptyState({ icon: 'ri-file-list-3-line', title: t ? 'Sin conceptos que coincidan' : 'Todavía no hay conceptos', body: 'Los conceptos con su PU y su matriz llegan al importar el JSON de un proyecto de OPUS.', action: { label: 'Importar de OPUS', icon: 'ri-upload-cloud-2-line', onClick: "BancoPrecios.irA('importar')" } }); return; }
+      el.innerHTML = `<div class="table-wrap g rounded-xl" tabindex="0" role="region" aria-label="Conceptos históricos"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Clave</th><th scope="col">Descripción</th><th scope="col">Unidad</th><th scope="col" class="text-right">Último PU</th><th scope="col">Fecha</th></tr></thead><tbody>${con.lista.map((c) => { const p = ult[c.id]; return `<tr class="cursor-pointer" onclick="BancoPrecios.abrirConcepto(${c.id})"><td data-et="Clave"><button type="button" class="link font-mono text-xs text-left" onclick="event.stopPropagation();BancoPrecios.abrirConcepto(${c.id})">${S(c.clave || 's/c')}</button></td><td data-et="Descripción">${S(String(c.descripcion).slice(0, 220))}${String(c.descripcion).length > 220 ? '…' : ''}</td><td data-et="Unidad">${S(c.unidad)}</td><td data-et="Último PU" class="text-right">${p ? F(p.pu) : '<span class="text-ink-muted">Sin PU</span>'}</td><td data-et="Fecha">${p ? S(fechaCorta(p.fecha)) : '—'}</td></tr>`; }).join('')}</tbody></table></div><p class="text-xs text-ink-muted mt-2">${con.lista.length === 60 ? 'Se muestran los primeros 60; afina la búsqueda.' : `${con.lista.length} concepto${con.lista.length === 1 ? '' : 's'}.`}</p>`;
+    } catch (e) { el.innerHTML = errorHtml(e); }
+  }
+  /** Lee insumos, precios y matrices auxiliares necesarios para recalcular las matrices de un concepto. */
+  async function datosMatriz(componentes, licId) {
+    const ids = new Set(componentes.map((c) => c.insumo_id));
+    const aux = {}; let pendientes = [...ids];
+    for (let nivel = 0; nivel < 4 && pendientes.length; nivel++) {
+      const { data: ins, error } = await sb.from('insumos').select('id,clave,descripcion,unidad,tipo,compuesto').in('id', pendientes);
+      if (error) throw error;
+      const comp = (ins || []).filter((i) => i.compuesto).map((i) => i.id);
+      pendientes = [];
+      if (comp.length) {
+        const { data: ic, error: e2 } = await sb.from('insumo_componentes').select('insumo_id,componente_id,cantidad,licitacion_id,orden').in('insumo_id', comp).order('orden');
+        if (e2) throw e2;
+        for (const id of comp) {
+          const todas = (ic || []).filter((x) => x.insumo_id === id);
+          const deLic = todas.filter((x) => x.licitacion_id === licId);
+          const lic = deLic.length ? licId : (todas[0] && todas[0].licitacion_id);
+          aux[id] = todas.filter((x) => x.licitacion_id === lic).map((x) => ({ insumo_id: x.componente_id, cantidad: Number(x.cantidad) }));
+          for (const x of aux[id]) if (!ids.has(x.insumo_id)) { ids.add(x.insumo_id); pendientes.push(x.insumo_id); }
+        }
+      }
+    }
+    const lista = [...ids];
+    const [ins, pre] = await Promise.all([
+      sb.from('insumos').select('id,clave,descripcion,unidad,tipo,compuesto').in('id', lista),
+      sb.from('insumo_precios').select('id,insumo_id,precio,fecha,plaza,fuente').in('insumo_id', lista).order('fecha', { ascending: false }).limit(5000),
+    ]);
+    if (ins.error) throw ins.error; if (pre.error) throw pre.error;
+    const info = Object.fromEntries((ins.data || []).map((i) => [i.id, i]));
+    const precios = {}; for (const p of pre.data || []) (precios[p.insumo_id] = precios[p.insumo_id] || []).push(p);
+    for (const k of Object.keys(aux)) aux[k] = aux[k].map((x) => ({ ...x, ...(info[x.insumo_id] ? { tipo: info[x.insumo_id].tipo, unidad: info[x.insumo_id].unidad, compuesto: info[x.insumo_id].compuesto } : {}) }));
+    return { info, precios, aux };
+  }
+  async function abrirConcepto(id, licElegida, plazaElegida) {
+    asegurarModales();
+    if (!$('bpDrawer').classList.contains('ac')) focoAntes = document.activeElement;
+    $('bpDrawer').classList.add('ac'); $('bpDrawer').setAttribute('aria-hidden', 'false'); $('bpDrawerBack').classList.add('ac');
+    $('bpDrawerCuerpo').innerHTML = Skeleton.table(5, 3);
+    try {
+      const [c, pus, mc] = await Promise.all([
+        sb.from('conceptos_historicos').select('id,clave,descripcion,unidad,partida').eq('id', id).single(),
+        sb.from('concepto_precios').select('id,licitacion_id,fecha,plaza,pu,costo_directo,cantidad,fuente').eq('concepto_id', id).order('fecha', { ascending: false }),
+        sb.from('matriz_componentes').select('insumo_id,cantidad,rendimiento,licitacion_id,orden').eq('concepto_id', id).order('orden'),
+      ]);
+      for (const r of [c, pus, mc]) if (r.error) throw r.error;
+      const licIds = [...new Set([...(pus.data || []).map((p) => p.licitacion_id), ...(mc.data || []).map((m) => m.licitacion_id)].filter(Boolean))];
+      const { data: licsRes } = licIds.length ? await sb.from('licitaciones').select('id,codigo,nombre').in('id', licIds) : { data: [] };
+      const licMap = Object.fromEntries((licsRes || []).map((l) => [l.id, l]));
+      const matrices = {}; for (const m of mc.data || []) (matrices[m.licitacion_id || 0] = matrices[m.licitacion_id || 0] || []).push(m);
+      const lics = Object.keys(matrices).map(Number);
+      const pu0 = (pus.data || []).find((p) => matrices[p.licitacion_id || 0]) || (pus.data || [])[0] || null;
+      const lic = licElegida !== undefined ? Number(licElegida) : (pu0 ? (pu0.licitacion_id || 0) : (lics[0] || 0));
+      const puLic = (pus.data || []).find((p) => (p.licitacion_id || 0) === lic) || pu0;
+      const plaza = plazaElegida || (puLic && puLic.plaza) || 'cuauhtemoc';
+      const comps = (matrices[lic] || []).map((m) => ({ insumo_id: m.insumo_id, cantidad: Number(m.cantidad) }));
+      let calc = null; let dm = null;
+      if (comps.length) {
+        dm = await datosMatriz(comps, lic || null);
+        const vig = {}; const meta = {};
+        for (const [iid, lista] of Object.entries(dm.precios)) { const v = precioVigente(lista, plaza); vig[iid] = v ? v.precio : null; meta[iid] = v; }
+        const enr = comps.map((x) => ({ ...x, ...(dm.info[x.insumo_id] || {}) }));
+        calc = recalcularMatriz(enr, vig, dm.aux);
+        calc.meta = meta;
+      }
+      con.actual = { concepto: c.data, pus: pus.data || [], licMap, lic, plaza };
+      pintarConcepto(c.data, pus.data || [], licMap, lics, lic, plaza, puLic, calc);
+    } catch (e) { $('bpDrawerCuerpo').innerHTML = errorHtml(e); }
+  }
+  function pintarConcepto(c, pus, licMap, lics, lic, plaza, puLic, calc) {
+    $('bpDrawerTitulo').textContent = c.clave || 'Concepto';
+    const hoy = hoyMx();
+    const kpi = (v, l) => `<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`;
+    const cd0 = puLic && puLic.costo_directo != null ? Number(puLic.costo_directo) : null;
+    const pu0 = puLic ? Number(puLic.pu) : null;
+    const cd1 = calc ? calc.total : null;
+    const pu1 = cd1 !== null && cd0 && pu0 ? Math.round(cd1 * (pu0 / cd0) * 100) / 100 : null;
+    const dif = cd1 !== null && cd0 ? Math.round((cd1 - cd0) / cd0 * 10000) / 100 : null;
+    const comp = calc ? composicionCD(calc.porTipo) : null;
+    const barra = (lbl, v, ref) => `<div class="mb-2"><div class="flex justify-between text-xs"><span>${lbl}</span><span>${num(v, 1)} %${ref !== undefined ? ` <span class="text-ink-muted">(referencia ~${ref} %)</span>` : ''}</span></div><div class="bp-barra" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, v))}%"></span></div></div>`;
+    const renglones = calc ? calc.renglones.map((r) => { const m = calc.meta[r.insumo_id]; const viejo = m && esViejo(m.fecha, hoy); return `<tr><td data-et="Insumo"><button type="button" class="link font-mono text-xs" onclick="BancoPrecios.abrirInsumo(${r.insumo_id})">${S(r.clave || '')}</button> ${S(r.descripcion || '')}${r.compuesto ? ' <span class="chip chip-ind">Compuesto</span>' : ''}</td><td data-et="Tipo">${S(TIPOS[r.tipo] || r.tipo || '')}</td><td data-et="Cantidad" class="text-right">${num(r.cantidad, 4)} ${S(r.unidad || '')}</td><td data-et="Precio vigente" class="text-right${viejo ? ' bp-viejo' : ''}">${r.pctMo ? `${num(r.cantidad * 100, 2)} % de MO` : (r.precio === null ? '<span class="text-danger">Sin precio</span>' : F(r.precio))}${m && m.de_otra_plaza ? ` <span class="chip chip-ind">${S(PLAZAS[m.plaza] || m.plaza)}</span>` : ''}${viejo ? ' <i class="ri-time-line" aria-label="Precio con más de 180 días"></i>' : ''}</td><td data-et="Importe" class="text-right">${F(r.importe)}</td></tr>`; }).join('') : '';
+    $('bpDrawerCuerpo').innerHTML = `<p class="text-sm">${S(c.descripcion)}</p><p class="text-xs text-ink-muted mt-1">${S(c.unidad)}${c.partida ? ' · ' + S(c.partida) : ''}</p>
+<div class="grid grid-cols-2 gap-2 mt-3"><label><span class="text-xs mb-1 block">Matriz de</span><select class="inp w-full" onchange="BancoPrecios.abrirConcepto(${c.id}, this.value, '${plaza}')">${lics.length ? lics.map((l) => `<option value="${l}"${l === lic ? ' selected' : ''}>${S(licMap[l] ? licMap[l].codigo : 'Sin licitación')}</option>`).join('') : '<option>Sin matriz</option>'}</select></label>
+<label><span class="text-xs mb-1 block">Precios vigentes de</span><select class="inp w-full" onchange="BancoPrecios.abrirConcepto(${c.id}, ${lic}, this.value)">${plazaOpts(plaza)}</select></label></div>
+<div class="kpi-strip mt-3">${kpi(pu0 !== null ? F(pu0) : '—', puLic ? `PU original · ${S(fechaCorta(puLic.fecha))}` : 'PU original')}${kpi(cd0 !== null ? F(cd0) : '—', 'Costo directo original')}${kpi(cd1 !== null ? F(cd1) : '—', 'Costo directo a precios vigentes')}${kpi(pu1 !== null ? F(pu1) : '—', 'PU con los mismos sobrecostos')}${kpi(dif !== null ? pct(dif) : '—', 'Diferencia del costo directo')}</div>
+${calc && calc.sinPrecio ? `<p class="text-xs text-danger mb-2">${calc.sinPrecio} insumo${calc.sinPrecio === 1 ? '' : 's'} sin precio: el costo recalculado sale bajo.</p>` : ''}
+${comp ? `<div class="g rounded-xl p-3 mt-2"><p class="font-bold text-sm mb-2">Composición del costo directo</p>${barra('Materiales', comp.material, COMPOSICION_REFERENCIA.material)}${barra('Mano de obra', comp.mano_obra, COMPOSICION_REFERENCIA.mano_obra)}${barra('Equipo y herramienta', comp.equipo_herramienta, COMPOSICION_REFERENCIA.equipo_herramienta)}${comp.otros ? barra('Auxiliares y fletes', comp.otros) : ''}<p class="text-xs text-ink-muted">Referencia de la skill para una obra de acabados e instalaciones.</p></div>` : ''}
+<h3 class="font-bold mt-4 mb-2">Matriz${calc ? ` <span class="text-ink-muted font-normal">(${calc.renglones.length} componentes)</span>` : ''}</h3>
+${calc ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Matriz del concepto a precios vigentes"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Insumo</th><th scope="col">Tipo</th><th scope="col" class="text-right">Cantidad</th><th scope="col" class="text-right">Precio vigente</th><th scope="col" class="text-right">Importe</th></tr></thead><tbody>${renglones}</tbody></table></div>` : '<p class="text-sm text-ink-muted">Este concepto no tiene matriz (catálogo sin análisis de precio unitario).</p>'}
+<h3 class="font-bold mt-4 mb-2">Precios unitarios históricos</h3>
+${pus.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="Precios unitarios del concepto"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Fecha</th><th scope="col">Licitación</th><th scope="col">Plaza</th><th scope="col" class="text-right">PU</th></tr></thead><tbody>${pus.map((p) => `<tr><td data-et="Fecha">${S(fechaCorta(p.fecha))}</td><td data-et="Licitación">${S(licMap[p.licitacion_id] ? licMap[p.licitacion_id].codigo : '—')}</td><td data-et="Plaza">${S(PLAZAS[p.plaza] || p.plaza)}</td><td data-et="PU" class="text-right">${F(p.pu)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-sm text-ink-muted">Sin PU registrado.</p>'}`;
+  }
+
   return {
+    leerArchivo, cambiarLic, decidir, decidirTodos, cancelarImportacion, importar, buscarConcepto, abrirConcepto,
+    trigramas, similitud, conciliarInsumos, mapaImportacion, leerOpusInsumos, validarOpusInsumos, fechaPropuesta, plazaSugerida,
+    excelAOpusInsumos, recalcularMatriz, composicionCD, COMPOSICION_REFERENCIA,
     render, cargar, recargar, irA, nuevoInsumo, editarInsumo, guardarInsumo, buscar, filtrarPlaza, filtrarTipo,
     abrirInsumo, cerrarInsumo, mostrarCaptura, ocultarCaptura, guardarPrecio,
     abrirFusion, buscarDestino, elegirDestino, confirmarFusion,
