@@ -135,3 +135,25 @@ test('US-816: requisitos de un sobre en su orden, mover arriba/abajo y categorí
   const est = readFileSync(new URL('../../migrations/092_licitaciones_rpc.sql', import.meta.url), 'utf8').match(/p_estado NOT IN \(([^)]*)\)/)[1];
   assert.deepEqual([...est.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort(), Object.keys(L.ESTADOS_REQUISITO).sort(), 'los 7 estados de LicitaGen');
 });
+
+test('US-817: semillas de fábrica (ICHIFE 45, Municipio de Cuauhtémoc 55) válidas y faltantes de un perfil', () => {
+  const sql = readFileSync(new URL('../../migrations/093_perfiles_convocante.sql', import.meta.url), 'utf8');
+  const listas = [...sql.matchAll(/\$r\d\$([\s\S]*?)\$r\d\$/g)].map((m) => JSON.parse(m[1]));
+  assert.equal(listas.length, 2);
+  const [ichife, cuau] = listas;
+  assert.equal(ichife.length, 45);
+  assert.equal(cuau.length, 55);
+  const cuenta = (l) => l.reduce((o, x) => { o[x.sobre] = (o[x.sobre] || 0) + 1; return o; }, {});
+  assert.deepEqual(cuenta(ichife), { legal: 13, tecnico: 15, economico: 17 });
+  for (const l of listas) {
+    assert.equal(new Set(l.map((x) => x.anexo_id.toLowerCase())).size, l.length, 'sin anexos repetidos');
+    for (const x of l) {
+      assert.ok(L.SOBRES[x.sobre], x.anexo_id); assert.ok(L.ORIGENES[x.origen], x.anexo_id);
+      if (x.categoria_expediente) assert.ok(L.CATEGORIAS_EXPEDIENTE[x.categoria_expediente], x.anexo_id);
+      assert.equal(x.origen === 'expediente', !!x.categoria_expediente, `${x.anexo_id}: categoría sólo en los del expediente`);
+    }
+  }
+  assert.match(sql, /empresa_id, nombre[\s\S]*VALUES\s*\(NULL, 'ICHIFE \(Chihuahua\)'[\s\S]*\(NULL, 'Municipio de Cuauhtémoc'/, 'perfiles de fábrica con empresa_id NULL');
+  const falt = L.faltantesDelPerfil({ requisitos_json: [{ anexo_id: 'L-1' }, { anexo_id: 'l-2 ' }, { anexo_id: 'T-1' }] }, [{ anexo_id: 'L-2' }, { anexo_id: 'x' }]);
+  assert.deepEqual(falt.map((x) => x.anexo_id), ['L-1', 'T-1']);
+});

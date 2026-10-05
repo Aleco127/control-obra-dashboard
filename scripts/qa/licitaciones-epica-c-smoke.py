@@ -289,7 +289,57 @@ def paso_816(page, tag, ancho):
     page.evaluate("()=>Licitaciones.tabFicha('resumen')")
     check('0 de 3' in page.inner_text('#lcPanel'), f'{tag} 816: barra de avance por sobre en el resumen')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816}
+def paso_817(page, tag, ancho):
+    perfil = sql(page, "const {data}=await sb.from('perfiles_convocante').select('id,empresa_id,es_fabrica,requisitos_json').eq('nombre','Municipio de Cuauhtémoc').single();return data;")
+    check(perfil and perfil['empresa_id'] is None and perfil['es_fabrica'] and len(perfil['requisitos_json']) == 55, f'{tag} 817: perfil de fábrica Municipio de Cuauhtémoc (55, empresa NULL)')
+    ich = sql(page, "const {data}=await sb.from('perfiles_convocante').select('requisitos_json,naming_pattern').eq('nombre','ICHIFE (Chihuahua)').single();return data;")
+    check(ich and len(ich['requisitos_json']) == 45 and ich['naming_pattern'] == '{NN}_Anexo_{XX}.pdf', f'{tag} 817: perfil de fábrica ICHIFE (45, naming de licitagen)')
+    cod = f'QA-C-{ancho}-3'
+    lid = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'{cod}',nombre:'Con perfil',convocante:'Municipio de Cuauhtémoc',perfil_id:{perfil['id']}}}}});return r.data.id;")
+    sql(page, f"await sb.rpc('guardar_requisito',{{p_datos:{{licitacion_id:{lid},anexo_id:'7.1',sobre:'tecnico',descripcion:'Recibo de bases (editado a mano)'}}}});")
+    abrir_ficha(page, lid, 'requisitos')
+    page.locator('#lcPanel button:has-text("Generar requisitos del perfil")').click()
+    page.wait_for_selector('#lcFormGen')
+    check('54 se agregarían' in page.inner_text('#lcGenRes'), f'{tag} 817: el modal anticipa cuántos faltan')
+    page.click('#lcFormGen button[type=submit]')
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.length===55", timeout=20000)
+    d71 = page.evaluate("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='7.1').descripcion")
+    check(d71 == 'Recibo de bases (editado a mano)', f'{tag} 817: no pisa lo ya editado')
+    r2 = sql(page, f"const r=await sb.rpc('generar_requisitos_perfil',{{p_licitacion_id:{lid}}});return r.data;")
+    check(r2['insertados'] == 0 and r2['ya_estaban'] == 55, f'{tag} 817: idempotente ({r2})')
+    orden_tec = sql(page, f"const {{data}}=await sb.from('licitacion_requisitos').select('anexo_id,orden').eq('licitacion_id',{lid}).eq('sobre','tecnico').order('orden').limit(3);return data.map(x=>x.anexo_id);")
+    check(orden_tec[0] == '7.1' and orden_tec[1] == '7.2', f'{tag} 817: el orden del perfil continúa después de lo capturado {orden_tec}')
+    snap(page, f'817_generados_{ancho}.png')
+    # guardar como perfil
+    page.locator('#lcPanel button:has-text("Guardar como perfil")').click()
+    page.wait_for_selector('#lcFormGp'); page.fill('#lcGpNombre', f'QA-C-perfil-{ancho}')
+    page.click('#lcFormGp button[type=submit]')
+    page.wait_for_timeout(1500)
+    pf = sql(page, f"const {{data}}=await sb.from('perfiles_convocante').select('id,empresa_id,requisitos_json,naming_pattern').eq('nombre','QA-C-perfil-{ancho}').maybeSingle();return data;")
+    check(pf and pf['empresa_id'] and len(pf['requisitos_json']) == 55 and pf['naming_pattern'] == '{NN}_{anexo}_{descripcion}.pdf', f'{tag} 817: «Guardar como perfil» crea el perfil de la empresa con su lista')
+    # editor en Configuración (nivel 100)
+    page.evaluate("()=>irAModulo('z')")
+    page.wait_for_function("()=>document.querySelector('#cfgPerfilesLic #cfgPerfLista')&&!document.querySelector('#cfgPerfLista').hasAttribute('aria-busy')", timeout=20000)
+    txt = page.inner_text('#cfgPerfilesLic')
+    check('ICHIFE (Chihuahua)' in txt and 'De fábrica' in txt and f'QA-C-perfil-{ancho}' in txt, f'{tag} 817: editor de perfiles en Configuración')
+    page.locator(f'#cfgPerfilesLic li:has-text("QA-C-perfil-{ancho}") button:has-text("Editar")').click()
+    page.wait_for_selector('#lcFormPf')
+    page.click('#lcFormPf button:has-text("Agregar renglón")')
+    page.locator('#lcPfFilas tr:last-child [data-k=anexo_id]').fill('QA-99')
+    page.locator('#lcPfFilas tr:last-child [data-k=descripcion]').fill('Renglón de prueba')
+    page.click('#lcFormPf button[type=submit]')
+    page.wait_for_timeout(1500)
+    n = sql(page, f"const {{data}}=await sb.from('perfiles_convocante').select('requisitos_json').eq('nombre','QA-C-perfil-{ancho}').single();return data.requisitos_json.length;")
+    check(n == 56, f'{tag} 817: el editor guarda la lista ({n})')
+    page.locator('#cfgPerfilesLic li:has-text("ICHIFE") button:has-text("Ver")').click()
+    page.wait_for_selector('#lcFormPf')
+    check(page.locator('#lcPfNombre').is_disabled(), f'{tag} 817: el perfil de fábrica es de sólo lectura')
+    axe(page, '#mdlLic', f'{tag} 817 editor')
+    page.evaluate("()=>Licitaciones.cerrarModal()")
+    ro = sql(page, f"const r=await sb.from('perfiles_convocante').update({{nombre:'x'}}).eq('id',{perfil['id']}).select();return (r.data||[]).length;")
+    check(ro == 0, f'{tag} 817: la RLS no deja editar un perfil de fábrica')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817}
 
 def main():
     with sync_playwright() as pw:

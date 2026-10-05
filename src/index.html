@@ -8973,6 +8973,9 @@ function Cf(c){
 const nivel=currentUser?.nivel||0;
 if(typeof Suscripcion!=='undefined')setTimeout(()=>Suscripcion.facturas(),50);
 if(nivel>=100)setTimeout(()=>cfgBarraRender(),60);
+// Licitaciones (US-817): editor de perfiles de convocante, sólo nivel 100 y si la empresa ve el módulo lc
+const cfgPerfilesLic=nivel>=100&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc')&&(typeof Suscripcion==='undefined'||!Suscripcion.get()||Suscripcion.moduloPermitido('lc'));
+if(cfgPerfilesLic)setTimeout(()=>conModuloArchivo('lc').then(m=>{const el=$('cfgPerfilesLic');if(m&&el)m.perfilesConfig(el);}),70);
 const canEdit=nivel>=80; // Solo admin puede editar
 
 c.innerHTML=`
@@ -9003,6 +9006,7 @@ ${currentUser&&currentUser.nivel>=100?`<div class="mt-4 pt-4 border-t" style="bo
 ${currentUser&&currentUser.nivel>=100?datosPagoHtml():''}
 ${currentUser&&currentUser.nivel>=100&&typeof Contabilidad!=='undefined'?Contabilidad.configHtml():''}
 ${currentUser&&currentUser.nivel>=80?waAvisosHtml():''}
+${cfgPerfilesLic?'<div id="cfgPerfilesLic" class="g rounded-xl p-4"></div>':''}
 <!-- Categorias de Gastos -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">

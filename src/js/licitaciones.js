@@ -882,6 +882,135 @@ ${campo('lcEstNota', 'Nota (opcional)', '<textarea id="lcEstNota" class="inp" ro
       const b2 = document.querySelector(`#lcReq-${id} .lc-estado`); if (b2) b2.focus();
     } catch (e) { Toast.error(errTxt(e, 'No se cambió el estado')); }
   }
+  // Perfiles de convocante (US-817) ------------------------------------------------------------------------------------------
+  accionesRequisitos.extra.push(() => `<button type="button" class="btn btn-s" onclick="Licitaciones.generarDelPerfil()"><i class="ri-magic-line" aria-hidden="true"></i> Generar requisitos del perfil</button>`);
+  accionesRequisitos.extra.push((ctx) => (ctx.reqs.length ? `<button type="button" class="btn btn-s" onclick="Licitaciones.guardarComoPerfil()"><i class="ri-bookmark-line" aria-hidden="true"></i> Guardar como perfil</button>` : ''));
+  /** Cuántos requisitos de un perfil faltan en la licitación (comparación sin mayúsculas, como el RPC). */
+  function faltantesDelPerfil(perfil, reqs) {
+    const ya = new Set((reqs || []).map((r) => String(r.anexo_id).trim().toLowerCase()));
+    return ((perfil && perfil.requisitos_json) || []).filter((x) => !ya.has(String(x.anexo_id).trim().toLowerCase()));
+  }
+  async function generarDelPerfil() {
+    let ps = [];
+    try { ps = (await cargarPerfiles()).filter((p) => p.activo || p.id === F.lic.perfil_id); } catch (e) { Toast.error(errTxt(e, 'No se pudieron leer los perfiles')); return; }
+    if (!ps.length) { Toast.warning('No hay perfiles de convocante. Un administrador puede crearlos en Configuración.'); return; }
+    const sel = F.lic.perfil_id || ps[0].id;
+    const resumenDe = (id) => { const p = ps.find((x) => x.id === +id); if (!p) return ''; const f = faltantesDelPerfil(p, F.reqs).length; return `${(p.requisitos_json || []).length} requisitos en el perfil; ${f} se agregarían y ${(p.requisitos_json || []).length - f} ya están en esta licitación.`; };
+    modal('Generar requisitos del perfil', `<form id="lcFormGen" onsubmit="event.preventDefault();Licitaciones.confirmarGenerar()" class="space-y-3">
+${campo('lcGenPerfil', 'Perfil de convocante', `<select id="lcGenPerfil" class="inp" onchange="document.getElementById('lcGenRes').textContent=Licitaciones._resumenPerfil(this.value)">${ps.map((p) => `<option value="${+p.id}" ${p.id === sel ? 'selected' : ''}>${S(p.nombre)}${p.es_fabrica ? ' (de fábrica)' : ''}</option>`).join('')}</select>`)}
+<p id="lcGenRes" class="text-sm" role="status">${S(resumenDe(sel))}</p>
+<p class="text-xs text-ink-muted">Sólo se agregan los anexos que faltan: lo que ya capturaste o editaste no se toca. Puedes repetirlo sin duplicar nada.</p>
+<div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-magic-line" aria-hidden="true"></i> Generar requisitos</button></div></form>`);
+    generarDelPerfil._resumen = resumenDe;
+  }
+  async function confirmarGenerar() {
+    const pid = +val('lcGenPerfil');
+    try {
+      const r = await rpc('generar_requisitos_perfil', { p_licitacion_id: F.lic.id, p_perfil_id: pid });
+      cerrarModal();
+      F = await cargarFicha(F.lic.id); actualizarEnLista(F.lic);
+      Toast.success(r.insertados ? `Se agregaron ${r.insertados} requisito${r.insertados === 1 ? '' : 's'}${r.ya_estaban ? `; ${r.ya_estaban} ya estaban` : ''}` : 'No faltaba ningún requisito del perfil');
+      repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se generaron los requisitos')); }
+  }
+  function guardarComoPerfil() {
+    modal('Guardar como perfil', `<form id="lcFormGp" onsubmit="event.preventDefault();Licitaciones.confirmarGuardarPerfil()" class="space-y-3">
+<p class="text-sm text-ink-muted">Guarda los ${F.reqs.length} requisitos de esta licitación (anexo, sobre, descripción, origen, firma y categoría) para usarlos en el próximo concurso de esta convocante.</p>
+${campo('lcGpNombre', 'Nombre del perfil *', `<input id="lcGpNombre" class="inp" required maxlength="120" value="${S(F.lic.convocante || '')}">`)}
+${campo('lcGpDesc', 'Descripción', `<textarea id="lcGpDesc" class="inp" rows="2" maxlength="500">${S(`Tomado de ${F.lic.codigo}`)}</textarea>`)}
+<label class="flex items-center gap-2 text-sm" style="min-height:var(--tap)"><input id="lcGpReemp" type="checkbox"> Si ya existe un perfil con ese nombre, reemplazar su lista</label>
+<div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-bookmark-line" aria-hidden="true"></i> Guardar perfil</button></div></form>`);
+  }
+  async function confirmarGuardarPerfil() {
+    const f = document.getElementById('lcFormGp'); if (f && !f.reportValidity()) return;
+    try {
+      const r = await rpc('guardar_perfil_desde_licitacion', { p_licitacion_id: F.lic.id, p_nombre: val('lcGpNombre'), p_descripcion: val('lcGpDesc') || null, p_reemplazar: !!document.getElementById('lcGpReemp').checked });
+      perfiles = null; cerrarModal();
+      Toast.success(`${r.reemplazado ? 'Perfil actualizado' : 'Perfil guardado'} con ${r.requisitos} requisitos`);
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó el perfil')); }
+  }
+
+  // Editor de perfiles en Configuración (nivel 100) ----------------------------------------------------------------------
+  let cfgEl = null;
+  async function perfilesConfig(el) {
+    if (!el) return; cfgEl = el;
+    el.innerHTML = `<h3 class="font-bold text-sm mb-1"><i class="ri-government-line n" aria-hidden="true"></i> Perfiles de convocante</h3><p class="text-xs text-ink-subtle mb-3">La lista típica de anexos por sobre de cada dependencia; cada licitación la copia y la ajusta.</p><div id="cfgPerfLista" aria-busy="true">${Skeleton.table(2, 3)}</div>`;
+    try {
+      const ps = await cargarPerfiles(true);
+      const l = document.getElementById('cfgPerfLista'); if (!l) return;
+      l.removeAttribute('aria-busy');
+      l.innerHTML = `<ul class="divide-y" style="border-color:var(--line)">${ps.map((p) => `<li class="py-2 flex flex-wrap items-center justify-between gap-2"><div class="min-w-0"><p class="font-medium text-sm">${S(p.nombre)} ${p.es_fabrica ? '<span class="chip chip-ind">De fábrica</span>' : ''}${p.activo ? '' : ' <span class="chip chip-ind">Inactivo</span>'}</p><p class="text-xs text-ink-muted">${(p.requisitos_json || []).length} requisitos${p.naming_pattern ? ' · nombres: ' + S(p.naming_pattern) : ''}</p></div>
+<div class="flex gap-1">${p.es_fabrica
+        ? `<button type="button" class="btn btn-s text-xs" onclick="Licitaciones.editarPerfil(${+p.id})"><i class="ri-eye-line" aria-hidden="true"></i> Ver</button><button type="button" class="btn btn-s text-xs" onclick="Licitaciones.duplicarPerfil(${+p.id})"><i class="ri-file-copy-line" aria-hidden="true"></i> Duplicar</button>`
+        : `<button type="button" class="btn btn-s text-xs" onclick="Licitaciones.editarPerfil(${+p.id})"><i class="ri-edit-line" aria-hidden="true"></i> Editar</button><button type="button" class="btn-icon" onclick="Licitaciones.borrarPerfil(${+p.id})" aria-label="Borrar perfil ${S(p.nombre)}"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>`}</div></li>`).join('')}</ul>
+<button type="button" class="btn btn-s text-xs mt-2" onclick="Licitaciones.editarPerfil()"><i class="ri-add-line" aria-hidden="true"></i> Nuevo perfil</button>`;
+    } catch (e) { const l = document.getElementById('cfgPerfLista'); if (l) l.innerHTML = `<p class="text-sm text-danger">${S(errTxt(e, 'No se pudieron leer los perfiles'))}</p>`; }
+  }
+  function filaPerfil(x, i, lectura) {
+    const dis = lectura ? 'disabled' : '';
+    return `<tr data-fila="${i}"><td data-et="Anexo"><input class="inp font-mono" data-k="anexo_id" value="${S(x.anexo_id || '')}" aria-label="Anexo" ${dis}></td>
+<td data-et="Sobre"><select class="inp" data-k="sobre" aria-label="Sobre" ${dis}>${opciones(SOBRES, x.sobre || 'legal')}</select></td>
+<td data-et="Descripción"><input class="inp" data-k="descripcion" value="${S(x.descripcion || '')}" aria-label="Descripción" ${dis}></td>
+<td data-et="Origen"><select class="inp" data-k="origen" aria-label="Origen" ${dis}>${opciones(ORIGENES, x.origen || 'se_genera')}</select></td>
+<td data-et="Categoría"><select class="inp" data-k="categoria_expediente" aria-label="Categoría del expediente" ${dis}>${opciones(CATEGORIAS_EXPEDIENTE, x.categoria_expediente || '', 'Ninguna')}</select></td>
+<td data-et="Firma"><input type="checkbox" data-k="requiere_firma" aria-label="Requiere firma" ${x.requiere_firma ? 'checked' : ''} ${dis}></td>
+<td data-et="">${lectura ? '' : `<button type="button" class="btn-icon" onclick="this.closest('tr').remove()" aria-label="Quitar renglón"><i class="ri-close-line" aria-hidden="true"></i></button>`}</td></tr>`;
+  }
+  async function editarPerfil(id) {
+    const ps = await cargarPerfiles();
+    const p = id ? ps.find((x) => x.id === id) : { nombre: '', requisitos_json: [], activo: true };
+    if (!p) return;
+    const lectura = !!p.es_fabrica;
+    modal(lectura ? `Perfil de fábrica: ${p.nombre}` : id ? `Editar perfil ${p.nombre}` : 'Nuevo perfil de convocante', `<form id="lcFormPf" onsubmit="event.preventDefault();Licitaciones.guardarPerfil(${id ? +id : 'null'})" class="space-y-3">
+<div class="grid sm:grid-cols-2 gap-3">
+${campo('lcPfNombre', 'Nombre *', `<input id="lcPfNombre" class="inp" required maxlength="120" value="${S(p.nombre || '')}" ${lectura ? 'disabled' : ''}>`)}
+${campo('lcPfPat', 'Nombre de los archivos del paquete', `<input id="lcPfPat" class="inp font-mono" maxlength="120" value="${S(p.naming_pattern || '')}" placeholder="{NN}_{anexo}_{descripcion}.pdf" ${lectura ? 'disabled' : ''}><p class="field-hint">{NN} posición en el sobre · {anexo} · {XX} anexo sin signos · {sobre} · {descripcion}</p>`)}
+${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2" ${lectura ? 'disabled' : ''}>${S(p.descripcion || '')}</textarea>`, 'sm:col-span-2')}
+</div>${lectura ? '' : `<label class="flex items-center gap-2 text-sm" style="min-height:var(--tap)"><input id="lcPfActivo" type="checkbox" ${p.activo !== false ? 'checked' : ''}> Activo (se ofrece al dar de alta una licitación)</label>`}
+<div class="table-wrap g rounded-xl" style="max-height:50vh;overflow:auto" tabindex="0" role="region" aria-label="Requisitos del perfil"><table class="table-modern lc-tbl w-full text-sm"><caption class="sr-only">Requisitos del perfil</caption><thead><tr><th scope="col">Anexo</th><th scope="col">Sobre</th><th scope="col">Descripción</th><th scope="col">Origen</th><th scope="col">Categoría</th><th scope="col">Firma</th><th scope="col"><span class="sr-only">Quitar</span></th></tr></thead>
+<tbody id="lcPfFilas">${(p.requisitos_json || []).map((x, i) => filaPerfil(x, i, lectura)).join('')}</tbody></table></div>
+<div class="flex flex-wrap justify-between gap-2 pt-2">${lectura ? `<button type="button" class="btn btn-s" onclick="Licitaciones.duplicarPerfil(${+p.id})"><i class="ri-file-copy-line" aria-hidden="true"></i> Duplicar para editar</button>` : `<button type="button" class="btn btn-s" onclick="Licitaciones.agregarFilaPerfil()"><i class="ri-add-line" aria-hidden="true"></i> Agregar renglón</button>`}
+<div class="flex gap-2"><button type="button" class="btn btn-s" onclick="Licitaciones.cerrarModal()">${lectura ? 'Cerrar' : 'Cancelar'}</button>${lectura ? '' : '<button type="submit" class="btn btn-p"><i class="ri-save-line" aria-hidden="true"></i> Guardar perfil</button>'}</div></div></form>`, 'max-w-5xl');
+  }
+  function agregarFilaPerfil() {
+    const tb = document.getElementById('lcPfFilas'); if (!tb) return;
+    tb.insertAdjacentHTML('beforeend', filaPerfil({ sobre: 'legal', origen: 'se_genera' }, tb.children.length, false));
+    const ult = tb.lastElementChild && tb.lastElementChild.querySelector('input'); if (ult) ult.focus();
+  }
+  /** Lee los renglones del editor de perfiles (los vacíos se ignoran). */
+  function leerFilasPerfil() {
+    return [...document.querySelectorAll('#lcPfFilas tr')].map((tr) => {
+      const o = {};
+      tr.querySelectorAll('[data-k]').forEach((x) => { o[x.dataset.k] = x.type === 'checkbox' ? x.checked : String(x.value || '').trim(); });
+      if (!o.categoria_expediente) o.categoria_expediente = null;
+      return o;
+    }).filter((o) => o.anexo_id);
+  }
+  async function guardarPerfil(id) {
+    const f = document.getElementById('lcFormPf'); if (f && !f.reportValidity()) return;
+    const datos = { nombre: val('lcPfNombre'), descripcion: val('lcPfDesc'), naming_pattern: val('lcPfPat'), activo: !!(document.getElementById('lcPfActivo') || {}).checked, requisitos_json: leerFilasPerfil() };
+    if (id) datos.id = id;
+    try {
+      await rpc('guardar_perfil_convocante', { p_datos: datos });
+      perfiles = null; cerrarModal(); Toast.success('Perfil guardado'); perfilesConfig(cfgEl);
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó el perfil')); }
+  }
+  async function duplicarPerfil(id) {
+    const p = (await cargarPerfiles()).find((x) => x.id === id); if (!p) return;
+    try {
+      const r = await rpc('guardar_perfil_convocante', { p_datos: { nombre: `${p.nombre} (copia)`, descripcion: p.descripcion, naming_pattern: p.naming_pattern, sobres_json: p.sobres_json || [], requisitos_json: p.requisitos_json || [], activo: true } });
+      perfiles = null; Toast.success('Perfil duplicado: ya puedes editarlo');
+      await perfilesConfig(cfgEl); editarPerfil(r.id);
+    } catch (e) { Toast.error(errTxt(e, 'No se duplicó el perfil')); }
+  }
+  async function borrarPerfil(id) {
+    const p = (await cargarPerfiles()).find((x) => x.id === id); if (!p) return;
+    const okc = await Dialog.confirm({ title: 'Borrar perfil', body: `Se borrará el perfil «${p.nombre}». Las licitaciones que lo usaban conservan sus requisitos.`, confirmText: 'Borrar perfil', tone: 'danger' });
+    if (!okc) return;
+    try { await rpc('borrar_perfil_convocante', { p_id: id }); perfiles = null; Toast.success('Perfil borrado'); perfilesConfig(cfgEl); }
+    catch (e) { Toast.error(errTxt(e, 'No se borró el perfil')); }
+  }
+
   let reqAdjuntando = null;
   function adjuntarRequisito(id) { reqAdjuntando = id; const i = document.getElementById('lcReqFile'); if (i) { i.value = ''; i.click(); } }
   async function subirArchivoRequisito(file, id) {
@@ -924,12 +1053,14 @@ ${campo('lcEstNota', 'Nota (opcional)', '<textarea id="lcEstNota" class="inp" ro
     subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
     verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
     adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
+    generarDelPerfil, confirmarGenerar, guardarComoPerfil, confirmarGuardarPerfil, _resumenPerfil: (id) => (generarDelPerfil._resumen ? generarDelPerfil._resumen(id) : ''),
+    perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
-    delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE,
+    delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };
