@@ -2607,6 +2607,7 @@ updateNotifBadge();
 navAplicarPrefs();   // US-608/US-611: fijados sembrados la primera vez y barra colapsada según la preferencia
 // US-610: el badge de «Cierre mensual» necesita D.cierres; se pide en segundo plano para no retrasar el pintado
 if((currentUser?.nivel||0)>=45&&typeof Cierres!=='undefined')Cierres.cargar().then(()=>{if($('nv')){N.dirty=true;N();}}).catch(()=>{});
+expAvisosCargar();   // US-809: contador de «Expediente» y tarjeta de Inicio (nivel >= 80)
 R();
 // Guardar en caché para próxima carga
 Cache.saveAppData(D, empId||'global');
@@ -2628,6 +2629,7 @@ return;
 }
 let hasChanges=false;
 if(typeof NavPrefs!=='undefined'){const cambio=NavPrefs.setServidor(mainData.nav_prefs);navAplicarPrefs();if(cambio&&$('nv')){N.dirty=true;N();}}
+expAvisosCargar();   // US-809: al arrancar desde caché no se pasa por el final de L()
 if(mainData.obras&&mainData.obras.length!==D.o.length){D.o=mainData.obras;hasChanges=true;}
 if(mainData.gastos&&mainData.gastos.length!==D.g.length){D.g=mainData.gastos;hasChanges=true;}
 if(mainData.ordenes_compra&&mainData.ordenes_compra.length!==D.oc.length){D.oc=mainData.ordenes_compra;hasChanges=true;}
@@ -3167,7 +3169,36 @@ const p=m.getFullYear()+'-'+String(m.getMonth()+1).padStart(2,'0');
 if(conMov.has(p)&&!cerrados.has(p))ci++;
 }
 }
-return{g:g,pc:pc,w:w,ci:ci};
+// ex (US-809): documentos del expediente y pólizas de maquinaria vencidos + por vencer (≤ 30 días). Lo trae expAvisosCargar().
+const ex=(nivel>=80&&EXP_AVISOS)?(EXP_AVISOS.vencidos||0)+(EXP_AVISOS.por_vencer||0):0;
+return{g:g,pc:pc,w:w,ci:ci,ex:ex};
+}
+// ---- Avisos del expediente de la empresa (US-809) ----
+// get_expediente_avisos (migración 089) cuenta en el servidor, con la fecha civil de México, los documentos no reemplazados y
+// las pólizas de maquinaria que vencen en ≤ 30 días o ya vencieron (ceros a nivel < 80). Se pide al arrancar y cuando
+// Expediente guarda algo; repinta el contador de la barra y la tarjeta de Inicio.
+var EXP_AVISOS=null;   // var: navBadges() puede correr antes de que se evalúe esta línea
+async function expAvisosCargar(){
+if((currentUser?.nivel||0)<80){EXP_AVISOS=null;return null;}
+try{
+const{data,error}=await sb.rpc('get_expediente_avisos');
+if(error)throw error;
+EXP_AVISOS=data||null;
+}catch(e){return EXP_AVISOS;}
+if($('nv')){N.dirty=true;N();}
+updateMobileBottomNav();
+const t=$('dsExpAvisos');if(t)t.outerHTML=expAvisoInicioHtml();
+return EXP_AVISOS;
+}
+// Tarjeta de Inicio para admin y gerente: sólo cuando hay vencidos (los por vencer los avisa la campana y el contador).
+function expAvisoInicioHtml(){
+const a=EXP_AVISOS;
+if((currentUser?.nivel||0)<80||!a||!a.vencidos)return'<div id="dsExpAvisos" hidden></div>';
+const venc=(a.items||[]).filter(x=>x.dias<0);
+const lista=venc.slice(0,3).map(x=>`<li class="flex items-center gap-2 py-1.5"><span class="text-xs text-danger w-20 shrink-0">${fechaCortaDs(x.fecha_vencimiento)}</span><span class="flex-1 min-w-0 truncate">${S(x.nombre)}${x.tipo==='poliza'?' · póliza de maquinaria':''}</span></li>`).join('');
+const mas=venc.length>3?`<p class="text-xs text-ink-muted">y ${venc.length-3} más</p>`:'';
+const porVencer=a.por_vencer?`<p class="text-xs text-ink-muted mt-1">Además ${a.por_vencer} vence${a.por_vencer===1?'':'n'} en los próximos 30 días.</p>`:'';
+return`<div id="dsExpAvisos" class="mb-4">${dsBlock('dsExpT','Expediente: '+venc.length+' documento'+(venc.length===1?' vencido':'s vencidos'),'ri-briefcase-4-line',`<p class="text-ink-muted mb-1">Renuévalos antes de armar el sobre legal del siguiente concurso.</p><ul class="divide-y divide-slate-100">${lista}</ul>${mas}${porVencer}`,{label:'Renovar en Expediente',onClick:"M='ex';R()"})}</div>`;
 }
 // Candado por plan (no por rol: eso lo decide NavRules). El clic sigue abriendo el EmptyState de plan de R().
 function navCandado(k){
@@ -3446,7 +3477,7 @@ const gasMes=Finanzas.calcularFlujo({desde:m0,hasta:m1,obraIds:ids}).pagado;
 const maxFlujo=Math.max(cobMes,gasMes,1);
 const nombreObra=id=>{const o=D.o.find(x=>x.id==id);return o?(o.codigo_obra||o.nombre_obra):'';};
 const mesNombre=new Date().toLocaleDateString('es-MX',{month:'long'});
-c.innerHTML=dsHeader('Hoy','Lo que hay que cobrar, reclamar y decidir')+primerosPasosHtml()+`
+c.innerHTML=dsHeader('Hoy','Lo que hay que cobrar, reclamar y decidir')+primerosPasosHtml()+expAvisoInicioHtml()+`
 <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
 ${dsBlock('dsCob','Por cobrar','ri-bank-card-line',`
 <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-bold">${fmt(totalPend)}</span>${totalVenc>0?`<span class="text-danger font-medium">${fmt(totalVenc)} vencido en ${vencidas.length} exhibición${vencidas.length>1?'es':''}</span>`:'<span class="text-ok">nada vencido</span>'}</div>

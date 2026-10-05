@@ -1,5 +1,6 @@
 // Edge Function jobs: tareas diarias de la plataforma. La invoca el cron del VPS (14:00 UTC) con x-internal-key.
-// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas + resumen diario),
+// Acciones: bajas (recordatorio y eliminación), suscripciones (estados + correos de la prueba), notificaciones (alertas, vencimientos
+// del expediente de la empresa + resumen diario),
 // whatsapp (avisos urgentes vía Twilio de Zook, US-240), all.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -107,6 +108,10 @@ async function jobNotificaciones(internalKey: string) {
   const out: Record<string, unknown> = {};
   const { data: gen, error: e1 } = await admin.rpc("generar_notificaciones_todas");
   out.generadas = e1 ? e1.message : gen;
+  // US-809/US-812: vencimientos del expediente (documentos y pólizas de maquinaria) a 30, 15 y 3 días, una vez por umbral,
+  // sólo para usuarios de nivel >= 80 (la notificación lleva usuario_id). Va antes del correo para entrar al resumen.
+  const { data: exp, error: e2 } = await admin.rpc("generar_avisos_expediente");
+  out.expediente = e2 ? e2.message : exp;
   const { data: limp } = await admin.rpc("limpiar_ui_events"); out.ui_events_borrados = limp;
   const { data: rows, error } = await admin.rpc("notificaciones_para_correo");
   if (error) { out.correos = error.message; return out; }
