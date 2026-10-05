@@ -26,6 +26,7 @@ AXE = 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js'
 PASOS = [p for p in args.pasos.split(',') if p]
 
 errores, fallos = [], []
+ESPERADOS = [0]   # respuestas 400/409 provocadas a propósito (RPC que deben fallar): no cuentan como error de consola
 def check(cond, msg):
     if not cond: fallos.append(msg)
     print(('  ok  ' if cond else '  FALLA ') + msg)
@@ -36,8 +37,10 @@ def abrir(pw, ancho, alto, tag):
     ctx = pw.chromium.launch().new_context(viewport={'width': ancho, 'height': alto}, locale='es-MX', is_mobile=ancho < 768, has_touch=ancho < 768, accept_downloads=True)
     page = ctx.new_page()
     def on_console(m):
-        if m.type == 'error' and 'ERR_CONNECTION' not in m.text and 'Tailwind' not in m.text and 'status of 409' not in m.text:
-            errores.append(f'{tag} console.error: {m.text}')
+        if m.type != 'error' or 'ERR_CONNECTION' in m.text or 'Tailwind' in m.text: return
+        if ESPERADOS[0] > 0 and ('status of 400' in m.text or 'status of 409' in m.text):
+            ESPERADOS[0] -= 1; return
+        errores.append(f'{tag} console.error: {m.text}')
     page.on('console', on_console)
     page.on('pageerror', lambda e: errores.append(f'{tag} pageerror: {e}'))
     page.goto(args.app, wait_until='domcontentloaded')
@@ -119,6 +122,7 @@ def paso_813(page, tag, ancho):
     snap(page, f'813_lista_{ancho}.png')
     axe(page, '#c', f'{tag} 813')
     # código duplicado: mensaje en español
+    ESPERADOS[0] += 1
     r = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'{cod}',nombre:'x'}}}});return r.error&&r.error.message;")
     check(r and 'Ya existe otra licitación' in r, f'{tag} 813: RPC rechaza código duplicado con mensaje claro')
 
@@ -339,7 +343,52 @@ def paso_817(page, tag, ancho):
     ro = sql(page, f"const r=await sb.from('perfiles_convocante').update({{nombre:'x'}}).eq('id',{perfil['id']}).select();return (r.data||[]).length;")
     check(ro == 0, f'{tag} 817: la RLS no deja editar un perfil de fábrica')
 
-PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817}
+def paso_818(page, tag, ancho):
+    perfil = sql(page, "const {data}=await sb.from('perfiles_convocante').select('id').eq('nombre','Municipio de Cuauhtémoc').single();return data.id;")
+    lid = sql(page, f"const r=await sb.rpc('guardar_licitacion',{{p_datos:{{codigo:'QA-C-{ancho}-4',nombre:'Expediente',perfil_id:{perfil},presentacion:'2026-11-20T13:30:00-06:00'}}}});return r.data.id;")
+    sql(page, f"await sb.rpc('generar_requisitos_perfil',{{p_licitacion_id:{lid}}});")
+    docs = sql(page, """
+      const ins=async(o)=>{const {data,error}=await sb.from('empresa_documentos').insert(o).select('id').single();if(error)throw error;return data.id;};
+      return {sat:await ins({categoria:'opinion_sat',nombre:'QA-C-opinión SAT',fecha_emision:'2026-10-01',fecha_vencimiento:'2026-12-31'}),
+              imss:await ins({categoria:'opinion_imss',nombre:'QA-C-opinión IMSS',fecha_emision:'2026-10-01',fecha_vencimiento:'2026-11-10'}),
+              acta:await ins({categoria:'acta_constitutiva',nombre:'QA-C-acta constitutiva',fecha_emision:'2025-02-13'})};
+    """)
+    abrir_ficha(page, lid, 'requisitos')
+    page.evaluate("()=>Licitaciones.verSobre('tecnico')")
+    page.locator('#lcPanel button:has-text("Llenar desde el expediente")').click()
+    page.wait_for_function("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='7.20').empresa_documento_id", timeout=15000)
+    lig = page.evaluate("()=>Object.fromEntries(Licitaciones.ficha.reqs.filter(r=>['7.20','7.21','7.22'].includes(r.anexo_id)).map(r=>[r.anexo_id,r.empresa_documento_id]))")
+    check(lig == {'7.20': docs['sat'], '7.21': docs['imss'], '7.22': docs['acta']}, f'{tag} 818: «Llenar desde el expediente» liga en lote por categoría {lig}')
+    page.evaluate("()=>Licitaciones.verSobre('tecnico')")
+    rid = page.evaluate("()=>Licitaciones.ficha.reqs.find(r=>r.anexo_id==='7.21').id")
+    cls = page.get_attribute(f'#lcReq-{rid}', 'class') or ''
+    check('lc-fila-vence' in cls and 'antes de la presentación' in page.inner_text(f'#lcReq-{rid}'), f'{tag} 818: el requisito con documento que vence antes se marca en rojo')
+    snap(page, f'818_vence_{ancho}.png')
+    page.locator('#lcPanel button[aria-label^="Cambiar estado de 7.21"]').click()
+    page.wait_for_selector('#lcFormEst')
+    check(page.locator('#lcFormEst input[value=listo]').is_disabled() and page.locator('#lcFormEst [role=alert]').count() == 1, f'{tag} 818: «Listo» deshabilitado con aviso')
+    page.evaluate("()=>Licitaciones.cerrarModal()")
+    ESPERADOS[0] += 1
+    msg = sql(page, f"const r=await sb.rpc('cambiar_estado_requisito',{{p_id:{rid},p_estado:'listo'}});return r.error&&r.error.message;")
+    check(msg and 'vence el 10/11/2026' in msg, f'{tag} 818: el servidor tampoco deja pasar a «Listo» ({msg})')
+    # editar: ofrece los documentos vigentes de la categoría
+    page.locator('#lcPanel button[aria-label="Editar 7.20"]').click()
+    page.wait_for_selector('#lcRqDoc')
+    opts = page.eval_on_selector_all('#lcRqDoc option', 'els=>els.map(e=>e.textContent)')
+    check(any('QA-C-opinión SAT' in o for o in opts) and not any('IMSS' in o for o in opts), f'{tag} 818: el modal ofrece los documentos vigentes de la categoría')
+    axe(page, '#mdlLic', f'{tag} 818 modal')
+    page.evaluate("()=>Licitaciones.cerrarModal()")
+    # renovar el IMSS: el requisito apunta a la versión nueva
+    nuevo = sql(page, f"const {{data,error}}=await sb.from('empresa_documentos').insert({{categoria:'opinion_imss',nombre:'QA-C-opinión IMSS renovada',fecha_emision:'2026-11-05',fecha_vencimiento:'2027-01-31',reemplaza_id:{docs['imss']}}}).select('id').single();if(error)throw error;return data.id;")
+    ahora = sql(page, f"const {{data}}=await sb.from('licitacion_requisitos').select('empresa_documento_id').eq('id',{rid}).single();return data.empresa_documento_id;")
+    check(ahora == nuevo, f'{tag} 818: al renovar, el requisito apunta a la versión nueva ({ahora} = {nuevo})')
+    abrir_ficha(page, lid, 'requisitos')
+    page.evaluate("()=>Licitaciones.verSobre('tecnico')")
+    check('lc-fila-vence' not in (page.get_attribute(f'#lcReq-{rid}', 'class') or ''), f'{tag} 818: ya no se marca en rojo')
+    ok = sql(page, f"const r=await sb.rpc('cambiar_estado_requisito',{{p_id:{rid},p_estado:'listo'}});return !r.error;")
+    check(ok, f'{tag} 818: ahora sí puede pasar a «Listo»')
+
+PASO_FN = {'813': paso_813, '814': paso_814, '815': paso_815, '816': paso_816, '817': paso_817, '818': paso_818}
 
 def main():
     with sync_playwright() as pw:

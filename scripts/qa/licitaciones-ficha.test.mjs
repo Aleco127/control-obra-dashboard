@@ -157,3 +157,23 @@ test('US-817: semillas de fábrica (ICHIFE 45, Municipio de Cuauhtémoc 55) vál
   const falt = L.faltantesDelPerfil({ requisitos_json: [{ anexo_id: 'L-1' }, { anexo_id: 'l-2 ' }, { anexo_id: 'T-1' }] }, [{ anexo_id: 'L-2' }, { anexo_id: 'x' }]);
   assert.deepEqual(falt.map((x) => x.anexo_id), ['L-1', 'T-1']);
 });
+
+test('US-818: documentos ligables por categoría y vencimiento contra la presentación', () => {
+  const docs = [
+    { id: 1, categoria: 'opinion_sat', estado: 'vigente', fecha_vencimiento: '2026-12-01' },
+    { id: 2, categoria: 'opinion_sat', estado: 'reemplazado', fecha_vencimiento: '2026-10-01' },
+    { id: 3, categoria: 'opinion_sat', estado: 'vencido', fecha_vencimiento: '2026-09-01' },
+    { id: 4, categoria: 'opinion_sat', estado: 'por_vencer', fecha_vencimiento: '2026-10-20' },
+    { id: 5, categoria: 'acta_constitutiva', estado: 'sin_vencimiento', fecha_vencimiento: null },
+  ];
+  assert.deepEqual(L.docsUsables(docs, 'opinion_sat').map((d) => d.id), [1, 4], 'sin reemplazados ni vencidos; el que vence más tarde primero');
+  assert.deepEqual(L.docsUsables(docs, 'acta_constitutiva').map((d) => d.id), [5]);
+  const lic = { presentacion: '2026-11-20T19:30:00Z' };
+  assert.equal(L.venceAntes(docs[3], lic), true, 'vence el 20-oct, la presentación es el 20-nov');
+  assert.equal(L.venceAntes(docs[0], lic), false);
+  assert.equal(L.venceAntes(docs[4], lic), false, 'sin vencimiento nunca bloquea');
+  assert.equal(L.venceAntes({ fecha_vencimiento: '2026-11-20' }, lic), false, 'vence el mismo día de la presentación: sirve');
+  assert.equal(L.venceAntes({ fecha_vencimiento: '2026-10-03' }, {}, '2026-10-04'), true, 'sin presentación se mide contra hoy');
+  const sql = readFileSync(new URL('../../migrations/092_licitaciones_rpc.sql', import.meta.url), 'utf8');
+  assert.match(sql, /d\.fecha_vencimiento < COALESCE\(\(l\.presentacion AT TIME ZONE 'America\/Mexico_City'\)::date/, 'la RPC usa la misma regla');
+});

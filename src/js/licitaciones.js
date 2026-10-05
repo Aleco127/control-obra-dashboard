@@ -402,7 +402,14 @@ ${campo('lcPerfil', 'Perfil de convocante', `<select id="lcPerfil" class="inp">$
     if (l.error) throw l.error; if (r.error) throw r.error; if (a.error) throw a.error;
     if (!l.data) return null;
     if (!l.data.bases || typeof l.data.bases !== 'object') l.data.bases = {};
-    return { lic: l.data, reqs: r.data || [], archivos: a.data || [] };
+    const ctx = { lic: l.data, reqs: r.data || [], archivos: a.data || [], docs: [], docsError: null };
+    // Expediente (US-818): sólo lectura de la vista de la épica B; si falla, la ficha sigue sin ligas.
+    try {
+      const d = await sb.from('empresa_documentos_estado').select('id,categoria,nombre,archivo_path,mime,fecha_emision,fecha_vencimiento,reemplaza_id,reemplazado_por_id,estado,dias_restantes,hash_sha256').order('fecha_emision', { ascending: false, nullsFirst: false });
+      if (d.error) throw d.error;
+      ctx.docs = d.data || [];
+    } catch (e) { ctx.docsError = e; }
+    return ctx;
   }
   async function renderFicha(c, turno, force) {
     c.innerHTML = `<div id="lcCuerpo" aria-busy="true" aria-live="polite">${Skeleton.table(4, 4)}</div>`;
@@ -766,7 +773,7 @@ ${g.archivos.map((a) => `<tr><td data-et="Archivo"><span class="break-all">${S(a
       const arch = r.archivo_path
         ? `<button type="button" class="btn-icon" onclick="Licitaciones.verArchivoRequisito(${+r.id})" aria-label="Ver archivo final de ${S(r.anexo_id)}" title="Ver archivo final"><i class="ri-file-check-line" aria-hidden="true"></i></button>`
         : '';
-      return `<tr id="lcReq-${+r.id}"><td data-et="Orden" class="whitespace-nowrap"><span><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},-1)" aria-label="Subir ${S(r.anexo_id)}" ${i === 0 ? 'disabled' : ''}><i class="ri-arrow-up-s-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},1)" aria-label="Bajar ${S(r.anexo_id)}" ${i === lista.length - 1 ? 'disabled' : ''}><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></span></td>
+      return `<tr id="lcReq-${+r.id}" ${venceReq(r, ctx) ? 'class="lc-fila-vence"' : ''}><td data-et="Orden" class="whitespace-nowrap"><span><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},-1)" aria-label="Subir ${S(r.anexo_id)}" ${i === 0 ? 'disabled' : ''}><i class="ri-arrow-up-s-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Licitaciones.moverRequisito(${+r.id},1)" aria-label="Bajar ${S(r.anexo_id)}" ${i === lista.length - 1 ? 'disabled' : ''}><i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></span></td>
 <td data-et="Anexo" class="font-mono text-xs"><span>${S(r.anexo_id)}</span></td>
 <td data-et="Descripción"><span>${S(r.descripcion || '')}<span class="block text-xs text-ink-muted">${S(etiqueta(ORIGENES, r.origen))}${r.responsable ? ' · ' + S(r.responsable) : ''} ${firma}</span>${extraRequisito(r, ctx)}</span></td>
 <td data-et="Estado"><span><button type="button" class="lc-estado" onclick="Licitaciones.estadoRequisito(${+r.id})" aria-label="Cambiar estado de ${S(r.anexo_id)}: ${S(etiqueta(ESTADOS_REQUISITO, r.estado))}">${chipEstado(r.estado)} <i class="ri-arrow-down-s-line" aria-hidden="true"></i></button></span></td>
@@ -930,6 +937,60 @@ ${campo('lcGpDesc', 'Descripción', `<textarea id="lcGpDesc" class="inp" rows="2
     } catch (e) { Toast.error(errTxt(e, 'No se guardó el perfil')); }
   }
 
+  // Ligar un requisito al expediente (US-818) ----------------------------------------------------------------------------
+  const ESTADOS_DOC_USABLES = ['vigente', 'por_vencer', 'sin_vencimiento'];
+  /** Documentos que se pueden ligar a una categoría: vigentes, por vencer o sin vencimiento (nunca reemplazados). */
+  function docsUsables(docs, categoria) {
+    return (docs || []).filter((d) => d.categoria === categoria && ESTADOS_DOC_USABLES.includes(d.estado))
+      .sort((a, b) => String(b.fecha_vencimiento || '9999').localeCompare(String(a.fecha_vencimiento || '9999')) || (b.id - a.id));
+  }
+  /** Fecha civil contra la que se mide el vencimiento: la presentación (México) o, sin ella, hoy. */
+  const fechaCorte = (lic, hoy) => fechaMx(lic && lic.presentacion) || hoy || hoyMx();
+  /** true si el documento vence antes de la presentación de la licitación (la misma regla que licit_requisito_vence). */
+  function venceAntes(doc, lic, hoy) { return !!(doc && doc.fecha_vencimiento && String(doc.fecha_vencimiento).slice(0, 10) < fechaCorte(lic, hoy)); }
+  function docDe(r, ctx) { return (r && r.empresa_documento_id && (ctx.docs || []).find((d) => d.id === r.empresa_documento_id)) || null; }
+  function venceReq(r, ctx) { return venceAntes(docDe(r, ctx), ctx.lic); }
+  extraRequisito = (r, ctx) => {
+    if (r.origen !== 'expediente') return '';
+    const d = docDe(r, ctx);
+    if (!r.empresa_documento_id) return `<span class="block text-xs text-warn"><i class="ri-link-unlink" aria-hidden="true"></i> Sin documento del expediente${r.categoria_expediente ? ' · ' + S(etiqueta(CATEGORIAS_EXPEDIENTE, r.categoria_expediente)) : ''}</span>`;
+    if (!d) return '<span class="block text-xs text-ink-muted"><i class="ri-links-line" aria-hidden="true"></i> Documento ligado del expediente</span>';
+    const venc = d.fecha_vencimiento ? ` · vence el ${S(fmtFecha(d.fecha_vencimiento))}` : '';
+    if (venceAntes(d, ctx.lic)) return `<span class="block text-xs lc-vence"><i class="ri-error-warning-line" aria-hidden="true"></i> ${S(d.nombre)}: vence el ${S(fmtFecha(d.fecha_vencimiento))}, antes de la presentación. Renuévalo en el Expediente.</span>`;
+    return `<span class="block text-xs text-ok"><i class="ri-links-line" aria-hidden="true"></i> ${S(d.nombre)}${venc}${d.estado === 'reemplazado' ? ' (versión anterior)' : ''}</span>`;
+  };
+  estadoRequisito.bloqueo = (r) => {
+    if (!venceReq(r, F)) return '';
+    const d = docDe(r, F);
+    return `El documento ligado «${S(d.nombre)}» vence el ${S(fmtFecha(d.fecha_vencimiento))}, antes de la presentación: no puede pasar a «Listo» hasta que lo renueves en el Expediente.`;
+  };
+  editarRequisito.alAbrir = (r) => {
+    const pintar = () => {
+      const box = document.getElementById('lcRqDocBox'); if (!box) return;
+      const cat = val('lcRqCat');
+      if (F.docsError) { box.innerHTML = '<p class="field-hint">No se pudo leer el Expediente; podrás ligar el documento después.</p>'; return; }
+      if (!cat) { box.innerHTML = ''; return; }
+      const ds = docsUsables(F.docs, cat);
+      const actual = docDe(r, F);
+      const opts = ds.slice(); if (actual && !opts.some((x) => x.id === actual.id)) opts.unshift(actual);
+      box.innerHTML = campo('lcRqDoc', 'Documento del expediente', `<select id="lcRqDoc" class="inp"><option value="">Sin documento</option>${opts.map((d) => `<option value="${+d.id}" ${actual && actual.id === d.id ? 'selected' : ''}>${S(d.nombre)}${d.fecha_vencimiento ? ' · vence ' + S(fmtFecha(d.fecha_vencimiento)) : ''}${venceAntes(d, F.lic) ? ' (vence antes de la presentación)' : ''}</option>`).join('')}</select>${ds.length ? '' : '<p class="field-hint">No hay documentos vigentes de esta categoría en el Expediente.</p>'}`, 'mt-3');
+    };
+    const sel = document.getElementById('lcRqCat'); if (sel) sel.addEventListener('change', pintar);
+    pintar();
+  };
+  accionesRequisitos.extra.push((ctx) => (ctx.reqs.some((r) => r.origen === 'expediente') ? `<button type="button" class="btn btn-s" onclick="Licitaciones.llenarDesdeExpediente()"><i class="ri-links-line" aria-hidden="true"></i> Llenar desde el expediente</button>` : ''));
+  async function llenarDesdeExpediente() {
+    try {
+      const r = await rpc('llenar_desde_expediente', { p_licitacion_id: F.lic.id });
+      F = await cargarFicha(F.lic.id);
+      const faltan = (r.sin_documento || []).map((c) => etiqueta(CATEGORIAS_EXPEDIENTE, c));
+      if (r.ligados) Toast.success(`Se ligaron ${r.ligados} requisito${r.ligados === 1 ? '' : 's'} al expediente`);
+      else Toast.info('No había requisitos nuevos que ligar.');
+      if (faltan.length) Toast.warning(`Sin documento vigente en el Expediente: ${faltan.join(', ')}.`, 9000);
+      repintarFicha();
+    } catch (e) { Toast.error(errTxt(e, 'No se pudo llenar desde el expediente')); }
+  }
+
   // Editor de perfiles en Configuración (nivel 100) ----------------------------------------------------------------------
   let cfgEl = null;
   async function perfilesConfig(el) {
@@ -1054,13 +1115,13 @@ ${campo('lcPfDesc', 'Descripción', `<textarea id="lcPfDesc" class="inp" rows="2
     verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
     adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
     generarDelPerfil, confirmarGenerar, guardarComoPerfil, confirmarGuardarPerfil, _resumenPerfil: (id) => (generarDelPerfil._resumen ? generarDelPerfil._resumen(id) : ''),
-    perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil,
+    perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil, llenarDesdeExpediente,
     get estado() { return st; }, get ficha() { return F; },
     // puras
     hoyMx, fechaMx, diasHasta, proximaFechaClave, resumen, etiqueta, anioDe, filtrar, aniosDe, aLocalMx, aIsoMx,
     avancePorSobre, eventosDeLicitacion, leerCampo, valorCampo, setRuta, errTxt,
     mimeDe, nombreSeguro, rutaArchivo, fmtBytes, agruparPorCategoria, sha256Hex, nombreUnico,
-    delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil,
+    delSobre, moverEnLista, CATEGORIAS_EXPEDIENTE, faltantesDelPerfil, docsUsables, venceAntes,
     ESTATUS, MODALIDADES, PLAZAS, SOBRES, ORIGENES, ESTADOS_REQUISITO, ESTADOS_HECHOS, CATEGORIAS_ARCHIVO, FECHAS_CLAVE,
     COLUMNAS, SECCIONES_BASES, LISTA_PESTANAS, FICHA_PESTANAS, METODOS_EVALUACION,
   };
