@@ -1,0 +1,41 @@
+[
+ {
+  "concepto_contratacion": "Edificación no habitacional en bienes de dominio público",
+  "link_detalle": "/licitaciones/274240/",
+  "tipo_procedimiento": "Licitación pública",
+  "numero_procedimiento": "OP-174-2026",
+  "materia": "Obra pública",
+  "estatus": "Vigente",
+  "id_procedimiento": 274240,
+  "color_boton": "bg-blue-table",
+  "unidad_compradora": "Municipio de Juárez",
+  "descripcion_procedimiento": "Trabajos de Construcción de Cancha de Futbol en Esc. Secundaria Federal No. 5, ubicada en C. Laguna de Guzmán y C. Canal de Corintio de Infonavit San Lorenzo, en el Municipio de Juárez, Chihuahua.",
+  "unidad_solicitante": "Municipio de Juárez"
+ },
+ {
+  "concepto_contratacion": "Trabajos de acabados en edificaciones y otros trabajos especializados en bienes propios",
+  "link_detalle": "/licitaciones/40271/",
+  "tipo_procedimiento": "Adjudicación directa",
+  "numero_procedimiento": "UACJ-AD-02-2024",
+  "materia": "Obra pública",
+  "estatus": "Vigente",
+  "id_procedimiento": 40271,
+  "color_boton": "bg-blue-table",
+  "unidad_compradora": "Universidad Autónoma de Ciudad Juárez",
+  "descripcion_procedimiento": "CONSTRUCCIÓN DE BARDA PERIMETRAL EN CAMPUS IIT IADA",
+  "unidad_solicitante": "Universidad Autónoma de Ciudad Juárez"
+ },
+ {
+  "concepto_contratacion": "Edificación no habitacional en bienes propios",
+  "link_detalle": "/licitaciones/32653/",
+  "tipo_procedimiento": "Adjudicación directa",
+  "numero_procedimiento": "2317095",
+  "materia": "Obra pública",
+  "estatus": "Vigente",
+  "id_procedimiento": 32653,
+  "color_boton": "bg-blue-table",
+  "unidad_compradora": "Municipio de Cuauhtémoc",
+  "descripcion_procedimiento": "REHABILITACION DE MALLA CICLONICA EN J.N. PAULO FREIRE EN CD. CUAUHTEMOC CHIHUAHUA",
+  "unidad_solicitante": "Municipio de Cuauhtémoc"
+ }
+]
