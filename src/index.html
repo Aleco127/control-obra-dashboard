@@ -3358,6 +3358,14 @@ sc.onload=()=>{m._cargando=false;if(M===k)R();};
 sc.onerror=()=>{m._cargando=false;sc.remove();if(M===k)c.innerHTML=EmptyState({icon:'ri-wifi-off-line',title:'No se pudo cargar este módulo',body:'Revisa tu conexión e intenta de nuevo.',action:{label:'Reintentar',onClick:'R()'}});};
 document.head.appendChild(sc);
 }
+// Licitaciones (épica C): otro módulo (Calendario, Documentos, Configuración) pide uno de archivo sin abrirlo.
+// Resuelve con el objeto global (Licitaciones, ...) o con null si no se pudo cargar.
+function conModuloArchivo(k){
+const m=MOD_ARCHIVO[k];if(!m)return Promise.resolve(null);
+const ya=m.mod();if(ya)return Promise.resolve(ya);
+if(typeof cargarModulo==='function'&&typeof __LAZY!=='undefined'&&__LAZY[k])return cargarModulo(k).then(()=>m.mod()).catch(()=>null);
+return m._promesa||(m._promesa=new Promise(res=>{const sc=document.createElement('script');sc.src=m.src;sc.onload=()=>res(m.mod());sc.onerror=()=>{m._promesa=null;sc.remove();res(null);};document.head.appendChild(sc);}));
+}
 
 function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$('c');
 // US-606: un módulo que el rol no ve (abierto por hash o por currentTab) manda al primero visible en lugar de pintarlo
@@ -8996,6 +9004,9 @@ function Cf(c){
 const nivel=currentUser?.nivel||0;
 if(typeof Suscripcion!=='undefined')setTimeout(()=>Suscripcion.facturas(),50);
 if(nivel>=100)setTimeout(()=>cfgBarraRender(),60);
+// Licitaciones (US-817): editor de perfiles de convocante, sólo nivel 100 y si la empresa ve el módulo lc
+const cfgPerfilesLic=nivel>=100&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc')&&(typeof Suscripcion==='undefined'||!Suscripcion.get()||Suscripcion.moduloPermitido('lc'));
+if(cfgPerfilesLic)setTimeout(()=>conModuloArchivo('lc').then(m=>{const el=$('cfgPerfilesLic');if(m&&el)m.perfilesConfig(el);}),70);
 const canEdit=nivel>=80; // Solo admin puede editar
 
 c.innerHTML=`
@@ -9026,6 +9037,7 @@ ${currentUser&&currentUser.nivel>=100?`<div class="mt-4 pt-4 border-t" style="bo
 ${currentUser&&currentUser.nivel>=100?datosPagoHtml():''}
 ${currentUser&&currentUser.nivel>=100&&typeof Contabilidad!=='undefined'?Contabilidad.configHtml():''}
 ${currentUser&&currentUser.nivel>=80?waAvisosHtml():''}
+${cfgPerfilesLic?'<div id="cfgPerfilesLic" class="g rounded-xl p-4"></div>':''}
 <!-- Categorias de Gastos -->
 <div class="g rounded-xl p-4">
 <div class="flex items-center justify-between mb-4">
@@ -10096,7 +10108,7 @@ const proximosEventos=evs.filter(e=>new Date(e.fecha_inicio)>=hoy).slice(0,5);
 
 const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const diasSemana=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-const tiposEvento=['Evento','Reunion','Entrega','Inspeccion','Pago','Tarea','Recordatorio','Otro'];
+const tiposEvento=['Evento','Reunion','Entrega','Inspeccion','Pago','Tarea','Recordatorio','Otro'].concat(calLicVisible()?['Licitación']:[]);
 const coloresEvento={cyan:'bg-cyan-500',purple:'bg-purple-500',green:'bg-green-500',amber:'bg-amber-500',red:'bg-red-500',blue:'bg-blue-500',pink:'bg-pink-500',orange:'bg-orange-500'};
 const obraTitle=selectedObra?`<span class="text-slate-400 text-sm font-normal ml-2">- ${getSelectedObraName()}</span>`:'';
 
@@ -10198,9 +10210,9 @@ return`<tr class="border-b border-white/5 hover:bg-slate-50">
 <td class="py-2 px-2 text-gray-400">${obra?.nombre_obra||'General'}</td>
 <td class="py-2 px-2"><span class="px-2 py-0.5 rounded text-[10px] ${estatusClass}">${e.estatus}</span></td>
 <td class="py-2 px-2 text-right">
-<button onclick="viewEvento(${e.id})" class="p-1 rounded hover:bg-slate-100" title="Ver" aria-label="Ver"><i class="ri-eye-line text-cyan-400" aria-hidden="true"></i></button>
+<button onclick="viewEvento(${e.id})" class="p-1 rounded hover:bg-slate-100" title="Ver" aria-label="Ver"><i class="ri-eye-line text-cyan-400" aria-hidden="true"></i></button>${e._lic?'':`
 <button onclick="editEvento(${e.id})" class="p-1 rounded hover:bg-slate-100" title="Editar" aria-label="Editar"><i class="ri-edit-line text-amber-400" aria-hidden="true"></i></button>
-<button onclick="deleteEvento(${e.id})" class="p-1 rounded hover:bg-slate-100" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line text-red-400" aria-hidden="true"></i></button>
+<button onclick="deleteEvento(${e.id})" class="p-1 rounded hover:bg-slate-100" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line text-red-400" aria-hidden="true"></i></button>`}
 </td>
 </tr>`;}).join('')||'<tr><td colspan="7" class="text-center py-4 text-gray-500">No hay eventos este mes</td></tr>'}
 </tbody>
@@ -10247,8 +10259,17 @@ ${eventosDia.length>2?`<p class="text-[9px] text-gray-400">+${eventosDia.length-
 return html;
 }
 
+// Licitaciones (US-814): visita, junta, presentación y fallo entran al Calendario como eventos de sólo lectura
+// (tipo «Licitación», id negativo) para quien ve el módulo lc. Los arma Licitaciones.cargarCalendario() en D.licCal.
+function calLicVisible(){return !!(currentUser&&(currentUser.nivel||0)>=80&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc'));}
+function calLicEventos(){
+if(!calLicVisible())return[];
+if(!Array.isArray(D.licCal)&&!calLicEventos._pidiendo){calLicEventos._pidiendo=true;conModuloArchivo('lc').then(m=>m&&m.cargarCalendario()).then(()=>{if(M==='c')R();}).catch(()=>{}).finally(()=>{calLicEventos._pidiendo=false;});}
+return Array.isArray(D.licCal)?D.licCal:[];
+}
+function calAbrirLicitacion(id){const e=(D.licCal||[]).find(x=>x.id===id);if(!e)return;closeMdl('mdlEvento');conModuloArchivo('lc').then(m=>{if(m)m.abrir(e._lic,'resumen');});}
 function getFilteredEventos(){
-let evs=filterByEmpresa(D.ev);
+let evs=filterByEmpresa(D.ev).concat(calLicEventos());
 if(selectedObra)evs=evs.filter(e=>e.obra_id==selectedObra||!e.obra_id);
 if(calFilter.tipo)evs=evs.filter(e=>e.tipo===calFilter.tipo);
 if(calFilter.estatus)evs=evs.filter(e=>e.estatus===calFilter.estatus);
@@ -10267,7 +10288,7 @@ R();
 }
 
 function verEventosDia(fecha){
-const evs=(D.ev||[]).filter(e=>e.fecha_inicio===fecha);
+const evs=(D.ev||[]).concat(calLicEventos()).filter(e=>e.fecha_inicio===fecha);
 if(evs.length===0){
 // Abrir modal para crear evento en esa fecha
 openMdlEvento(null,fecha);
@@ -10485,6 +10506,7 @@ Toast.error(humanizeError(err));
 }
 
 function viewEvento(id){
+if(id<0){calAbrirLicitacion(id);return;}
 const ev=D.ev.find(e=>e.id===id);
 if(!ev)return;
 const obra=D.o.find(o=>o.id===ev.obra_id);
@@ -17231,6 +17253,8 @@ const DOC_CATEGORIAS=['Contrato','Permiso','Plano','Reporte','Legal','Certificad
 const DOC_ESTATUS=['Activo','Vencido','Archivado','Pendiente'];
 
 function Docs(c){
+// Licitaciones (US-821): archivos de la convocante de la licitación ligada a la obra (enlace, no copia)
+if(selectedObra&&(currentUser?.nivel||0)>=80&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc'))setTimeout(()=>conModuloArchivo('lc').then(m=>{const el=$('docsLicitacion');if(m&&el)m.pintarArchivosDeObra(el,selectedObra);}),0);
 const docs=getFilteredDocs();
 const catFilter=$('docCatFilter')?.value||'';
 const estatusFilter=$('docEstatusFilter')?.value||'';
@@ -17261,6 +17285,7 @@ c.innerHTML=`
 </div>
 <button onclick="openMdlDoc()" class="btn btn-p flex items-center gap-2"><i class="ri-upload-2-line"></i> Subir Documento</button>
 </div>
+${selectedObra&&(currentUser?.nivel||0)>=80&&typeof moduloVisibleParaUsuario==='function'&&moduloVisibleParaUsuario('lc')?'<div id="docsLicitacion"></div>':''}
 
 <!-- KPIs -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

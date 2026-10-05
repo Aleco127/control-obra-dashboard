@@ -533,3 +533,20 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 
 .bg-orange-600{background-color:var(--ref-amber-700)!important}
 .text-green-600{color:var(--ref-emerald-700)!important}
+
+/* ===== Licitaciones (épica C · US-813 a US-821) ===== */
+.lc-avance{height:8px;border-radius:var(--radius-pill);background:var(--surface-2);overflow:hidden}
+.lc-avance>span{display:block;height:100%;background:var(--accent-fill)}
+.lc-vence{color:var(--danger);font-weight:600}
+.lc-fila-vence{background:var(--danger-soft)}
+.lc-estado{display:inline-flex;align-items:center;gap:2px;min-height:var(--tap);border-radius:var(--radius-sm);padding:0 4px}
+.lc-estado:hover{background:var(--surface-2)}
+.lc-est label:focus-within{outline:2px solid var(--ring);outline-offset:2px}
+@media (max-width:559px){
+  .lc-tbl thead{display:none}
+  .lc-tbl tr{display:block;padding:var(--sp-2) 0;border-bottom:1px solid var(--line)}
+  .lc-tbl td{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-3);padding:4px var(--sp-3);border:0;text-align:right}
+  .lc-tbl td::before{content:attr(data-et);color:var(--ink-muted);font-size:var(--fs-xs);text-align:left;flex:0 0 auto}
+  .lc-tbl td[data-et=""]{justify-content:flex-end}
+  .lc-tbl td[data-et=""]::before{content:none}
+}

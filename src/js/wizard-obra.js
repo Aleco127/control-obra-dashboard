@@ -65,6 +65,11 @@ const WizardObra = (() => {
       loadObra(opts.obraId);
     }
     if (opts.clienteId) st.clienteId = opts.clienteId;
+    // Licitaciones (US-821): «Convertir en obra» llega con datos propuestos (campos de obras), el catálogo propuesto
+    // como archivo y un aviso para guardar obra_id en la licitación cuando la obra se crea.
+    if (opts.prefill && !opts.obraId) { st.prefill = opts.prefill; st.monto = +opts.prefill.monto || 0; st.ivaMode = opts.prefill.ivaMode || 'sin'; }
+    st.catalogoInicial = opts.catalogo || null;
+    st.alCrearObra = typeof opts.alCrearObra === 'function' ? opts.alCrearObra : null;
     st.step = opts.step || 1;
     if (st.step > 1 && !st.obraId) st.step = 1;
     openMdl('mdlWizardObra');
@@ -136,7 +141,7 @@ const WizardObra = (() => {
 
   // ===== PASO 1 =====
   function step1(c) {
-    const o = st.obra || {};
+    const o = st.obra || st.prefill || {};
     const users = (D.u || []).filter(u => u.activo);
     const modeChecked = m => st.ivaMode === m ? 'checked' : '';
     c.innerHTML = `<form id="wzF1" onsubmit="return false" class="space-y-4">
@@ -220,6 +225,7 @@ const WizardObra = (() => {
         if (!res?.success) throw new Error(res?.error || 'No se pudo crear la obra');
         st.obraId = res.obra_id;
         await sb.from('obras').update({ tipo_proyecto: data.tipo_proyecto }).eq('id', st.obraId);
+        if (st.alCrearObra) { try { await st.alCrearObra(st.obraId); } catch (e) { console.warn('alCrearObra', e); } }
       }
       // Refrescar la obra en D sin recargar todo
       const { data: row } = await sb.from('obras').select('*').eq('id', st.obraId).single();
@@ -242,6 +248,7 @@ const WizardObra = (() => {
     return [...set];
   }
   function step2(c) {
+    if (st.catalogoInicial && !st.conceptos.length && !st.catMode) { const f = st.catalogoInicial; st.catalogoInicial = null; st.catMode = 'archivo'; setTimeout(() => file(f), 0); }
     const d = obraDesglose();
     const tot = totalCatalogo();
     const diff = r2(tot - d.sub);

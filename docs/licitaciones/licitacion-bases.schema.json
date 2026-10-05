@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://app.supernovarquitectos.com/schemas/licitacion-bases/v1.json",
+  "title": "licitacion-bases/v1",
+  "description": "Bases de una licitación leídas de la convocatoria (PDF) por Claude Code en la PC del usuario, para importarlas en Control de Obra › Licitaciones › Bases › Importar bases. Toma los campos de licitagen/schemas/bases.schema.json y agrega requisitos[] por sobre, causas de desechamiento y la página de origen de cada dato. Fechas: 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:MM' en hora de México; si el texto no permite fecha exacta, null y el texto en notas_importantes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["formato", "concurso"],
+  "properties": {
+    "formato": { "const": "licitacion-bases/v1" },
+    "fuente": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "archivo": { "type": ["string", "null"] },
+        "generado_por": { "type": ["string", "null"] },
+        "fecha": { "type": ["string", "null"] }
+      }
+    },
+    "concurso": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numero", "convocante", "objeto"],
+      "properties": {
+        "numero": { "type": ["string", "null"], "maxLength": 120 },
+        "nombre": { "type": ["string", "null"], "maxLength": 300 },
+        "modalidad": { "type": ["string", "null"] },
+        "convocante": { "type": ["string", "null"], "maxLength": 200 },
+        "objeto": { "type": ["string", "null"] },
+        "ubicacion": { "type": ["string", "null"] },
+        "plaza": { "type": ["string", "null"], "enum": ["cuauhtemoc", "chihuahua", "juarez", "parral", "casas_grandes", "otra", null] },
+        "fuente_recursos": { "type": ["string", "null"] }
+      }
+    },
+    "fechas": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "publicacion": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "visita_obra": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "junta_aclaraciones": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "presentacion_propuestas": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "fallo": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "firma_contrato": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "inicio_obra": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "termino_obra": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}" },
+        "plazo_dias": { "type": ["integer", "null"], "minimum": 0 },
+        "tipo_dias": { "type": ["string", "null"], "enum": ["naturales", "habiles", null] }
+      }
+    },
+    "economicos": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anticipo_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+        "financiamiento_pct": { "type": ["number", "null"] },
+        "forma_pago": { "type": ["string", "null"] },
+        "moneda": { "type": ["string", "null"] },
+        "presupuesto_referencial": { "type": ["number", "null"], "minimum": 0 },
+        "ajuste_costos": { "type": ["string", "null"] },
+        "garantias": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "seriedad_propuesta": { "type": ["string", "null"] },
+            "anticipo": { "type": ["string", "null"] },
+            "cumplimiento": { "type": ["string", "null"] },
+            "vicios_ocultos": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "requisitos_empresa": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clave", "descripcion"],
+        "properties": {
+          "clave": { "type": "string" },
+          "descripcion": { "type": "string" },
+          "obligatorio": { "type": ["boolean", "null"] },
+          "minimo": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "partidas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clave", "descripcion"],
+        "properties": {
+          "clave": { "type": "string" },
+          "descripcion": { "type": "string" },
+          "unidad": { "type": ["string", "null"] },
+          "cantidad": { "type": ["number", "null"] },
+          "monto_estimado": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "documentos_requeridos": {
+      "description": "Compatibilidad con LicitaGen: si no viene requisitos[], se toman de aquí (sobre tecnica/economica).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sobre", "anexo_id", "descripcion"],
+        "properties": {
+          "sobre": { "type": "string", "enum": ["legal", "tecnica", "economica"] },
+          "anexo_id": { "type": "string" },
+          "descripcion": { "type": "string" },
+          "requiere_firma": { "type": ["boolean", "null"] },
+          "formato": { "type": ["string", "null"] },
+          "obligatorio": { "type": ["boolean", "null"] },
+          "fuente": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "anexos_convocante": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["anexo_id", "nombre"],
+        "properties": {
+          "anexo_id": { "type": "string" },
+          "nombre": { "type": "string" },
+          "tipo": { "type": ["string", "null"] },
+          "paginas": { "type": ["string", "null"] },
+          "archivo_referencia": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "notas_importantes": { "type": "array", "items": { "type": "string" } },
+    "causas_desechamiento": { "type": "array", "items": { "type": "string" } },
+    "criterios_evaluacion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "metodo": { "type": ["string", "null"], "enum": ["puntos_y_porcentajes", "binario", "precio_mas_bajo", "otro", null] },
+        "puntos_legal": { "type": ["number", "null"] },
+        "puntos_tecnico": { "type": ["number", "null"] },
+        "puntos_economico": { "type": ["number", "null"] },
+        "subcriterios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["criterio", "peso"],
+            "properties": {
+              "criterio": { "type": "string" },
+              "peso": { "type": "number" },
+              "descripcion": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "requisitos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["anexo_id", "sobre", "descripcion"],
+        "properties": {
+          "anexo_id": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "sobre": { "type": "string", "enum": ["legal", "tecnico", "economico"] },
+          "descripcion": { "type": "string", "maxLength": 500 },
+          "origen": { "type": ["string", "null"], "enum": ["expediente", "se_genera", "opus", "dependencia", null] },
+          "requiere_firma": { "type": ["boolean", "null"] },
+          "categoria_expediente": { "type": ["string", "null"], "enum": ["opinion_sat", "opinion_imss", "opinion_infonavit", "identificacion", "acta_constitutiva", "poder", "constancia_fiscal", "comprobante_domicilio", "estados_financieros", "cmic", "colegio", "poliza_rc", "curriculum", "otro", "padron_contratistas", "declaracion_anual", null] },
+          "pagina": { "type": ["integer", "null"], "minimum": 1 }
+        }
+      }
+    },
+    "paginas": {
+      "description": "Página del PDF de donde salió cada dato, por ruta: {\"concurso.objeto\": 3, \"fechas.presentacion_propuestas\": 5}.",
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 1 }
+    }
+  }
+}
