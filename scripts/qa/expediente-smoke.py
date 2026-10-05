@@ -237,7 +237,42 @@ def caso_documentos(page, tag):
     quedan = page.evaluate("async p=>{const{data}=await sb.storage.from('licitaciones').list(p.split('/').slice(0,-1).join('/'));return (data||[]).map(x=>x.name).filter(n=>p.endsWith(n)).length;}", v2path)
     check(quedan == 0, f'{tag}: eliminar borra también el objeto del bucket')
 
-CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos}
+# ---- US-809 ---------------------------------------------------------------------------------------------------------
+def caso_avisos(page, tag):
+    base = page.evaluate("async()=>{const a=await expAvisosCargar();return a?{v:a.vencidos,p:a.por_vencer}:null;}")
+    creado = page.evaluate("""async m=>{const hoy=Expediente.hoyMx();const d=n=>{const x=new Date(hoy+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10);};
+      const r1=await sb.from('empresa_documentos').insert({categoria:'opinion_imss',nombre:m+' IMSS vencida',fecha_emision:d(-40),fecha_vencimiento:d(-1)}).select().single();
+      const r2=await sb.from('maquinaria').insert({descripcion:m+' Retroexcavadora',poliza:'POL-QA',poliza_vigencia:d(10)}).select().single();
+      return {e1:r1.error&&r1.error.message,e2:r2.error&&r2.error.message};}""", MARCA)
+    check(not creado['e1'] and not creado['e2'], f'{tag}: datos de prueba creados {creado}')
+    a = page.evaluate("async()=>{const a=await expAvisosCargar();return {v:a.vencidos,p:a.por_vencer,items:a.items.map(x=>x.nombre),badge:navBadges().ex};}")
+    check(a['v'] == base['v'] + 1 and a['p'] == base['p'] + 1, f'{tag}: get_expediente_avisos cuenta el documento vencido y la póliza por vencer {a}')
+    check(a['badge'] == a['v'] + a['p'], f'{tag}: navBadges().ex = vencidos + por vencer ({a["badge"]})')
+    page.wait_for_timeout(300)
+    if tag == 'escritorio':
+        # Sin abrir el grupo (eso guardaría nav_prefs de la cuenta real): se pinta el modelo de la barra en un nodo suelto
+        b = page.evaluate("()=>{const m=navModelo();m.grupos.forEach(g=>g.abierto=true);const d=document.createElement('div');d.innerHTML=NavShell.render(m).aside;const it=d.querySelector('.nvs-item[data-k=\"ex\"]');const bd=it&&it.querySelector('.nvs-badge');return bd?bd.textContent.trim():null;}")
+        check(b == str(a['badge']), f'{tag}: el ítem Expediente de la barra muestra el contador ({b})')
+    # Tarjeta de Inicio (admin/gerente) cuando hay vencidos
+    page.evaluate("()=>{M='d';R();}")
+    page.wait_for_timeout(500)
+    t = page.evaluate("m=>{const el=document.getElementById('dsExpAvisos');return el?{hidden:el.hidden,txt:el.textContent.replace(/\\s+/g,' ')}:null;}", MARCA)
+    check(t and not t['hidden'] and (MARCA + ' IMSS vencida') in t['txt'] and 'vence en los próximos 30 días' in t['txt'], f'{tag}: tarjeta en Inicio con el vencido y el aviso de por vencer {t and t["txt"][:160]}')
+    snap(page, f'avisos-inicio-{tag}.png')
+    axe(page, '#dsExpAvisos', tag + ' tarjeta Inicio')
+    page.click('#dsExpAvisos button')
+    page.wait_for_function("()=>M==='ex'&&document.getElementById('exCuerpo')&&!document.getElementById('exCuerpo').hasAttribute('aria-busy')", timeout=20000)
+    check(True, f'{tag}: «Renovar en Expediente» abre el módulo')
+    # Al quitar el vencido el contador baja sin recargar
+    dl = page.evaluate("async m=>{const r=await sb.from('empresa_documentos').select('id').eq('nombre',m+' IMSS vencida');if(r.error)return r.error.message;const x=await sb.from('empresa_documentos').delete().in('id',(r.data||[]).map(d=>d.id)).select('id');return x.error?x.error.message:(x.data||[]).length;}", MARCA)
+    check(dl == 1, f'{tag}: documento vencido de prueba eliminado ({dl})')
+    a2 = page.evaluate("async()=>{const a=await expAvisosCargar();return {v:a.vencidos,badge:navBadges().ex};}")
+    check(a2['v'] == base['v'], f'{tag}: al resolver el vencido el contador baja ({a2})')
+    page.evaluate("()=>{M='d';R();}"); page.wait_for_timeout(300)
+    t2 = page.evaluate("()=>{const el=document.getElementById('dsExpAvisos');return el?el.hidden:null;}")
+    check(base['v'] > 0 or t2 is True, f'{tag}: sin vencidos la tarjeta de Inicio no aparece')
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos}
 
 def main():
     previo = None
@@ -246,6 +281,7 @@ def main():
             br, page = abrir(pw, ancho, alto, tag)
             if previo is None:
                 previo = page.evaluate("async()=>{const{data}=await sb.from('empresa_expediente').select('*').maybeSingle();return data||false;}")
+                prefs0 = page.evaluate("async()=>{const{data}=await sb.rpc('load_all_data_seguro',{p_token:currentUser.token});return data&&data.nav_prefs||{};}")
             try:
                 for c in CASOS:
                     if c in CASOS_FN:
@@ -259,6 +295,10 @@ def main():
                     page.evaluate("async()=>{await sb.from('empresa_expediente').delete().not('empresa_id','is',null);}")
                 elif previo:
                     page.evaluate("async p=>{const ks=Expediente.CAMPOS_DATOS.map(c=>c.k);await sb.rpc('guardar_empresa_expediente',{p_datos:Object.fromEntries(ks.map(k=>[k,p[k]]))});}", previo)
+                prefs1 = page.evaluate("async()=>{const{data}=await sb.rpc('load_all_data_seguro',{p_token:currentUser.token});return data&&data.nav_prefs||{};}")
+                # No se restauran solas: la cuenta de QA la comparten otros smokes y se pisaría su estado. Sólo se avisa.
+                if prefs1 != prefs0:
+                    print('  AVISO: nav_prefs cambiaron durante la corrida (¿otro smoke en paralelo?). Antes:', json.dumps(prefs0), 'Ahora:', json.dumps(prefs1))
                 br.close()
     for e in errores: print('ERROR', e)
     print(f'\n{len(fallos)} fallos, {len(errores)} errores de consola')

@@ -130,3 +130,28 @@ test('documentos: agrupados por categoría sin reemplazados, cadena de versiones
   assert.equal(Expediente.vencimientoSugerido('opinion_infonavit', '2026-10-04'), '2026-11-03');
   assert.equal(Expediente.vencimientoSugerido('acta_constitutiva', '2026-10-04'), null);
 });
+
+// ---- US-809: avisos de vencimiento ----------------------------------------------------------------------------------
+test('get_expediente_avisos responde a nivel >= 80; generar_avisos_expediente sólo para service_role', { skip }, async () => {
+  const a = await rpc('get_expediente_avisos', A);
+  assert.equal(a.status, 200, JSON.stringify(a.body));
+  assert.ok(Number.isInteger(a.body.vencidos) && Number.isInteger(a.body.por_vencer) && Array.isArray(a.body.items));
+  const sin = await rpc('get_expediente_avisos', '');
+  assert.notEqual(sin.status, 200, 'sin sesión no responde');
+  for (const t of [A, B, '']) {
+    const g = await rpc('generar_avisos_expediente', t);
+    assert.ok([401, 403, 404].includes(g.status), `la app no puede generar avisos (${g.status})`);
+  }
+});
+
+test('el job diario llama a generar_avisos_expediente en la acción notificaciones', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../../supabase/functions/jobs/index.ts', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('async function jobNotificaciones'), src.indexOf('async function jobWhatsapp'));
+  assert.ok(fn.includes('admin.rpc("generar_avisos_expediente")'));
+  assert.ok(fn.indexOf('generar_avisos_expediente') < fn.indexOf('notificaciones_para_correo'), 'antes del resumen por correo');
+  const sql = readFileSync(new URL('../../migrations/089_avisos_expediente.sql', import.meta.url), 'utf8');
+  assert.match(sql, /WHEN v\.dias <= 3 THEN '3' WHEN v\.dias <= 15 THEN '15' ELSE '30'/, 'umbrales 30, 15 y 3');
+  assert.match(sql, /r\.nivel_acceso >= 80/, 'sólo nivel >= 80');
+  assert.match(sql, /ON CONFLICT \(empresa_id, clave\) DO NOTHING/, 'una vez por umbral');
+});
