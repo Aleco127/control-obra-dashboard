@@ -267,6 +267,62 @@ const BancoPrecios = (() => {
   /** Referencia de la skill para una obra de acabados: materiales ~58 %, mano de obra ~37 %, equipo y herramienta ~5 %. */
   const COMPOSICION_REFERENCIA = { material: 58, mano_obra: 37, equipo_herramienta: 5 };
 
+  // ---- Factor de salario real (US-831) ---------------------------------------------------------------------------------
+  /**
+   * FSR con el método del Anexo 2 del IIPU actualizado (parámetros de parametros_laborales, ver migración 098):
+   *   FSB = 1 + (aguinaldo + prima vacacional × vacaciones) / 365.25 ;  SBC = round(SB × FSB, 2)
+   *   Cuotas patronales por jornada = cuota fija % × UMA + excedente % × max(0, SBC − 3 UMA)
+   *       + (prestaciones en dinero + gastos médicos + riesgo + invalidez y vida + guarderías + retiro
+   *          + cesantía y vejez según SBC/UMA + INFONAVIT) % × SBC
+   *   Ps = cuotas / SB ;  FSR sin ISN = (Tp/Tl) × (1 + Ps) ;  FSR = FSR sin ISN × (1 + ISN)
+   * Reproduce el tabulador de la skill (MO-PEON $360 → 1.84650 … MO-CABO $620 → 1.83089).
+   */
+  function cesantiaPct(sbc, p) {
+    const tabla = (p && p.cesantia_tabla) || [];
+    const sm = Number(p && p.salario_minimo) || 0; const uma = Number(p && p.uma) || 1;
+    const base = tabla.find((x) => x.base === 'salario_minimo');
+    if (base && sm && sbc <= sm * (Number(base.hasta_sm) || 1) + 1e-9) return Number(base.pct);
+    const r = sbc / uma;
+    const fila = tabla.filter((x) => x.base !== 'salario_minimo').find((x) => x.hasta_uma === null || x.hasta_uma === undefined || r <= Number(x.hasta_uma) + 1e-9);
+    return fila ? Number(fila.pct) : 0;
+  }
+  function calcularFSR(salarioBase, p) {
+    const sb = Number(salarioBase);
+    if (!(sb > 0) || !p) return null;
+    const d = p.datos || {};
+    const uma = Number(p.uma); const dias = Number(d.dias_anio) || 365.25;
+    const r4 = (v) => Math.round(v * 1e4) / 1e4; const r2 = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+    const fsb = 1 + ((Number(d.aguinaldo_dias) || 15) + (Number(d.prima_vacacional_pct) || 25) / 100 * (Number(p.dias_vacaciones) || 12)) / dias;
+    const sbc = r2(sb * fsb);
+    const ces = cesantiaPct(sbc, p);
+    const tasas = {
+      prestaciones_dinero: Number(d.prestaciones_dinero_pct) || 0, gastos_medicos: Number(d.gastos_medicos_pct) || 0,
+      riesgo_trabajo: Number(p.riesgo_trabajo_pct) || 0, invalidez_vida: Number(d.invalidez_vida_pct) || 0,
+      guarderias: Number(d.guarderias_pct) || 0, retiro: Number(d.retiro_pct) || 0, cesantia_vejez: ces, infonavit: Number(d.infonavit_pct) || 0,
+    };
+    const cuotas = {
+      cuota_fija: (Number(d.cuota_fija_pct) || 0) / 100 * uma,
+      excedente: (Number(d.excedente_pct) || 0) / 100 * Math.max(0, sbc - 3 * uma),
+    };
+    for (const [k, t] of Object.entries(tasas)) cuotas[k] = t / 100 * sbc;
+    const totalCuotas = Object.values(cuotas).reduce((s, v) => s + v, 0);
+    const ps = totalCuotas / sb;
+    const tp = Number(d.tp) || 0; const tl = Number(d.tl) || 0;
+    if (!tp || !tl) return null;
+    const fsrSinIsn = (tp / tl) * (1 + ps);
+    const isn = (Number(p.isn_pct) || 0) / 100;
+    const fsr = fsrSinIsn * (1 + isn);
+    return { salario_base: sb, fsb: Math.round(fsb * 1e6) / 1e6, sbc, sbc_uma: r4(sbc / uma), tasas, cesantia_pct: ces,
+      cuotas: Object.fromEntries(Object.entries(cuotas).map(([k, v]) => [k, r4(v)])), total_cuotas: r4(totalCuotas), ps: Math.round(ps * 1e6) / 1e6,
+      tp, tl, tp_tl: Math.round(tp / tl * 1e6) / 1e6, fsr_sin_isn: Math.round(fsrSinIsn * 1e5) / 1e5, isn_pct: isn * 100,
+      fsr: Math.round(fsr * 1e5) / 1e5, costo_jornada: r2(sb * Math.round(fsr * 1e5) / 1e5), anio: p.anio };
+  }
+  /** Parámetros de un año: los de la empresa mandan sobre los de fábrica; si no hay del año, null. */
+  function parametrosDelAnio(filas, anio) {
+    const delAnio = (filas || []).filter((f) => Number(f.anio) === Number(anio));
+    return delAnio.find((f) => !f.es_fabrica) || delAnio.find((f) => f.es_fabrica) || null;
+  }
+
   // ---- Datos (navegador) --------------------------------------------------------------------------------------------
   let enVuelo = null;
   let pintadas = 0;
@@ -778,6 +834,75 @@ ${(data.sin_precio || []).length ? `<p class="text-xs text-ink-muted mt-1">Sin p
     finally { btn.disabled = false; imp.ocupado = false; }
   }
 
+  // ---- Mano de obra: calculadora de FSR (US-831) -----------------------------------------------------------------------
+  const mo = { params: null, anio: null, p: null };
+  VISTAS.mano_obra = async (el) => {
+    el.innerHTML = Skeleton.table(4, 3);
+    const { data, error } = await sb.from('parametros_laborales').select('*').order('anio', { ascending: false });
+    if (error) throw error;
+    mo.params = data || [];
+    const actual = Number(hoyMx().slice(0, 4));
+    mo.p = parametrosDelAnio(mo.params, actual);
+    const respaldo = mo.p || (mo.params[0] || null);
+    mo.anio = respaldo ? respaldo.anio : null;
+    const mos = (D.ins.filas || []).filter((i) => i.tipo === 'mano_obra' && !i.compuesto);
+    const aviso = !mo.p ? `<div class="g rounded-xl p-3 mb-3 text-sm bp-aviso" role="alert"><i class="ri-error-warning-line" aria-hidden="true"></i> No están capturados los parámetros laborales de ${actual} (UMA, salario mínimo, riesgo, ISN, cesantía y vejez).${respaldo ? ` El cálculo usa los de ${respaldo.anio}: revisa antes de guardar.` : ' No se puede calcular el FSR.'}</div>` : '';
+    if (!respaldo) { el.innerHTML = aviso; return; }
+    if (!mo.p) mo.p = respaldo;
+    const p = mo.p;
+    el.innerHTML = `${aviso}<div class="grid grid-cols-1 lg:grid-cols-2 gap-4"><form class="g rounded-xl p-4 grid grid-cols-2 gap-3 content-start" onsubmit="event.preventDefault();BancoPrecios.guardarFsr()" aria-label="Calculadora de factor de salario real">
+<p class="col-span-2 font-bold">Factor de salario real ${S(p.anio)}</p>
+<p class="col-span-2 text-xs text-ink-muted">Método del Anexo 2 del IIPU: cuota fija sobre UMA, excedente de 3 UMA, tasas fijas, cesantía y vejez escalonada por SBC e ISN. UMA ${num(p.uma)} · riesgo ${num(p.riesgo_trabajo_pct, 5)} % · ISN ${num(p.isn_pct)} % · Tp/Tl ${num(p.datos && p.datos.tp)}/${num(p.datos && p.datos.tl)}${p.es_fabrica ? ' · parámetros de fábrica' : ''}.</p>
+<label class="col-span-2"><span class="text-xs mb-1 block">Categoría *</span><select id="bpMoIns" class="inp w-full" onchange="BancoPrecios.elegirCategoria(this.value)"><option value="">Nueva categoría</option>${mos.map((i) => `<option value="${i.id}">${S(i.clave)} · ${S(i.descripcion)}</option>`).join('')}</select></label>
+<div id="bpMoNueva" class="col-span-2 grid grid-cols-2 gap-3"><label><span class="text-xs mb-1 block">Clave *</span><input id="bpMoClave" class="inp w-full" maxlength="60" placeholder="MO-…"></label><label><span class="text-xs mb-1 block">Descripción *</span><input id="bpMoDesc" class="inp w-full" maxlength="200" placeholder="Oficial albañil"></label></div>
+<label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Salario base por jornada *</span><input id="bpMoSb" type="number" min="1" step="0.01" class="inp w-full" inputmode="decimal" oninput="BancoPrecios.calcularDesglose()" required></label>
+<label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Plaza *</span><select id="bpMoPlaza" class="inp w-full">${plazaOpts('cuauhtemoc')}</select></label>
+<label class="col-span-2 sm:col-span-1"><span class="text-xs mb-1 block">Fecha *</span><input id="bpMoFecha" type="date" class="inp w-full" value="${hoyMx()}" required></label>
+<div class="col-span-2 sm:col-span-1 flex items-end"><button type="submit" class="btn btn-p w-full" id="bpMoGuardar" disabled><i class="ri-save-line" aria-hidden="true"></i> Guardar precio</button></div>
+</form><div class="g rounded-xl p-4" id="bpMoDesglose" aria-live="polite"><p class="text-sm text-ink-muted">Captura el salario base para ver el desglose.</p></div></div>`;
+  };
+  function elegirCategoria(id) { $('bpMoNueva').hidden = !!filaPorId(Number(id)); }
+  function calcularDesglose() {
+    const r = calcularFSR(parseFloat($('bpMoSb').value), mo.p);
+    const el = $('bpMoDesglose'); $('bpMoGuardar').disabled = !r;
+    if (!r) { el.innerHTML = '<p class="text-sm text-ink-muted">Captura el salario base para ver el desglose.</p>'; return; }
+    const et = { cuota_fija: `Cuota fija (${num(mo.p.datos.cuota_fija_pct)} % de la UMA)`, excedente: `Excedente de 3 UMA (${num(mo.p.datos.excedente_pct)} %)`,
+      prestaciones_dinero: 'Prestaciones en dinero', gastos_medicos: 'Gastos médicos de pensionados', riesgo_trabajo: 'Riesgo de trabajo',
+      invalidez_vida: 'Invalidez y vida', guarderias: 'Guarderías', retiro: 'Retiro (SAR)', cesantia_vejez: 'Cesantía y vejez', infonavit: 'INFONAVIT' };
+    const fila = (a, b, c) => `<tr><td data-et="Concepto">${a}</td><td data-et="Tasa" class="text-right">${b}</td><td data-et="Por jornada" class="text-right">${c}</td></tr>`;
+    el.innerHTML = `<div class="kpi-strip"><div class="kpi"><div class="kpi-v">${num(r.fsr, 5)}</div><div class="kpi-l">FSR con ISN</div></div><div class="kpi"><div class="kpi-v">${F(r.costo_jornada)}</div><div class="kpi-l">Costo por jornada</div></div><div class="kpi"><div class="kpi-v">${F(r.sbc)}</div><div class="kpi-l">SBC (${num(r.sbc_uma, 2)} UMA)</div></div></div>
+<div class="table-wrap" tabindex="0" role="region" aria-label="Desglose del factor de salario real"><table class="table-modern tbl-apilada w-full text-sm"><thead><tr><th scope="col">Concepto</th><th scope="col" class="text-right">Tasa</th><th scope="col" class="text-right">Por jornada</th></tr></thead><tbody>
+${fila('Factor de salario base (aguinaldo y prima vacacional)', num(r.fsb, 6), F(r.sbc))}
+${Object.entries(r.cuotas).map(([k, v]) => fila(S(et[k] || k), r.tasas[k] !== undefined ? `${num(r.tasas[k], 3)} %` : '', F(v))).join('')}
+${fila('<b>Cuotas patronales</b>', `Ps ${num(r.ps, 6)}`, `<b>${F(r.total_cuotas)}</b>`)}
+${fila('Días pagados entre días laborados (Tp/Tl)', `${num(r.tp)}/${num(r.tl)}`, num(r.tp_tl, 6))}
+${fila('FSR sin ISN', '', num(r.fsr_sin_isn, 5))}
+${fila(`Impuesto sobre nómina`, `${num(r.isn_pct)} %`, '')}
+${fila('<b>FSR</b>', '', `<b>${num(r.fsr, 5)}</b>`)}</tbody></table></div>`;
+  }
+  async function guardarFsr() {
+    const r = calcularFSR(parseFloat($('bpMoSb').value), mo.p); if (!r) return;
+    const btn = $('bpMoGuardar'); btn.disabled = true;
+    try {
+      let id = parseInt($('bpMoIns').value, 10) || null;
+      if (!id) {
+        const clave = $('bpMoClave').value.trim(); const descripcion = $('bpMoDesc').value.trim();
+        if (!clave || !descripcion) { Toast.warning('Captura la clave y la descripción de la categoría.'); return; }
+        const { data, error } = await sb.from('insumos').insert({ clave, descripcion, unidad: 'JOR', tipo: 'mano_obra', familia: `Tabulador ${r.anio}` }).select('id').single();
+        if (error) throw error; id = data.id;
+      }
+      const fila = { insumo_id: id, precio: r.costo_jornada, fecha: $('bpMoFecha').value, plaza: $('bpMoPlaza').value, fuente: 'manual', licitacion_id: null,
+        datos: { salario_base: r.salario_base, sbc: r.sbc, fsr: r.fsr, fsr_sin_isn: r.fsr_sin_isn, costo_jornada: r.costo_jornada, ps: r.ps, cesantia_pct: r.cesantia_pct, anio: r.anio, metodo: 'anexo2_iipu' },
+        notas: `FSR ${r.fsr} con parámetros ${r.anio}` };
+      const { error } = await sb.from('insumo_precios').upsert(fila, { onConflict: 'insumo_id,fecha,plaza,fuente,licitacion_id' });
+      if (error) throw error;
+      Toast.success(`Precio guardado: ${F(r.costo_jornada)} por jornada.`);
+      await cargar(true);
+      abrirInsumo(id);
+    } catch (e) { Toast.error(e && e.code === '23505' ? 'Ya existe una categoría con esa clave. Elígela de la lista.' : humanizeError(e, 'Mano de obra')); }
+    finally { btn.disabled = false; }
+  }
+
   // ---- Conceptos y matrices (US-826) ---------------------------------------------------------------------------------
   const con = { q: '', lista: null, actual: null };
   VISTAS.conceptos = async (el) => {
@@ -894,9 +1019,10 @@ ${pus.length ? `<div class="table-wrap" tabindex="0" role="region" aria-label="P
   }
 
   return {
+    elegirCategoria, calcularDesglose, guardarFsr,
     leerArchivo, cambiarLic, decidir, decidirTodos, cancelarImportacion, importar, buscarConcepto, abrirConcepto,
     trigramas, similitud, conciliarInsumos, mapaImportacion, leerOpusInsumos, validarOpusInsumos, fechaPropuesta, plazaSugerida,
-    excelAOpusInsumos, recalcularMatriz, composicionCD, COMPOSICION_REFERENCIA,
+    excelAOpusInsumos, recalcularMatriz, composicionCD, COMPOSICION_REFERENCIA, calcularFSR, cesantiaPct, parametrosDelAnio,
     render, cargar, recargar, irA, nuevoInsumo, editarInsumo, guardarInsumo, buscar, filtrarPlaza, filtrarTipo,
     abrirInsumo, cerrarInsumo, mostrarCaptura, ocultarCaptura, guardarPrecio,
     abrirFusion, buscarDestino, elegirDestino, confirmarFusion,
