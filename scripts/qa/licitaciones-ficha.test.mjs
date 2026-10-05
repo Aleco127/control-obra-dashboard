@@ -1,0 +1,103 @@
+// Funciones puras de la épica C (US-813 a US-821) en src/js/licitaciones.js. Sin red:
+//   node --test scripts/qa/licitaciones-ficha.test.mjs
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+const require = createRequire(import.meta.url);
+const L = require('../../src/js/licitaciones.js');
+
+test('US-813: filtros por estatus y año, años presentes y año de una licitación', () => {
+  const lics = [
+    { id: 1, estatus: 'en_preparacion', presentacion: '2026-10-20T16:00:00Z' },
+    { id: 2, estatus: 'ganada', presentacion: '2025-11-03T16:00:00Z' },
+    { id: 3, estatus: 'en_preparacion', presentacion: null, created_at: '2026-01-05T10:00:00Z' },
+    { id: 4, estatus: 'perdida', presentacion: '2026-01-01T05:00:00Z' }, // 31-dic-2025 a las 23:00 en México
+  ];
+  assert.equal(L.anioDe(lics[3]), '2025', 'el año sale de la fecha civil de México');
+  assert.deepEqual(L.aniosDe(lics), ['2026', '2025']);
+  assert.deepEqual(L.filtrar(lics, { estatus: 'en_preparacion', anio: '' }).map((l) => l.id), [1, 3]);
+  assert.deepEqual(L.filtrar(lics, { estatus: '', anio: '2025' }).map((l) => l.id), [2, 4]);
+  assert.deepEqual(L.filtrar(lics, {}).length, 4);
+});
+
+test('US-814: fechas en hora de México para inputs y para guardar', () => {
+  assert.equal(L.aLocalMx('2026-10-20T16:00:00Z'), '2026-10-20T10:00');
+  assert.equal(L.aLocalMx('2026-10-21T05:30:00+00:00'), '2026-10-20T23:30', 'la noche del 20 en México');
+  assert.equal(L.aLocalMx(null), '');
+  assert.equal(L.aIsoMx('2026-10-20T10:00'), '2026-10-20T10:00:00-06:00');
+  assert.equal(L.aIsoMx('2026-10-20'), '2026-10-20T10:00:00-06:00', 'una fecha sola queda a las 10:00');
+  assert.equal(L.aIsoMx(''), null);
+  assert.equal(L.aIsoMx('20/10/2026'), null);
+  assert.equal(L.aLocalMx(L.aIsoMx('2026-03-15T08:45')), '2026-03-15T08:45', 'ida y vuelta sin horario de verano');
+});
+
+test('US-814: avance de requisitos por sobre (de «Listo» en adelante cuenta como hecho)', () => {
+  const reqs = [
+    { sobre: 'legal', estado: 'listo' }, { sobre: 'legal', estado: 'pendiente' }, { sobre: 'legal', estado: 'validado' },
+    { sobre: 'tecnico', estado: 'en_revision' }, { sobre: 'economico', estado: 'firmado' },
+  ];
+  const a = L.avancePorSobre(reqs);
+  assert.deepEqual(a.legal, { total: 3, hechos: 2, pct: 67 });
+  assert.deepEqual(a.tecnico, { total: 1, hechos: 0, pct: 0 });
+  assert.deepEqual(a.economico, { total: 1, hechos: 1, pct: 100 });
+  assert.deepEqual(a.total, { total: 5, hechos: 3, pct: 60 });
+  assert.deepEqual(L.avancePorSobre([]).total, { total: 0, hechos: 0, pct: 0 });
+  assert.deepEqual(L.ESTADOS_HECHOS, ['listo', 'firmado', 'escaneado', 'foliado', 'validado']);
+});
+
+test('US-814: eventos del Calendario con tipo propio, id negativo estable y texto escapado', () => {
+  const lics = [
+    { id: 7, codigo: 'MC-<057>', nombre: 'Archivo "Municipal"', convocante: 'Municipio', estatus: 'en_preparacion',
+      visita: '2026-08-20T16:00:00Z', junta_aclaraciones: '2026-09-03T16:00:00Z', presentacion: '2026-09-14T19:30:00Z', fallo: null },
+    { id: 8, codigo: 'X', nombre: 'Cancelada', estatus: 'cancelada', presentacion: '2026-09-14T19:30:00Z' },
+  ];
+  const ev = L.eventosDeLicitacion(lics, '2026-09-04');
+  assert.equal(ev.length, 3, 'sin fallo y sin la cancelada');
+  assert.deepEqual(ev.map((e) => e.id), [-71, -72, -73]);
+  assert.ok(ev.every((e) => e.tipo === 'Licitación' && e._lic === 7 && e.obra_id === null));
+  assert.equal(ev[2].fecha_inicio, '2026-09-14');
+  assert.equal(ev[2].hora_inicio, '13:30:00');
+  assert.equal(ev[2].titulo, 'Presentación · MC-&lt;057&gt;');
+  assert.equal(ev[2].descripcion, 'Archivo &quot;Municipal&quot;');
+  assert.equal(ev[0].estatus, 'Completado');
+  assert.equal(ev[2].estatus, 'Pendiente');
+});
+
+test('US-814: secciones de Bases cubren lo que guarda bases.json y leen/escriben cada tipo de campo', () => {
+  const claves = L.SECCIONES_BASES.map((s) => s.k);
+  for (const k of ['objeto', 'plazo', 'anticipo', 'garantias', 'fechas', 'criterios', 'desechamiento']) assert.ok(claves.includes(k), k);
+  const campos = L.SECCIONES_BASES.flatMap((s) => s.campos);
+  const cols = campos.filter((c) => c.col).map((c) => c.col);
+  const sql = readFileSync(new URL('../../migrations/092_licitaciones_rpc.sql', import.meta.url), 'utf8');
+  for (const c of cols) assert.match(sql, new RegExp(`\\b${c}\\s+= CASE WHEN p \\? '${c}'`), `guardar_licitacion actualiza ${c}`);
+  const sub = campos.find((c) => c.tipo === 'subcriterios');
+  assert.deepEqual(L.leerCampo(sub, 'Experiencia | 30\nPrecio|70 %\n|5'), [{ criterio: 'Experiencia', peso: 30 }, { criterio: 'Precio', peso: 70 }]);
+  assert.equal(L.valorCampo({ bases: { criterios_evaluacion: { subcriterios: [{ criterio: 'A', peso: 1 }] } } }, sub), 'A | 1');
+  const lista = campos.find((c) => c.tipo === 'lista');
+  assert.deepEqual(L.leerCampo(lista, ' uno \n\n dos '), ['uno', 'dos']);
+  assert.equal(L.leerCampo({ tipo: 'num' }, '$1,234.50'), 1234.5);
+  assert.equal(L.leerCampo({ tipo: 'int' }, '100'), 100);
+  assert.equal(L.leerCampo({ tipo: 'num' }, ''), null);
+  assert.equal(L.leerCampo({ tipo: 'fh' }, '2026-09-14T13:30'), '2026-09-14T13:30:00-06:00');
+  const o = { a: { b: 1 } };
+  L.setRuta(o, 'x.y.z', 'v'); L.setRuta(o, 'a.b', null);
+  assert.deepEqual(o, { a: {}, x: { y: { z: 'v' } } });
+});
+
+test('Pestañas ampliables: la lista y la ficha aceptan pestañas nuevas sin duplicar', () => {
+  assert.deepEqual(L.FICHA_PESTANAS.map((p) => p.k), ['resumen', 'bases', 'archivos', 'requisitos', 'precios', 'cierre']);
+  assert.equal(L.registrarPestana('lista', { k: 'convocatorias', t: 'Convocatorias', pintar() {} }), true);
+  assert.equal(L.registrarPestana('lista', { k: 'convocatorias', t: 'Otra vez', pintar() {} }), false);
+  assert.equal(L.registrarPestana('ficha', { k: 'x', t: 'X', pintar() {} }, 'bases'), true);
+  assert.deepEqual(L.FICHA_PESTANAS.map((p) => p.k).slice(0, 3), ['resumen', 'bases', 'x']);
+  assert.equal(L.registrarPestana('ficha', { k: 'sin-pintar' }), false);
+  L.FICHA_PESTANAS.splice(2, 1); L.LISTA_PESTANAS.pop();
+});
+
+test('errTxt: el mensaje en español de una RPC pasa tal cual; lo técnico va por humanizeError', () => {
+  assert.equal(L.errTxt({ message: 'Ya existe otra licitación con el código X.' }, 'No se guardó'), 'No se guardó: Ya existe otra licitación con el código X.');
+  globalThis.humanizeError = (e, c) => `${c}: genérico`;
+  assert.equal(L.errTxt({ message: 'duplicate key value violates unique constraint' }, 'Ctx'), 'Ctx: genérico');
+  delete globalThis.humanizeError;
+});
