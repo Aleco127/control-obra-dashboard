@@ -178,6 +178,15 @@ falta para buscar; para descargar tampoco, según la prueba de hoy.
 - Prueba real acotada (PC, 4-oct-2026): corrida 3 → 8 encontradas/8 nuevas; corrida 4 → 0 nuevas/8 actualizadas,
   7 detalles, 77 s. Las 8 quedaron con publicación, junta, apertura y fallo.
 
+### Búsqueda a petición con filtros (D12, D13, US-851)
+Sustituye a la corrida diaria: `buscar_convocatorias(filtros)` en el recolector (también por línea de comandos con
+`--texto/--entidades/--tipos/--desde/--hasta/--max-resultados`) y el **conector local** que la expone a la app en
+`127.0.0.1:8879` (ver `conector-local.md`). Filtros del panel «Filtros» del portal comprobados el 5-oct-2026 en el
+cuerpo que el sitio manda a su API: «Nombre» → `nombre_procedimiento` (subcadena), «Fecha de publicación» →
+`fecha_publicacion_inicio/fin`, «Fecha de presentación y apertura» → `fecha_apertura_inicio/fin` (se escriben
+dd/mm/aaaa; Escape después de escribir borra el valor del `p-calendar`). Ejemplo: Chihuahua + obra pública +
+publicación 28-sep a 5-oct → 5 de 8; + «agua» → 2.
+
 ### Secreto de servidor
 - `CONVOCATORIAS_INGESTA_SECRET` (64 hex) generado el 4-oct-2026. Vive **sólo** en
   `C:\Users\aleja\.config\control-obra\convocatorias.env` (fuera del repo; ACL sólo para el usuario `aleja`; equivale a
