@@ -100,6 +100,11 @@ def ir_conv(page):
     page.wait_for_function("()=>typeof Convocatorias!=='undefined'&&document.getElementById('lcTab-convocatorias')", timeout=30000)
     page.click('#lcTab-convocatorias')
     esperar_lista(page)
+    abrir_barra(page)
+def abrir_barra(page):
+    # US-853: en el teléfono la barra de filtros entra plegada en «Filtros (N)».
+    if page.query_selector('#cvFiltrosPanel') and not page.evaluate("()=>document.getElementById('cvFiltrosPanel').open"):
+        page.click('#cvFiltrosPanel > summary'); page.wait_for_timeout(200)
 def sin_desborde(page, tag):
     w = page.evaluate("()=>[document.documentElement.scrollWidth, window.innerWidth]")
     check(w[0] <= w[1] + 1, f'{tag}: sin desborde horizontal ({w[0]} <= {w[1]})')

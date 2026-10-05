@@ -549,6 +549,7 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
   .lc-tbl td::before{content:attr(data-et);color:var(--ink-muted);font-size:var(--fs-xs);text-align:left;flex:0 0 auto}
   .lc-tbl td[data-et=""]{justify-content:flex-end}
   .lc-tbl td[data-et=""]::before{content:none}
+}
 
 /* ===== Banco de precios (épica D, US-822 a US-832) ===== */
 .bp-seg{flex-wrap:wrap;width:auto}
@@ -568,3 +569,16 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 
 /* ===== Precios de una licitación (US-829/833, licitacion-precios.js) ===== */
 .lp-inp-ambar{border-color:var(--warn);background:var(--warn-soft)}
+
+/* ===== Convocatorias: barra de filtros, fichas y documentos (épica K · US-848, US-849, US-852, US-853) ===== */
+.cv-filtros>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:var(--sp-2);min-height:var(--tap)}
+.cv-filtros>summary::-webkit-details-marker{display:none}
+@media (min-width:640px){.cv-filtros>summary{display:none}}
+.cv-ficha{display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 10px;border-radius:var(--radius-pill);background:var(--accent-soft);color:var(--accent);font-size:var(--fs-xs);max-width:100%}
+.cv-ficha>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:16rem}
+.cv-ficha>button{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;border-radius:var(--radius-pill);color:inherit}
+.cv-ficha>button:hover{background:var(--surface-2)}
+.cv-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cv-desc.abierta{display:block;-webkit-line-clamp:unset}
+.cv-prog{height:6px;border-radius:var(--radius-pill);background:var(--surface-2);overflow:hidden}
+.cv-prog>span{display:block;height:100%;background:var(--accent-fill)}

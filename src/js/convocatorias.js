@@ -39,6 +39,7 @@ const Convocatorias = (() => {
   const PROCEDIMIENTOS = { licitacion_publica: 'Licitación pública', invitacion: 'Invitación a cuando menos tres', adjudicacion_directa: 'Adjudicación directa' };
   const ESTADOS = { nueva: 'Nuevas', interesa: 'Me interesan', descartada: 'Descartadas', convertida: 'Convertidas' };
   const ESTATUS_PORTAL = { vigente: 'Vigente', en_seguimiento: 'En seguimiento', terminado: 'Terminado', cancelado: 'Cancelado' };
+  const ESTADOS_DESCARGA = { pendiente: 'Documentos en cola', en_curso: 'Bajando documentos', lista: 'Documentos listos', fallo: 'Descarga con error' };
   const ENTIDADES = ['Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas', 'Chihuahua',
     'Ciudad de México', 'Coahuila', 'Colima', 'Durango', 'Guanajuato', 'Guerrero', 'Hidalgo', 'Jalisco', 'México',
     'Michoacán', 'Morelos', 'Nayarit', 'Nuevo León', 'Oaxaca', 'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí',
@@ -55,10 +56,10 @@ const Convocatorias = (() => {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
       .replace(/[^a-z0-9ñ]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  /** Texto donde se buscan las palabras clave: el mismo de la columna generada convocatorias.texto_norm. */
+  /** Texto donde se buscan las palabras clave: el mismo de la columna generada convocatorias.texto_norm (migración 108: con la descripción al final). */
   function textoConvocatoria(c) {
     const x = c || {};
-    return norm([x.numero_procedimiento, x.titulo, x.dependencia, x.unidad_compradora, x.municipio].map((v) => v || '').join(' '));
+    return norm([x.numero_procedimiento, x.titulo, x.dependencia, x.unidad_compradora, x.municipio, x.descripcion].map((v) => v || '').join(' '));
   }
   const lista = (v) => (Array.isArray(v) ? v : []);
   /**
@@ -104,23 +105,134 @@ const Convocatorias = (() => {
     const f = hoyMx(new Date(ts)); const h = String(hoy || hoyMx());
     return Math.round((Date.UTC(+f.slice(0, 4), +f.slice(5, 7) - 1, +f.slice(8, 10)) - Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10))) / 86400000);
   }
-  /** Argumentos de convocatorias_buscar desde el estado de la pestaña. */
+  /**
+   * Texto de la barra → {palabras, excluir}: «red agua -mantenimiento» = deben aparecer «red» y «agua» (todas) y no
+   * «mantenimiento». Las palabras se normalizan como en el servidor; «-» solo o vacío no cuenta.
+   */
+  function parseTextoBarra(s) {
+    const palabras = []; const excluir = [];
+    for (const t of String(s == null ? '' : s).split(/\s+/)) {
+      if (!t) continue;
+      if (t.startsWith('-')) { const n = norm(t.slice(1)); if (n && !excluir.includes(n)) excluir.push(n); }
+      else { for (const w of norm(t).split(' ')) if (w && !palabras.includes(w)) palabras.push(w); }
+    }
+    return { palabras, excluir };
+  }
+  /** ¿Pasa la convocatoria el texto de la barra? (misma regla que p_texto + p_excluir de convocatorias_buscar). */
+  function cumpleTextoBarra(c, s) {
+    const { palabras, excluir } = parseTextoBarra(s);
+    const txt = c && c.texto_norm != null ? String(c.texto_norm) : textoConvocatoria(c);
+    return palabras.every((w) => txt.includes(w)) && !excluir.some((w) => txt.includes(w));
+  }
+  /** Estado vacío de la barra (lo que deja «Quitar filtros»). */
+  const BARRA_VACIA = { texto: '', fuente: '', entidad: '', municipio: '', dependencia: '', tipo: '', procedimiento: '', estatus: '',
+    estado: '', abren: '', abren_desde: '', abren_hasta: '', pub: '', pub_desde: '', pub_hasta: '', orden: 'apertura', mis: false, filtro: '', pagina: 0 };
+  /** Estado inicial: las nuevas que cumplen mis filtros (US-843). */
+  const BARRA_INICIAL = Object.assign({}, BARRA_VACIA, { estado: 'nueva', mis: true });
+  const ORDENES = { apertura: 'Apertura más próxima', publicacion: 'Publicación más reciente', dependencia: 'Dependencia' };
+  const PLAZOS_APERTURA = { 7: 'los próximos 7 días', 15: 'los próximos 15 días', 30: 'los próximos 30 días', rango: 'Rango de fechas…' };
+  const PLAZOS_PUBLICACION = { 7: 'los últimos 7 días', 15: 'los últimos 15 días', 30: 'los últimos 30 días', 60: 'los últimos 60 días', 90: 'los últimos 90 días', rango: 'Rango de fechas…' };
+  const fechaOk = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  /** Argumentos de convocatorias_buscar desde el estado de la barra (todo el filtrado y la paginación en el servidor). */
   function argsBusqueda(s) {
-    const x = s || {};
-    const a = {
-      p_texto: x.texto ? String(x.texto).trim() || null : null,
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const t = parseTextoBarra(x.texto);
+    const rangoA = x.abren === 'rango'; const rangoP = x.pub === 'rango';
+    return {
+      p_texto: t.palabras.length ? t.palabras.join(' ') : null,
+      p_excluir: t.excluir.length ? t.excluir : null,
       p_fuentes: x.fuente ? [x.fuente] : null,
       p_entidades: x.entidad ? [x.entidad] : null,
+      p_municipio: String(x.municipio || '').trim() || null,
+      p_dependencia: String(x.dependencia || '').trim() || null,
       p_tipos: x.tipo ? [x.tipo] : null,
+      p_procedimientos: x.procedimiento ? [x.procedimiento] : null,
+      p_estatus: x.estatus ? [x.estatus] : null,
       p_estados: x.estado ? [x.estado] : null,
-      p_abren_dias: x.abren ? Number(x.abren) : null,
+      p_abren_dias: x.abren && !rangoA ? Number(x.abren) : null,
+      p_abren_desde: rangoA && fechaOk(x.abren_desde) ? x.abren_desde : null,
+      p_abren_hasta: rangoA && fechaOk(x.abren_hasta) ? x.abren_hasta : null,
+      p_pub_dias: x.pub && !rangoP ? Number(x.pub) : null,
+      p_pub_desde: rangoP && fechaOk(x.pub_desde) ? x.pub_desde : null,
+      p_pub_hasta: rangoP && fechaOk(x.pub_hasta) ? x.pub_hasta : null,
+      p_orden: ORDENES[x.orden] ? x.orden : 'apertura',
+      p_filtro_id: x.filtro ? Number(x.filtro) : null,
       p_mis_filtros: !!x.mis,
-      p_solo_vigentes: true,
+      // Con un estatus del portal elegido se ven también las terminadas o canceladas; si no, sólo las vigentes.
+      p_solo_vigentes: !x.estatus,
       p_limite: POR_PAGINA,
       p_offset: Math.max(0, Number(x.pagina) || 0) * POR_PAGINA,
     };
-    return a;
   }
+  const fmtDia = (v) => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${+m[3]}/${+m[2]}/${m[1]}` : ''; };
+  function rangoTexto(d, h) { return d && h ? `${fmtDia(d)} a ${fmtDia(h)}` : d ? `desde el ${fmtDia(d)}` : h ? `hasta el ${fmtDia(h)}` : ''; }
+  /**
+   * Fichas de los filtros puestos: [{k, t}] en el orden de la barra. `k` es lo que se quita con Convocatorias.quitar(k).
+   * `nombreFiltro(id)` da el nombre de un filtro guardado.
+   */
+  function fichasActivas(s, nombreFiltro) {
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const out = [];
+    const t = parseTextoBarra(x.texto);
+    if (t.palabras.length) out.push({ k: 'texto', t: `Texto: ${t.palabras.join(' ')}` });
+    for (const w of t.excluir) out.push({ k: 'excluir:' + w, t: `Sin «${w}»` });
+    if (x.filtro) out.push({ k: 'filtro', t: `Filtro guardado: ${(nombreFiltro && nombreFiltro(x.filtro)) || '#' + x.filtro}` });
+    if (x.mis) out.push({ k: 'mis', t: 'Cumplen mis filtros' });
+    if (x.fuente) out.push({ k: 'fuente', t: `Fuente: ${FUENTES_PORTAL[x.fuente] || x.fuente}` });
+    if (x.entidad) out.push({ k: 'entidad', t: `Entidad: ${x.entidad}` });
+    if (String(x.municipio || '').trim()) out.push({ k: 'municipio', t: `Municipio: ${String(x.municipio).trim()}` });
+    if (String(x.dependencia || '').trim()) out.push({ k: 'dependencia', t: `Dependencia: ${String(x.dependencia).trim()}` });
+    if (x.tipo) out.push({ k: 'tipo', t: TIPOS[x.tipo] || x.tipo });
+    if (x.procedimiento) out.push({ k: 'procedimiento', t: PROCEDIMIENTOS[x.procedimiento] || x.procedimiento });
+    if (x.estatus) out.push({ k: 'estatus', t: `Estatus: ${ESTATUS_PORTAL[x.estatus] || x.estatus}` });
+    if (x.estado) out.push({ k: 'estado', t: `Seguimiento: ${ESTADOS[x.estado] || x.estado}` });
+    if (x.abren === 'rango' && (x.abren_desde || x.abren_hasta)) out.push({ k: 'abren', t: `Abren ${rangoTexto(x.abren_desde, x.abren_hasta)}` });
+    else if (x.abren && x.abren !== 'rango') out.push({ k: 'abren', t: `Abren en ${PLAZOS_APERTURA[x.abren] || x.abren + ' días'}` });
+    if (x.pub === 'rango' && (x.pub_desde || x.pub_hasta)) out.push({ k: 'pub', t: `Publicadas ${rangoTexto(x.pub_desde, x.pub_hasta)}` });
+    else if (x.pub && x.pub !== 'rango') out.push({ k: 'pub', t: `Publicadas en ${PLAZOS_PUBLICACION[x.pub] || x.pub + ' días'}` });
+    return out;
+  }
+  /** Estado de la barra sin la ficha `k`. */
+  function quitarFicha(s, k) {
+    const x = Object.assign({}, BARRA_VACIA, s || {}, { pagina: 0 });
+    if (k.startsWith('excluir:')) {
+      const w = k.slice(8);
+      x.texto = String(x.texto || '').split(/\s+/).filter((t) => !(t.startsWith('-') && norm(t.slice(1)) === w)).join(' ');
+    } else if (k === 'texto') {
+      x.texto = String(x.texto || '').split(/\s+/).filter((t) => t.startsWith('-') && norm(t.slice(1))).join(' ');
+    } else if (k === 'abren') { x.abren = ''; x.abren_desde = ''; x.abren_hasta = ''; }
+    else if (k === 'pub') { x.pub = ''; x.pub_desde = ''; x.pub_hasta = ''; }
+    else if (k === 'mis') x.mis = false;
+    else if (k in x) x[k] = '';
+    return x;
+  }
+  /**
+   * «Guardar esta búsqueda» → filtro guardado (US-844). Las columnas del filtro sólo saben de palabras clave (basta
+   * una), palabras a excluir, fuentes, entidades y tipos; la barra completa va en `barra` y se reaplica al elegirlo.
+   */
+  function filtroDesdeBarra(s) {
+    const x = Object.assign({}, BARRA_VACIA, s || {});
+    const t = parseTextoBarra(x.texto);
+    const barra = {};
+    for (const k of Object.keys(BARRA_VACIA)) if (!['pagina', 'filtro', 'mis'].includes(k) && x[k] !== BARRA_VACIA[k]) barra[k] = x[k];
+    return {
+      palabras_clave: t.palabras, palabras_excluir: t.excluir,
+      fuentes: x.fuente ? [x.fuente] : [], entidades: x.entidad ? [x.entidad] : [], tipos_contratacion: x.tipo ? [x.tipo] : [],
+      barra,
+    };
+  }
+  /** Estado de la barra al elegir un filtro guardado: su barra (si se guardó desde aquí) + la regla del filtro. */
+  function barraDesdeFiltro(f) {
+    const x = f || {};
+    const b = x.barra && typeof x.barra === 'object' ? x.barra : {};
+    const out = Object.assign({}, BARRA_VACIA, { estado: '' });
+    for (const k of Object.keys(BARRA_VACIA)) if (k in b && !['pagina', 'filtro', 'mis'].includes(k)) out[k] = b[k];
+    out.filtro = x.id ? String(x.id) : '';
+    out.mis = false;
+    return out;
+  }
+  /** Número de filtros puestos (para «Filtros (N)» en el teléfono). */
+  function cuentaFiltros(s) { return fichasActivas(s).length; }
   /** Modalidad de la licitación desde el tipo de procedimiento de la convocatoria. */
   function modalidadDe(tp) { return ['licitacion_publica', 'invitacion', 'adjudicacion_directa'].includes(tp) ? tp : null; }
   /** Plaza de la licitación (catálogo de Licitaciones) desde el municipio (o «Municipio de X» de la dependencia). */
@@ -234,8 +346,13 @@ const Convocatorias = (() => {
   }
 
   // ---- Estado del navegador -----------------------------------------------------------------------------------------------
-  const st = { texto: '', fuente: '', entidad: '', tipo: '', estado: 'nueva', abren: '', mis: true, pagina: 0 };
+  const st = Object.assign({}, BARRA_INICIAL);
   let filas = []; let total = 0; let estado = []; let filtros = null; let cargando = 0;
+  let opciones = null;          // {dependencias:[{v,n}], municipios:[{v,n}]} para autocompletar (convocatorias_opciones)
+  let stCargado = false;        // la barra ya se leyó de sessionStorage
+  let panelAbierto = null;      // <details> de la barra en el teléfono
+  let barraPendiente = null;    // «Guardar esta búsqueda»: barra que se guarda con el filtro nuevo
+  let ultimaMs = null;          // tiempo de la última consulta de la lista (para medir)
   let resultados = null;        // tras «Buscar en los portales»: [{fuente, corrida, inicio, filas, resumen, error}]
   let busqueda = null;          // búsqueda en curso: {fuentes:{chihuahua:{estado, texto}, comprasmx:{...}}, ctl:{}}
   let deshacer = null;          // {id, prev, titulo, t}
@@ -254,7 +371,7 @@ const Convocatorias = (() => {
   // ---- Carga ----------------------------------------------------------------------------------------------------------
   async function cargarFiltros(force) {
     if (filtros && !force) return filtros;
-    const { data, error } = await sb.from('convocatoria_filtros').select('id,nombre,palabras_clave,palabras_excluir,fuentes,entidades,tipos_contratacion,activo,de_fabrica,updated_at').order('de_fabrica', { ascending: false }).order('nombre');
+    const { data, error } = await sb.from('convocatoria_filtros').select('id,nombre,palabras_clave,palabras_excluir,fuentes,entidades,tipos_contratacion,activo,de_fabrica,updated_at,barra').order('de_fabrica', { ascending: false }).order('nombre');
     if (error) throw error;
     filtros = data || [];
     return filtros;
@@ -262,11 +379,29 @@ const Convocatorias = (() => {
   async function cargarEstado() { try { estado = (await rpc('convocatorias_estado')) || []; } catch (e) { estado = []; } return estado; }
   async function cargarLista() {
     const turno = ++cargando;
+    const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const d = await rpc('convocatorias_buscar', argsBusqueda(st));
     if (turno !== cargando) return false;
+    ultimaMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
     filas = d || []; total = filas.length ? Number(filas[0].total) || 0 : 0;
     return true;
   }
+  async function cargarOpciones() {
+    if (opciones) return opciones;
+    try { opciones = (await rpc('convocatorias_opciones')) || { dependencias: [], municipios: [] }; } catch (e) { opciones = { dependencias: [], municipios: [] }; }
+    return opciones;
+  }
+  // La barra sobrevive a salir y volver al módulo en la misma sesión (sessionStorage, por usuario).
+  const claveBarra = () => 'conv_barra:' + uid();
+  function leerBarra() {
+    if (stCargado) return;
+    stCargado = true;
+    try {
+      const g = JSON.parse(sessionStorage.getItem(claveBarra()) || 'null');
+      if (g && typeof g === 'object') for (const k of Object.keys(BARRA_VACIA)) if (k in g) st[k] = g[k];
+    } catch (e) { /* sin sessionStorage */ }
+  }
+  function guardarBarra() { try { sessionStorage.setItem(claveBarra(), JSON.stringify(st)); } catch (e) { /* sin sessionStorage */ } }
   /** Marca la pestaña como revisada: el contador de la barra (US-846) cuenta lo nuevo desde aquí. */
   function marcarVisto() {
     ls.set('conv_visto:' + uid(), new Date().toISOString());
@@ -283,9 +418,11 @@ const Convocatorias = (() => {
   async function pintar(cont) {
     cont.innerHTML = `<div id="cvPanel"><div aria-busy="true">${Skeleton.table(5, 5)}</div></div>`;
     try {
+      leerBarra();
       await cargarFiltros();
       if (!filtros.some((f) => f.activo) && st.mis) st.mis = false;   // sin filtros activos «sólo mis filtros» daría vacío
-      await Promise.all([cargarLista(), cargarEstado()]);
+      if (st.filtro && !filtros.some((f) => String(f.id) === String(st.filtro))) st.filtro = '';
+      await Promise.all([cargarLista(), cargarEstado(), cargarOpciones()]);
       marcarVisto();
       repintar();
     } catch (e) {
@@ -294,7 +431,15 @@ const Convocatorias = (() => {
   }
   function repintar() {
     const p = el(); if (!p) return;
-    p.innerHTML = cabeceraHtml() + busquedaHtml() + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + listaHtml()) + pieHtml();
+    p.innerHTML = cabeceraHtml() + busquedaHtml() + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + `<div id="cvFichas">${fichasHtml()}</div><div id="cvLista">${listaHtml()}</div>`) + pieHtml();
+  }
+  /** Sólo fichas, contador y lista: la barra no se vuelve a pintar (no pierde el foco ni lo escrito). */
+  function repintarLista() {
+    const l = typeof document !== 'undefined' && document.getElementById('cvLista');
+    if (!l || resultados) { repintar(); return; }
+    l.innerHTML = listaHtml();
+    const f = document.getElementById('cvFichas'); if (f) f.innerHTML = fichasHtml();
+    const n = document.getElementById('cvNFiltros'); if (n) n.textContent = String(cuentaFiltros(st));
   }
   function cabeceraHtml() {
     const activos = (filtros || []).filter((f) => f.activo).length;
@@ -304,15 +449,45 @@ const Convocatorias = (() => {
 <button type="button" class="btn btn-p" onclick="Convocatorias.abrirBusqueda()" ${busqueda ? 'disabled' : ''}><i class="ri-search-eye-line" aria-hidden="true"></i> Buscar en los portales</button></div></div>`;
   }
   function barraHtml() {
-    return `<form class="grid grid-cols-2 gap-2 mb-3 items-end sm:flex sm:flex-wrap" onsubmit="event.preventDefault();Convocatorias.filtrar('texto',document.getElementById('cvTexto').value)" role="search" aria-label="Filtrar convocatorias">
-<div class="col-span-2 grow sm:min-w-[12rem]"><label class="text-xs mb-1 block" for="cvTexto">Buscar en lo guardado</label><input id="cvTexto" class="inp w-full" type="search" value="${S(st.texto)}" placeholder="Número, obra, dependencia o municipio" onchange="Convocatorias.filtrar('texto',this.value)"></div>
+    if (panelAbierto === null) panelAbierto = typeof window === 'undefined' || !window.matchMedia || window.matchMedia('(min-width: 640px)').matches;
+    const n = cuentaFiltros(st);
+    const fecha = (id, et, v, k) => `<div class="min-w-0"><label class="text-xs mb-1 block" for="${id}">${et}</label><input id="${id}" type="date" class="inp w-full" value="${S(v || '')}" onchange="Convocatorias.filtrar('${k}',this.value)"></div>`;
+    const guardados = (filtros || []).reduce((o, f) => { o[f.id] = f.nombre; return o; }, {});
+    const deps = ((opciones && opciones.dependencias) || []).map((d) => `<option value="${S(d.v)}">`).join('');
+    const muns = ((opciones && opciones.municipios) || []).map((d) => `<option value="${S(d.v)}">`).join('');
+    return `<details class="cv-filtros mb-2" id="cvFiltrosPanel" ${panelAbierto ? 'open' : ''} ontoggle="Convocatorias.panelFiltros(this.open)">
+<summary class="btn btn-s"><i class="ri-filter-3-line" aria-hidden="true"></i> <span>Filtros (<span id="cvNFiltros">${n}</span>)</span></summary>
+<form class="grid grid-cols-2 gap-2 mt-2 sm:mt-0 items-end sm:grid-cols-3 lg:grid-cols-6" onsubmit="event.preventDefault();Convocatorias.filtrar('texto',document.getElementById('cvTexto').value)" role="search" aria-label="Filtrar convocatorias">
+<div class="col-span-2 sm:col-span-3 lg:col-span-3"><label class="text-xs mb-1 block" for="cvTexto">Buscar en lo guardado</label><input id="cvTexto" class="inp w-full" type="search" value="${S(st.texto)}" placeholder="Palabras (todas); «-palabra» para excluir" aria-describedby="cvTextoAyuda" oninput="Convocatorias.escribir(this.value)" onchange="Convocatorias.filtrar('texto',this.value)"><p id="cvTextoAyuda" class="field-hint">Busca en número, título, descripción y dependencia, sin acentos ni mayúsculas.</p></div>
+${sel('cvFiltroG', 'Filtro guardado', guardados, st.filtro, 'Convocatorias.usarFiltroBarra(this.value)', 'Ninguno')}
+${sel('cvOrden', 'Ordenar por', ORDENES, st.orden || 'apertura', "Convocatorias.filtrar('orden',this.value)")}
+${sel('cvEstado', 'Seguimiento', ESTADOS, st.estado, "Convocatorias.filtrar('estado',this.value)", 'Todos')}
 ${sel('cvFuente', 'Fuente', FUENTES_PORTAL, st.fuente, "Convocatorias.filtrar('fuente',this.value)", 'Todas')}
 ${sel('cvEntidad', 'Entidad', entidadesOpc(), st.entidad, "Convocatorias.filtrar('entidad',this.value)", 'Todas')}
+<div class="min-w-0"><label class="text-xs mb-1 block" for="cvMunicipio">Municipio</label><input id="cvMunicipio" class="inp w-full" list="cvMunLista" value="${S(st.municipio)}" placeholder="Todos" onchange="Convocatorias.filtrar('municipio',this.value)"><datalist id="cvMunLista">${muns}</datalist></div>
+<div class="min-w-0 col-span-2 sm:col-span-1 lg:col-span-2"><label class="text-xs mb-1 block" for="cvDependencia">Dependencia</label><input id="cvDependencia" class="inp w-full" list="cvDepLista" value="${S(st.dependencia)}" placeholder="Todas (escribe para ver sugerencias)" onchange="Convocatorias.filtrar('dependencia',this.value)"><datalist id="cvDepLista">${deps}</datalist></div>
 ${sel('cvTipo', 'Tipo de contratación', TIPOS, st.tipo, "Convocatorias.filtrar('tipo',this.value)", 'Todos')}
-${sel('cvEstado', 'Seguimiento', ESTADOS, st.estado, "Convocatorias.filtrar('estado',this.value)", 'Todos')}
-${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15 días', 30: 'los próximos 30 días' }, st.abren, "Convocatorias.filtrar('abren',this.value)", 'Cualquier fecha')}
-<label class="zk-switch col-span-2"><input type="checkbox" id="cvMis" ${st.mis ? 'checked' : ''} onchange="Convocatorias.filtrar('mis',this.checked)"><span class="zk-slider" aria-hidden="true"></span> Sólo las que cumplen mis filtros</label>
-</form>`;
+${sel('cvProc', 'Procedimiento', PROCEDIMIENTOS, st.procedimiento, "Convocatorias.filtrar('procedimiento',this.value)", 'Todos')}
+${sel('cvEstatus', 'Estatus en el portal', ESTATUS_PORTAL, st.estatus, "Convocatorias.filtrar('estatus',this.value)", 'Vigentes')}
+${sel('cvAbren', 'Abren en', PLAZOS_APERTURA, st.abren, "Convocatorias.filtrar('abren',this.value)", 'Cualquier fecha')}
+${st.abren === 'rango' ? fecha('cvAbrenD', 'Abren desde', st.abren_desde, 'abren_desde') + fecha('cvAbrenH', 'Abren hasta', st.abren_hasta, 'abren_hasta') : ''}
+${sel('cvPub', 'Publicadas en', PLAZOS_PUBLICACION, st.pub, "Convocatorias.filtrar('pub',this.value)", 'Cualquier fecha')}
+${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_desde') + fecha('cvPubH', 'Publicadas hasta', st.pub_hasta, 'pub_hasta') : ''}
+<label class="zk-switch col-span-2 sm:col-span-3 lg:col-span-2"><input type="checkbox" id="cvMis" ${st.mis ? 'checked' : ''} onchange="Convocatorias.filtrar('mis',this.checked)"><span class="zk-slider" aria-hidden="true"></span> Sólo las que cumplen mis filtros</label>
+<div class="col-span-2 sm:col-span-3 lg:col-span-6 flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Convocatorias.guardarBusqueda()"><i class="ri-bookmark-line" aria-hidden="true"></i> Guardar esta búsqueda</button></div>
+</form></details>`;
+  }
+  function fichasHtml() {
+    const fs = fichasActivas(st, (id) => { const f = (filtros || []).find((x) => String(x.id) === String(id)); return f && f.nombre; });
+    if (!fs.length) return '';
+    return `<ul class="flex flex-wrap gap-2 mb-3" aria-label="Filtros puestos">${fs.map((f) => `<li class="cv-ficha"><span title="${S(f.t)}">${S(f.t)}</span><button type="button" onclick="Convocatorias.quitar('${S(f.k)}')" aria-label="Quitar el filtro ${S(f.t)}"><i class="ri-close-line" aria-hidden="true"></i></button></li>`).join('')}
+<li><button type="button" class="btn btn-s text-xs" onclick="Convocatorias.quitarFiltros()"><i class="ri-filter-off-line" aria-hidden="true"></i> Quitar filtros</button></li></ul>`;
+  }
+  function descripcionHtml(c) {
+    const d = String(c.descripcion || '').trim();
+    if (!d || norm(d) === norm(c.titulo)) return '';
+    const larga = d.length > 160;
+    return `<p class="text-xs text-ink-muted mt-1 cv-desc" id="cvDesc-${+c.id}">${S(d)}</p>${larga ? `<button type="button" class="text-xs text-accent hover:underline" aria-expanded="false" aria-controls="cvDesc-${+c.id}" onclick="Convocatorias.verMas(${+c.id},this)">Ver más</button>` : ''}`;
   }
   function chipFuente(f) { return `<span class="chip" style="background:var(--${f === 'comprasmx' ? 'accent' : 'warn'}-soft);color:var(--${f === 'comprasmx' ? 'accent' : 'warn'})">${S(FUENTES[f] || f)}</span>`; }
   function aperturaHtml(c) {
@@ -338,8 +513,9 @@ ${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15
   function filaHtml(c, nuevaDesde) {
     const nueva = nuevaDesde && c.primera_vez_vista && new Date(c.primera_vez_vista) >= new Date(nuevaDesde);
     const est = c.seguimiento_estado && c.seguimiento_estado !== 'nueva' ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S({ interesa: 'Me interesa', descartada: 'Descartada', convertida: 'Convertida' }[c.seguimiento_estado] || '')}</span>` : '';
+    const docs = c.descarga_estado ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)"><i class="ri-folder-download-line" aria-hidden="true"></i> ${S(ESTADOS_DESCARGA[c.descarga_estado] || c.descarga_estado)}</span>` : '';
     return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><p class="font-medium">${S(c.titulo || 'Sin título')}</p>
-<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p><p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}</p></div></td>
+<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p>${descripcionHtml(c)}<p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}${docs}</p></div></td>
 <td data-et="Dependencia"><span>${S(c.dependencia || '—')}</span></td><td data-et="Entidad"><span>${S(c.entidad || '—')}${c.municipio ? `<span class="block text-xs text-ink-muted">${S(c.municipio)}</span>` : ''}</span></td>
 <td data-et="Tipo"><span>${S(TIPOS[c.tipo_contratacion] || '—')}${c.tipo_procedimiento && PROCEDIMIENTOS[c.tipo_procedimiento] ? `<span class="block text-xs text-ink-muted">${S(PROCEDIMIENTOS[c.tipo_procedimiento])}</span>` : ''}</span></td>
 <td data-et="Apertura"><span>${aperturaHtml(c)}</span></td><td data-et=""><div class="grid grid-cols-2 gap-1 cv-acciones" style="min-width:15rem">${accionesHtml(c)}</div></td></tr>`;
@@ -361,7 +537,7 @@ ${sel('cvAbren', 'Abren en', { 7: 'los próximos 7 días', 15: 'los próximos 15
     const pag = total > POR_PAGINA ? `<nav class="flex items-center justify-end gap-2 mt-3" aria-label="Páginas de convocatorias">
 <button type="button" class="btn btn-s" onclick="Convocatorias.pagina(-1)" ${st.pagina ? '' : 'disabled'}><i class="ri-arrow-left-s-line" aria-hidden="true"></i> Anteriores</button>
 <button type="button" class="btn btn-s" onclick="Convocatorias.pagina(1)" ${hasta < total ? '' : 'disabled'}>Siguientes <i class="ri-arrow-right-s-line" aria-hidden="true"></i></button></nav>` : '';
-    return `<p class="text-xs text-ink-muted mb-2" aria-live="polite">${desde} a ${hasta} de ${total}</p>${tablaHtml(filas, 'Lista de convocatorias')}${pag}`;
+    return `<p class="text-xs text-ink-muted mb-2" aria-live="polite" id="cvConteo">${total.toLocaleString('es-MX')} convocatoria${total === 1 ? '' : 's'} · ${desde} a ${hasta}</p>${tablaHtml(filas, 'Lista de convocatorias')}${pag}`;
   }
   function resultadosHtml() {
     const bloques = resultados.map((r) => {
@@ -406,10 +582,40 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
   let pendientes = 0;
   async function refrescar() {
     pendientes++;
-    try { if (await cargarLista()) repintar(); } catch (e) { Toast.error(errTxt(e, 'No se pudo actualizar la lista')); } finally { pendientes--; }
+    try { if (await cargarLista()) repintarLista(); } catch (e) { Toast.error(errTxt(e, 'No se pudo actualizar la lista')); } finally { pendientes--; }
   }
-  function filtrar(k, v) { st[k] = k === 'mis' ? !!v : (v || ''); st.pagina = 0; refrescar(); }
-  function pagina(d) { st.pagina = Math.max(0, st.pagina + d); refrescar(); }
+  function filtrar(k, v) {
+    st[k] = k === 'mis' ? !!v : (v == null ? '' : String(v));
+    st.pagina = 0; guardarBarra();
+    if (k === 'abren' || k === 'pub') repintar();   // muestra u oculta el rango de fechas
+    refrescar();
+  }
+  let escribirTimer = null;
+  /** Texto mientras se escribe: espera 300 ms sin teclear y filtra (sin repintar la barra). */
+  function escribir(v) { clearTimeout(escribirTimer); escribirTimer = setTimeout(() => { if (String(v) !== String(st.texto)) filtrar('texto', v); }, 300); }
+  function quitar(k) {
+    const n = quitarFicha(st, k); Object.assign(st, n); guardarBarra();
+    repintar(); refrescar();
+  }
+  function quitarFiltros() { Object.assign(st, BARRA_VACIA, { orden: st.orden || 'apertura' }); guardarBarra(); repintar(); refrescar(); }
+  function usarFiltroBarra(id) {
+    if (!id) { st.filtro = ''; st.pagina = 0; guardarBarra(); repintar(); refrescar(); return; }
+    const f = (filtros || []).find((x) => String(x.id) === String(id)); if (!f) return;
+    Object.assign(st, barraDesdeFiltro(f)); guardarBarra(); repintar(); refrescar();
+  }
+  function panelFiltros(abierto) { panelAbierto = !!abierto; }
+  function verMas(id, btn) {
+    const p = document.getElementById('cvDesc-' + id); if (!p) return;
+    const abierta = p.classList.toggle('abierta');
+    if (btn) { btn.textContent = abierta ? 'Ver menos' : 'Ver más'; btn.setAttribute('aria-expanded', String(abierta)); }
+  }
+  /** «Guardar esta búsqueda»: abre el alta de filtro prellenada con la barra (US-853 → US-844). */
+  function guardarBusqueda() {
+    const d = filtroDesdeBarra(st);
+    barraPendiente = d.barra;
+    editarFiltro(null, Object.assign({ activo: true, nombre: '' }, d));
+  }
+  function pagina(d) { st.pagina = Math.max(0, st.pagina + d); guardarBarra(); refrescar(); }
   async function recargar() { const p = el(); if (p && p.parentElement) return pintar(p.parentElement); }
   function buscarFila(id) {
     const enRes = resultados ? resultados.flatMap((r) => r.filas || []) : [];
@@ -472,10 +678,14 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
 <ul>${filasF || '<li class="text-sm text-ink-muted py-3">Todavía no tienes filtros.</li>'}</ul>
 <div class="flex justify-end gap-2 pt-3"><button type="button" class="btn btn-s" onclick="Convocatorias.cerrarModal()">Cerrar</button><button type="button" class="btn btn-p" onclick="Convocatorias.editarFiltro(null)"><i class="ri-add-line" aria-hidden="true"></i> Nuevo filtro</button></div>`);
   }
-  function editarFiltro(id) {
-    const f = id ? (filtros || []).find((x) => x.id === id) || {} : { activo: true, tipos_contratacion: ['obra_publica', 'servicios_obra'] };
+  function editarFiltro(id, prefill) {
+    if (!prefill) barraPendiente = null;
+    const f = id ? (filtros || []).find((x) => x.id === id) || {} : prefill || { activo: true, tipos_contratacion: ['obra_publica', 'servicios_obra'] };
     const fu = lista(f.fuentes); const ti = lista(f.tipos_contratacion);
-    modal(id ? 'Editar filtro' : 'Nuevo filtro', `<form id="cvFormFiltro" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.guardarFiltro(${id ? +id : 'null'})" oninput="Convocatorias.previa()" onchange="Convocatorias.previa()">
+    const extra = prefill && prefill.barra ? Object.keys(prefill.barra).filter((k) => !['texto', 'fuente', 'entidad', 'tipo', 'orden'].includes(k)) : [];
+    const nota = prefill ? `<p class="text-sm g rounded-xl p-3">Se guarda toda la barra: al elegir este filtro en «Filtro guardado» vuelve tal cual.${lista(prefill.palabras_clave).length > 1 ? ' En «Mis filtros» (vista «Nuevas» y contador de la barra) basta <b>una</b> de las palabras clave; en la barra se exigen todas.' : ''}${extra.length ? ' Municipio, dependencia, procedimiento, estatus, seguimiento y fechas sólo se aplican en la barra.' : ''}</p>` : '';
+    modal(id ? 'Editar filtro' : prefill ? 'Guardar esta búsqueda' : 'Nuevo filtro', `<form id="cvFormFiltro" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.guardarFiltro(${id ? +id : 'null'})" oninput="Convocatorias.previa()" onchange="Convocatorias.previa()">
+${nota}
 ${campo('cvfNombre', 'Nombre del filtro *', `<input id="cvfNombre" class="inp w-full" required maxlength="120" value="${S(f.nombre || '')}" placeholder="Ej. Escuelas en Cuauhtémoc">`)}
 ${campo('cvfClaves', 'Palabras clave (basta una; sepáralas con comas)', `<input id="cvfClaves" class="inp w-full" value="${S(lista(f.palabras_clave).join(', '))}" placeholder="Ej. escuela, pavimentación, Cuauhtémoc"><p class="field-hint">Sin acentos ni mayúsculas: «pavimentacion» también encuentra «PAVIMENTACIÓN».</p>`)}
 ${campo('cvfExcluir', 'Palabras a excluir', `<input id="cvfExcluir" class="inp w-full" value="${S(lista(f.palabras_excluir).join(', '))}" placeholder="Ej. mantenimiento, suministro">`)}
@@ -512,12 +722,21 @@ ${casilla('cvfActivo', 'Filtro encendido', f.activo !== false)}
   async function guardarFiltro(id) {
     const form = document.getElementById('cvFormFiltro'); if (form && !form.reportValidity()) return;
     const datos = leerFormFiltro();
+    const desdeBarra = !id && barraPendiente;
+    if (desdeBarra) datos.barra = barraPendiente;
     try {
-      const q = id ? sb.from('convocatoria_filtros').update(datos).eq('id', id) : sb.from('convocatoria_filtros').insert(datos);
-      const { error } = await q;
+      const q = id ? sb.from('convocatoria_filtros').update(datos).eq('id', id) : sb.from('convocatoria_filtros').insert(datos).select('id').single();
+      const { data, error } = await q;
       if (error) throw error;
+      barraPendiente = null;
       Toast.success(id ? 'Filtro guardado' : 'Filtro creado');
       await cargarFiltros(true);
+      if (desdeBarra) {
+        // La barra queda con el filtro recién guardado elegido.
+        st.filtro = data && data.id ? String(data.id) : ''; guardarBarra();
+        cerrarModal(); repintar(); refrescar();
+        return;
+      }
       if (filtros.some((f) => f.activo)) st.mis = true;
       await abrirFiltros();
       refrescar();
@@ -772,12 +991,14 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     pintar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
     abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda,
-    get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0 }; },
+    escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
+    get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0, ms: ultimaMs }; },
     // puras
     norm, textoConvocatoria, cumpleFiltro, cumpleAlguno, vigente, parseLista, diasA, argsBusqueda, modalidadDe, plazaDe,
     sugerirPerfil, datosLicitacion, cambiosFechas, urlSegura, resumenFiltro, formDesdeFiltro, cuerpoChihuahua, cuerpoComprasmx,
-    textoUltimaBusqueda,
-    FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS,
+    textoUltimaBusqueda, parseTextoBarra, cumpleTextoBarra, fichasActivas, quitarFicha, filtroDesdeBarra, barraDesdeFiltro,
+    cuentaFiltros,
+    FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS, BARRA_VACIA, BARRA_INICIAL,
   };
 })();
 if (typeof module !== 'undefined') module.exports = Convocatorias;

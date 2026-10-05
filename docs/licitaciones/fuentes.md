@@ -227,3 +227,18 @@ Filtros de fábrica de la empresa 1: «Obra pública en Chihuahua (estatal)» (f
 de la barra (`get_convocatorias_avisos`) y el resumen tras una búsqueda (`get_convocatoria_corrida_resumen`).
 `cumpleFiltro()` de `src/js/convocatorias.js` es la misma regla en JS; `scripts/qa/convocatorias.test.mjs` cuenta con
 ambas sobre las convocatorias vigentes reales y exige el mismo resultado. Si cambia una, cambia la otra.
+
+**Descripción (migración 108, 5-oct-2026):** `convocatorias.descripcion` guarda el objeto de la contratación tal como
+lo publica el portal (ComprasMX: `descripcion` del detalle; Chihuahua: «Descripción del procedimiento», el mismo texto
+del listado). `texto_norm` la incluye al final, así que la regla de arriba, la búsqueda de la barra y `textoConvocatoria()`
+en JS la cubren. Lo ya cargado se llenó desde `datos` con SQL (sin volver a consultar los portales).
+
+### Barra de filtros de la lista (US-853)
+`convocatorias_buscar` filtra y pagina en el servidor. Parámetros nuevos (al final, con `DEFAULT NULL`): `p_excluir`,
+`p_municipio`, `p_dependencia` (subcadena de dependencia o unidad), `p_procedimientos`, `p_estatus`, `p_abren_desde/hasta`,
+`p_pub_dias`, `p_pub_desde/hasta`, `p_orden` (`apertura` | `publicacion` | `dependencia`) y `p_filtro_id` (un filtro
+guardado). En la barra, el texto exige **todas** las palabras y «-palabra» excluye (`parseTextoBarra()` /
+`cumpleTextoBarra()`, comparadas contra el servidor en `convocatorias.test.mjs`); en un filtro guardado basta una palabra
+clave. «Guardar esta búsqueda» guarda la barra completa en `convocatoria_filtros.barra` y la reaplica al elegir el filtro.
+`convocatorias_opciones()` da dependencias y municipios para autocompletar. Tiempos: el servidor resuelve cada consulta
+en 3-20 ms; en el navegador (ida y vuelta desde la oficina) la mediana fue 180 ms y el p90 286 ms.
