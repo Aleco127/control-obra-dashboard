@@ -110,8 +110,10 @@ t('GET /estado con Origin ajeno: 403', async () => {
   assert.equal(r.status, 403);
 });
 
-t('filtros no válidos: 400 sin abrir Chrome', async () => {
-  for (const cuerpo of [{}, { tipos: ['adquisiciones'] }, { texto: 'x', desde: '05/10/2026' }, { max_resultados: 0 }]) {
+t('filtros no válidos: 400 sin abrir Chrome (US-852: nunca sin límite de fecha, máximo 90 días)', async () => {
+  const futuro = new Date(Date.now() + 5 * 86400e3).toISOString().slice(0, 10);
+  for (const cuerpo of [{ tipos: ['adquisiciones'] }, { texto: 'x', desde: '05/10/2026' }, { max_resultados: 0 },
+    { texto: 'x', desde: '2026-01-01', hasta: '2026-06-30' }, { texto: 'x', desde: futuro }, { texto: 'x', desde: '2026-10-05', hasta: '2026-09-01' }]) {
     const r = await pedir('POST', '/comprasmx/buscar', { headers: { ...json, Origin: APP }, cuerpo });
     assert.equal(r.status, 400, JSON.stringify(cuerpo));
     assert.match(r.json.error, /Filtros no válidos/);

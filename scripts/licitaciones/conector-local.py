@@ -37,7 +37,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 HOST = "127.0.0.1"
 # 8879 es el contrato; CONECTOR_PUERTO sólo existe para que las pruebas no choquen con el conector instalado.
 PUERTO = int(os.environ.get("CONECTOR_PUERTO") or 8879)
@@ -215,9 +215,13 @@ class Manejador(BaseHTTPRequestHandler):
             log("búsqueda", json.dumps(filtros, ensure_ascii=False))
             r = rec.buscar_convocatorias(filtros, origen="conector-pc", cancelado=ESTADO.cancelar.is_set,
                                          usuario=(usuario or "")[:80] or None, log=log)
-            log("resultado", json.dumps({k: r.get(k) for k in ("corrida_id", "encontradas", "nuevas", "error")}, ensure_ascii=False))
-            self._json(200, {"corrida_id": r["corrida_id"], "encontradas": r["encontradas"], "nuevas": r["nuevas"],
-                             "error": r["error"]})
+            det = r.get("detalle") or {}
+            res = {"corrida_id": r["corrida_id"], "encontradas": r["encontradas"], "nuevas": r["nuevas"], "error": r["error"],
+                   # US-852 (extensión del contrato): detalles abiertos para la descripción y cuántas siguen sin ella.
+                   "desde": filtros["desde"], "hasta": filtros["hasta"],
+                   "detalles": int(det.get("detalles") or 0), "sin_descripcion": int(det.get("sin_descripcion") or 0)}
+            log("resultado", json.dumps(res, ensure_ascii=False))
+            self._json(200, res)
         finally:
             ESTADO.ocupado = False
             ESTADO.cancelar.clear()

@@ -329,11 +329,41 @@ const Convocatorias = (() => {
              estatus: x.estatus === undefined ? 'vigente' : x.estatus, desde: x.desde || '', hasta: x.hasta || '',
              max_resultados: Number(x.max) || 50 };
   }
-  /** Cuerpo para el conector local de ComprasMX (contrato de US-851). */
+  /** Cuerpo para el conector local de ComprasMX (contrato de US-851; US-852: siempre con fechas, tope 100 por omisión). */
   function cuerpoComprasmx(f) {
     const x = f || {};
     return { texto: x.texto || '', tipos: x.tipo ? [x.tipo] : ['obra_publica', 'servicios_obra'],
-             entidades: x.entidad ? [x.entidad] : [], desde: x.desde || '', hasta: x.hasta || '', max_resultados: Number(x.max) || 50 };
+             entidades: x.entidad ? [x.entidad] : [], desde: x.desde || '', hasta: x.hasta || '', max_resultados: Number(x.max) || 100 };
+  }
+  const PERIODOS = { 7: 'Últimos 7 días', 15: 'Últimos 15 días', 30: 'Últimos 30 días', 60: 'Últimos 60 días', 90: 'Últimos 90 días', rango: 'Rango de fechas…' };
+  const DIAS_MAX_BUSQUEDA = 90;
+  /**
+   * Fechas de publicación de una búsqueda en los portales (US-852): nunca sin límite. `periodo` = 7…90 días hacia atrás
+   * desde hoy, o 'rango' con desde y hasta (máximo 90 días, sin empezar en el futuro). → {desde, hasta} o {error}.
+   */
+  function periodoFechas(periodo, desde, hasta, hoy) {
+    const h = String(hoy || hoyMx());
+    const dia = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+    const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+    if (periodo !== 'rango') {
+      const n = Number(periodo) || 30;
+      if (!PERIODOS[n]) return { error: 'Elige un periodo de publicación.' };
+      return { desde: iso(dia(h) - n * 86400000), hasta: h };
+    }
+    if (!fechaOk(desde) || !fechaOk(hasta)) return { error: 'Escribe las dos fechas del rango.' };
+    if (desde > hasta) return { error: 'La fecha inicial es posterior a la final.' };
+    if (desde > h) return { error: 'La fecha inicial no puede estar en el futuro.' };
+    if ((dia(hasta) - dia(desde)) / 86400000 > DIAS_MAX_BUSQUEDA) return { error: `El rango no puede pasar de ${DIAS_MAX_BUSQUEDA} días: busca sólo lo reciente.` };
+    return { desde, hasta };
+  }
+  /**
+   * Por qué no respondió el conector (Chrome «acceso a la red local»): 'denegado' si el usuario negó el permiso,
+   * 'preguntar' si Chrome aún no lo pide, 'apagado' si el permiso está dado (o no existe) y nadie escucha.
+   */
+  function causaConector(estadoPermiso) {
+    if (estadoPermiso === 'denied') return 'denegado';
+    if (estadoPermiso === 'prompt') return 'preguntar';
+    return 'apagado';
   }
   /** Texto del pie para una fuente (convocatorias_estado). */
   function textoUltimaBusqueda(e, fmtFecha) {
@@ -556,6 +586,7 @@ ${r.filas && r.filas.length ? tablaHtml(r.filas, 'Resultados de ' + FUENTES_PORT
     let t = `${enc} encontrada${enc === 1 ? '' : 's'}, ${nv} nueva${nv === 1 ? '' : 's'}`;
     if (s.hay_filtros) t += nv ? `; ${s.nuevas_cumplen} de las nuevas cumple${s.nuevas_cumplen === 1 ? '' : 'n'} tus filtros guardados` : '';
     if (r.respuesta && r.respuesta.truncado) t += '. Llegó al tope de resultados: afina el texto o las fechas para ver el resto';
+    if (r.respuesta && Number(r.respuesta.sin_descripcion) > 0) t += `. ${r.respuesta.sin_descripcion} quedaron sin descripción por el tope de fichas que se abren en cada búsqueda: vuelve a buscar con los mismos filtros para completarlas`;
     return t + '.';
   }
   function busquedaHtml() {
@@ -846,14 +877,34 @@ ${campo('cvpPerfil', 'Perfil de convocante', `<select id="cvpPerfil" class="inp 
       return j && j.ok ? j : null;
     } catch (e) { return null; } finally { clearTimeout(t); }
   }
+  /** Estado del permiso «acceso a la red local» de Chrome para esta página ('granted' | 'denied' | 'prompt' | null). */
+  async function permisoRedLocal() {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.permissions || !navigator.permissions.query) return null;
+      const p = await navigator.permissions.query({ name: 'local-network-access' });
+      return p && p.state ? p.state : null;
+    } catch (e) { return null; }   // el navegador no conoce el permiso
+  }
+  /** Mensaje (HTML) de por qué el conector no responde: permiso negado en Chrome o conector apagado. */
+  async function avisoConector() {
+    const causa = causaConector(await permisoRedLocal());
+    const doc = `<a class="text-accent hover:underline" href="${S(DOC_CONECTOR)}" target="_blank" rel="noopener noreferrer">cómo abrir o instalar el conector</a>`;
+    if (causa === 'denegado') {
+      return { causa, html: 'Chrome no deja que esta página hable con el conector de tu computadora: el permiso <b>«Acceso a la red local»</b> está bloqueado. Para darlo, haz clic en el <b>candado</b> (o en el icono de ajustes) a la izquierda de la dirección, busca «Acceso a la red local», elige <b>Permitir</b> y recarga la página.' };
+    }
+    if (causa === 'preguntar') {
+      return { causa, html: `el conector no contestó. Si Chrome muestra el aviso «Acceso a la red local», elige <b>Permitir</b> y vuelve a buscar; si no aparece, el conector está apagado: ${doc}.` };
+    }
+    return { causa, html: `el conector de ComprasMX no responde en esta computadora. Ábrelo (o instálalo) y vuelve a buscar: ${doc}.` };
+  }
   function abrirBusqueda(prefill) {
     if (busqueda) return;
-    const p = prefill || { chihuahua: true, comprasmx: true, texto: '', tipo: 'obra_publica', entidad: 'Chihuahua' };
+    const p = Object.assign({ chihuahua: true, comprasmx: true, texto: '', tipo: 'obra_publica', entidad: 'Chihuahua', periodo: '30', max: 100 }, prefill || {});
     const guardados = filtros || [];
     const usar = guardados.length ? campo('cvbFiltro', 'Usar un filtro guardado', `<select id="cvbFiltro" class="inp w-full" onchange="Convocatorias.usarFiltro(this.value)"><option value="">Elegir…</option>${guardados.map((f) => `<option value="${+f.id}">${S(f.nombre)}</option>`).join('')}</select>`) : '';
     const opc = (mapa, v, vacio) => `<option value="">${S(vacio)}</option>` + Object.entries(mapa).map(([k, t]) => `<option value="${S(k)}" ${k === v ? 'selected' : ''}>${S(t)}</option>`).join('');
     modal('Buscar en los portales', `<form id="cvFormBus" class="space-y-3" onsubmit="event.preventDefault();Convocatorias.lanzarBusqueda()">
-<p class="text-sm text-ink-muted">Sólo se consulta lo que pidas aquí. Chihuahua responde en segundos; ComprasMX usa el conector de tu computadora y puede tardar de 1 a 3 minutos.</p>
+<p class="text-sm text-ink-muted">Sólo se consulta lo que pidas aquí y sólo lo publicado recientemente. Chihuahua responde en segundos; ComprasMX usa el conector de tu computadora, trae sólo anuncios vigentes con su descripción y puede tardar de 1 a 5 minutos. Ningún documento se descarga en la búsqueda.</p>
 ${usar}
 <fieldset><legend class="text-xs mb-1">Dónde buscar</legend><div class="flex flex-wrap gap-3">${casilla('cvbChih', 'Contrataciones Chihuahua', p.chihuahua)}${casilla('cvbFed', 'ComprasMX (federal)', p.comprasmx)}</div></fieldset>
 <div class="grid sm:grid-cols-2 gap-3">
@@ -862,9 +913,12 @@ ${campo('cvbTipo', 'Tipo de contratación', `<select id="cvbTipo" class="inp w-f
 ${campo('cvbEntidad', 'Entidad (para ComprasMX)', `<select id="cvbEntidad" class="inp w-full">${opc(entidadesOpc(), p.entidad, 'Todas')}</select>`)}
 ${campo('cvbProc', 'Tipo de procedimiento (para Chihuahua)', `<select id="cvbProc" class="inp w-full">${opc(PROCEDIMIENTOS, p.procedimiento || '', 'Todos')}</select>`)}
 ${campo('cvbEstatus', 'Estatus (para Chihuahua)', `<select id="cvbEstatus" class="inp w-full">${opc(ESTATUS_PORTAL, p.estatus === undefined ? 'vigente' : p.estatus, 'Todos')}</select>`)}
+${campo('cvbPeriodo', 'Publicadas en', `<select id="cvbPeriodo" class="inp w-full" onchange="Convocatorias.periodoBusqueda(this.value)">${Object.entries(PERIODOS).map(([k, t]) => `<option value="${S(k)}" ${String(k) === String(p.periodo) ? 'selected' : ''}>${S(t)}</option>`).join('')}</select><p class="field-hint">Siempre con límite de fecha (máximo ${DIAS_MAX_BUSQUEDA} días).</p>`)}
+${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="number" min="1" max="200" class="inp w-full" value="${S(String(p.max || 100))}"><p class="field-hint">100 por omisión, máximo 200.</p>`)}
+<div id="cvbRango" class="grid grid-cols-2 gap-3 sm:col-span-2 ${p.periodo === 'rango' ? '' : 'hidden'}">
 ${campo('cvbDesde', 'Publicadas desde', `<input id="cvbDesde" type="date" class="inp w-full" value="${S(p.desde || '')}">`)}
 ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full" value="${S(p.hasta || '')}">`)}
-${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="number" min="1" max="200" class="inp w-full" value="${S(String(p.max || 50))}">`)}
+</div>
 </div>
 <div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Convocatorias.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-search-eye-line" aria-hidden="true"></i> Buscar</button></div></form>`, 'max-w-2xl');
   }
@@ -874,16 +928,19 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     const set = (i, v) => { const x = document.getElementById(i); if (x) { if (x.type === 'checkbox') x.checked = !!v; else x.value = v; } };
     set('cvbChih', p.chihuahua); set('cvbFed', p.comprasmx); set('cvbTexto', p.texto); set('cvbTipo', p.tipo); set('cvbEntidad', p.entidad);
   }
+  function periodoBusqueda(v) { const r = document.getElementById('cvbRango'); if (r) r.classList.toggle('hidden', v !== 'rango'); }
   function leerFormBusqueda() {
+    const periodo = val('cvbPeriodo') || '30';
+    const fechas = periodoFechas(periodo, val('cvbDesde'), val('cvbHasta'));
     return { chihuahua: chk('cvbChih'), comprasmx: chk('cvbFed'), texto: val('cvbTexto'), tipo: val('cvbTipo'), entidad: val('cvbEntidad'),
-             procedimiento: val('cvbProc'), estatus: val('cvbEstatus'), desde: val('cvbDesde'), hasta: val('cvbHasta'),
-             max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 50)) };
+             procedimiento: val('cvbProc'), estatus: val('cvbEstatus'), periodo, desde: fechas.desde || '', hasta: fechas.hasta || '',
+             errorFechas: fechas.error || null, max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 100)) };
   }
   async function lanzarBusqueda() {
     const form = document.getElementById('cvFormBus'); if (form && !form.reportValidity()) return;
     const f = leerFormBusqueda();
     if (!f.chihuahua && !f.comprasmx) { Toast.warning('Elige al menos un portal.'); return; }
-    if (f.desde && f.hasta && f.desde > f.hasta) { Toast.warning('La fecha inicial es posterior a la final.'); return; }
+    if (f.errorFechas) { Toast.warning(f.errorFechas); return; }
     for (const k of ['chihuahua', 'comprasmx']) { const w = f[k] && esperaRestante(k); if (w) { Toast.warning(`Espera ${w} s antes de buscar otra vez en ${FUENTES_PORTAL[k]}.`); return; } }
     cerrarModal();
     resultados = null;
@@ -931,14 +988,15 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     const out = { fuente: 'comprasmx', inicio: new Date().toISOString() };
     const est = await estadoConector();
     if (!est) {
+      const av = await avisoConector();
       b.estado = 'omitida';
-      b.html = `el conector de ComprasMX no responde en esta computadora. Ábrelo (o instálalo) y vuelve a buscar: <a class="text-accent hover:underline" href="${S(DOC_CONECTOR)}" target="_blank" rel="noopener noreferrer">cómo abrir o instalar el conector</a>.`;
-      out.error = 'El conector local no responde.';
+      b.html = av.html;
+      out.error = av.causa === 'denegado' ? 'Chrome bloqueó el acceso a la red local.' : 'El conector local no responde.';
       repintarBusqueda();
       return out;
     }
     if (est.ocupado) { b.estado = 'error'; b.texto = 'el conector ya está buscando; espera a que termine.'; out.error = b.texto; repintarBusqueda(); return out; }
-    b.texto = 'buscando con Chrome en tu computadora (de 1 a 3 minutos)…'; repintarBusqueda();
+    b.texto = `buscando con Chrome en tu computadora lo publicado del ${fmtDia(f.desde)} al ${fmtDia(f.hasta)}, con su descripción (de 1 a 5 minutos)…`; repintarBusqueda();
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null; busqueda.ctl.comprasmx = ctl;
     ls.set(ultimaClave('comprasmx'), String(Date.now()));
     const cuerpo = cuerpoComprasmx(f);
@@ -953,6 +1011,7 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
     } catch (e) {
       const cancel = e && e.name === 'AbortError';
       b.estado = cancel ? 'omitida' : 'error'; b.texto = cancel ? 'cancelaste la búsqueda.' : String((e && e.message) || e);
+      if (!cancel && e instanceof TypeError) { const av = await avisoConector(); b.texto = ''; b.html = av.html; }
       out.error = b.texto;
     }
     repintarBusqueda();
@@ -990,14 +1049,14 @@ ${campo('cvbMax', 'Tope de resultados por portal', `<input id="cvbMax" type="num
   return {
     pintar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
-    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda,
+    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda,
     escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
     get estado() { return { st, total, filas, resultados, busqueda, ocupado: pendientes > 0, ms: ultimaMs }; },
     // puras
     norm, textoConvocatoria, cumpleFiltro, cumpleAlguno, vigente, parseLista, diasA, argsBusqueda, modalidadDe, plazaDe,
     sugerirPerfil, datosLicitacion, cambiosFechas, urlSegura, resumenFiltro, formDesdeFiltro, cuerpoChihuahua, cuerpoComprasmx,
     textoUltimaBusqueda, parseTextoBarra, cumpleTextoBarra, fichasActivas, quitarFicha, filtroDesdeBarra, barraDesdeFiltro,
-    cuentaFiltros,
+    cuentaFiltros, periodoFechas, causaConector, PERIODOS,
     FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS, BARRA_VACIA, BARRA_INICIAL,
   };
 })();

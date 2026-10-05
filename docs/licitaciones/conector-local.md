@@ -43,7 +43,7 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 `%LOCALAPPDATA%\control-obra\conector\`. No toca el secreto ni los datos de la app.
 
 ## ¿Está activo?
-- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.0.0", "ocupado": false, "chrome": true}`.
+- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.1.0", "ocupado": false, "chrome": true}`.
   `ocupado` es `true` mientras corre una búsqueda; `chrome: false` significa que falta Google Chrome.
 - Bitácora: `%LOCALAPPDATA%\control-obra\conector.log` (arranque, filtros de cada búsqueda y resultado; nunca el secreto).
 - La app muestra el estado del conector en el formulario de búsqueda y explica cómo instalarlo si no responde.
@@ -52,11 +52,15 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 | Petición | Respuesta |
 |---|---|
 | `GET /estado` | `{ok: true, version, ocupado, chrome}` |
-| `POST /comprasmx/buscar` `{texto, tipos: ["obra_publica","servicios_obra"], entidades: ["Chihuahua"], desde: "AAAA-MM-DD", hasta: "AAAA-MM-DD", max_resultados}` | `{corrida_id, encontradas, nuevas, error}` al terminar (30 s a 3 min). 409 si ya hay una en curso; 400 si los filtros no sirven |
+| `POST /comprasmx/buscar` `{texto, tipos: ["obra_publica","servicios_obra"], entidades: ["Chihuahua"], desde: "AAAA-MM-DD", hasta: "AAAA-MM-DD", max_resultados, max_detalles}` | `{corrida_id, encontradas, nuevas, error, desde, hasta, detalles, sin_descripcion}` al terminar (30 s a 5 min). 409 si ya hay una en curso; 400 si los filtros no sirven |
 | `POST /comprasmx/cancelar` | `{ok: true, cancelando}`; la búsqueda en curso termina en unos segundos con `error: "Cancelada: …"` |
 
-Todos los campos son opcionales, pero debe venir al menos un filtro (`texto`, `entidades`, `desde`, `hasta`) o
-`max_resultados`. `tipos` vacío = los dos. `max_resultados` por omisión 100, **tope duro 200**. Extensiones opcionales
+Todos los campos son opcionales. **Siempre hay límite de fecha (US-852):** sin `hasta` se usa hoy (hora del centro) y
+sin `desde`, 30 días antes de `hasta`; el rango no puede pasar de 90 días ni empezar en el futuro (400). `tipos` vacío =
+los dos. `max_resultados` por omisión 100, **tope duro 200**. `max_detalles` (por omisión 30, máximo 60): cuántas fichas
+de detalle se abren como máximo para leer la descripción. La respuesta agrega `desde`/`hasta` usados, `detalles` (fichas
+abiertas) y `sin_descripcion` (de esta búsqueda, cuántas siguen sin descripción por el tope; otra búsqueda igual las
+completa). Extensiones opcionales
 que no rompen el contrato: `campo_fecha` (`"publicacion"`, por omisión, o `"apertura"`) y `usuario` (texto ≤ 80 que se
 guarda en la corrida para el pie «quién la lanzó»; lo declara la app, el conector no autentica).
 
@@ -78,6 +82,17 @@ El conector **comprueba en el cuerpo que el sitio manda a su API** si cada filtr
 apertura no llegaran (cambio del formulario), los filtra después sobre el listado y lo anota en `filtrado_despues`.
 La fecha de publicación no viene en el listado: si el portal no la aplicara, se anota un aviso en vez de filtrar a
 ciegas. En las pruebas del 5-oct-2026 los tres llegaron al portal.
+
+## Descripción de cada convocatoria (US-852)
+El listado del portal no trae la descripción (el objeto de la contratación), sólo el nombre del procedimiento. Tras
+guardar el listado, el conector pregunta a `convocatorias-ingesta` (`accion: "sin_descripcion"`) cuáles de **esta
+búsqueda** aún no la tienen y abre sólo esas fichas de detalle, una por una, con pausa de 2 a 5 s y tope `max_detalles`.
+La ficha de detalle es la página pública del procedimiento: **no se descarga ningún anexo** en la búsqueda. Sólo se traen
+«Anuncios vigentes» (pestaña fija del portal).
+
+Probado el 5-oct-2026 desde la app (build local, conector real): Chihuahua + obra pública + últimos 30 días → 8 (ya
+tenían descripción, 0 fichas abiertas, 37 s); Sonora + obra pública + últimos 15 días, tope 8 → 8 nuevas, 8 fichas
+abiertas, 74 s, las 8 con descripción y publicación dentro del rango.
 
 ## Qué datos salen de la máquina
 - Hacia **ComprasMX**: las consultas del sitio público que haría una persona con esos filtros (sin iniciar sesión).
@@ -101,7 +116,11 @@ La app sólo podrá llamar al conector si la CSP de producción incluye el orige
 connect-src … http://127.0.0.1:8879;
 ```
 Sitio: la cabecera o `<meta http-equiv="Content-Security-Policy">` que sirve `app.supernovarquitectos.com` (y el alias).
-Chrome además puede mostrar el permiso «Acceso a la red local» la primera vez: hay que aceptarlo.
+Chrome además pide el permiso «Acceso a la red local» la primera vez (desde `https://…` hacia `127.0.0.1`): hay que
+aceptarlo. Si se negó, la app lo distingue de un conector apagado (`navigator.permissions.query({name:
+'local-network-access'})` = `denied`) y explica cómo darlo: candado de la barra de direcciones › «Acceso a la red local»
+› Permitir, y recargar. En Playwright se concede con `ctx.grant_permissions(['local-network-access'], origin=<app>)`.
+Desde `http://127.0.0.1:<puerto>` (pruebas locales) Chrome no lo pide: es loopback a loopback.
 
 ## Solución de problemas
 | Síntoma | Causa y arreglo |

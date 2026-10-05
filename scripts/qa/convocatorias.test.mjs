@@ -169,6 +169,23 @@ test('US-853: texto de la barra (todas las palabras, «-palabra» excluye), fich
   assert.deepEqual([C.barraDesdeFiltro({ id: 3 }).filtro, C.barraDesdeFiltro({ id: 3 }).estado], ['3', ''], 'filtro sin barra: sólo su regla');
 });
 
+test('US-852: la búsqueda en los portales siempre va acotada por fecha de publicación (30 días por omisión, máx. 90)', () => {
+  assert.deepEqual(C.periodoFechas('30', '', '', '2026-10-05'), { desde: '2026-09-05', hasta: '2026-10-05' });
+  assert.deepEqual(C.periodoFechas('7', '', '', '2026-10-05'), { desde: '2026-09-28', hasta: '2026-10-05' });
+  assert.deepEqual(Object.keys(C.PERIODOS), ['7', '15', '30', '60', '90', 'rango']);
+  assert.deepEqual(C.periodoFechas('rango', '2026-09-01', '2026-10-01', '2026-10-05'), { desde: '2026-09-01', hasta: '2026-10-01' });
+  assert.match(C.periodoFechas('rango', '', '2026-10-01', '2026-10-05').error, /dos fechas/, 'sin límite no se puede');
+  assert.match(C.periodoFechas('rango', '2026-01-01', '2026-06-01', '2026-10-05').error, /90 días/);
+  assert.match(C.periodoFechas('rango', '2026-10-01', '2026-09-01', '2026-10-05').error, /posterior/);
+  assert.match(C.periodoFechas('rango', '2026-11-01', '2026-11-05', '2026-10-05').error, /futuro/);
+  assert.match(C.periodoFechas('5', '', '', '2026-10-05').error, /periodo/);
+  assert.equal(C.cuerpoComprasmx({ texto: 'x' }).max_resultados, 100, 'tope de 100 por omisión');
+  assert.equal(C.causaConector('denied'), 'denegado', 'permiso «acceso a la red local» negado ≠ conector apagado');
+  assert.equal(C.causaConector('prompt'), 'preguntar');
+  assert.equal(C.causaConector('granted'), 'apagado');
+  assert.equal(C.causaConector(null), 'apagado', 'navegador sin ese permiso');
+});
+
 test('US-853: lista de Licitaciones con texto, convocante y resultado', () => {
   const L = require('../../src/js/licitaciones.js');
   const lics = [

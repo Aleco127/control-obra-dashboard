@@ -79,6 +79,8 @@ export function desdeComprasMx(r, det) {
     id_externo: uuid,
     numero_procedimiento: txt(r.numero_procedimiento, 120),
     titulo: txt(r.nombre_procedimiento ?? d?.nombre_procedimiento, 2000) ?? '',
+    // US-852: objeto de la contratación tal como lo publica el portal (sólo viene en el detalle).
+    descripcion: d ? txt(d.descripcion, 4000) : null,
     // Sin detalle sólo hay siglas («ICHIFE»): no se manda para no pisar el nombre completo leído antes.
     dependencia: d ? txt(d.nombre_dependencia ?? d.dependencia, 300) : null,
     unidad_compradora: txt(r.unidad_compradora ?? d?.unidad_compradora, 300),
@@ -132,6 +134,7 @@ export function normalizar(x) {
     fuente, id_externo: id,
     numero_procedimiento: txt(x.numero_procedimiento, 120),
     titulo: txt(x.titulo, 2000) ?? '',
+    descripcion: txt(x.descripcion, 4000),
     dependencia: txt(x.dependencia, 300),
     unidad_compradora: txt(x.unidad_compradora, 300),
     tipo_procedimiento: enumOk(x.tipo_procedimiento, TIPOS_PROC),

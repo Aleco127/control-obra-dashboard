@@ -14,6 +14,8 @@
 //   config   {}                                      → {ok, entidades[], todas_las_entidades: bool}
 //            entidades de los filtros activos que incluyen ComprasMX (vacío + true = algún filtro pide todo el país)
 //   por_revisar {fuente, vistos[], limite}         → {ok, pendientes: [{id_externo, url_detalle, motivo}]}
+//   sin_descripcion {fuente, ids[], limite}        → {ok, pendientes: [{id_externo, url_detalle}]} (US-852: de ESTA búsqueda,
+//            las que aún no tienen descripción, en el orden pedido; tope 200)
 //   estado   {}                                      → {ok, fuentes: [{fuente, ultima_ok, horas_sin_ok, ultima_error}]}
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -90,6 +92,14 @@ Deno.serve(async (req: Request) => {
       const vistos = Array.isArray(b.vistos) ? b.vistos.map(String).slice(0, 5000) : [];
       const { data, error } = await admin.rpc("convocatorias_por_revisar",
         { p_fuente: fuente, p_vistos: vistos, p_limite: Math.min(30, entero(b.limite) || 10), p_horas: 72 });
+      return error ? json({ ok: false, error: error.message }, 500) : json({ ok: true, pendientes: data });
+    }
+    case "sin_descripcion": {
+      const fuente = String(b.fuente ?? "comprasmx");
+      if (!FUENTES.has(fuente)) return json({ ok: false, error: "fuente no válida" }, 400);
+      const ids = Array.isArray(b.ids) ? b.ids.map(String).slice(0, 1000) : [];
+      const { data, error } = await admin.rpc("convocatorias_sin_descripcion",
+        { p_fuente: fuente, p_ids: ids, p_limite: Math.min(200, entero(b.limite) || 40) });
       return error ? json({ ok: false, error: error.message }, 500) : json({ ok: true, pendientes: data });
     }
     case "estado": {
