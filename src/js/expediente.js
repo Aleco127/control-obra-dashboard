@@ -44,6 +44,7 @@ const Expediente = (() => {
   const TABS = [
     { k: 'documentos', t: 'Documentos', ic: 'ri-file-list-3-line' },
     { k: 'datos', t: 'Datos', ic: 'ri-building-line' },
+    { k: 'personal', t: 'Personal técnico', ic: 'ri-team-line' },
   ];
 
   /** Campos editables de empresa_expediente (US-807). tipo: texto | area | fecha | monto. */
@@ -201,6 +202,23 @@ const Expediente = (() => {
     return null;
   }
 
+  // -- Personal técnico (US-810) --
+  /** Empleados que aún no están en el personal técnico (por empleado_id), activos primero y por nombre. */
+  function empleadosDisponibles(empleados, personal) {
+    const ligados = new Set((personal || []).map((p) => p.empleado_id).filter(Boolean));
+    const activo = (e) => !e.estatus || /^activ/i.test(String(e.estatus));
+    return (empleados || []).filter((e) => !ligados.has(e.id))
+      .sort((a, b) => (activo(b) - activo(a)) || String(a.nombre_completo || '').localeCompare(String(b.nombre_completo || ''), 'es'));
+  }
+  /** Fila nueva de personal_tecnico a partir de un empleado (liga empleado_id y copia nombre y puesto). */
+  function personaDesdeEmpleado(e) {
+    return { empleado_id: e.id, nombre: String(e.nombre_completo || '').trim(), puesto: e.puesto ? String(e.puesto).trim() : null, activo: true };
+  }
+  /** Personal activo primero y luego por nombre. */
+  function ordenarPersonal(personal) {
+    return [...(personal || [])].sort((a, b) => (b.activo - a.activo) || String(a.nombre).localeCompare(String(b.nombre), 'es'));
+  }
+
   /** Domicilio en una línea a partir de la fila de empresas. */
   function domicilio(e) {
     if (!e) return '';
@@ -252,6 +270,7 @@ const Expediente = (() => {
   }
   function conteoTab(exp, k) {
     if (k === 'documentos') return resumen(exp.documentos).total;
+    if (k === 'personal') return exp.personal.filter((p) => p.activo).length;
     return null;
   }
   function tabsHtml(exp) {
@@ -307,6 +326,151 @@ const Expediente = (() => {
     if (!path) return '';
     const p = S(JSON.stringify(path));
     return `<button type="button" class="btn-icon" onclick="Expediente.abrirArchivo(${p})" aria-label="Ver ${S(etiqueta)}" title="Ver"><i class="ri-eye-line" aria-hidden="true"></i></button><button type="button" class="btn-icon" onclick="Expediente.abrirArchivo(${p},true)" aria-label="Descargar ${S(etiqueta)}" title="Descargar"><i class="ri-download-2-line" aria-hidden="true"></i></button>`;
+  }
+
+  /** Campo de archivo de un formulario: muestra el actual (ver / quitar) y deja elegir uno nuevo que lo reemplaza. */
+  function campoArchivoHtml(id, etiqueta, pathActual) {
+    const actual = pathActual ? `<div class="flex flex-wrap items-center gap-2 text-xs text-ink-muted mb-1"><i class="ri-attachment-2" aria-hidden="true"></i><span class="break-all">${S(nombreDeRuta(pathActual))}</span>
+<button type="button" class="text-accent hover:underline min-h-[44px]" onclick="Expediente.abrirArchivo(${S(JSON.stringify(pathActual))})">Ver</button>
+<label class="inline-flex items-center gap-1 min-h-[44px]"><input type="checkbox" id="${id}Quitar"> Quitar archivo</label></div>` : '';
+    return `<div>${lbl(id, etiqueta)}${actual}<input type="file" id="${id}" class="inp" accept="${ACCEPT}"${pathActual ? ` aria-describedby="${id}Ayuda"` : ''}>${pathActual ? `<p id="${id}Ayuda" class="text-xs text-ink-muted mt-1">Si eliges otro archivo, reemplaza al actual.</p>` : ''}</div>`;
+  }
+  /**
+   * Sube los archivos elegidos en los campos {id, col} y calcula los cambios de la fila.
+   * Devuelve {cambios: {col: ruta|null}, subidos: [rutas nuevas], viejos: [rutas a borrar tras guardar]}.
+   * Si algo falla borra lo que alcanzó a subir y relanza el error.
+   */
+  async function aplicarArchivos(defs, carpeta, actual) {
+    const r = { cambios: {}, subidos: [], viejos: [] };
+    try {
+      for (const d of defs) {
+        const inp = $(d.id); const f = inp && inp.files && inp.files[0];
+        const quitar = $(d.id + 'Quitar') && $(d.id + 'Quitar').checked;
+        const previo = actual ? actual[d.col] : null;
+        if (f) {
+          const up = await subirArchivo(f, carpeta);
+          r.subidos.push(up.path); r.cambios[d.col] = up.path;
+          if (previo) r.viejos.push(previo);
+        } else if (quitar && previo) { r.cambios[d.col] = null; r.viejos.push(previo); }
+      }
+    } catch (e) { await borrarObjetos(r.subidos); throw e; }
+    return r;
+  }
+  const errorDe = (e, ctx) => (e && e.message && !e.code && !e.statusCode ? e.message : humanizeError(e, ctx));
+  /** Valida antes de subir: tipo y tamaño de cada archivo elegido. */
+  function validarCamposArchivo(defs) {
+    for (const d of defs) { const inp = $(d.id); const f = inp && inp.files && inp.files[0]; if (f) { const e = validarArchivo(f); if (e) return e; } }
+    return null;
+  }
+  const chipSimple = (txt, tono) => `<span class="chip" style="${tono ? `background:var(--${tono}-soft);color:var(--${tono})` : 'background:var(--surface-2);color:var(--ink-muted)'}">${S(txt)}</span>`;
+
+  // -- Personal técnico (US-810) --
+  const ARCH_PERSONAL = [{ id: 'exPerCv', col: 'cv_path', t: 'Currículum' }, { id: 'exPerCed', col: 'cedula_path', t: 'Cédula profesional' }, { id: 'exPerIde', col: 'identificacion_path', t: 'Identificación' }];
+  function panelPersonal(exp) {
+    const lista = ordenarPersonal(exp.personal);
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">Residentes, superintendentes y especialistas que propones en los concursos, con su currículum y cédula.</p>
+<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Expediente.traerEmpleados()"><i class="ri-user-shared-line" aria-hidden="true"></i> Traer de Empleados</button>
+<button type="button" class="btn btn-p" onclick="Expediente.nuevaPersona()"><i class="ri-user-add-line" aria-hidden="true"></i> Agregar persona</button></div></div>`;
+    if (!lista.length) return barra + EmptyState({ icon: 'ri-team-line', title: 'Sin personal técnico', body: 'Agrega a las personas que propones como residente o superintendente, o tráelas de Empleados para no capturar dos veces.', action: { label: 'Traer de Empleados', icon: 'ri-user-shared-line', onClick: 'Expediente.traerEmpleados()' } });
+    return barra + `<ul class="g rounded-xl px-4 divide-y divide-slate-100" aria-label="Personal técnico">${lista.map((p) => {
+      const det = [p.puesto, p.profesion, p.cedula_profesional ? 'Cédula ' + p.cedula_profesional : '', p.anios_experiencia != null ? p.anios_experiencia + ' año' + (p.anios_experiencia === 1 ? '' : 's') + ' de experiencia' : ''].filter(Boolean).join(' · ');
+      const arch = ARCH_PERSONAL.filter((a) => p[a.col]).map((a) => `<span class="inline-flex items-center text-xs text-ink-muted">${S(a.t)}${botonesArchivo(p[a.col], a.t + ' de ' + p.nombre)}</span>`).join('');
+      const falta = ARCH_PERSONAL.filter((a) => !p[a.col]).map((a) => a.t.toLowerCase());
+      return `<li class="ex-per flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+<div class="flex-1 min-w-[12rem]"><p class="font-medium break-words">${S(p.nombre)} ${p.empleado_id ? '<span class="text-xs text-ink-muted font-normal">· de Empleados</span>' : ''}</p><p class="text-xs text-ink-muted">${S(det || 'Sin datos profesionales')}</p>
+${falta.length && p.activo ? `<p class="text-xs text-warn">Falta: ${S(falta.join(', '))}</p>` : ''}<div class="flex flex-wrap gap-x-3">${arch}</div></div>
+${p.activo ? chipSimple('Activo', 'ok') : chipSimple('Inactivo')}
+<div class="flex items-center"><button type="button" class="btn-icon" onclick="Expediente.alternarActivo(${p.id})" aria-label="${p.activo ? 'Marcar como inactivo' : 'Marcar como activo'} a ${S(p.nombre)}" title="${p.activo ? 'Marcar inactivo' : 'Marcar activo'}"><i class="${p.activo ? 'ri-user-unfollow-line' : 'ri-user-follow-line'}" aria-hidden="true"></i></button>
+<button type="button" class="btn-icon" onclick="Expediente.editarPersona(${p.id})" aria-label="Editar a ${S(p.nombre)}" title="Editar"><i class="ri-pencil-line" aria-hidden="true"></i></button>
+<button type="button" class="btn-icon" onclick="Expediente.eliminarPersona(${p.id})" aria-label="Eliminar a ${S(p.nombre)}" title="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button></div></li>`;
+    }).join('')}</ul>`;
+  }
+  const personaPorId = (id) => D.exp && D.exp.personal.find((p) => p.id === id);
+  function modalPersona(p) {
+    const x = p || {};
+    const html = `<form id="exPerForm" onsubmit="Expediente.guardarPersona(event)" novalidate class="space-y-3">
+<input type="hidden" id="exPerId" value="${x.id || ''}"><input type="hidden" id="exPerEmp" value="${x.empleado_id || ''}">
+${x.empleado_id ? `<p class="text-xs text-ink-muted"><i class="ri-links-line" aria-hidden="true"></i> Ligado a Empleados: el nombre y el puesto se copiaron de ahí.</p>` : ''}
+<div>${lbl('exPerNombre', 'Nombre', true)}<input type="text" id="exPerNombre" class="inp" required maxlength="160" value="${S(x.nombre || '')}"></div>
+<div class="grid sm:grid-cols-2 gap-3"><div>${lbl('exPerPuesto', 'Puesto en la propuesta')}<input type="text" id="exPerPuesto" class="inp" value="${S(x.puesto || '')}" placeholder="Superintendente de obra"></div>
+<div>${lbl('exPerProf', 'Profesión')}<input type="text" id="exPerProf" class="inp" value="${S(x.profesion || '')}" placeholder="Ingeniero civil"></div>
+<div>${lbl('exPerCedula', 'Cédula profesional')}<input type="text" id="exPerCedula" class="inp" inputmode="numeric" value="${S(x.cedula_profesional || '')}"></div>
+<div>${lbl('exPerAnios', 'Años de experiencia')}<input type="number" id="exPerAnios" class="inp" min="0" max="70" step="1" value="${x.anios_experiencia != null ? S(x.anios_experiencia) : ''}"></div></div>
+${ARCH_PERSONAL.map((a) => campoArchivoHtml(a.id, a.t, x[a.col])).join('')}
+<label class="zk-switch"><input type="checkbox" id="exPerActivo" ${x.id ? (x.activo ? 'checked' : '') : 'checked'}><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Activo (se puede proponer en concursos)</span></label>
+<div>${lbl('exPerNotas', 'Notas')}<textarea id="exPerNotas" class="inp" rows="2">${S(x.notas || '')}</textarea></div>
+<div class="flex flex-wrap justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpPer')">Cancelar</button>
+<button type="submit" class="btn btn-p" id="exPerGuardar"><i class="ri-save-line" aria-hidden="true"></i> ${x.id ? 'Guardar cambios' : 'Agregar persona'}</button></div></form>`;
+    abrirModal('mdlExpPer', x.id ? 'Editar persona' : 'Agregar persona', html);
+  }
+  function nuevaPersona(base) { modalPersona(base || null); }
+  function editarPersona(id) { const p = personaPorId(id); if (p) modalPersona(p); }
+  async function guardarPersona(ev) {
+    if (ev) ev.preventDefault();
+    const id = +$('exPerId').value || null; const actual = id ? personaPorId(id) : null;
+    const nombre = $('exPerNombre').value.trim();
+    if (!nombre) { Toast.error('Escribe el nombre de la persona.'); return; }
+    const aniosTxt = $('exPerAnios').value.trim();
+    const anios = aniosTxt === '' ? null : Number(aniosTxt);
+    if (anios !== null && (!Number.isInteger(anios) || anios < 0)) { Toast.error('Los años de experiencia deben ser un número entero.'); return; }
+    const errArch = validarCamposArchivo(ARCH_PERSONAL); if (errArch) { Toast.error(errArch); return; }
+    const btn = $('exPerGuardar'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    let arch = null;
+    try {
+      arch = await aplicarArchivos(ARCH_PERSONAL, 'personal', actual);
+      const fila = Object.assign({ nombre, puesto: $('exPerPuesto').value.trim() || null, profesion: $('exPerProf').value.trim() || null,
+        cedula_profesional: $('exPerCedula').value.trim() || null, anios_experiencia: anios, activo: $('exPerActivo').checked,
+        notas: $('exPerNotas').value.trim() || null }, arch.cambios);
+      if (!id) fila.empleado_id = +$('exPerEmp').value || null;
+      const q = id ? sb.from('personal_tecnico').update(fila).eq('id', id).select().single() : sb.from('personal_tecnico').insert(fila).select().single();
+      const { data, error } = await q;
+      if (error) throw error;
+      await borrarObjetos(arch.viejos);
+      D.exp.personal = id ? D.exp.personal.map((p) => (p.id === id ? data : p)) : D.exp.personal.concat(data);
+      closeMdl('mdlExpPer');
+      Toast.success(id ? 'Persona actualizada' : 'Persona agregada al personal técnico');
+      pintarPanel();
+    } catch (e) {
+      if (arch) await borrarObjetos(arch.subidos);
+      Toast.error(errorDe(e, 'No se guardó la persona'));
+    } finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
+  async function alternarActivo(id) {
+    const p = personaPorId(id); if (!p) return;
+    const { data, error } = await sb.from('personal_tecnico').update({ activo: !p.activo }).eq('id', id).select().single();
+    if (error) { Toast.error(humanizeError(error, 'No se cambió el estado')); return; }
+    D.exp.personal = D.exp.personal.map((x) => (x.id === id ? data : x));
+    Toast.success(data.activo ? `${p.nombre} está activo` : `${p.nombre} quedó inactivo`);
+    pintarPanel();
+  }
+  async function eliminarPersona(id) {
+    const p = personaPorId(id); if (!p) return;
+    if (!await Dialog.confirm({ title: 'Eliminar persona', body: `Se quitará a «${p.nombre}» del personal técnico junto con su currículum, cédula e identificación. En Empleados no cambia nada.`, confirmText: 'Eliminar persona', tone: 'danger' })) return;
+    const { error } = await sb.from('personal_tecnico').delete().eq('id', id);
+    if (error) { Toast.error(humanizeError(error, 'No se eliminó la persona')); return; }
+    await borrarObjetos(ARCH_PERSONAL.map((a) => p[a.col]));
+    D.exp.personal = D.exp.personal.filter((x) => x.id !== id);
+    Toast.success('Persona eliminada');
+    pintarPanel();
+  }
+  /** «Traer de Empleados»: lista los empleados aún no ligados; al elegir uno abre el alta con nombre y puesto copiados. */
+  function traerEmpleados() {
+    const disp = empleadosDisponibles(D.e || [], D.exp.personal);
+    const html = disp.length ? `<p class="text-sm text-ink-muted mb-2">Elige a quién agregar. Se copian el nombre y el puesto y queda ligado a su ficha de Empleados.</p>
+${disp.length > 8 ? `<div class="mb-2">${lbl('exTraerBuscar', 'Buscar empleado')}<input type="search" id="exTraerBuscar" class="inp" oninput="Expediente.filtrarTraer(this.value)"></div>` : ''}
+<ul id="exTraerLista" class="divide-y divide-slate-100 max-h-[55vh] overflow-y-auto">${disp.map((e) => `<li data-n="${S(String(e.nombre_completo || '').toLowerCase())}" class="flex items-center gap-2 py-1"><div class="flex-1 min-w-0"><p class="font-medium truncate">${S(e.nombre_completo || 'Sin nombre')}</p><p class="text-xs text-ink-muted">${S([e.puesto, e.estatus].filter(Boolean).join(' · '))}</p></div>
+<button type="button" class="btn btn-s" onclick="Expediente.elegirEmpleado(${e.id})" aria-label="Traer a ${S(e.nombre_completo || '')}">Traer</button></li>`).join('')}</ul>`
+      : '<p class="text-sm text-ink-muted">Todos tus empleados ya están en el personal técnico, o aún no das de alta empleados.</p>';
+    abrirModal('mdlExpTraer', 'Traer de Empleados', html + `<div class="flex justify-end pt-3"><button type="button" class="btn btn-s" onclick="closeMdl('mdlExpTraer')">Cerrar</button></div>`);
+  }
+  function filtrarTraer(q) {
+    const t = String(q || '').toLowerCase().trim();
+    document.querySelectorAll('#exTraerLista li').forEach((li) => { li.hidden = !!t && !li.dataset.n.includes(t); });
+  }
+  function elegirEmpleado(id) {
+    const e = (D.e || []).find((x) => x.id === id); if (!e) return;
+    closeMdl('mdlExpTraer');
+    modalPersona(personaDesdeEmpleado(e));
   }
 
   // -- Documentos (US-808) --
@@ -507,6 +671,7 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
   }
   function panelHtml(exp) {
     if (tab === 'datos') return panelDatos(exp);
+    if (tab === 'personal') return panelPersonal(exp);
     return panelDocumentos(exp);
   }
   /** Repinta pestañas y panel con D.exp sin volver a pedir datos. */
@@ -541,9 +706,11 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
   return {
     render, cargar, recargar, setTab, guardarDatos, abrirArchivo,
     nuevoDocumento, renovarDocumento, editarDocumento, guardarDocumento, historialDocumento, eliminarDocumento, sugerirVencimiento,
+    nuevaPersona, editarPersona, guardarPersona, alternarActivo, eliminarPersona, traerEmpleados, filtrarTraer, elegirEmpleado,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
     tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,
+    empleadosDisponibles, personaDesdeEmpleado, ordenarPersonal,
     CATEGORIAS, ESTADOS, DIAS_POR_VENCER, CAMPOS_DATOS, TABS, TIPOS_ARCHIVO, MAX_BYTES,
   };
 })();

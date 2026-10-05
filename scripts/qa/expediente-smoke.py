@@ -86,7 +86,7 @@ def limpiar(page):
       docs.sort((a,b)=>b.id-a.id);
       out.archivos=await borrarArchivos(docs.map(d=>d.archivo_path));
       for(const d of docs){await sb.from('empresa_documentos').delete().eq('id',d.id);} out.docs=docs.length;
-      const per=(await sb.from('personal_tecnico').select('*').like('nombre',m+'%')).data||[];
+      const per=(await sb.from('personal_tecnico').select('*').or('nombre.like.'+m+'%,notas.like.'+m+'%')).data||[];
       out.archivos+=await borrarArchivos(per.flatMap(p=>[p.cv_path,p.cedula_path,p.identificacion_path]));
       if(per.length)await sb.from('personal_tecnico').delete().in('id',per.map(p=>p.id)); out.personal=per.length;
       const ob=(await sb.from('obras_ejecutadas').select('*').or('nombre.like.'+m+'%,notas.like.'+m+'%')).data||[];
@@ -272,7 +272,71 @@ def caso_avisos(page, tag):
     t2 = page.evaluate("()=>{const el=document.getElementById('dsExpAvisos');return el?el.hidden:null;}")
     check(base['v'] > 0 or t2 is True, f'{tag}: sin vencidos la tarjeta de Inicio no aparece')
 
-CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos}
+# ---- US-810 ---------------------------------------------------------------------------------------------------------
+def caso_personal(page, tag):
+    abrir_ex(page, 'personal')
+    check(page.evaluate("()=>document.getElementById('exTab-personal')?.getAttribute('aria-selected')==='true'"), f'{tag}: pestaña Personal técnico')
+    # Alta desde cero con CV, cédula e identificación
+    page.evaluate("()=>Expediente.nuevaPersona()")
+    esperar_modal(page, 'mdlExpPer')
+    page.fill('#exPerNombre', MARCA + ' Ing. Prueba')
+    page.fill('#exPerPuesto', 'Superintendente'); page.fill('#exPerProf', 'Ingeniero civil'); page.fill('#exPerCedula', '1234567'); page.fill('#exPerAnios', '12')
+    page.set_input_files('#exPerCv', archivo('CV Ing Prueba.pdf'))
+    page.set_input_files('#exPerCed', archivo('cedula.png', b'\x89PNG\r\n\x1a\nqa', 'image/png'))
+    page.set_input_files('#exPerIde', archivo('INE.pdf'))
+    axe(page, '#mdlExpPer', tag + ' modal persona')
+    if tag == 'escritorio': snap(page, 'personal-modal-escritorio.png')
+    page.click('#exPerGuardar')
+    page.wait_for_function("m=>D.exp.personal.some(p=>p.nombre===m)", arg=MARCA + ' Ing. Prueba', timeout=20000)
+    p = page.evaluate("m=>D.exp.personal.find(p=>p.nombre===m)", MARCA + ' Ing. Prueba')
+    rutas_ok = all(p[c] and p[c].startswith('empresa/1/expediente/personal/') for c in ['cv_path', 'cedula_path', 'identificacion_path'])
+    check(rutas_ok and p['activo'] and p['anios_experiencia'] == 12 and p['empleado_id'] is None, f'{tag}: alta desde cero con CV, cédula e identificación en el bucket {[p["cv_path"], p["cedula_path"]]}')
+    r = page.evaluate("async p=>{const{data,error}=await sb.storage.from('licitaciones').createSignedUrl(p,60);if(error)return error.message;const x=await fetch(data.signedUrl);return x.status;}", p['cedula_path'])
+    check(r == 200, f'{tag}: la cédula se puede abrir con URL firmada ({r})')
+    # Marcar inactivo y activo
+    page.click(f'[aria-label="Marcar como inactivo a {MARCA} Ing. Prueba"]')
+    page.wait_for_function("m=>D.exp.personal.find(p=>p.nombre===m).activo===false", arg=MARCA + ' Ing. Prueba', timeout=10000)
+    page.wait_for_timeout(200)
+    check(page.evaluate("m=>[...document.querySelectorAll('#exPanel li.ex-per')].find(li=>li.textContent.includes(m))?.textContent.includes('Inactivo')", MARCA), f'{tag}: marca inactivo y lo muestra')
+    page.click(f'[aria-label="Marcar como activo a {MARCA} Ing. Prueba"]')
+    page.wait_for_function("m=>D.exp.personal.find(p=>p.nombre===m).activo===true", arg=MARCA + ' Ing. Prueba', timeout=10000)
+    # Editar: reemplazar CV y quitar identificación (borra los objetos viejos)
+    viejoCv, viejaIde = p['cv_path'], p['identificacion_path']
+    page.evaluate("id=>Expediente.editarPersona(id)", p['id'])
+    esperar_modal(page, 'mdlExpPer')
+    page.set_input_files('#exPerCv', archivo('CV nuevo.pdf', PDF + b'%nuevo'))
+    page.check('#exPerIdeQuitar')
+    page.click('#exPerGuardar')
+    page.wait_for_function("([m,v])=>{const p=D.exp.personal.find(p=>p.nombre===m);return p&&p.cv_path!==v;}", arg=[MARCA + ' Ing. Prueba', viejoCv], timeout=20000)
+    p2 = page.evaluate("m=>D.exp.personal.find(p=>p.nombre===m)", MARCA + ' Ing. Prueba')
+    existen = page.evaluate("async ps=>{const out=[];for(const p of ps){const dir=p.split('/').slice(0,-1).join('/');const{data}=await sb.storage.from('licitaciones').list(dir,{limit:1000});out.push((data||[]).some(x=>p.endsWith('/'+x.name)));}return out;}", [viejoCv, viejaIde])
+    check(p2['identificacion_path'] is None and existen == [False, False], f'{tag}: reemplazar y quitar archivos borra los objetos viejos {existen}')
+    # Traer de Empleados: liga empleado_id y copia nombre y puesto
+    page.evaluate("()=>Expediente.traerEmpleados()")
+    esperar_modal(page, 'mdlExpTraer')
+    emp = page.evaluate("()=>{const d=Expediente.empleadosDisponibles(D.e||[],D.exp.personal);return d.length?{id:d[0].id,nombre:d[0].nombre_completo,puesto:d[0].puesto||''}:null;}")
+    if emp:
+        axe(page, '#mdlExpTraer', tag + ' traer empleados')
+        page.click(f'#exTraerLista button[onclick="Expediente.elegirEmpleado({emp["id"]})"]')
+        esperar_modal(page, 'mdlExpPer')
+        f = page.evaluate("()=>({n:document.getElementById('exPerNombre').value,p:document.getElementById('exPerPuesto').value,e:document.getElementById('exPerEmp').value})")
+        check(f['n'] == (emp['nombre'] or '').strip() and f['p'] == (emp['puesto'] or '').strip() and f['e'] == str(emp['id']), f'{tag}: «Traer de Empleados» copia nombre y puesto y liga empleado_id')
+        page.fill('#exPerNotas', MARCA)
+        page.click('#exPerGuardar')
+        page.wait_for_function("id=>D.exp.personal.some(p=>p.empleado_id===id)", arg=emp['id'], timeout=15000)
+        check(not page.evaluate("id=>Expediente.empleadosDisponibles(D.e,D.exp.personal).some(e=>e.id===id)", emp['id']), f'{tag}: el empleado ya no se ofrece otra vez')
+    else:
+        check(False, f'{tag}: hay empleados para probar «Traer de Empleados»')
+    check(not desborde(page), f'{tag}: sin desborde horizontal')
+    snap(page, f'personal-{tag}.png')
+    axe(page, '#c', tag + ' personal')
+    # Eliminar con confirmación
+    page.click(f'[aria-label="Eliminar a {MARCA} Ing. Prueba"]')
+    page.wait_for_selector('dialog.dlg[open]'); page.click('#dlgOk')
+    page.wait_for_function("m=>!D.exp.personal.some(p=>p.nombre===m)", arg=MARCA + ' Ing. Prueba', timeout=15000)
+    check(True, f'{tag}: eliminar persona')
+
+CASOS_FN = {'datos': caso_datos, 'documentos': caso_documentos, 'avisos': caso_avisos, 'personal': caso_personal}
 
 def main():
     previo = None

@@ -155,3 +155,18 @@ test('el job diario llama a generar_avisos_expediente en la acción notificacion
   assert.match(sql, /r\.nivel_acceso >= 80/, 'sólo nivel >= 80');
   assert.match(sql, /ON CONFLICT \(empresa_id, clave\) DO NOTHING/, 'una vez por umbral');
 });
+
+// ---- US-810: personal técnico ---------------------------------------------------------------------------------------
+test('personal: empleados disponibles (sin los ya ligados, activos primero) y persona desde empleado', () => {
+  const emps = [
+    { id: 1, nombre_completo: 'Zoe Ruiz', puesto: 'Residente', estatus: 'Activo' },
+    { id: 2, nombre_completo: 'Ana Pérez', puesto: 'Cabo', estatus: 'Baja' },
+    { id: 3, nombre_completo: 'Beto Gil', puesto: null, estatus: 'activo' },
+    { id: 4, nombre_completo: 'Ya Ligado', puesto: 'Super', estatus: 'Activo' },
+  ];
+  const disp = Expediente.empleadosDisponibles(emps, [{ id: 9, empleado_id: 4 }, { id: 10, empleado_id: null }]);
+  assert.deepEqual(disp.map((e) => e.id), [3, 1, 2]);
+  assert.deepEqual(Expediente.personaDesdeEmpleado({ id: 1, nombre_completo: ' Zoe Ruiz ', puesto: 'Residente ' }), { empleado_id: 1, nombre: 'Zoe Ruiz', puesto: 'Residente', activo: true });
+  assert.equal(Expediente.personaDesdeEmpleado({ id: 3, nombre_completo: 'Beto' }).puesto, null);
+  assert.deepEqual(Expediente.ordenarPersonal([{ nombre: 'B', activo: false }, { nombre: 'C', activo: true }, { nombre: 'A', activo: true }]).map((p) => p.nombre), ['A', 'C', 'B']);
+});
