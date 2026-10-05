@@ -3,7 +3,7 @@
 nav-grupos-smoke.py (US-605): comprueba en el navegador (build local en dist/) que sec se deriva de NAV_GRUPOS
 sin romper la barra vieja, el breadcrumb, Ctrl+K ni la barra inferior: abre d, g y cb con cero errores de consola,
 el breadcrumb dice «Dinero › Compras y gastos» y el módulo cb se llama «Contabilidad» en la barra, el breadcrumb,
-Ctrl+K y el título de la pantalla. Las 34 claves del PRD siguen accesibles por hash y por Ctrl+K.
+Ctrl+K y el título de la pantalla. Las 37 claves (34 del PRD de la barra + 3 de licitaciones) siguen accesibles por hash y por Ctrl+K.
 
 Uso (con OBRA_QA_TOKEN en el entorno):
   PYTHONIOENCODING=utf-8 python scripts/qa/nav-grupos-smoke.py --app http://127.0.0.1:8765/index.html?app=1
@@ -19,7 +19,7 @@ TOKEN = os.environ.get('OBRA_QA_TOKEN', '')
 if not TOKEN:
     print('Falta OBRA_QA_TOKEN en el entorno'); sys.exit(2)
 
-CLAVES = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h'.split(' ')
+CLAVES = 'd o p w g pc ct es cb fc ce rt dc rp su ci so s m b c r u y k f e n t v l q z h lc ex bp'.split(' ')  # US-805: + licitaciones
 errores, fallos = [], []
 def check(cond, msg):
     if not cond: fallos.append(msg)
@@ -36,11 +36,11 @@ with sync_playwright() as pw:
         page.wait_for_function("()=>typeof D!=='undefined'&&D.o&&D.o.length>0&&typeof NAV_GRUPOS==='object'", timeout=90000)
         page.wait_for_timeout(800)
 
-        # 1) sec derivado: misma forma y 34 claves
+        # 1) sec derivado: misma forma y 37 claves (34 + lc, ex, bp)
         info = page.evaluate("()=>({n:sec.flatMap(s=>s.i).length,grupos:sec.map(s=>s.t),claves:sec.flatMap(s=>s.i.map(x=>x[0])),forma:sec.every(s=>typeof s.t==='string'&&typeof s.k==='string'&&Array.isArray(s.i)&&s.i.every(x=>x.length===3))})")
-        check(info['n'] == 34 and sorted(info['claves']) == sorted(CLAVES), f'app{ancho}: sec trae {info["n"]} claves: {info["claves"]}')
+        check(info['n'] == 37 and sorted(info['claves']) == sorted(CLAVES), f'app{ancho}: sec trae {info["n"]} claves: {info["claves"]}')
         check(info['forma'], f'app{ancho}: sec perdió la forma {{t,k,ic,i}}')
-        check(info['grupos'] == ['Inicio', 'Obra', 'Calidad', 'Dinero', 'Equipo', 'Contabilidad', 'Administración'], f'app{ancho}: grupos {info["grupos"]}')
+        check(info['grupos'] == ['Inicio', 'Obra', 'Licitaciones', 'Calidad', 'Dinero', 'Equipo', 'Contabilidad', 'Administración'], f'app{ancho}: grupos {info["grupos"]}')
 
         # 2) d, g, cb: breadcrumb, barra y título de pantalla
         for k, grupo, label in (('d', '', 'Inicio'), ('g', 'Dinero', 'Compras y gastos'), ('cb', 'Contabilidad', 'Contabilidad')):
@@ -77,7 +77,7 @@ with sync_playwright() as pw:
         for k in CLAVES:
             page.evaluate(f"()=>{{M='{k}';R();}}")
             page.wait_for_timeout(250 if ancho >= 768 else 200)
-        check(len(errores) == antes, f'app{ancho}: errores al recorrer las 34 claves')
+        check(len(errores) == antes, f'app{ancho}: errores al recorrer las 37 claves')
 
         # 5) barra inferior móvil sigue pintando 4 + «+» + «Más»
         if ancho < 768:

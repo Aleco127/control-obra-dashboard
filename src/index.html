@@ -3309,6 +3309,25 @@ break;
 }
 }
 
+// Licitaciones (PRD licitaciones US-806): módulos en archivos propios, fuera del arranque (D4). En el build van en
+// __LAZY (js/<archivo>.<hash>.js) y R() los espera antes de despachar; sin build (src servido tal cual) este cargador
+// mete el <script> la primera vez. Cada módulo pide sus datos al abrirse (D.lic, D.exp, D.ins: no enumerables).
+const MOD_ARCHIVO={
+lc:{src:'js/licitaciones.js',mod:()=>typeof Licitaciones!=='undefined'?Licitaciones:null},
+ex:{src:'js/expediente.js',mod:()=>typeof Expediente!=='undefined'?Expediente:null},
+bp:{src:'js/banco-precios.js',mod:()=>typeof BancoPrecios!=='undefined'?BancoPrecios:null}
+};
+function abrirModuloArchivo(k,c){
+const m=MOD_ARCHIVO[k];const mod=m&&m.mod();
+if(mod){mod.render(c);return;}
+c.innerHTML='<div class="p-8 text-center text-ink-muted" role="status"><i class="ri-loader-4-line animate-spin text-xl" aria-hidden="true"></i><p class="text-sm mt-2">Cargando módulo…</p></div>';
+if(m._cargando)return;m._cargando=true;
+const sc=document.createElement('script');sc.src=m.src;
+sc.onload=()=>{m._cargando=false;if(M===k)R();};
+sc.onerror=()=>{m._cargando=false;sc.remove();if(M===k)c.innerHTML=EmptyState({icon:'ri-wifi-off-line',title:'No se pudo cargar este módulo',body:'Revisa tu conexión e intenta de nuevo.',action:{label:'Reintentar',onClick:'R()'}});};
+document.head.appendChild(sc);
+}
+
 function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$('c');
 // US-606: un módulo que el rol no ve (abierto por hash o por currentTab) manda al primero visible en lugar de pintarlo
 if(currentUser&&M!=='x'&&typeof NavRules!=='undefined'&&!moduloVisibleParaUsuario(M)){const dest=NavRules.visibles(currentUser).find(k=>isModuloEnabled(k))||'d';if(dest!==M){M=dest;if(typeof fichaObraId!=='undefined'){fichaObraId=null;localStorage.removeItem('fichaObraId');}R();return;}}
@@ -3355,6 +3374,7 @@ else if(M==='rp')Repse(c);
 else if(M==='su')Sua(c);
 else if(M==='so')Socios.render(c);
 else if(M==='ci')Cierres.render(c);
+else if(M==='lc'||M==='ex'||M==='bp')abrirModuloArchivo(M,c);
 else Ph(c);
 }
 }
@@ -26454,7 +26474,9 @@ $('suaBanner').classList.add('hidden');
 localStorage.setItem('suaBannerDismissed',new Date().toDateString());
 }
 
-// Iniciar
+// ========== ARRANQUE ==========
+// Este marcador cierra el corte del último módulo diferido (SUA) en scripts/build.mjs: sin él, checkSession() se iba
+// dentro de js/mod-su.*.js y la app sólo arrancaba cuando la precarga traía ese módulo, 1.5 s después del load.
 checkSession();
 </script>
 </body></html>

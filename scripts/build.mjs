@@ -68,6 +68,18 @@ const LAZY = [
   { key: 'es', marker: 'MODULO ESTIMACIONES' },
 ];
 const lazyMap = {};
+// 3c) Licitaciones (US-806): módulos que viven en su propio archivo de src/js y NO se enlazan en index.html; salen
+//     como diferidos con el nombre con hash de jsMap y R() los espera igual que a los de arriba.
+const LAZY_ARCHIVOS = [
+  { key: 'lc', file: 'licitaciones.js' },
+  { key: 'ex', file: 'expediente.js' },
+  { key: 'bp', file: 'banco-precios.js' },
+];
+for (const { key, file } of LAZY_ARCHIVOS) {
+  if (!jsMap[file]) throw new Error(`build: falta src/js/${file} (módulo diferido '${key}')`);
+  if (html.includes(`<script src="js/${file.replace(/\.js$/, '')}.`)) throw new Error(`build: ${file} es diferido; no debe enlazarse con <script> en index.html`);
+  lazyMap[key] = 'js/' + jsMap[file];
+}
 {
   const mainMatch = html.match(/<script>([\s\S]*?)<\/script>/g).map((m) => m).sort((x, y) => y.length - x.length)[0];
   let main = mainMatch.slice(8, -9);
@@ -90,10 +102,14 @@ const lazyMap = {};
     lines.splice(i, j - i, `// [build] módulo '${key}' cargado bajo demanda desde ${name}`);
   }
   main = lines.join('\n');
+  // El arranque de la app NUNCA puede quedar dentro de un módulo diferido (pasó con checkSession() en mod-su)
+  if (!/\ncheckSession\(\);/.test(main)) throw new Error('build: checkSession() quedó dentro de un módulo diferido; revisa el marcador ARRANQUE de index.html');
   // Cargador: R() espera el módulo antes de despachar; el resto se precarga tras el arranque
   const loader = `const __LAZY=${JSON.stringify(lazyMap)};const __LAZY_OK={};
 function cargarModulo(k){const src=__LAZY[k];if(!src||__LAZY_OK[k])return Promise.resolve();return __LAZY_OK[k]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>{__LAZY_OK[k]=true;res();};s.onerror=()=>{delete __LAZY_OK[k];rej(new Error('No se pudo cargar el módulo '+k));};document.head.appendChild(s);});}
-window.addEventListener('load',()=>{setTimeout(()=>{Object.keys(__LAZY).forEach(k=>cargarModulo(k).catch(()=>{}));},1500);});
+// Precarga tras el arranque sólo de lo que el usuario puede abrir (lc/ex/bp son de nivel >= 80): espera a la sesión
+let __precargas=0;function precargarModulos(){if(typeof currentUser==='undefined'||!currentUser){if(++__precargas<60)setTimeout(precargarModulos,1000);return;}Object.keys(__LAZY).forEach(k=>{if(typeof moduloVisibleParaUsuario==='function'&&!moduloVisibleParaUsuario(k))return;cargarModulo(k).catch(()=>{});});}
+window.addEventListener('load',()=>{setTimeout(precargarModulos,1500);});
 `;
   main = loader + main;
   const rIni = 'function R(){N();updateBreadcrumb();updateMobileBottomNav();const c=$(\'c\');';
@@ -145,7 +161,7 @@ if (existsSync(join(ROOT, 'docs', 'img'))) cpSync(join(ROOT, 'docs', 'img'), joi
 if (existsSync(join(SRC, 'status.html'))) cpSync(join(SRC, 'status.html'), join(DIST, 'status.html'));
 
 // 6) Service worker: precache del app shell (US-226)
-const precache = ['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, `css/${navCssName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'landing.html', 'img/icon-192.png', 'img/icon-512.png'];
+const precache = [...new Set(['./', 'index.html', 'manifest.json', `css/${twName}`, `css/${stylesName}`, `css/${navCssName}`, ...Object.values(jsMap).map((n) => `js/${n}`), ...Object.values(lazyMap), 'landing.html', 'img/icon-192.png', 'img/icon-512.png'])];
 const sw = `// Service worker de Control de Obra · build ${BUILD_ID} (generado por scripts/build.mjs; no editar)
 // Estrategia: red primero para todo; la caché sólo entra cuando no hay red. Las respuestas se guardan sin
 // Content-Encoding (el cuerpo ya viene descomprimido) para que Chrome no falle al servirlas desde caché.

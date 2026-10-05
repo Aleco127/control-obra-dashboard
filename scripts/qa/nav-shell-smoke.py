@@ -78,7 +78,7 @@ with sync_playwright() as pw:
         if x['plano']:
             check(x['tag'] is None, f'grupo plano {x["k"]} con cabecera'); continue
         check(x['tag'] == 'BUTTON' and x['exp'] in ('true', 'false'), f'cabecera de {x["k"]} no es <button aria-expanded>')
-        esperado = 'false' if x['k'] == 'contabilidad' else 'true'
+        esperado = 'false' if x['k'] in ('contabilidad', 'licitaciones') else 'true'  # US-805: Licitaciones también entra cerrado
         check(x['exp'] == esperado, f'grupo {x["k"]} aria-expanded={x["exp"]}, esperaba {esperado}')
         check(x['hidden'] == (esperado == 'false'), f'grupo {x["k"]} hidden={x["hidden"]} no coincide con aria-expanded')
     check(any(x['k'] == 'contabilidad' for x in g) and any(x['k'] == 'administracion' and x['plano'] for x in g), 'faltan Contabilidad o Administración plana')
