@@ -186,12 +186,24 @@ def _ctx_ssl():
     return None
 
 
+def _abrir(req, timeout: int):
+    """urlopen hacia NUESTRO servidor (Supabase) con UN reintento si la red corta la conexión (WinError 10054 en la red de
+    la oficina). Nunca se usa contra el portal: allí no hay reintentos."""
+    try:
+        return urllib.request.urlopen(req, timeout=timeout, context=_ctx_ssl())
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, ConnectionError, TimeoutError):
+        time.sleep(1.5)
+        return urllib.request.urlopen(req, timeout=timeout, context=_ctx_ssl())
+
+
 def ingesta(cuerpo: dict) -> dict:
     url = os.environ.get("SUPABASE_URL", SUPABASE_URL).rstrip("/") + "/functions/v1/convocatorias-ingesta"
     req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), method="POST", headers={
         "Content-Type": "application/json", "x-convocatorias-secret": os.environ["CONVOCATORIAS_INGESTA_SECRET"]})
     try:
-        with urllib.request.urlopen(req, timeout=60, context=_ctx_ssl()) as r:
+        with _abrir(req, 60) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         try:
@@ -210,6 +222,282 @@ def avisar(texto: str) -> None:
         urllib.request.urlopen(f"https://api.telegram.org/bot{bot}/sendMessage", data=data, timeout=15, context=_ctx_ssl())
     except Exception as e:  # noqa: BLE001
         print("No se pudo avisar por Telegram:", type(e).__name__, flush=True)
+
+
+# ---- Cuenta de la empresa (US-854, US-855, D15) ----------------------------------------------------------------
+# La credencial NUNCA viene de la app: la app entrega un boleto de un solo uso y aquí se canjea en la función de borde
+# `portal-credencial` con el secreto de ingesta. La credencial vive sólo en variables locales durante la llamada.
+# UN intento de inicio de sesión por petición; si el portal lo rechaza se informa «fallo» y no se reintenta.
+PANEL = os.environ.get("COMPRASMX_PANEL_URL") or "https://comprasmx.buengobierno.gob.mx/panel/"
+LOGOUT = os.environ.get("COMPRASMX_LOGOUT_URL") or \
+    "https://comprasmx.buengobierno.gob.mx/auth/realms/procura/protocol/openid-connect/logout"
+BOLETO_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+
+class SesionFallida(Exception):
+    """El portal rechazó el inicio de sesión (o pidió captcha / segundo factor). `informar` = se cuenta como intento."""
+
+    def __init__(self, mensaje: str, informar: bool = True, causa: str = "rechazo"):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+        self.informar = informar
+        self.causa = causa
+
+
+def portal_credencial(accion: str, cuerpo: dict) -> tuple[int, dict]:
+    """Llama a la función de borde portal-credencial con el secreto de ingesta. Nunca registra el cuerpo."""
+    url = os.environ.get("SUPABASE_URL", SUPABASE_URL).rstrip("/") + "/functions/v1/portal-credencial"
+    req = urllib.request.Request(url, data=json.dumps({"accion": accion, **cuerpo}).encode(), method="POST", headers={
+        "Content-Type": "application/json", "x-convocatorias-secret": os.environ.get("CONVOCATORIAS_INGESTA_SECRET", "")})
+    try:
+        with _abrir(req, 30) as r:
+            return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode())
+        except Exception:  # noqa: BLE001
+            return e.code, {"ok": False, "error": f"HTTP {e.code}"}
+
+
+def canjear_boleto(boleto: str) -> dict | None:
+    """{usuario, password, empresa_id, portal, proposito} o None (boleto usado, vencido o desconocido)."""
+    if not BOLETO_RE.match(str(boleto or "")):
+        return None
+    st, j = portal_credencial("canjear", {"boleto": boleto})
+    if st != 200 or not j.get("ok") or not j.get("usuario") or not j.get("password"):
+        return None
+    return j
+
+
+def informar_resultado(boleto: str, estado: str, mensaje: str | None = None) -> dict:
+    st, j = portal_credencial("resultado", {"boleto": boleto, "estado": estado, "mensaje": mensaje})
+    return j if st == 200 else {"ok": False, "error": j.get("error") or f"HTTP {st}"}
+
+
+SEL_ERROR_LOGIN = "#input-error, .kc-feedback-text, .alert-error, .pf-c-alert__title, .pf-m-danger, span.error, .alert"
+SEL_CAPTCHA = "iframe[src*='recaptcha'], iframe[src*='hcaptcha'], .g-recaptcha, .h-captcha, [data-sitekey]"
+SEL_OTP = "input[name=otp], input[name=totp], input#otp, input[autocomplete=one-time-code]"
+
+
+def iniciar_sesion(nav: "Navegador", cred: dict, log=print) -> dict:
+    """UN intento de inicio de sesión en el panel del licitante (Keycloak, realm `procura`, campos username/password).
+
+    Devuelve {segundos, url, token:{expires_in, refresh_expires_in}} si entró. Lanza SesionFallida si el portal lo
+    rechaza o pide captcha / segundo factor (no se evade nada). Si el formulario no aparece, lanza SesionFallida con
+    informar=False (no hubo intento). Borra la credencial del diccionario en cuanto la escribe en el formulario."""
+    page = nav.page
+    info: dict = {}
+
+    def on_resp(r):
+        if "/openid-connect/token" in r.url and r.status == 200:
+            try:
+                j = r.json()   # del token sólo se guardan las duraciones; el token NO
+                info["token"] = {k: j.get(k) for k in ("expires_in", "refresh_expires_in")}
+            except Exception:  # noqa: BLE001
+                pass
+    page.on("response", on_resp)
+    try:
+        try:
+            page.goto(PANEL, wait_until="domcontentloaded", timeout=90000)
+            page.wait_for_selector("input[name=username]", timeout=60000)
+        except Exception as e:  # noqa: BLE001
+            raise SesionFallida("No apareció el formulario de inicio de sesión de ComprasMX (¿portal caído?): "
+                                + type(e).__name__, informar=False, causa="sin_formulario") from None
+        page.wait_for_timeout(1500)
+        if page.locator(SEL_CAPTCHA).count() > 0:
+            raise SesionFallida("El portal muestra un captcha en el inicio de sesión; no se intentó entrar.",
+                                informar=False, causa="captcha")
+        page.locator("input[name=username]").first.fill(str(cred.get("usuario") or "").strip())
+        page.locator("input[name=password]").first.fill(str(cred.get("password") or ""))
+        cred.pop("password", None)
+        t0 = time.time()
+        page.locator("input[name=login], button[type=submit]").first.click()
+        log("comprasmx: formulario de inicio de sesión enviado (un intento)")
+        return _leer_respuesta_login(page, info, t0)
+    finally:
+        try:
+            page.remove_listener("response", on_resp)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _leer_respuesta_login(page, info: dict, t0: float) -> dict:
+    """Lo que pasó tras enviar el formulario. Cualquier error inesperado aquí CUENTA como intento (ya se envió)."""
+    try:
+        fin = time.time() + 45
+        while time.time() < fin:
+            page.wait_for_timeout(500)
+            if "/auth/" not in page.url and "openid-connect" not in page.url:
+                break
+            if page.locator(SEL_ERROR_LOGIN).count() and any(t.strip() for t in page.locator(SEL_ERROR_LOGIN).all_inner_texts()):
+                break
+            if page.locator(SEL_OTP).count() or page.locator(SEL_CAPTCHA).count():
+                break
+        page.wait_for_timeout(2500)
+        url = page.url
+        info["segundos"] = round(time.time() - t0, 1)
+        info["url"] = url.split("?")[0].split("#")[0]
+        if page.locator(SEL_OTP).count():
+            raise SesionFallida("El portal pidió un segundo factor (código); el conector no lo resuelve.", causa="otp")
+        if page.locator(SEL_CAPTCHA).count():
+            raise SesionFallida("El portal pidió un captcha después de enviar el usuario; no se evade.", causa="captcha")
+        if "/auth/" in url or "openid-connect" in url:
+            msgs = [t.strip()[:200] for t in page.locator(SEL_ERROR_LOGIN).all_inner_texts() if t.strip()]
+            raise SesionFallida(msgs[0] if msgs else "El portal no aceptó el acceso (no mostró mensaje).")
+        return info
+    except SesionFallida:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise SesionFallida("No se pudo leer la respuesta del portal tras enviar el acceso (" + type(e).__name__ + ").",
+                            causa="desconocido") from None
+
+
+def leer_panel(nav: "Navegador") -> dict:
+    """Sólo lectura: qué muestra el panel del licitante (textos y rutas de su menú), para documentarlo. No pulsa nada."""
+    page = nav.page
+    try:
+        page.wait_for_timeout(4000)
+        enlaces = []
+        for a in page.locator("a[href], [routerlink]").all()[:120]:
+            try:
+                t = (a.inner_text() or "").strip().replace("\n", " ")[:60]
+                h = a.get_attribute("href") or a.get_attribute("routerlink") or ""
+                if t or h:
+                    enlaces.append({"texto": t, "ruta": h[:160]})
+            except Exception:  # noqa: BLE001
+                continue
+        titulos = [t.strip()[:80] for t in page.locator("h1, h2, h3").all_inner_texts() if t.strip()][:20]
+        return {"url": page.url.split("?")[0], "titulos": titulos, "enlaces": enlaces[:80]}
+    except Exception as e:  # noqa: BLE001
+        return {"error": type(e).__name__}
+
+
+RE_INVITACION = re.compile(r"invitaci", re.I)
+
+
+def _registros_json(j, out: list, prof: int = 0) -> None:
+    """Registros de procedimiento en cualquier JSON del portal (los que traen uuid_procedimiento)."""
+    if prof > 6:
+        return
+    if isinstance(j, dict):
+        if j.get("uuid_procedimiento"):
+            out.append(j)
+            return
+        for v in j.values():
+            _registros_json(v, out, prof + 1)
+    elif isinstance(j, list):
+        for v in j:
+            _registros_json(v, out, prof + 1)
+
+
+def _fecha_iso(v) -> str | None:
+    s = str(v or "")
+    m = re.match(r"(\d{2})/(\d{2})/(\d{4})", s)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", s)
+    return m.group(1) if m else None
+
+
+def leer_invitaciones(nav: "Navegador", filtros: dict, log=print) -> tuple[list, str | None]:
+    """Procedimientos dirigidos a la empresa (invitaciones) en la aplicación «Procedimientos de Contratación» del panel
+    del licitante (`/contrataciones/`), publicados en el rango.
+
+    El panel (`/panel/`) es sólo un lanzador de aplicaciones (prueba real del 5-oct-2026): «Procedimientos de
+    Contratación», «Formalización de Instrumentos Jurídicos» (firma: NUNCA se abre), «Tienda Digital» y «Términos».
+    Sólo lectura: abre `/contrataciones/`, anota su menú y las llamadas JSON que recibe (rutas y conteos, sin cuerpos)
+    para la bitácora, y si hay una opción de menú o enlace que diga «Invitación…» navega a ella y lee los registros de
+    procedimiento (con `uuid_procedimiento`) de las respuestas JSON del propio sitio. Nunca pulsa botones."""
+    page = nav.page
+    capt: list = []
+    rutas: list = []
+    base = urllib.parse.urlparse(PANEL).netloc
+
+    def on_resp(r):
+        if ("buengobierno.gob.mx" in r.url or base in r.url) and "json" in (r.headers.get("content-type") or ""):
+            try:
+                j = r.json()
+            except Exception:  # noqa: BLE001
+                return
+            capt.append(j)
+            regs: list = []
+            _registros_json(j, regs)
+            rutas.append(f"{r.request.method} {urllib.parse.urlparse(r.url).path[:120]} → {r.status} ({len(regs)} proc.)")
+    page.on("response", on_resp)
+    try:
+        app = urllib.parse.urljoin(PANEL, "../contrataciones/")
+        page.goto(app, wait_until="domcontentloaded", timeout=90000)
+        nav.pausa(8)
+        menu = []
+        for el in page.locator("a[href], [routerlink], .p-menuitem-link, .p-menuitem-text, li[role=menuitem]").all()[:200]:
+            try:
+                t = " ".join((el.inner_text() or "").split())[:60]
+                if t:
+                    menu.append(t)
+            except Exception:  # noqa: BLE001
+                continue
+        menu = list(dict.fromkeys(menu))[:60]
+        log("comprasmx: /contrataciones/ url=" + page.url.split("?")[0] + " menú=" + json.dumps(menu, ensure_ascii=False))
+        log("comprasmx: /contrataciones/ llamadas=" + json.dumps(rutas[:40], ensure_ascii=False))
+        destino = None
+        for el in page.locator("a[href], [routerlink], .p-menuitem-link, li[role=menuitem]").all()[:200]:
+            try:
+                if RE_INVITACION.search(el.inner_text() or ""):
+                    destino = el; break
+            except Exception:  # noqa: BLE001
+                continue
+        if destino is None:
+            return [], "la aplicación «Procedimientos de Contratación» no muestra una sección de invitaciones"
+        capt.clear(); rutas.clear()
+        href = destino.get_attribute("href")
+        if href and not href.startswith("javascript"):
+            page.goto(urllib.parse.urljoin(page.url, href), wait_until="domcontentloaded", timeout=90000)
+        else:
+            destino.click()   # opción de menú de navegación con el texto «Invitación…» (no es un botón de acción)
+        nav.pausa(8)
+        log("comprasmx: invitaciones url=" + page.url.split("?")[0] + " llamadas=" + json.dumps(rutas[:40], ensure_ascii=False))
+        regs: list = []
+        for j in capt:
+            _registros_json(j, regs)
+        d, h = filtros.get("desde"), filtros.get("hasta")
+        vistos, dentro = set(), []
+        for x in regs:
+            u = str(x.get("uuid_procedimiento") or "").lower()
+            if not u or u in vistos:
+                continue
+            vistos.add(u)
+            f = _fecha_iso(x.get("fecha_publicacion") or x.get("fecha_publicacion_inicio") or x.get("fecha_creacion"))
+            if f and ((d and f < d) or (h and f > h)):
+                continue
+            dentro.append(x)
+        log(f"comprasmx: invitaciones en el panel {len(vistos)}, dentro del rango {len(dentro)}")
+        return dentro[: int(filtros.get("max_resultados") or 100)], None
+    except Cancelado:
+        raise
+    except Exception as e:  # noqa: BLE001
+        return [], f"no se pudieron leer las invitaciones del panel ({type(e).__name__})"
+    finally:
+        try:
+            page.remove_listener("response", on_resp)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def cerrar_sesion(nav: "Navegador") -> bool:
+    """Cierra la sesión del portal con el endpoint de cierre de Keycloak (no pulsa nada del panel salvo su
+    confirmación de cierre). Devuelve True si el panel vuelve a pedir usuario."""
+    page = nav.page
+    try:
+        page.goto(LOGOUT, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(1500)
+        conf = page.locator("#kc-logout, input[name=confirmLogout], button[name=confirmLogout]")
+        if conf.count():
+            conf.first.click(); page.wait_for_timeout(2500)
+        page.goto(PANEL, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(2500)
+        return page.locator("input[name=username]").count() > 0 or "/auth/" in page.url
+    except Exception:  # noqa: BLE001
+        return False
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -526,7 +814,7 @@ def recolectar(a) -> int:
 
 def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: float = 3.0, max_detalles: int | None = None,
                          headed: bool = False, seco: bool = False, cancelado=None, usuario: str | None = None,
-                         log=print) -> dict:
+                         log=print, sesion: dict | None = None) -> dict:
     """Búsqueda a petición con filtros (D12/D13, US-851). Devuelve {corrida_id, encontradas, nuevas, actualizadas,
     error, detalle}. `filtros` ya pasó por `normalizar_filtros`. `cancelado()` se consulta durante la búsqueda.
 
@@ -536,6 +824,11 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
       después: sólo lo que el cuerpo de la petición del sitio muestre que NO llegó (texto o fechas de apertura), y el
                recorte a `max_resultados`. La fecha de publicación no viene en el listado: si el portal no la aplicara
                se avisa en `detalle.avisos` en vez de filtrar a ciegas.
+
+    US-855 · `sesion` = {"cred": {usuario, password, empresa_id}, "boleto": str}: antes de buscar inicia sesión UNA vez
+    con la cuenta de la empresa (si falla: informa «fallo», NO busca, NO crea corrida y devuelve `error_sesion`), hace
+    la misma búsqueda dentro de esa sesión, trae las invitaciones del panel del licitante publicadas en el rango
+    (`origen_detalle = 'invitacion'`) y al final cierra la sesión del portal y el contexto.
     """
     from playwright.sync_api import sync_playwright
 
@@ -547,18 +840,38 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
     tot = {"encontradas": 0, "nuevas": 0, "actualizadas": 0}
     detalle = {"filtros": filtros, "usuario": usuario, "busquedas": [], "detalles": 0, "avisos": [],
                "filtrado_en_portal": [], "filtrado_despues": [], "sin_descripcion": 0}
+    con_sesion = bool(sesion)
+    if con_sesion:
+        detalle["con_sesion"] = True
     error = None
     t0 = time.time()
-    if not seco:
-        r = ingesta({"accion": "iniciar", "fuente": "comprasmx", "origen": origen})
-        if not r.get("ok"):
-            return {"corrida_id": None, **tot, "error": "No se pudo registrar la corrida: " + str(r.get("error")), "detalle": detalle}
-        corrida = r["corrida_id"]
     por_uuid: dict[str, dict] = {}
     try:
         with sync_playwright() as p:
             nav = Navegador(p, headed, cancelado)
+            entro = False
             try:
+                if con_sesion:
+                    cred, boleto = sesion["cred"], sesion["boleto"]
+                    try:
+                        info = iniciar_sesion(nav, cred, log)
+                    except SesionFallida as e:
+                        if e.informar:
+                            informar_resultado(boleto, "fallo", e.mensaje)
+                        return {"corrida_id": None, **tot, "error": "sesion", "error_sesion": e.mensaje,
+                                "causa_sesion": e.causa, "detalle": detalle}
+                    finally:
+                        cred.pop("password", None)
+                    entro = True
+                    informar_resultado(boleto, "correcto")
+                    detalle["sesion"] = {"segundos_login": info.get("segundos"), "token": info.get("token")}
+                    log("comprasmx: sesión iniciada con la cuenta de la empresa")
+                if not seco:
+                    r = ingesta({"accion": "iniciar", "fuente": "comprasmx", "origen": origen, "con_sesion": con_sesion,
+                                 "empresa_id": (sesion or {}).get("cred", {}).get("empresa_id")})
+                    if not r.get("ok"):
+                        raise RuntimeError("No se pudo registrar la corrida: " + str(r.get("error")))
+                    corrida = r["corrida_id"]
                 for clave in filtros["tipos"]:
                     falta = tope - len(por_uuid)
                     if falta <= 0:
@@ -591,6 +904,19 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
                         if x.get("uuid_procedimiento") and len(por_uuid) < tope:
                             por_uuid[str(x["uuid_procedimiento"]).lower()] = x
                     log(f"[{clave}] leídos {info.get('leidos')} de {info.get('total_registros')}, acumulados {len(por_uuid)}")
+                if entro:
+                    # US-855: lo dirigido a la empresa en el panel del licitante (sólo lectura, dentro del rango).
+                    nav.revisar()
+                    inv, aviso = leer_invitaciones(nav, filtros, log)
+                    detalle["invitaciones"] = len(inv)
+                    if aviso:
+                        detalle["avisos"].append(aviso)
+                    for x in inv:
+                        u = str(x.get("uuid_procedimiento") or "").lower()
+                        if u:
+                            por_uuid[u] = {**por_uuid.get(u, {}), **x, "origen_detalle": "invitacion"}
+                    for x in por_uuid.values():
+                        x["con_sesion"] = True
                 items = list(por_uuid.values())
                 tot["encontradas"] = len(items)
                 if not seco:
@@ -630,6 +956,9 @@ def buscar_convocatorias(filtros: dict, *, origen: str = "conector-pc", pausa: f
                             detalle["avisos"].append("lote detalles: " + str(r2.get("error")))
                     detalle["sin_descripcion"] = max(0, len(pend) - detalle["detalles"])
             finally:
+                if entro:
+                    detalle.setdefault("sesion", {})["cerrada"] = cerrar_sesion(nav)
+                    log(f"comprasmx: sesión del portal cerrada={detalle['sesion']['cerrada']}")
                 nav.cerrar()
     except Cancelado as e:
         error = "Cancelada: " + str(e)
