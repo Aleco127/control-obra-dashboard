@@ -156,6 +156,29 @@ procedimiento lo exige.
   documenta el panel y lee `expires_in`/`refresh_expires_in` del token de Keycloak (sin guardar el token).
 - Dado que la descarga es pública, la cuenta sólo haría falta para lo que el sitio público no muestre.
 
+### Panel del licitante con la cuenta de la empresa (US-854 y US-855, 5 y 6-oct-2026)
+- Acceso: el conector local entra con un **boleto de un solo uso** (función `portal-credencial`; ver
+  `conector-local.md`). Primer intento de esta ronda (5-oct, 21:04, contraseña anterior): **«Usuario o contraseña
+  incorrectos.»**. Ricardo cambió la contraseña en el portal y en Vault; el intento siguiente (5-oct, 21:06) **entró**
+  en ~8 s tras enviar el formulario, sin captcha ni segundo factor. Cada inicio de sesión cierra la sesión al terminar
+  (`/auth/realms/procura/protocol/openid-connect/logout`; después `/panel/` vuelve a pedir usuario).
+- **Duración de la sesión:** el token de Keycloak trae `expires_in = 86400` y `refresh_expires_in = 86400` (24 h). El
+  conector no la reutiliza: una sesión por petición, contexto de Chrome efímero.
+- **`/panel/`** («Panel de aplicaciones de Compras MX») es sólo un lanzador: «Procedimientos de Contratación»
+  (`/contrataciones/`), «Módulo de Formalización de Instrumentos Jurídicos» (`/firmacontratos/`, firma de contratos:
+  **el conector nunca lo abre**), «Tienda Digital del Gobierno Federal» (`/tienda/`) y «Términos y condiciones».
+- **`/contrataciones/`** (rol Proveedor, representante legal): menú «Inicio», «Material de apoyo», «Procedimientos»,
+  «Solicitudes de Cotización», «Diálogos Estratégicos», «Datos Relevantes de Contratos», «Panel», «Términos y
+  condiciones». Al abrirse pide `hanna/client/eiza/user/full`, `rose/registro/proveedor/<rfc>/login_hanna_proveedor_rep_legal`,
+  `hanna/seguridad/menu/eiza/Proveedor` y el reloj del sistema; **no hay una sección de «Invitaciones»** en el menú.
+  Por eso la búsqueda con la cuenta (6-oct) trajo 0 invitaciones y lo dice en `avisos`. Si más adelante se identifica
+  dónde lista el portal los procedimientos dirigidos a la empresa (probablemente dentro de «Procedimientos»), basta
+  con apuntar `leer_invitaciones()` del recolector a esa ruta (sólo lectura).
+- **Búsqueda con la cuenta** (6-oct, build local + conector 1.3.0, «agua», Chihuahua, obra pública, 30 días): inicio de
+  sesión aceptado, misma búsqueda del sitio público dentro de la sesión → **2 encontradas** (las mismas que sin cuenta:
+  el sitio público no muestra más con sesión), corrida 23 con `con_sesion = true`, sesión cerrada, 89 s, sin archivos
+  nuevos en `%LOCALAPPDATA%\control-obra`.
+
 ### Conclusión: dónde corre el recolector de ComprasMX
 **Hoy: en la PC** (único lugar probado), con el Programador de tareas de Windows una vez al día. **Objetivo: el VPS**
 si pasa la prueba de reCAPTCHA (siempre encendido, misma red que el monitoreo). Las credenciales del portal no hacen

@@ -7,9 +7,11 @@
 // Nunca acepta tokens de usuario.
 //
 // POST {accion, ...}:
-//   iniciar  {fuente, origen}                       → {ok, corrida_id}
+//   iniciar  {fuente, origen, con_sesion?, empresa_id?} → {ok, corrida_id}   (US-855: búsqueda con la cuenta)
 //   lote     {corrida_id?, items: Convocatoria[]}   → {ok, encontradas, nuevas, actualizadas, descartadas}
 //            (máx. 200 por lote; se normalizan y validan aquí: el recolector no decide qué entra a la BD)
+//            US-855: cada item puede traer con_sesion: true y origen_detalle: 'invitacion' (ésta sólo vale si la corrida
+//            es con sesión; la invitación queda ligada a la empresa de la corrida)
 //   cerrar   {corrida_id, encontradas, nuevas, actualizadas, error?, detalle?} → {ok}
 //   config   {}                                      → {ok, entidades[], todas_las_entidades: bool}
 //            entidades de los filtros activos que incluyen ComprasMX (vacío + true = algún filtro pide todo el país)
@@ -57,14 +59,31 @@ Deno.serve(async (req: Request) => {
     case "iniciar": {
       const fuente = String(b.fuente ?? "comprasmx");
       if (!FUENTES.has(fuente)) return json({ ok: false, error: "fuente no válida" }, 400);
-      const { data, error } = await admin.rpc("convocatoria_corrida_iniciar", { p_fuente: fuente, p_origen: String(b.origen ?? "script").slice(0, 40) });
+      // US-855: con_sesion = la búsqueda se hizo con la cuenta de la empresa (empresa_id = la del boleto canjeado).
+      const emp = Number(b.empresa_id);
+      const { data, error } = await admin.rpc("convocatoria_corrida_iniciar", { p_fuente: fuente, p_origen: String(b.origen ?? "script").slice(0, 40),
+        p_con_sesion: b.con_sesion === true, p_empresa: b.con_sesion === true && Number.isInteger(emp) && emp > 0 ? emp : null });
       return error ? json({ ok: false, error: error.message }, 500) : json({ ok: true, corrida_id: data });
     }
     case "lote": {
       const items = Array.isArray(b.items) ? b.items : null;
       if (!items) return json({ ok: false, error: "items debe ser una lista" }, 400);
       if (items.length > 200) return json({ ok: false, error: "máximo 200 por lote" }, 413);
-      const limpios = items.map((x) => normalizar(x)).filter(Boolean);
+      // US-855: con_sesion y origen_detalle viajan aparte de la normalización; una invitación queda ligada a la empresa
+      // de la corrida (la de la cuenta con la que se trajo) y sólo esa empresa la ve en convocatorias_buscar.
+      let empCorrida: number | null = null;
+      if (items.some((x) => x && (x as Record<string, unknown>).origen_detalle === "invitacion") && Number(b.corrida_id) > 0) {
+        const { data: k } = await admin.schema("control_obra").from("convocatoria_corridas").select("empresa_id,con_sesion").eq("id", Number(b.corrida_id)).maybeSingle();
+        empCorrida = k && k.con_sesion ? (k.empresa_id ?? null) : null;
+      }
+      const limpios = items.map((x) => {
+        const n = normalizar(x) as Record<string, unknown> | null;
+        if (!n) return null;
+        const r = x as Record<string, unknown>;
+        if (r.con_sesion === true) n.con_sesion = true;
+        if (r.origen_detalle === "invitacion" && empCorrida) { n.origen_detalle = "invitacion"; n.sesion_empresa_id = empCorrida; }
+        return n;
+      }).filter(Boolean);
       if (!limpios.length) return json({ ok: true, encontradas: 0, nuevas: 0, actualizadas: 0, descartadas: items.length });
       const { data, error } = await admin.rpc("convocatorias_upsert", { p_items: limpios });
       if (error) return json({ ok: false, error: error.message }, 500);

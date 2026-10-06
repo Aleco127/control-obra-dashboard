@@ -17,6 +17,10 @@
  *   - Chihuahua: función de borde convocatorias-chihuahua con la sesión (x-obra-token).
  *   - ComprasMX: conector local http://127.0.0.1:8879 (US-851) en la PC del usuario; si no responde se explica cómo
  *     abrirlo y Chihuahua sigue sola.
+ *   - US-855: con el interruptor «Buscar con la cuenta de la empresa» la app pide un boleto de un solo uso a la función
+ *     portal-credencial y lo manda al conector (la contraseña nunca pasa por aquí). Si el portal rechaza el acceso, el
+ *     conector no busca y aquí se ofrece «Buscar sin la cuenta». Fichas «Con sesión» / «Invitación», fuente
+ *     «ComprasMX (con sesión)» en la barra (p_con_sesion) y pie «con la cuenta de la empresa».
  *
  * Regla «cumple el filtro»: la fuente de verdad es SQL (control_obra.convocatoria_cumple_filtro, migración 100), que
  * usan convocatorias_buscar, la vista previa, el contador de la barra y el resumen tras una búsqueda. cumpleFiltro()
@@ -32,6 +36,9 @@ const Convocatorias = (() => {
   // ---- Catálogos -------------------------------------------------------------------------------------------------------
   const FUENTES = { chihuahua: 'Chihuahua', comprasmx: 'Federal' };
   const FUENTES_PORTAL = { chihuahua: 'Contrataciones Chihuahua', comprasmx: 'ComprasMX' };
+  /** Fuentes de la barra de filtros (US-855: «ComprasMX (con sesión)» = lo traído con la cuenta de la empresa). */
+  const FUENTES_BARRA = Object.assign({}, FUENTES_PORTAL, { comprasmx_sesion: 'ComprasMX (con sesión)' });
+  const fuenteReal = (f) => (f === 'comprasmx_sesion' ? 'comprasmx' : f);
   const TIPOS = {
     obra_publica: 'Obra pública', servicios_obra: 'Servicios relacionados con la obra', adquisicion: 'Adquisición',
     arrendamiento: 'Arrendamiento', servicios: 'Servicios', otro: 'Otro',
@@ -141,7 +148,7 @@ const Convocatorias = (() => {
     return {
       p_texto: t.palabras.length ? t.palabras.join(' ') : null,
       p_excluir: t.excluir.length ? t.excluir : null,
-      p_fuentes: x.fuente ? [x.fuente] : null,
+      p_fuentes: x.fuente ? [fuenteReal(x.fuente)] : null,
       p_entidades: x.entidad ? [x.entidad] : null,
       p_municipio: String(x.municipio || '').trim() || null,
       p_dependencia: String(x.dependencia || '').trim() || null,
@@ -157,6 +164,7 @@ const Convocatorias = (() => {
       p_pub_hasta: rangoP && fechaOk(x.pub_hasta) ? x.pub_hasta : null,
       p_orden: ORDENES[x.orden] ? x.orden : 'apertura',
       p_filtro_id: x.filtro ? Number(x.filtro) : null,
+      p_con_sesion: x.fuente === 'comprasmx_sesion' ? true : null,
       p_mis_filtros: !!x.mis,
       // Con un estatus del portal elegido se ven también las terminadas o canceladas; si no, sólo las vigentes.
       p_solo_vigentes: !x.estatus,
@@ -178,7 +186,7 @@ const Convocatorias = (() => {
     for (const w of t.excluir) out.push({ k: 'excluir:' + w, t: `Sin «${w}»` });
     if (x.filtro) out.push({ k: 'filtro', t: `Filtro guardado: ${(nombreFiltro && nombreFiltro(x.filtro)) || '#' + x.filtro}` });
     if (x.mis) out.push({ k: 'mis', t: 'Cumplen mis filtros' });
-    if (x.fuente) out.push({ k: 'fuente', t: `Fuente: ${FUENTES_PORTAL[x.fuente] || x.fuente}` });
+    if (x.fuente) out.push({ k: 'fuente', t: `Fuente: ${FUENTES_BARRA[x.fuente] || x.fuente}` });
     if (x.entidad) out.push({ k: 'entidad', t: `Entidad: ${x.entidad}` });
     if (String(x.municipio || '').trim()) out.push({ k: 'municipio', t: `Municipio: ${String(x.municipio).trim()}` });
     if (String(x.dependencia || '').trim()) out.push({ k: 'dependencia', t: `Dependencia: ${String(x.dependencia).trim()}` });
@@ -217,7 +225,7 @@ const Convocatorias = (() => {
     for (const k of Object.keys(BARRA_VACIA)) if (!['pagina', 'filtro', 'mis'].includes(k) && x[k] !== BARRA_VACIA[k]) barra[k] = x[k];
     return {
       palabras_clave: t.palabras, palabras_excluir: t.excluir,
-      fuentes: x.fuente ? [x.fuente] : [], entidades: x.entidad ? [x.entidad] : [], tipos_contratacion: x.tipo ? [x.tipo] : [],
+      fuentes: x.fuente ? [fuenteReal(x.fuente)] : [], entidades: x.entidad ? [x.entidad] : [], tipos_contratacion: x.tipo ? [x.tipo] : [],
       barra,
     };
   }
@@ -372,7 +380,17 @@ const Convocatorias = (() => {
     const f = fmtFecha ? fmtFecha(e.ultima_inicio) : e.ultima_inicio;
     const quien = e.ultima_usuario ? `por ${e.ultima_usuario}` : e.ultima_origen && /conector/.test(e.ultima_origen) ? 'desde el conector local' : 'carga inicial del sistema';
     const res = e.ultima_error ? `terminó con error: ${e.ultima_error}` : e.ultima_fin ? `${e.encontradas || 0} encontrada${e.encontradas === 1 ? '' : 's'}, ${e.nuevas || 0} nueva${e.nuevas === 1 ? '' : 's'}` : 'en curso';
-    return `${portal}: última búsqueda el ${f}, ${quien} (${res}).`;
+    return `${portal}: última búsqueda el ${f}, ${quien}${e.ultima_con_sesion ? ', con la cuenta de la empresa' : ''} (${res}).`;
+  }
+
+  /**
+   * US-855: qué ofrece el formulario de búsqueda según el acceso a ComprasMX del expediente (vista empresa_portales).
+   * 'interruptor' = acceso con estado distinto de «fallo»; 'fallo' = aviso con enlace a Expediente › Portales;
+   * 'agregar' = sin acceso y nivel 100 (enlace para agregarlo); 'sin_acceso' = sin acceso y sin permiso para agregarlo.
+   */
+  function cuentaBusqueda(acceso, nivel) {
+    if (acceso && acceso.usuario) return { modo: acceso.estado === 'fallo' ? 'fallo' : 'interruptor', usuario: acceso.usuario, error: acceso.ultimo_error || null };
+    return { modo: Number(nivel) >= 100 ? 'agregar' : 'sin_acceso', usuario: null };
   }
 
   // ---- Estado del navegador -----------------------------------------------------------------------------------------------
@@ -386,6 +404,7 @@ const Convocatorias = (() => {
   let resultados = null;        // tras «Buscar en los portales»: [{fuente, corrida, inicio, filas, resumen, error}]
   let busqueda = null;          // búsqueda en curso: {fuentes:{chihuahua:{estado, texto}, comprasmx:{...}}, ctl:{}}
   let deshacer = null;          // {id, prev, titulo, t}
+  let ultimoForm = null;        // US-855: filtros de la última búsqueda (para «Buscar sin la cuenta»)
   const fichaCache = new Map(); // licitacion_id → respuesta de get_convocatoria_de_licitacion
 
   const fmtFechaHora = (ts) => (ts ? new Intl.DateTimeFormat('es-MX', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ts)) : '');
@@ -492,7 +511,7 @@ const Convocatorias = (() => {
 ${sel('cvFiltroG', 'Filtro guardado', guardados, st.filtro, 'Convocatorias.usarFiltroBarra(this.value)', 'Ninguno')}
 ${sel('cvOrden', 'Ordenar por', ORDENES, st.orden || 'apertura', "Convocatorias.filtrar('orden',this.value)")}
 ${sel('cvEstado', 'Seguimiento', ESTADOS, st.estado, "Convocatorias.filtrar('estado',this.value)", 'Todos')}
-${sel('cvFuente', 'Fuente', FUENTES_PORTAL, st.fuente, "Convocatorias.filtrar('fuente',this.value)", 'Todas')}
+${sel('cvFuente', 'Fuente', FUENTES_BARRA, st.fuente, "Convocatorias.filtrar('fuente',this.value)", 'Todas')}
 ${sel('cvEntidad', 'Entidad', entidadesOpc(), st.entidad, "Convocatorias.filtrar('entidad',this.value)", 'Todas')}
 <div class="min-w-0"><label class="text-xs mb-1 block" for="cvMunicipio">Municipio</label><input id="cvMunicipio" class="inp w-full" list="cvMunLista" value="${S(st.municipio)}" placeholder="Todos" onchange="Convocatorias.filtrar('municipio',this.value)"><datalist id="cvMunLista">${muns}</datalist></div>
 <div class="min-w-0 col-span-2 sm:col-span-1 lg:col-span-2"><label class="text-xs mb-1 block" for="cvDependencia">Dependencia</label><input id="cvDependencia" class="inp w-full" list="cvDepLista" value="${S(st.dependencia)}" placeholder="Todas (escribe para ver sugerencias)" onchange="Convocatorias.filtrar('dependencia',this.value)"><datalist id="cvDepLista">${deps}</datalist></div>
@@ -518,6 +537,11 @@ ${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_de
     if (!d || norm(d) === norm(c.titulo)) return '';
     const larga = d.length > 160;
     return `<p class="text-xs text-ink-muted mt-1 cv-desc" id="cvDesc-${+c.id}">${S(d)}</p>${larga ? `<button type="button" class="text-xs text-accent hover:underline" aria-expanded="false" aria-controls="cvDesc-${+c.id}" onclick="Convocatorias.verMas(${+c.id},this)">Ver más</button>` : ''}`;
+  }
+  /** US-855: «Con sesión» (traída con la cuenta de la empresa) e «Invitación» (del panel del licitante). */
+  function chipsSesion(c) {
+    return (c.origen_detalle === 'invitacion' ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)"><i class="ri-mail-star-line" aria-hidden="true"></i> Invitación</span>' : '')
+      + (c.con_sesion ? ' <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)"><i class="ri-user-shared-line" aria-hidden="true"></i> Con sesión</span>' : '');
   }
   function chipFuente(f) { return `<span class="chip" style="background:var(--${f === 'comprasmx' ? 'accent' : 'warn'}-soft);color:var(--${f === 'comprasmx' ? 'accent' : 'warn'})">${S(FUENTES[f] || f)}</span>`; }
   function aperturaHtml(c) {
@@ -545,7 +569,7 @@ ${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_de
     const est = c.seguimiento_estado && c.seguimiento_estado !== 'nueva' ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)">${S({ interesa: 'Me interesa', descartada: 'Descartada', convertida: 'Convertida' }[c.seguimiento_estado] || '')}</span>` : '';
     const docs = c.descarga_estado ? ` <span class="chip" style="background:var(--surface-2);color:var(--ink-muted)"><i class="ri-folder-download-line" aria-hidden="true"></i> ${S(ESTADOS_DESCARGA[c.descarga_estado] || c.descarga_estado)}</span>` : '';
     return `<tr data-cv="${+c.id}"><td data-et="Convocatoria"><div class="text-left min-w-0"><button type="button" class="font-medium text-left hover:underline" onclick="Convocatorias.abrirDetalle(${+c.id})">${S(c.titulo || 'Sin título')}</button>
-<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p>${descripcionHtml(c)}<p class="mt-1">${chipFuente(c.fuente)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}${docs}</p></div></td>
+<p class="text-xs text-ink-muted font-mono">${S(c.numero_procedimiento || c.id_externo || '')}</p>${descripcionHtml(c)}<p class="mt-1">${chipFuente(c.fuente)}${chipsSesion(c)}${nueva ? ' <span class="chip" style="background:var(--ok-soft);color:var(--ok)">Nueva</span>' : ''}${est}${docs}</p></div></td>
 <td data-et="Dependencia"><span>${S(c.dependencia || '—')}</span></td><td data-et="Entidad"><span>${S(c.entidad || '—')}${c.municipio ? `<span class="block text-xs text-ink-muted">${S(c.municipio)}</span>` : ''}</span></td>
 <td data-et="Tipo"><span>${S(TIPOS[c.tipo_contratacion] || '—')}${c.tipo_procedimiento && PROCEDIMIENTOS[c.tipo_procedimiento] ? `<span class="block text-xs text-ink-muted">${S(PROCEDIMIENTOS[c.tipo_procedimiento])}</span>` : ''}</span></td>
 <td data-et="Apertura"><span>${aperturaHtml(c)}</span></td><td data-et=""><div class="grid grid-cols-2 gap-1 cv-acciones" style="min-width:15rem">${accionesHtml(c)}</div></td></tr>`;
@@ -912,6 +936,7 @@ ${campo('cvpPerfil', 'Perfil de convocante', `<select id="cvpPerfil" class="inp 
 <p class="text-sm text-ink-muted">Sólo se consulta lo que pidas aquí y sólo lo publicado recientemente. Chihuahua responde en segundos; ComprasMX usa el conector de tu computadora, trae sólo anuncios vigentes con su descripción y puede tardar de 1 a 5 minutos. Ningún documento se descarga en la búsqueda.</p>
 ${usar}
 <fieldset><legend class="text-xs mb-1">Dónde buscar</legend><div class="flex flex-wrap gap-3">${casilla('cvbChih', 'Contrataciones Chihuahua', p.chihuahua)}${casilla('cvbFed', 'ComprasMX (federal)', p.comprasmx)}</div></fieldset>
+<div id="cvbCuenta" class="text-sm ${p.comprasmx ? '' : 'hidden'}" aria-live="polite"></div>
 <div class="grid sm:grid-cols-2 gap-3">
 ${campo('cvbTexto', 'Texto (en la descripción del procedimiento)', `<input id="cvbTexto" class="inp w-full" maxlength="120" value="${S(p.texto || '')}" placeholder="Ej. pavimentación">`, 'sm:col-span-2')}
 ${campo('cvbTipo', 'Tipo de contratación', `<select id="cvbTipo" class="inp w-full">${opc({ obra_publica: TIPOS.obra_publica, servicios_obra: TIPOS.servicios_obra }, p.tipo, 'Obra y servicios relacionados')}</select>`)}
@@ -926,6 +951,35 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
 </div>
 </div>
 <div class="flex justify-end gap-2 pt-2"><button type="button" class="btn btn-s" onclick="Convocatorias.cerrarModal()">Cancelar</button><button type="submit" class="btn btn-p"><i class="ri-search-eye-line" aria-hidden="true"></i> Buscar</button></div></form>`, 'max-w-2xl');
+    const fed = document.getElementById('cvbFed');
+    if (fed) fed.addEventListener('change', () => { const c = document.getElementById('cvbCuenta'); if (c) c.classList.toggle('hidden', !fed.checked); });
+    pintarCuenta(p.sesion);
+  }
+  /** US-855: interruptor «Buscar con la cuenta de la empresa» (o el aviso que toque) dentro del formulario. */
+  async function pintarCuenta(encendido) {
+    let acceso = null;
+    try { const { data } = await sb.from('empresa_portales').select('portal,usuario,estado,ultimo_error').eq('portal', 'comprasmx'); acceso = (data || [])[0] || null; } catch (e) { acceso = null; }
+    const el = document.getElementById('cvbCuenta'); if (!el) return;
+    const nivel = (typeof currentUser !== 'undefined' && currentUser && currentUser.nivel) || 0;
+    const c = cuentaBusqueda(acceso, nivel);
+    const ir = `<button type="button" class="text-accent underline" onclick="Convocatorias.irAPortales()">Expediente › Portales</button>`;
+    if (c.modo === 'interruptor') {
+      el.innerHTML = `<label class="zk-switch"><input type="checkbox" id="cvbSesion" ${encendido ? 'checked' : ''} aria-describedby="cvbSesionAyuda"><span class="zk-slider" aria-hidden="true"></span> Buscar con la cuenta de la empresa (usuario ${S(c.usuario)})</label>
+<p id="cvbSesionAyuda" class="field-hint">Entra UNA vez a ComprasMX con la cuenta guardada (sólo lectura) y trae además las invitaciones dirigidas a la empresa. La contraseña no pasa por el navegador.</p>`;
+    } else if (c.modo === 'fallo') {
+      el.innerHTML = `<p class="text-warn"><i class="ri-error-warning-line" aria-hidden="true"></i> ComprasMX rechazó el último inicio de sesión con la cuenta de la empresa${c.error ? ` («${S(c.error)}»)` : ''}; la búsqueda será sin la cuenta. Revisa el acceso en ${ir}.</p>`;
+    } else if (c.modo === 'agregar') {
+      el.innerHTML = `<p class="text-ink-muted"><i class="ri-key-2-line" aria-hidden="true"></i> Para buscar también con la cuenta de la empresa (invitaciones), agrega el acceso a ComprasMX en ${ir}.</p>`;
+    } else {
+      el.innerHTML = '<p class="text-ink-muted"><i class="ri-key-2-line" aria-hidden="true"></i> Para buscar también con la cuenta de la empresa, un administrador debe agregar el acceso a ComprasMX en Expediente › Portales.</p>';
+    }
+  }
+  function irAPortales() {
+    cerrarModal();
+    try { localStorage.setItem('ex_tab', 'portales'); } catch (e) { /* sin almacenamiento */ }
+    if (typeof irAModulo === 'function') irAModulo('ex', 'grupo');
+    const intentar = (n) => { if (typeof Expediente !== 'undefined' && Expediente.setTab && document.getElementById('exCuerpo')) Expediente.setTab('portales'); else if (n > 0) setTimeout(() => intentar(n - 1), 300); };
+    intentar(20);
   }
   function usarFiltro(id) {
     const f = (filtros || []).find((x) => String(x.id) === String(id)); if (!f) return;
@@ -939,11 +993,14 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
     const fechas = periodoFechas(periodo, val('cvbDesde'), val('cvbHasta'));
     return { chihuahua: chk('cvbChih'), comprasmx: chk('cvbFed'), texto: val('cvbTexto'), tipo: val('cvbTipo'), entidad: val('cvbEntidad'),
              procedimiento: val('cvbProc'), estatus: val('cvbEstatus'), periodo, desde: fechas.desde || '', hasta: fechas.hasta || '',
-             errorFechas: fechas.error || null, max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 100)) };
+             errorFechas: fechas.error || null, max: Math.max(1, Math.min(200, Number(val('cvbMax')) || 100)),
+             sesion: chk('cvbFed') && chk('cvbSesion') };
   }
-  async function lanzarBusqueda() {
-    const form = document.getElementById('cvFormBus'); if (form && !form.reportValidity()) return;
-    const f = leerFormBusqueda();
+  async function lanzarBusqueda(previo) {
+    const desdeForm = !(previo && typeof previo === 'object' && previo.periodo);
+    const form = desdeForm && document.getElementById('cvFormBus'); if (form && !form.reportValidity()) return;
+    if (busqueda) return;
+    const f = desdeForm ? leerFormBusqueda() : previo;
     if (!f.chihuahua && !f.comprasmx) { Toast.warning('Elige al menos un portal.'); return; }
     if (f.errorFechas) { Toast.warning(f.errorFechas); return; }
     for (const k of ['chihuahua', 'comprasmx']) { const w = f[k] && esperaRestante(k); if (w) { Toast.warning(`Espera ${w} s antes de buscar otra vez en ${FUENTES_PORTAL[k]}.`); return; } }
@@ -952,6 +1009,7 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
     busqueda = { fuentes: {}, ctl: {}, form: f };
     if (f.chihuahua) busqueda.fuentes.chihuahua = { estado: 'buscando', texto: 'buscando…' };
     if (f.comprasmx) busqueda.fuentes.comprasmx = { estado: 'buscando', texto: 'revisando el conector de tu computadora…' };
+    ultimoForm = f;
     repintar();
     const tareas = [];
     if (f.chihuahua) tareas.push(buscarChihuahua(f));
@@ -1001,19 +1059,35 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
       return out;
     }
     if (est.ocupado) { b.estado = 'error'; b.texto = 'el conector ya está buscando; espera a que termine.'; out.error = b.texto; repintarBusqueda(); return out; }
-    b.texto = `buscando con Chrome en tu computadora lo publicado del ${fmtDia(f.desde)} al ${fmtDia(f.hasta)}, con su descripción (de 1 a 5 minutos)…`; repintarBusqueda();
+    const cuerpo = cuerpoComprasmx(f);
+    if (f.sesion) {
+      // US-855: la app sólo pide un boleto de un solo uso; el conector lo canjea por la credencial (nunca pasa por aquí).
+      b.texto = 'preparando el acceso con la cuenta de la empresa…'; repintarBusqueda();
+      let e = null;
+      try {
+        const r = await fetch(SB + '/functions/v1/portal-credencial', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token },
+          body: JSON.stringify({ accion: 'emitir', portal: 'comprasmx', proposito: 'buscar' }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) e = j.error || `el servidor respondió ${r.status}`; else cuerpo.boleto = j.boleto;
+      } catch (x) { e = String((x && x.message) || x); }
+      if (e) { falloSesion(b, out, e); repintarBusqueda(); return out; }
+    }
+    b.texto = `buscando con Chrome en tu computadora${f.sesion ? ', con la cuenta de la empresa,' : ''} lo publicado del ${fmtDia(f.desde)} al ${fmtDia(f.hasta)}, con su descripción (de 1 a 5 minutos)…`; repintarBusqueda();
     const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null; busqueda.ctl.comprasmx = ctl;
     ls.set(ultimaClave('comprasmx'), String(Date.now()));
-    const cuerpo = cuerpoComprasmx(f);
     try {
       const r = await fetch(CONECTOR + '/comprasmx/buscar', { method: 'POST', signal: ctl ? ctl.signal : undefined, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
       const j = await r.json().catch(() => ({}));
+      delete cuerpo.boleto;
+      if (j.error === 'sesion') { ls.set(ultimaClave('comprasmx'), '0'); falloSesion(b, out, j.mensaje || 'el portal no aceptó el acceso.'); repintarBusqueda(); return out; }
       if (r.status === 409) throw new Error('el conector ya está ocupado con otra búsqueda.');
       if (!r.ok || j.error) throw new Error(j.error || `el conector respondió ${r.status}`);
       out.corrida = j.corrida_id; out.respuesta = j;
       if (j.corrida_id) { try { await rpc('convocatoria_corrida_asignar', { p_corrida_id: j.corrida_id, p_filtros: cuerpo }); } catch (e) { /* sólo firma la búsqueda */ } }
+      out.sesion = !!j.con_sesion; out.invitaciones = Number(j.invitaciones) || 0;
       b.estado = 'ok'; b.texto = `${j.encontradas || 0} encontrada${j.encontradas === 1 ? '' : 's'}, ${j.nuevas || 0} nueva${j.nuevas === 1 ? '' : 's'}.`;
     } catch (e) {
+      delete cuerpo.boleto;
       const cancel = e && e.name === 'AbortError';
       b.estado = cancel ? 'omitida' : 'error'; b.texto = cancel ? 'cancelaste la búsqueda.' : String((e && e.message) || e);
       if (!cancel && e instanceof TypeError) { const av = await avisoConector(); b.texto = ''; b.html = av.html; }
@@ -1021,6 +1095,17 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
     }
     repintarBusqueda();
     return out;
+  }
+  /** US-855: el acceso con la cuenta falló → mensaje del portal y «Buscar sin la cuenta» con un clic (sin reintentar el acceso). */
+  function falloSesion(b, out, mensaje) {
+    b.estado = 'error'; b.texto = '';
+    b.html = `no se buscó: el inicio de sesión con la cuenta de la empresa falló («${S(mensaje)}»). <button type="button" class="btn btn-s text-xs ml-1" onclick="Convocatorias.buscarSinCuenta()"><i class="ri-search-line" aria-hidden="true"></i> Buscar sin la cuenta</button>`;
+    out.error = 'No se pudo entrar con la cuenta de la empresa: ' + mensaje;
+    out.errorSesion = mensaje;
+  }
+  function buscarSinCuenta() {
+    if (!ultimoForm || busqueda) return;
+    lanzarBusqueda(Object.assign({}, ultimoForm, { chihuahua: false, comprasmx: true, sesion: false }));
   }
   async function cargarResultado(r) {
     try {
@@ -1041,7 +1126,7 @@ ${campo('cvbHasta', 'Hasta', `<input id="cvbHasta" type="date" class="inp w-full
   }
   async function cancelarBusqueda() {
     if (!busqueda) return;
-    if (busqueda.fuentes.comprasmx && busqueda.fuentes.comprasmx.estado === 'buscando') { try { await fetch(CONECTOR + '/comprasmx/cancelar', { method: 'POST' }); } catch (e) { /* conector apagado */ } }
+    if (busqueda.fuentes.comprasmx && busqueda.fuentes.comprasmx.estado === 'buscando') { try { await fetch(CONECTOR + '/comprasmx/cancelar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) { /* conector apagado */ } }
     for (const c of Object.values(busqueda.ctl)) { try { c && c.abort(); } catch (e) { /* ya terminó */ } }
   }
 
@@ -1392,7 +1477,7 @@ ${(det.notas || []).length ? `<ul class="space-y-2">${det.notas.map((x) => `<li 
   return {
     pintar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
-    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda,
+    abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda, buscarSinCuenta, irAPortales, avisoConector,
     escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
     descargarDocumentos, cancelarDescarga, abrirDetalle, verArchivo, descargarArchivo, descargarZip, agregarNota,
     get detalle() { return det; }, get descarga() { return descarga; },
@@ -1401,7 +1486,7 @@ ${(det.notas || []).length ? `<ul class="space-y-2">${det.notas.map((x) => `<li 
     norm, textoConvocatoria, cumpleFiltro, cumpleAlguno, vigente, parseLista, diasA, argsBusqueda, modalidadDe, plazaDe,
     sugerirPerfil, datosLicitacion, cambiosFechas, urlSegura, resumenFiltro, formDesdeFiltro, cuerpoChihuahua, cuerpoComprasmx,
     textoUltimaBusqueda, parseTextoBarra, cumpleTextoBarra, fichasActivas, quitarFicha, filtroDesdeBarra, barraDesdeFiltro,
-    cuentaFiltros, periodoFechas, causaConector, PERIODOS, planDescarga, idsNuevos, convocatoriaJson, rutaDocumento, mimeDocumento,
+    cuentaFiltros, periodoFechas, causaConector, cuentaBusqueda, FUENTES_BARRA, PERIODOS, planDescarga, idsNuevos, convocatoriaJson, rutaDocumento, mimeDocumento,
     nombreSeguroDoc, TOPE_ARCHIVOS, TOPE_BYTES,
     FUENTES, FUENTES_PORTAL, TIPOS, PROCEDIMIENTOS, ESTADOS, ENTIDADES, POR_PAGINA, CONECTOR, PAUSA_MS, BARRA_VACIA, BARRA_INICIAL,
   };

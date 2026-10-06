@@ -186,12 +186,24 @@ def _ctx_ssl():
     return None
 
 
+def _abrir(req, timeout: int):
+    """urlopen hacia NUESTRO servidor (Supabase) con UN reintento si la red corta la conexión (WinError 10054 en la red de
+    la oficina). Nunca se usa contra el portal: allí no hay reintentos."""
+    try:
+        return urllib.request.urlopen(req, timeout=timeout, context=_ctx_ssl())
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, ConnectionError, TimeoutError):
+        time.sleep(1.5)
+        return urllib.request.urlopen(req, timeout=timeout, context=_ctx_ssl())
+
+
 def ingesta(cuerpo: dict) -> dict:
     url = os.environ.get("SUPABASE_URL", SUPABASE_URL).rstrip("/") + "/functions/v1/convocatorias-ingesta"
     req = urllib.request.Request(url, data=json.dumps(cuerpo).encode(), method="POST", headers={
         "Content-Type": "application/json", "x-convocatorias-secret": os.environ["CONVOCATORIAS_INGESTA_SECRET"]})
     try:
-        with urllib.request.urlopen(req, timeout=60, context=_ctx_ssl()) as r:
+        with _abrir(req, 60) as r:
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         try:
@@ -238,7 +250,7 @@ def portal_credencial(accion: str, cuerpo: dict) -> tuple[int, dict]:
     req = urllib.request.Request(url, data=json.dumps({"accion": accion, **cuerpo}).encode(), method="POST", headers={
         "Content-Type": "application/json", "x-convocatorias-secret": os.environ.get("CONVOCATORIAS_INGESTA_SECRET", "")})
     try:
-        with urllib.request.urlopen(req, timeout=30, context=_ctx_ssl()) as r:
+        with _abrir(req, 30) as r:
             return r.status, json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         try:

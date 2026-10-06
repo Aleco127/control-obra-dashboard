@@ -345,3 +345,38 @@ test('US-846: contador de nuevas sin revisar y resumen de una búsqueda', conTok
     assert.equal(l.status, 200, JSON.stringify(l.body));
   }
 });
+
+// ---- US-855: búsqueda con la cuenta de la empresa ------------------------------------------------------------------
+test('US-855: qué ofrece el formulario según el acceso a ComprasMX (interruptor, falló, agregar)', () => {
+  assert.deepEqual(C.cuentaBusqueda({ usuario: 'RFC1', estado: 'correcto' }, 80), { modo: 'interruptor', usuario: 'RFC1', error: null });
+  assert.equal(C.cuentaBusqueda({ usuario: 'RFC1', estado: 'sin_probar' }, 80).modo, 'interruptor');
+  const f = C.cuentaBusqueda({ usuario: 'RFC1', estado: 'fallo', ultimo_error: 'Usuario o contraseña incorrectos.' }, 100);
+  assert.equal(f.modo, 'fallo');
+  assert.equal(f.error, 'Usuario o contraseña incorrectos.');
+  assert.equal(C.cuentaBusqueda(null, 100).modo, 'agregar', 'nivel 100 puede agregar el acceso');
+  assert.equal(C.cuentaBusqueda(null, 80).modo, 'sin_acceso');
+});
+
+test('US-855: fuente «ComprasMX (con sesión)» en la barra y pie «con la cuenta»', () => {
+  assert.equal(C.FUENTES_BARRA.comprasmx_sesion, 'ComprasMX (con sesión)');
+  const a = C.argsBusqueda({ fuente: 'comprasmx_sesion' });
+  assert.deepEqual(a.p_fuentes, ['comprasmx']);
+  assert.equal(a.p_con_sesion, true);
+  assert.equal(C.argsBusqueda({ fuente: 'comprasmx' }).p_con_sesion, null);
+  assert.ok(C.fichasActivas({ fuente: 'comprasmx_sesion' }).some((x) => x.t === 'Fuente: ComprasMX (con sesión)'));
+  assert.deepEqual(C.filtroDesdeBarra({ fuente: 'comprasmx_sesion' }).fuentes, ['comprasmx']);
+  const e = { fuente: 'comprasmx', ultima_inicio: '2026-10-06T16:00:00Z', ultima_fin: '2026-10-06T16:02:00Z', encontradas: 2, nuevas: 0, ultima_usuario: 'R' };
+  assert.match(C.textoUltimaBusqueda({ ...e, ultima_con_sesion: true }), /con la cuenta de la empresa/);
+  assert.doesNotMatch(C.textoUltimaBusqueda(e), /con la cuenta/);
+});
+
+test('US-855: la lista trae con_sesion y origen_detalle, filtra por p_con_sesion y el pie dice si fue con la cuenta', conToken, async () => {
+  const r = await rpc('convocatorias_buscar', A, { p_fuentes: ['comprasmx'], p_solo_vigentes: false, p_limite: 3 });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  if (r.body.length) for (const k of ['con_sesion', 'origen_detalle']) assert.ok(k in r.body[0], k);
+  const s = await rpc('convocatorias_buscar', A, { p_fuentes: ['comprasmx'], p_con_sesion: true, p_solo_vigentes: false, p_limite: 50 });
+  assert.equal(s.status, 200, JSON.stringify(s.body));
+  assert.ok(s.body.every((x) => x.con_sesion === true));
+  const e = await rpc('convocatorias_estado', A);
+  assert.ok('ultima_con_sesion' in e.body[0]);
+});
