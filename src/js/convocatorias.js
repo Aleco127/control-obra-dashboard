@@ -479,7 +479,7 @@ const Convocatorias = (() => {
     }
   }
   function repintar() {
-    const p = el(); if (!p) return;
+    const p = el(); if (!p) { repintarGuardadas(); return; }
     p.innerHTML = cabeceraHtml() + busquedaHtml() + `<div id="cvDescargaPanel">${descargaHtml()}</div>` + deshacerHtml() + (resultados ? resultadosHtml() : barraHtml() + `<div id="cvFichas">${fichasHtml()}</div><div id="cvLista">${listaHtml()}</div>`) + pieHtml();
   }
   /** Sólo fichas, contador y lista: la barra no se vuelve a pintar (no pierde el foco ni lo escrito). */
@@ -562,7 +562,10 @@ ${st.pub === 'rango' ? fecha('cvPubD', 'Publicadas desde', st.pub_desde, 'pub_de
     const descartar = e === 'descartada'
       ? `<button type="button" class="btn btn-s text-xs" onclick="Convocatorias.marcar(${+c.id},'nueva')"><i class="ri-arrow-go-back-line" aria-hidden="true"></i> Restaurar</button>`
       : `<button type="button" class="btn btn-s text-xs" onclick="Convocatorias.marcar(${+c.id},'descartada')"><i class="ri-close-circle-line" aria-hidden="true"></i> Descartar</button>`;
-    return `${e !== 'descartada' ? interesa : ''}${descartar}${ver}${e !== 'descartada' ? `<button type="button" class="btn btn-p text-xs" onclick="Convocatorias.participar(${+c.id})"><i class="ri-add-line" aria-hidden="true"></i> Participar</button>` : ''}`;
+    const guardar = c.guardada_at
+      ? `<button type="button" class="btn btn-s text-xs" aria-pressed="true" onclick="Convocatorias.guardar(${+c.id},false)" title="Quitar de Guardadas"><i class="ri-bookmark-fill" aria-hidden="true"></i> Guardada</button>`
+      : `<button type="button" class="btn btn-s text-xs" aria-pressed="false" onclick="Convocatorias.guardar(${+c.id},true)" title="Guardar en la pestaña Guardadas (no baja documentos)"><i class="ri-bookmark-line" aria-hidden="true"></i> Guardar</button>`;
+    return `${guardar}${e !== 'descartada' ? interesa : ''}${descartar}${ver}${e !== 'descartada' ? `<button type="button" class="btn btn-p text-xs" onclick="Convocatorias.participar(${+c.id})"><i class="ri-add-line" aria-hidden="true"></i> Participar</button>` : ''}`;
   }
   function filaHtml(c, nuevaDesde) {
     const nueva = nuevaDesde && c.primera_vez_vista && new Date(c.primera_vez_vista) >= new Date(nuevaDesde);
@@ -674,10 +677,10 @@ ${activa ? '<button type="button" class="btn btn-s mt-2" onclick="Convocatorias.
   async function recargar() { const p = el(); if (p && p.parentElement) return pintar(p.parentElement); }
   function buscarFila(id) {
     const enRes = resultados ? resultados.flatMap((r) => r.filas || []) : [];
-    return filas.find((c) => c.id === id) || enRes.find((c) => c.id === id) || null;
+    return filas.find((c) => c.id === id) || enRes.find((c) => c.id === id) || guardadas.find((c) => c.id === id) || null;
   }
   function aplicarEstado(id, estadoNuevo) {
-    for (const c of [...filas, ...(resultados ? resultados.flatMap((r) => r.filas || []) : [])]) if (c.id === id) c.seguimiento_estado = estadoNuevo;
+    for (const c of [...filas, ...guardadas, ...(resultados ? resultados.flatMap((r) => r.filas || []) : [])]) if (c.id === id) c.seguimiento_estado = estadoNuevo;
   }
   async function marcar(id, estadoNuevo, sinDeshacer) {
     const c = buscarFila(id); const prev = c ? c.seguimiento_estado || 'nueva' : 'nueva';
@@ -1468,14 +1471,53 @@ ${(det.notas || []).length ? `<ul class="space-y-2">${det.notas.map((x) => `<li 
     } catch (e) { Toast.error(errTxt(e, 'No se guardó la nota')); }
   }
 
+  // ---- Pestaña «Guardadas» (migración 114) ------------------------------------------------------------------------------------
+  // «Guardar» es independiente del seguimiento: no cambia el estado ni baja documentos (eso lo hace «Me interesa», D14).
+  let guardadas = [];
+  async function guardar(id, si) {
+    try {
+      const r = await rpc('convocatoria_guardar', { p_convocatoria_id: id, p_guardar: !!si });
+      const g = (r && r.guardada_at) || null;
+      for (const c of [...filas, ...guardadas, ...(resultados ? resultados.flatMap((x) => x.filas || []) : [])]) if (c.id === id) c.guardada_at = g;
+      if (!si) guardadas = guardadas.filter((c) => c.id !== id);
+      repintar();
+      if (el()) repintarGuardadas();
+      Toast.success(si ? 'Guardada en la pestaña «Guardadas»' : 'Quitada de Guardadas');
+    } catch (e) { Toast.error(errTxt(e, 'No se guardó')); }
+  }
+  async function pintarGuardadas(cont) {
+    cont.innerHTML = `<div id="cvGuardadas"><div aria-busy="true">${Skeleton.table(5, 5)}</div></div>`;
+    try {
+      guardadas = (await rpc('convocatorias_buscar', { p_guardadas: true, p_solo_vigentes: false, p_orden: 'apertura', p_limite: 500 })) || [];
+      repintarGuardadas();
+    } catch (e) {
+      const g = document.getElementById('cvGuardadas');
+      if (g) g.innerHTML = EmptyState({ icon: 'ri-error-warning-line', title: 'No se pudieron cargar las guardadas', body: errTxt(e), action: { label: 'Reintentar', icon: 'ri-refresh-line', onClick: "Licitaciones.tabLista('guardadas')" } });
+    }
+  }
+  function repintarGuardadas() {
+    const g = typeof document !== 'undefined' && document.getElementById('cvGuardadas'); if (!g) return;
+    const abiertas = guardadas.filter((c) => vigente(c)); const cerradas = guardadas.filter((c) => !vigente(c));
+    const intro = `<p class="text-sm text-ink-muted mb-3">Convocatorias que guardaste para revisar. Guardar no baja documentos: para bajarlos marca «Me interesa».</p>`;
+    if (!guardadas.length) {
+      g.innerHTML = intro + EmptyState({ icon: 'ri-bookmark-line', title: 'Sin convocatorias guardadas', body: 'En la pestaña Convocatorias pulsa «Guardar» en las que quieras tener a la mano.', action: { label: 'Ir a Convocatorias', icon: 'ri-file-search-line', onClick: "document.getElementById('lcTab-convocatorias').click()" } });
+      return;
+    }
+    g.innerHTML = intro + `<div id="cvDescargaPanel">${descargaHtml()}</div>`
+      + `<p class="text-xs text-ink-muted mb-2" aria-live="polite">${abiertas.length} abierta${abiertas.length === 1 ? '' : 's'}${cerradas.length ? ` · ${cerradas.length} ya cerrada${cerradas.length === 1 ? '' : 's'}` : ''}</p>`
+      + (abiertas.length ? tablaHtml(abiertas, 'Convocatorias guardadas abiertas') : '<p class="text-sm text-ink-muted">Ninguna guardada sigue abierta.</p>')
+      + (cerradas.length ? `<details class="mt-4"><summary class="btn btn-s"><i class="ri-history-line" aria-hidden="true"></i> Ya cerradas (${cerradas.length})</summary><div class="mt-2">${tablaHtml(cerradas, 'Convocatorias guardadas ya cerradas')}</div></details>` : '');
+  }
+
   // ---- Registro en Licitaciones ---------------------------------------------------------------------------------------------
   if (typeof Licitaciones !== 'undefined' && Licitaciones.registrarPestana) {
     Licitaciones.registrarPestana('lista', { k: 'convocatorias', t: 'Convocatorias', ic: 'ri-file-search-line', pintar }, 'licitaciones');
+    Licitaciones.registrarPestana('lista', { k: 'guardadas', t: 'Guardadas', ic: 'ri-bookmark-line', pintar: pintarGuardadas }, 'convocatorias');
     if (Licitaciones.registrarAvisoFicha) Licitaciones.registrarAvisoFicha(avisoFicha);
   }
 
   return {
-    pintar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
+    pintar, pintarGuardadas, guardar, recargar, filtrar, pagina, marcar, deshacerDescartar, abrirLicitacion, cerrarResultados, cerrarModal,
     abrirFiltros, editarFiltro, previa, guardarFiltro, borrarFiltro, participar, confirmarParticipar, avisoFicha, resolverFechas,
     abrirBusqueda, usarFiltro, lanzarBusqueda, cancelarBusqueda, periodoBusqueda, buscarSinCuenta, irAPortales, avisoConector,
     escribir, quitar, quitarFiltros, usarFiltroBarra, panelFiltros, verMas, guardarBusqueda,
