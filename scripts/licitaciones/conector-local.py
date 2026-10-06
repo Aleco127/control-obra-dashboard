@@ -10,6 +10,11 @@ Contrato (la interfaz se construye contra él; ver docs/licitaciones/conector-lo
   POST  /comprasmx/buscar    {texto, tipos[], entidades[], desde, hasta, max_resultados, max_detalles}
                              → {corrida_id, encontradas, nuevas, error, desde, hasta, detalles, sin_descripcion}
                                (409 si ya hay una búsqueda o una descarga en curso)
+                             US-855: con `boleto` (de la función de borde portal-credencial) inicia sesión UNA vez con la
+                             cuenta de la empresa y busca dentro de la sesión (+ invitaciones del panel); si el portal
+                             rechaza el acceso → {error:'sesion', mensaje} SIN buscar.
+  POST  /comprasmx/probar-acceso {boleto}  (US-854) → {ok, mensaje, causa?, estado, probado_at, sesion_cerrada}
+                             canjea el boleto, UN intento de inicio de sesión, cierra la sesión y el contexto.
   POST  /comprasmx/cancelar  → {ok, cancelando}   (también cierra una sesión de anexos abierta)
   US-848 (anexos de UN procedimiento, sólo lectura, sin iniciar sesión en el portal):
   POST  /comprasmx/anexos          {uuid}          → {ok, sesion, uuid, archivos:[{id, nombre, tamano, anexo, tipo,
@@ -25,6 +30,9 @@ Seguridad:
     Content-Type: application/json (415 si no), así una página ajena no puede disparar búsquedas.
   - El secreto de la ingesta se lee de ~/.config/control-obra/convocatorias.env y nunca se imprime ni se devuelve.
   - No abre Chrome ni toca el portal hasta recibir una búsqueda; una a la vez. Sin reintentos si reCAPTCHA bloquea.
+  - Cuenta de la empresa (US-854/855): la contraseña nunca llega de la app; sólo un boleto de un solo uso que aquí se
+    canjea con el secreto de ingesta. Vive en memoria durante la llamada; contexto de Chrome efímero (sin cookies ni
+    estado en disco); UN intento; nunca pulsa nada que presente, firme o envíe.
 
 Uso:
   pythonw conector-local.py            # como lo lanza el acceso de Inicio (sin consola; bitácora en conector.log)
@@ -51,7 +59,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 HOST = "127.0.0.1"
 # 8879 es el contrato; CONECTOR_PUERTO sólo existe para que las pruebas no choquen con el conector instalado.
 PUERTO = int(os.environ.get("CONECTOR_PUERTO") or 8879)
@@ -425,6 +433,8 @@ class Manejador(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "cancelando": False})
         if ruta == "/comprasmx/buscar":
             return self._buscar(cuerpo)
+        if ruta == "/comprasmx/probar-acceso":
+            return self._probar_acceso(cuerpo)
         if ruta == "/comprasmx/anexos":
             return self._anexos(cuerpo)
         if ruta == "/comprasmx/anexos/archivo":
@@ -489,9 +499,13 @@ class Manejador(BaseHTTPRequestHandler):
             filtros = rec.normalizar_filtros(cuerpo)
         except ValueError as e:
             return self._json(400, {"corrida_id": None, "encontradas": 0, "nuevas": 0, "error": f"Filtros no válidos: {e}"})
+        boleto = cuerpo.get("boleto")
+        if boleto is not None and not rec.BOLETO_RE.match(str(boleto)):
+            return self._json(400, {"corrida_id": None, "encontradas": 0, "nuevas": 0, "error": "boleto no válido"})
         if not ESTADO.candado.acquire(blocking=False):
             return self._json(409, {"corrida_id": None, "encontradas": 0, "nuevas": 0,
                                     "error": "Ya hay una búsqueda en curso; espera a que termine o cancélala."})
+        cred = None
         try:
             ESTADO.ocupado = True
             ESTADO.cancelar.clear()
@@ -502,20 +516,102 @@ class Manejador(BaseHTTPRequestHandler):
                 return self._json(503, {"corrida_id": None, "encontradas": 0, "nuevas": 0,
                                         "error": "Google Chrome no está instalado en esta computadora."})
             usuario = cuerpo.get("usuario") if isinstance(cuerpo.get("usuario"), str) else None
-            log("búsqueda", json.dumps(filtros, ensure_ascii=False))
+            sesion = None
+            if boleto:
+                # US-855: la credencial se canjea aquí con el secreto de ingesta y vive sólo en memoria.
+                cred = rec.canjear_boleto(str(boleto))
+                if not cred or cred.get("portal") != "comprasmx":
+                    return self._json(200, {"corrida_id": None, "encontradas": 0, "nuevas": 0, "error": "sesion",
+                                            "mensaje": "El permiso para usar la cuenta venció o ya se usó; vuelve a buscar."})
+                sesion = {"cred": cred, "boleto": str(boleto)}
+            log("búsqueda" + (" con la cuenta de la empresa" if sesion else ""), json.dumps(filtros, ensure_ascii=False))
             r = rec.buscar_convocatorias(filtros, origen="conector-pc", cancelado=ESTADO.cancelar.is_set,
-                                         usuario=(usuario or "")[:80] or None, log=log)
+                                         usuario=(usuario or "")[:80] or None, log=log, sesion=sesion)
+            if r.get("error") == "sesion":
+                res = {"corrida_id": None, "encontradas": 0, "nuevas": 0, "error": "sesion",
+                       "mensaje": r.get("error_sesion"), "causa": r.get("causa_sesion")}
+                log("búsqueda con cuenta: no se pudo iniciar sesión", res["causa"])
+                return self._json(200, res)
             det = r.get("detalle") or {}
             res = {"corrida_id": r["corrida_id"], "encontradas": r["encontradas"], "nuevas": r["nuevas"], "error": r["error"],
                    # US-852 (extensión del contrato): detalles abiertos para la descripción y cuántas siguen sin ella.
                    "desde": filtros["desde"], "hasta": filtros["hasta"],
-                   "detalles": int(det.get("detalles") or 0), "sin_descripcion": int(det.get("sin_descripcion") or 0)}
+                   "detalles": int(det.get("detalles") or 0), "sin_descripcion": int(det.get("sin_descripcion") or 0),
+                   # US-855
+                   "con_sesion": bool(sesion), "invitaciones": int(det.get("invitaciones") or 0),
+                   "sesion_cerrada": (det.get("sesion") or {}).get("cerrada") if sesion else None,
+                   "avisos": det.get("avisos") or []}
             log("resultado", json.dumps(res, ensure_ascii=False))
             self._json(200, res)
         finally:
+            if cred:
+                cred.clear()
+            cred = None
             ESTADO.ocupado = False
             ESTADO.cancelar.clear()
             ESTADO.candado.release()
+
+    # -- probar el acceso (US-854) ----------------------------------------------------------------------------------
+    def _probar_acceso(self, cuerpo):
+        boleto = str(cuerpo.get("boleto") or "")
+        if not rec.BOLETO_RE.match(boleto):
+            return self._json(400, {"ok": False, "mensaje": "boleto no válido"})
+        if not os.environ.get("CONVOCATORIAS_INGESTA_SECRET"):
+            return self._json(500, {"ok": False, "mensaje": "Falta el secreto de ingesta en ~/.config/control-obra/convocatorias.env"})
+        if not hay_chrome():
+            return self._json(503, {"ok": False, "mensaje": "Google Chrome no está instalado en esta computadora."})
+        if not ESTADO.candado.acquire(blocking=False):
+            return self._json(409, {"ok": False, "mensaje": "El conector está ocupado con otra búsqueda o descarga; espera a que termine."})
+        cred = None
+        try:
+            ESTADO.ocupado = True
+            cred = rec.canjear_boleto(boleto)
+            if not cred:
+                return self._json(401, {"ok": False, "mensaje": "El permiso para probar el acceso venció o ya se usó; vuelve a pulsar «Probar acceso»."})
+            if cred.get("portal") != "comprasmx":
+                return self._json(400, {"ok": False, "mensaje": "El conector sólo sabe iniciar sesión en ComprasMX."})
+            log("probar acceso a ComprasMX (un intento)")
+            r = probar_acceso(cred, boleto)
+            log("probar acceso:", "entró" if r.get("ok") else f"no entró ({r.get('causa')})")
+            return self._json(200, r)
+        finally:
+            if cred:
+                cred.clear()
+            cred = None
+            ESTADO.ocupado = False
+            ESTADO.candado.release()
+
+
+def probar_acceso(cred: dict, boleto: str) -> dict:
+    """UN inicio de sesión con la cuenta de la empresa: entra, lee qué muestra el panel (sólo lectura, para la
+    bitácora), informa el resultado a la función de borde, cierra la sesión del portal y el contexto."""
+    from playwright.sync_api import sync_playwright
+    try:
+        with sync_playwright() as p:
+            nav = rec.Navegador(p, False)
+            try:
+                try:
+                    info = rec.iniciar_sesion(nav, cred, log)
+                except rec.SesionFallida as e:
+                    inf = rec.informar_resultado(boleto, "fallo", e.mensaje) if e.informar else None
+                    return {"ok": False, "mensaje": e.mensaje, "causa": e.causa, "intento": e.informar,
+                            "estado": (inf or {}).get("estado"), "probado_at": (inf or {}).get("probado_at")}
+                finally:
+                    cred.pop("password", None)
+                inf = rec.informar_resultado(boleto, "correcto")
+                panel = rec.leer_panel(nav)
+                log("panel del licitante:", json.dumps(panel, ensure_ascii=False)[:4000])
+                log("duración de la sesión (s):", json.dumps(info.get("token") or {}))
+                cerrada = rec.cerrar_sesion(nav)
+                log("sesión del portal cerrada:", cerrada)
+                return {"ok": True, "mensaje": "El portal aceptó el usuario y la contraseña.", "estado": inf.get("estado"),
+                        "probado_at": inf.get("probado_at"), "sesion_cerrada": cerrada,
+                        "sesion_segundos": (info.get("token") or {}).get("expires_in")}
+            finally:
+                nav.cerrar()
+    except Exception as e:  # noqa: BLE001  (Chrome no abrió o falló el cierre; el intento ya se informó si lo hubo)
+        return {"ok": False, "mensaje": f"No se pudo completar la prueba del acceso ({type(e).__name__}).",
+                "causa": "conector", "intento": None}
 
 
 class Servidor(ThreadingHTTPServer):

@@ -793,12 +793,24 @@ ${campoArchivoHtml('exMaqPolizaArch', 'Archivo de la póliza', x.poliza_path)}</
   // -- Accesos a portales (US-847) --
   // La contraseña vive cifrada en Supabase Vault: el navegador sólo la ESCRIBE (RPC guardar_portal_credencial, nivel 100)
   // y nunca la recibe. Aquí se muestra siempre como «••••••••» y el campo del modal se vacía al cerrar o guardar.
-  const puedeEditarPortales = () => ((typeof currentUser !== 'undefined' && currentUser && currentUser.nivel) || 0) >= 100;
+  const nivelUsuario = () => (typeof currentUser !== 'undefined' && currentUser && currentUser.nivel) || 0;
+  const puedeEditarPortales = () => nivelUsuario() >= 100;
+  // US-854: «Probar acceso» (nivel >= 80) sólo en los portales cuyo inicio de sesión sabe hacer el conector local.
+  const PORTALES_CON_PRUEBA = ['comprasmx'];
+  const puedeProbarPortal = (p) => nivelUsuario() >= 80 && PORTALES_CON_PRUEBA.includes(p && p.portal) && p.estado !== 'fallo';
+  const resPrueba = {};   // portal → {tono, html} del último «Probar acceso» en esta pantalla
+  /** Texto del resultado de «Probar acceso» (respuesta del conector o error) → {tono: 'ok'|'danger'|'warn', texto}. */
+  function resultadoPrueba(r) {
+    const x = r || {};
+    if (x.ok) return { tono: 'ok', texto: 'El portal aceptó el usuario y la contraseña. Ya puedes buscar en ComprasMX con la cuenta de la empresa.' };
+    if (x.intento === false) return { tono: 'warn', texto: `No se intentó entrar: ${x.mensaje || 'el portal no mostró el formulario.'} El estado del acceso no cambió.` };
+    return { tono: 'danger', texto: `El portal no aceptó el acceso: «${x.mensaje || 'sin mensaje'}». Cambia la contraseña en el portal y luego aquí; no se volverá a intentar hasta entonces.` };
+  }
   function panelPortales(exp) {
     const filas = exp.portales || [];
     const editar = puedeEditarPortales();
     const faltan = Object.keys(PORTALES).filter((k) => !filas.some((p) => p.portal === k));
-    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">Usuario y contraseña de cada portal de contrataciones, cifrados. El sistema los usa sólo para descargar los documentos de las convocatorias que marques «Me interesa»; la contraseña nunca se vuelve a mostrar.</p>
+    const barra = `<div class="flex flex-wrap items-center justify-between gap-2 mb-3"><p class="text-sm text-ink-muted">Usuario y contraseña de cada portal de contrataciones, cifrados. El sistema los usa para buscar con tu cuenta y para descargar los documentos de las convocatorias que te interesan; la contraseña nunca se vuelve a mostrar ni pasa por el navegador.</p>
 ${editar && faltan.length ? `<button type="button" class="btn btn-p" onclick="Expediente.nuevoPortal()"><i class="ri-key-2-line" aria-hidden="true"></i> Agregar acceso</button>` : ''}</div>
 ${editar ? '' : '<p class="text-xs text-ink-muted mb-3"><i class="ri-lock-line" aria-hidden="true"></i> Sólo un administrador puede cambiar o quitar estos accesos.</p>'}`;
     if (!filas.length) return barra + EmptyState({ icon: 'ri-key-2-line', title: 'Sin accesos a portales', body: 'Guarda el usuario de ComprasMX o de Contrataciones Chihuahua para que el sistema baje las bases por ti.', action: editar ? { label: 'Agregar acceso', icon: 'ri-key-2-line', onClick: 'Expediente.nuevoPortal()' } : null });
@@ -809,10 +821,12 @@ ${editar ? '' : '<p class="text-xs text-ink-muted mb-3"><i class="ri-lock-line" 
 <div class="flex-1 min-w-[12rem]"><p class="font-medium">${S(PORTALES[p.portal] || p.portal)}</p>
 <dl class="grid grid-cols-[auto_1fr] gap-x-3 text-sm mt-1"><dt class="text-ink-muted">Usuario</dt><dd class="break-all">${S(p.usuario)}</dd>
 <dt class="text-ink-muted">Contraseña</dt><dd><span aria-label="Contraseña guardada y oculta">••••••••</span></dd></dl>
-<p class="text-xs text-ink-muted mt-1">${S(probado)}</p>${p.estado === 'fallo' && p.ultimo_error ? `<p class="text-xs text-danger">${S(p.ultimo_error)}</p>` : ''}</div>
+<p class="text-xs text-ink-muted mt-1">${S(probado)}</p>${p.estado === 'fallo' ? `<p class="text-xs text-danger mt-1">El portal rechazó el último inicio de sesión${p.ultimo_error ? `: «${S(p.ultimo_error)}»` : ''}. ${editar ? 'Cambia la contraseña (primero en el portal y luego aquí) para volver a probar.' : 'Pide a un administrador que cambie la contraseña para volver a probar.'}</p>` : ''}
+<div id="exPorRes-${p.portal}" role="status" aria-live="polite">${resPrueba[p.portal] && !(p.estado === 'fallo' && resPrueba[p.portal].tono === 'danger') ? `<p class="text-xs mt-1 text-${resPrueba[p.portal].tono}">${resPrueba[p.portal].html}</p>` : ''}</div></div>
 ${chipSimple(e.t, e.tono)}
-${editar ? `<div class="flex flex-wrap gap-2"><button type="button" class="btn btn-s" onclick="Expediente.cambiarPortal('${p.portal}')"><i class="ri-lock-password-line" aria-hidden="true"></i> Cambiar contraseña</button>
-<button type="button" class="btn btn-s" onclick="Expediente.quitarPortal('${p.portal}')"><i class="ri-delete-bin-line" aria-hidden="true"></i> Quitar acceso</button></div>` : ''}</li>`;
+${puedeProbarPortal(p) || editar ? `<div class="flex flex-wrap gap-2">${puedeProbarPortal(p) ? `<button type="button" class="btn btn-s" id="exPorProbar-${p.portal}" onclick="Expediente.probarPortal('${p.portal}')"><i class="ri-shield-check-line" aria-hidden="true"></i> Probar acceso</button>` : ''}
+${editar ? `<button type="button" class="btn btn-s" onclick="Expediente.cambiarPortal('${p.portal}')"><i class="ri-lock-password-line" aria-hidden="true"></i> Cambiar contraseña</button>
+<button type="button" class="btn btn-s" onclick="Expediente.quitarPortal('${p.portal}')"><i class="ri-delete-bin-line" aria-hidden="true"></i> Quitar acceso</button>` : ''}</div>` : ''}</li>`;
     }).join('')}</ul>`;
   }
   function modalPortal(portal) {
@@ -844,6 +858,7 @@ ${editar ? `<div class="flex flex-wrap gap-2"><button type="button" class="btn b
       if (error) throw error;
       const lista = (D.exp.portales || []).filter((p) => p.portal !== portal);
       D.exp.portales = lista.concat(data).sort((a, b) => String(a.portal).localeCompare(String(b.portal)));
+      delete resPrueba[portal];
       closeMdl('mdlExpPortal');
       Toast.success('Acceso guardado y cifrado');
       pintarPanel();
@@ -857,8 +872,70 @@ ${editar ? `<div class="flex flex-wrap gap-2"><button type="button" class="btn b
     const { error } = await sb.rpc('quitar_portal_credencial', { p_portal: portal });
     if (error) { Toast.error(humanizeError(error, 'No se quitó el acceso')); return; }
     D.exp.portales = (D.exp.portales || []).filter((p) => p.portal !== portal);
+    delete resPrueba[portal];
     Toast.success('Acceso quitado');
     pintarPanel();
+  }
+
+  // -- Probar acceso (US-854) --
+  // La contraseña nunca pasa por aquí: la app pide un boleto de un solo uso a la función de borde portal-credencial y se
+  // lo da al conector local de la PC, que lo canjea, inicia sesión UNA vez, cierra la sesión e informa el resultado.
+  const CONECTOR = 'http://127.0.0.1:8879';
+  const DOC_CONECTOR = 'https://github.com/Aleco127/control-obra-dashboard/blob/master/docs/licitaciones/conector-local.md';
+  async function conectorVivo() {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 2500);
+    try { const r = await fetch(CONECTOR + '/estado', { signal: ctl.signal }); const j = r.ok ? await r.json() : null; return j && j.ok ? j : null; } catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  /** Mismo aviso que Convocatorias (permiso «Acceso a la red local» o conector apagado); copia local por si lc no cargó. */
+  async function avisoConector() {
+    if (typeof Convocatorias !== 'undefined' && Convocatorias.avisoConector) { try { return (await Convocatorias.avisoConector()).html.replace(/hover:underline/g, 'underline'); } catch (e) { /* sigue con la copia */ } }
+    let estado = null;
+    try { if (navigator.permissions && navigator.permissions.query) estado = (await navigator.permissions.query({ name: 'local-network-access' })).state; } catch (e) { /* el navegador no conoce el permiso */ }
+    const doc = `<a class="text-accent underline" href="${S(DOC_CONECTOR)}" target="_blank" rel="noopener noreferrer">cómo abrir o instalar el conector</a>`;
+    if (estado === 'denied') return 'Chrome no deja que esta página hable con el conector de tu computadora: el permiso <b>«Acceso a la red local»</b> está bloqueado. Para darlo, haz clic en el <b>candado</b> (o en el icono de ajustes) a la izquierda de la dirección, busca «Acceso a la red local», elige <b>Permitir</b> y recarga la página.';
+    if (estado === 'prompt') return `el conector no contestó. Si Chrome muestra el aviso «Acceso a la red local», elige <b>Permitir</b> y vuelve a probar; si no aparece, el conector está apagado: ${doc}.`;
+    return `el conector de ComprasMX no responde en esta computadora. Ábrelo (o instálalo) y vuelve a probar: ${doc}.`;
+  }
+  function mostrarPrueba(portal, tono, html) {
+    resPrueba[portal] = { tono, html };
+    const el = $('exPorRes-' + portal); if (el) el.innerHTML = `<p class="text-xs mt-1 text-${tono}">${html}</p>`;
+  }
+  async function refrescarPortales() {
+    const { data, error } = await sb.from('empresa_portales').select('*').order('portal');
+    if (!error && D.exp) D.exp.portales = data || [];
+  }
+  async function probarPortal(portal) {
+    const p = (D.exp.portales || []).find((x) => x.portal === portal);
+    if (!p || !puedeProbarPortal(p)) return;
+    if (!await Dialog.confirm({ title: 'Probar acceso a ' + (PORTALES[portal] || portal),
+      body: `El conector de tu computadora entrará UNA vez al portal con el usuario ${p.usuario} y la contraseña guardada, y cerrará la sesión. Si el portal la rechaza, el acceso queda en «Falló» y no se vuelve a intentar hasta que un administrador cambie la contraseña.`,
+      confirmText: 'Probar acceso' })) return;
+    const btn = $('exPorProbar-' + portal);
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+    try {
+      mostrarPrueba(portal, 'ink-muted', 'Revisando el conector de tu computadora…');
+      const est = await conectorVivo();
+      if (!est) { mostrarPrueba(portal, 'warn', 'No se probó: ' + await avisoConector()); return; }
+      if (est.ocupado) { mostrarPrueba(portal, 'warn', 'No se probó: el conector está ocupado con una búsqueda o una descarga; espera a que termine.'); return; }
+      const r = await fetch(SB + '/functions/v1/portal-credencial', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-obra-token': currentUser.token }, body: JSON.stringify({ accion: 'emitir', portal, proposito: 'probar' }) });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok || !b.ok) { mostrarPrueba(portal, 'danger', 'No se probó: ' + S(b.error || `el servidor respondió ${r.status}`)); return; }
+      mostrarPrueba(portal, 'ink-muted', 'Entrando al portal con Chrome en tu computadora (hasta 1 minuto)…');
+      let res;
+      try {
+        const c = await fetch(CONECTOR + '/comprasmx/probar-acceso', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ boleto: b.boleto }) });
+        res = await c.json().catch(() => ({ ok: false, intento: null, mensaje: `el conector respondió ${c.status}` }));
+        if (c.status === 409 || c.status === 401) res.intento = false;
+      } catch (e) { mostrarPrueba(portal, 'warn', 'No se probó: ' + await avisoConector()); return; }
+      const t = resultadoPrueba(res);
+      await refrescarPortales();
+      resPrueba[portal] = { tono: t.tono, html: S(t.texto) };
+      pintarPanel();
+      if (t.tono === 'ok') Toast.success('Acceso a ' + (PORTALES[portal] || portal) + ' correcto');
+    } finally {
+      const b2 = $('exPorProbar-' + portal); if (b2) { b2.disabled = false; b2.removeAttribute('aria-busy'); }
+    }
   }
 
   // -- Documentos (US-808) --
@@ -1103,7 +1180,7 @@ ${grupos.map((g) => `<fieldset class="mb-4"><legend class="text-xs font-semibold
     nuevaPersona, editarPersona, guardarPersona, alternarActivo, eliminarPersona, traerEmpleados, filtrarTraer, elegirEmpleado,
     nuevaObra, editarObra, guardarObra, eliminarObra, traerObras, agregarObrasTraidas, exportarCurriculum,
     nuevaMaquina, editarMaquina, guardarMaquina, eliminarMaquina, exportarMaquinaria,
-    nuevoPortal, cambiarPortal, guardarPortal, quitarPortal, cerrarPortal,
+    nuevoPortal, cambiarPortal, guardarPortal, quitarPortal, cerrarPortal, probarPortal, resultadoPrueba,
     // puras
     hoyMx, estadoDocumento, vencimientoSugerido, faltantes, resumen, categoria, datosParaGuardar, domicilio, vacioTotal,
     tipoArchivo, validarArchivo, nombreSeguro, rutaArchivo, sha256Hex, nombreDeRuta, agruparPorCategoria, cadenaVersiones, validarDocumento,

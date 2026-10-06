@@ -1,4 +1,4 @@
-# Conector local de ComprasMX (US-851)
+# Conector local de ComprasMX (US-851; cuenta de la empresa: US-854 y US-855)
 
 ## Qué es
 Un programa pequeño (Python, `scripts/licitaciones/conector-local.py`) que corre en la computadora del usuario y
@@ -43,7 +43,7 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 `%LOCALAPPDATA%\control-obra\conector\`. No toca el secreto ni los datos de la app.
 
 ## ¿Está activo?
-- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.2.0", "ocupado": false, "chrome": true}`.
+- Abrir `http://127.0.0.1:8879/estado` en el navegador: `{"ok": true, "version": "1.3.0", "ocupado": false, "chrome": true}`.
   `ocupado` es `true` mientras corre una búsqueda; `chrome: false` significa que falta Google Chrome.
 - Bitácora: `%LOCALAPPDATA%\control-obra\conector.log` (arranque, filtros de cada búsqueda y resultado; nunca el secreto).
 - La app muestra el estado del conector en el formulario de búsqueda y explica cómo instalarlo si no responde.
@@ -57,6 +57,8 @@ Detiene el proceso (y un Chrome sin cabeza de Playwright que hubiera quedado), b
 | `POST /comprasmx/anexos` `{uuid}` | Abre una **sesión de anexos** de ESE procedimiento: `{ok, sesion, uuid, numero_procedimiento, archivos: [{id, nombre, tamano, anexo, tipo, numero, publicado}], total, bytes, truncado, error}`. 409 si hay una búsqueda u otra sesión; 400 si `uuid` no son 32 hex; 502 con `error: "Bloqueo: …"` si el portal no responde |
 | `POST /comprasmx/anexos/archivo` `{sesion, id}` | **El archivo** (200 `application/octet-stream`, `Content-Length`, `X-Archivo-Nombre` URI-encoded, `X-Archivo-Sha256`), o JSON `{ok:false, error}`: 404 sesión cerrada, 400 id ajeno a la lista, 413 más de 50 MB, 502/504 portal |
 | `POST /comprasmx/anexos/cerrar` `{sesion}` | `{ok, cerrada}` |
+| `POST /comprasmx/probar-acceso` `{boleto}` (US-854) | `{ok, mensaje, causa?, intento?, estado, probado_at, sesion_cerrada?, sesion_segundos?}`. 400 boleto mal formado; 401 boleto usado, vencido o desconocido (no se toca el portal); 409 conector ocupado |
+| `POST /comprasmx/buscar` con `boleto` (US-855) | Igual que la búsqueda pública, más `con_sesion: true`, `invitaciones`, `sesion_cerrada`, `avisos`. Si el portal rechaza el acceso: 200 `{error: "sesion", mensaje, causa, corrida_id: null}` **sin buscar** |
 
 Todos los campos son opcionales. **Siempre hay límite de fecha (US-852):** sin `hasta` se usa hoy (hora del centro) y
 sin `desde`, 30 días antes de `hasta`; el rango no puede pasar de 90 días ni empezar en el futuro (400). `tipos` vacío =
@@ -70,6 +72,35 @@ guarda en la corrida para el pie «quién la lanzó»; lo declara la app, el con
 Cada búsqueda queda en `convocatoria_corridas` con `origen = 'conector-pc'` y en `detalle`: `filtros`, `usuario`,
 `busquedas` (por tipo: páginas, totales del portal y `en_portal`, lo que el sitio realmente mandó a su API),
 `filtrado_en_portal`, `filtrado_despues`, `avisos` y `segundos`.
+
+## Cuenta de la empresa: boleto de un solo uso (US-854, US-855, D15)
+La contraseña del portal vive cifrada en Supabase Vault (Expediente › Portales, US-847) y **nunca pasa por el navegador**.
+Para usarla, la app y el conector se pasan un **boleto**:
+
+1. La app (sesión de nivel ≥ 80) llama a la función de borde `portal-credencial` con `{accion: "emitir", portal:
+   "comprasmx", proposito: "probar" | "buscar"}` y recibe `{boleto, expira_at, usuario}`. El boleto son 256 bits
+   aleatorios; la BD guarda sólo su SHA-256 (`control_obra.portal_boletos`, migración 112). Vive **120 s**, sirve **una
+   vez** y está ligado a la empresa y al portal. Emitir uno nuevo anula los anteriores sin canjear. No se emite si no hay
+   acceso guardado (404), si su estado es «fallo» (409) o si hay otro inicio de sesión en curso (409).
+2. La app manda el boleto al conector (`/comprasmx/probar-acceso` o `/comprasmx/buscar`).
+3. El conector lo **canjea** (`{accion: "canjear", boleto}` con la cabecera `x-convocatorias-secret`, el mismo secreto de
+   ingesta del `.env`) y recibe `{usuario, password}`. Boleto usado, vencido o desconocido → 401 sin detalle.
+4. Abre Chrome sin cabeza con un **contexto efímero** (sin cookies ni estado en disco), va a
+   `https://comprasmx.buengobierno.gob.mx/panel/` (Keycloak, realm `procura`), escribe `username` y `password` y pulsa
+   `login` **una sola vez**. Si antes de enviar hay un captcha, se detiene sin intentar. Si tras enviar aparece un captcha o
+   un segundo factor, se detiene y lo dice (cuenta como intento).
+5. Informa el resultado (`{accion: "resultado", boleto, estado: "correcto" | "fallo", mensaje}` con el secreto): se
+   actualizan `empresa_portales.estado`, `probado_at` y `ultimo_error` (el mensaje del portal tal cual). Con «fallo» ni la
+   app ni el conector vuelven a intentarlo hasta que un administrador cambie la contraseña (`guardar_portal_credencial`
+   regresa el estado a «sin_probar»).
+6. Si entró: en «Probar acceso» lee qué muestra el panel (títulos y menú, sólo para la bitácora); en la búsqueda hace la
+   misma búsqueda dentro de la sesión y lee las invitaciones del panel del licitante (sólo lectura). Al final **cierra la
+   sesión del portal** (endpoint de cierre de Keycloak) y el contexto. La credencial se borra de la memoria del proceso
+   al terminar la petición; nunca se escribe en la bitácora, en la corrida ni en disco.
+
+La cuenta **sólo lee**: el conector nunca pulsa nada que presente, firme, envíe preguntas, acepte términos o modifique
+datos en el portal. Las pruebas usan un simulador del inicio de sesión (`scripts/qa/conector-sesion.test.mjs`) con una
+contraseña ficticia; nunca la cuenta real.
 
 ## Qué filtra el portal y qué se filtra después
 | Filtro | Dónde | Cómo |
@@ -121,7 +152,8 @@ Probado el 5-oct-2026 (build local, conector real 1.2.0, permiso concedido): LO-
 19.2 MB, todos con su SHA-256 verificado; «Buscar documentos nuevos» no volvió a bajar ninguno. Datos de prueba borrados.
 
 ## Qué datos salen de la máquina
-- Hacia **ComprasMX**: las consultas del sitio público que haría una persona con esos filtros (sin iniciar sesión).
+- Hacia **ComprasMX**: las consultas del sitio público que haría una persona con esos filtros; sólo cuando el usuario lo
+  pide (US-854/855), el inicio de sesión con la cuenta de la empresa.
 - Hacia **la app** (sólo si la pide): los anexos públicos del procedimiento elegido (US-848); la app los sube con la
   sesión del usuario.
 - Hacia **Control de Obra** (función `convocatorias-ingesta`): sólo los resultados públicos de la búsqueda (listado y,
