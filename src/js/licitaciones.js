@@ -55,7 +55,7 @@ const Licitaciones = (() => {
   /** Columnas que pide la lista (lista explícita, como las vistas). */
   const COLUMNAS = 'id,codigo,nombre,convocante,perfil_id,modalidad,plaza,visita,junta_aclaraciones,presentacion,fallo,estatus,monto_propuesto,monto_ganador,obra_id,updated_at,created_at';
   const COLUMNAS_FICHA = 'id,codigo,nombre,convocante,perfil_id,modalidad,ubicacion,plaza,visita,junta_aclaraciones,presentacion,fallo,inicio_obra,plazo_dias,anticipo_pct,presupuesto_base,monto_propuesto,monto_ganador,ganador,estatus,bases,opus_proyecto,obra_id,notas,created_at,updated_at,lecciones';
-  const COLUMNAS_REQ = 'id,licitacion_id,anexo_id,sobre,descripcion,origen,estado,requiere_firma,categoria_expediente,empresa_documento_id,archivo_path,responsable,orden,notas,updated_at';
+  const COLUMNAS_REQ = 'id,licitacion_id,anexo_id,sobre,descripcion,origen,estado,requiere_firma,categoria_expediente,empresa_documento_id,archivo_path,responsable,orden,notas,updated_at,revisado_at,revisado_por,archivos_base';
   const TZ = 'America/Mexico_City';
   const OFFSET_MX = '-06:00';
 
@@ -318,12 +318,15 @@ const Licitaciones = (() => {
   /** Sin build, convocatorias.js no viaja con este archivo: se pide aquí (en el build va en el mismo diferido de `lc`). */
   let extras = null;
   function conExtras() {
-    if (typeof Convocatorias !== 'undefined' || typeof document === 'undefined' || typeof __LAZY !== 'undefined') return Promise.resolve();
-    return extras || (extras = new Promise((res) => {
-      const sc = document.createElement('script'); sc.src = 'js/convocatorias.js';
+    if (typeof document === 'undefined' || typeof __LAZY !== 'undefined') return Promise.resolve();
+    const faltan = [['Convocatorias', 'js/convocatorias.js'], ['LicitacionSobres', 'js/licitacion-sobres.js']]
+      .filter(([g]) => typeof globalThis[g] === 'undefined').map(([, src]) => src);
+    if (!faltan.length) return Promise.resolve();
+    return extras || (extras = Promise.all(faltan.map((src) => new Promise((res) => {
+      const sc = document.createElement('script'); sc.src = src;
       sc.onload = () => res(); sc.onerror = () => { extras = null; sc.remove(); res(); };
       document.head.appendChild(sc);
-    }));
+    }))));
   }
   function tabsHtml(arr, activa, fn, etiquetaAria) {
     return `<div class="tabs mb-4" role="tablist" aria-label="${S(etiquetaAria)}">${arr.map((p) => `<button type="button" role="tab" id="lcTab-${S(p.k)}" aria-selected="${p.k === activa}" aria-controls="lcPanel" class="tab ${p.k === activa ? 'active' : ''}" onclick="Licitaciones.${fn}('${S(p.k)}')"><i class="${S(p.ic || 'ri-file-line')}" aria-hidden="true"></i> ${S(p.t)}</button>`).join('')}</div>`;
@@ -1643,7 +1646,7 @@ ${prop.requisitosExistentes.length ? `<p class="text-xs text-ink-muted mt-1">${p
     guardarSeccion, importarBases, cargarCalendario, cargarPerfiles, registrarPestana, registrarAvisoFicha,
     subirArchivos, verArchivo, descargarArchivo, borrarArchivo, descargarTodo,
     verSobre, editarRequisito, guardarRequisito, borrarRequisito, moverRequisito, estadoRequisito, guardarEstado,
-    adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito,
+    adjuntarRequisito, subirArchivoRequisito, verArchivoRequisito, urlFirmada, rpc, repintar: repintarFicha,
     generarDelPerfil, confirmarGenerar, guardarComoPerfil, confirmarGuardarPerfil, _resumenPerfil: (id) => (generarDelPerfil._resumen ? generarDelPerfil._resumen(id) : ''),
     perfilesConfig, editarPerfil, agregarFilaPerfil, guardarPerfil, duplicarPerfil, borrarPerfil, llenarDesdeExpediente,
     leerArchivoBases, revisarBases, aplicarBases,

@@ -71,7 +71,7 @@ const lazyMap = {};
 // 3c) Licitaciones (US-806): módulos que viven en su propio archivo de src/js y NO se enlazan en index.html; salen
 //     como diferidos con el nombre con hash de jsMap y R() los espera igual que a los de arriba.
 const LAZY_ARCHIVOS = [
-  { key: 'lc', file: 'licitaciones.js', extra: ['convocatorias.js'] },   // US-843: Convocatorias viaja con Licitaciones
+  { key: 'lc', file: 'licitaciones.js', extra: ['convocatorias.js', 'licitacion-sobres.js'] },   // US-843: Convocatorias viaja con Licitaciones
   { key: 'ex', file: 'expediente.js' },
   { key: 'bp', file: 'banco-precios.js' },
   // Precios de una licitación (US-829/833): no es módulo de la barra; la pestaña Precios de lc lo pide con

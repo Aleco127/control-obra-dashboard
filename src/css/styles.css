@@ -550,6 +550,30 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
   .lc-tbl td[data-et=""]{justify-content:flex-end}
   .lc-tbl td[data-et=""]::before{content:none}
 }
+/* Pestaña Sobres (115): lista palomeable por sobre + vista previa del PDF a la derecha en escritorio */
+.lc-sb-grid{display:grid;gap:var(--sp-4);grid-template-columns:minmax(0,1fr)}
+.lc-sb-vista{display:none}
+@media (min-width:1024px){
+  .lc-sb-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .lc-sb-vista{display:block;position:sticky;top:var(--sp-4);align-self:start;height:calc(100vh - 140px)}
+}
+.lc-sb-iframe{width:100%;height:calc(100% - 44px);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2)}
+.lc-sb-vacia{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;height:100%;min-height:200px;color:var(--ink-muted);padding:var(--sp-4)}
+.lc-sb-barra{display:inline-block;width:64px;height:6px;border-radius:var(--radius-pill);background:var(--surface-2);overflow:hidden;vertical-align:middle}
+.lc-sb-barra>span{display:block;height:100%;background:var(--accent-fill)}
+.lc-sb-lista{list-style:none;margin:0;padding:0 var(--sp-2) var(--sp-2)}
+.lc-sb-fila{display:flex;gap:var(--sp-3);padding:var(--sp-3) var(--sp-2);border-top:1px solid var(--line)}
+.lc-sb-fila.is-hecho>div>p:first-child{color:var(--ink-muted)}
+.lc-sb-check{display:flex;align-items:flex-start;justify-content:center;min-width:var(--tap);min-height:var(--tap);cursor:pointer;padding-top:2px}
+.lc-sb-check input{width:22px;height:22px;accent-color:var(--ok);cursor:pointer}
+.lc-sb-check:focus-within{outline:2px solid var(--ring);outline-offset:2px;border-radius:var(--radius-sm)}
+.lc-sb-arch{display:inline-flex;align-items:center;max-width:100%;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2)}
+.lc-sb-arch.is-activo{border-color:var(--accent);background:var(--accent-soft)}
+.lc-sb-final{border-color:var(--ok)}
+.lc-sb-arch-b{display:inline-flex;align-items:center;gap:4px;min-height:var(--tap);padding:0 var(--sp-2);font-size:var(--fs-xs);min-width:0;text-align:left}
+.lc-sb-arch-b span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.lc-sb-arch-b:hover{text-decoration:underline}
+.btn-xs{min-height:var(--tap);padding:0 var(--sp-3);font-size:var(--fs-xs)}
 
 /* ===== Banco de precios (épica D, US-822 a US-832) ===== */
 .bp-seg{flex-wrap:wrap;width:auto}
