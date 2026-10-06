@@ -3372,6 +3372,8 @@ const m=MOD_ARCHIVO[k];const mod=m&&m.mod();
 if(mod){mod.render(c);return;}
 c.innerHTML='<div class="p-8 text-center text-ink-muted" role="status"><i class="ri-loader-4-line animate-spin text-xl" aria-hidden="true"></i><p class="text-sm mt-2">Cargando módulo…</p></div>';
 if(m._cargando)return;m._cargando=true;
+// En el build el archivo lleva hash (__LAZY): m.src sin hash da 404 si se llega aquí antes de que R() lo cargue
+if(typeof cargarModulo==='function'&&typeof __LAZY!=='undefined'&&__LAZY[k]){cargarModulo(k).then(()=>{m._cargando=false;if(M===k)R();}).catch(()=>{m._cargando=false;if(M===k)c.innerHTML=EmptyState({icon:'ri-wifi-off-line',title:'No se pudo cargar este módulo',body:'Revisa tu conexión e intenta de nuevo.',action:{label:'Reintentar',onClick:'R()'}});});return;}
 const sc=document.createElement('script');sc.src=m.src;
 sc.onload=()=>{m._cargando=false;if(M===k)R();};
 sc.onerror=()=>{m._cargando=false;sc.remove();if(M===k)c.innerHTML=EmptyState({icon:'ri-wifi-off-line',title:'No se pudo cargar este módulo',body:'Revisa tu conexión e intenta de nuevo.',action:{label:'Reintentar',onClick:'R()'}});};
