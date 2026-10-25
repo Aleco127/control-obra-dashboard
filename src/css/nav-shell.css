@@ -187,7 +187,7 @@ button.nvs-ctx-btn:hover .nvs-ctx-titulo{color:var(--accent)}
 
 /* ===== Barra inferior (móvil) ===== */
 .nvs-bottom{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-sticky);display:flex;align-items:stretch;background:var(--surface);border-top:1px solid var(--line);padding:4px 0 env(safe-area-inset-bottom,4px);box-shadow:var(--shadow-2)}
-#mobileBottomNav>.nvs-bottom{position:static;border:0;box-shadow:none;padding:0;background:none}
+#mobileBottomNav>.nvs-bottom{position:static;flex:1 1 auto;width:100%;border:0;box-shadow:none;padding:0;background:none}
 .nvs-bottom .nvs-item{flex:1 1 0;flex-direction:column;justify-content:center;gap:2px;min-height:var(--tap);min-width:var(--tap);padding:4px 2px;border-radius:var(--radius-sm);color:var(--ink-muted);font-size:var(--fs-xs);font-weight:500}
 .nvs-bottom .nvs-item .nvs-ic{width:24px;height:24px;font-size:22px}
 .nvs-bottom .nvs-item .nvs-tx{flex:0 0 auto;max-width:100%;text-align:center}
