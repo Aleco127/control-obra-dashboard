@@ -261,7 +261,7 @@ ${esAdmin() ? k(F(suma(pers)), 'Personales de socio') : ''}
     const pend = all.filter(g => g.pagado_por_socio_id && !['pagado', 'rechazado'].includes(estado(g)));
     if (!pend.length) return '';
     const por = new Map();
-    pend.forEach(g => { const k = g.pagado_por_socio_id; const v = por.get(k) || { n: 0, monto: 0 }; v.n++; v.monto += saldo(g); por.set(k, v); });
+    pend.forEach(g => { const k = g.pagado_por_socio_id; const v = por.get(k) || { n: 0, monto: 0, abonado: 0 }; v.n++; v.monto += saldo(g); v.abonado += num(g.monto_pagado); por.set(k, v); });
     const filas = [...por.entries()].sort((a, b) => b[1].monto - a[1].monto);
     const total = filas.reduce((t, [, v]) => t + v.monto, 0);
     const canEdit = puedeEditar();
@@ -272,9 +272,9 @@ ${esAdmin() ? k(F(suma(pers)), 'Personales de socio') : ''}
 <ul class="divide-y divide-amber-200/70 text-sm">
 ${filas.map(([id, v]) => `<li class="flex flex-wrap items-center gap-2 py-1.5">
 <button type="button" class="link font-medium" onclick="Compras.verDe(${id})">${S(socioNombre(id))}</button>
-<span class="text-xs text-ink-subtle">${v.n} ${v.n === 1 ? 'gasto' : 'gastos'}</span>
+<span class="text-xs text-ink-subtle">${v.n} ${v.n === 1 ? 'gasto' : 'gastos'}${v.abonado > 0.005 ? ` · ya se le abonaron ${F(v.abonado)}` : ''}</span>
 <span class="flex-1"></span><span class="font-semibold whitespace-nowrap">${F(v.monto)}</span>
-${canEdit ? `<button type="button" class="btn btn-s text-xs" onclick="Compras.reponer(${id})"><i class="ri-check-double-line" aria-hidden="true"></i> Marcar repuesto</button>` : ''}</li>`).join('')}
+${canEdit ? `<button type="button" class="btn btn-s text-xs" onclick="Compras.reponer(${id})"><i class="ri-hand-coin-line" aria-hidden="true"></i> Registrar reposición</button>` : ''}</li>`).join('')}
 </ul></div>`;
   }
 
@@ -775,24 +775,112 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     refrescar();
   }
 
-  // Al cierre de obra se repone de una sola vez lo que alguien puso de su bolsa.
-  async function reponer(socioId) {
-    const ids = base().filter(g => g.pagado_por_socio_id == socioId && !['pagado', 'rechazado'].includes(estado(g))).map(g => g.id);
-    if (!ids.length) { Toast.info('No hay nada por reponer.'); return; }
-    const monto = base().filter(g => ids.includes(g.id)).reduce((t, g) => t + saldo(g), 0);
-    if (!await Dialog.confirm(`¿Marcar como pagados los ${ids.length} gastos que puso ${socioNombre(socioId)}, por ${F(monto)} en total?`)) return;
-    const now = new Date().toISOString();
-    // Los que nunca se aprobaron necesitan además la firma de aprobación; a los demás no se les toca la suya.
-    const sinAprobar = ids.filter(id => !D.g.find(x => x.id == id)?.aprobado_at);
-    for (const [lote, extra] of [[sinAprobar, { aprobado_at: now, aprobado_por: currentUser?.id || null }], [ids.filter(id => !sinAprobar.includes(id)), {}]]) {
-      if (!lote.length) continue;
-      const { error } = await sb.from('gastos').update({ estatus_pago: 'Pagado', updated_at: now, ...extra }).in('id', lote);
-      if (error) { Toast.error(humanizeError(error, 'No se pudo reponer')); refrescar(); return; }
+  // Reposición de lo que alguien puso de su bolsa: total o un abono a cuenta.
+  // El monto se reparte del gasto más antiguo al más reciente como pagos (PP-xxxxx) ligados a cada gasto;
+  // el trigger de pagos_proveedores deja cada gasto en Parcial o Pagado y el flujo registra la salida de dinero.
+  const r2 = (n) => Math.round(num(n) * 100) / 100;
+  function pendientesDe(socioId) {
+    return base().filter(g => g.pagado_por_socio_id == socioId && !['pagado', 'rechazado'].includes(estado(g)) && saldo(g) > 0.005)
+      .sort((a, b) => String(a.fecha_solicitud || '').localeCompare(String(b.fecha_solicitud || '')) || a.id - b.id);
+  }
+  function repartirAbono(pend, monto) {
+    let resto = r2(monto); const partes = [];
+    for (const g of pend) {
+      if (resto <= 0.005) break;
+      const s = r2(saldo(g)); const m = r2(Math.min(resto, s));
+      partes.push({ g, monto: m, completo: m + 0.005 >= s });
+      resto = r2(resto - m);
     }
-    ids.forEach(id => { const g = D.g.find(x => x.id == id); if (g) { g.estatus_pago = 'Pagado'; g.monto_pagado = num(g.monto_neto); g.aprobado_at = g.aprobado_at || now; } });
-    Toast.success(`Se repusieron ${F(monto)} a ${socioNombre(socioId)}.`, 6000);
-    try { Telemetry.track('caja_chica_repuesta', { n: ids.length }); } catch (e) { }
-    refrescar();
+    return partes;
+  }
+  const ABONO_MDL = `<div id="mdlAbonoSocio" class="modal"><div class="g rounded-2xl p-5 w-full max-w-md mx-4 max-h-[92vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="abTitulo">
+<div class="flex justify-between items-center mb-2"><h2 class="text-lg font-bold" id="abTitulo">Registrar reposición</h2><button type="button" onclick="closeMdl('mdlAbonoSocio')" class="btn-icon" aria-label="Cerrar"><i class="ri-close-line" aria-hidden="true"></i></button></div>
+<form id="frmAbono" onsubmit="Compras.guardarAbono(event)" novalidate>
+<input type="hidden" id="abSocio">
+<p id="abResumen" class="text-sm text-ink-muted mb-3"></p>
+<div class="grid grid-cols-2 gap-3 force-2col">
+<div class="col-span-2"><label class="text-xs mb-1 block" for="abMonto">Monto que se le entregó *</label><input type="number" id="abMonto" class="inp" step="0.01" min="0.01" inputmode="decimal" required oninput="Compras.abonoPreview()">
+<button type="button" class="link text-xs mt-1" id="abTotal" onclick="Compras.abonoTotal()"></button></div>
+<div><label class="text-xs mb-1 block" for="abFecha">Fecha *</label><input type="date" id="abFecha" class="inp" required></div>
+<div><label class="text-xs mb-1 block" for="abMetodo">Método</label><select id="abMetodo" class="inp"><option>Transferencia</option><option>Efectivo</option><option>Cheque</option></select></div>
+<div class="col-span-2"><label class="text-xs mb-1 block" for="abRef">Referencia o nota</label><input type="text" id="abRef" class="inp" maxlength="120" placeholder="Folio de la transferencia, quién entregó, etc."></div>
+</div>
+<div id="abPreview" class="text-sm mt-3" aria-live="polite"></div>
+<div class="flex justify-end gap-2 mt-4"><button type="button" class="btn btn-s" onclick="closeMdl('mdlAbonoSocio')">Cancelar</button><button type="submit" class="btn btn-p" id="abGuardar"><i class="ri-hand-coin-line" aria-hidden="true"></i> Registrar reposición</button></div>
+</form></div></div>`;
+  function reponer(socioId) {
+    const pend = pendientesDe(socioId);
+    if (!pend.length) { Toast.info('No hay nada por reponer.'); return; }
+    if (!$('mdlAbonoSocio')) document.body.insertAdjacentHTML('beforeend', ABONO_MDL);
+    const total = r2(pend.reduce((t, g) => t + saldo(g), 0));
+    $('abSocio').value = socioId;
+    $('abResumen').textContent = `${socioNombre(socioId)} tiene ${F(total)} por reponer en ${pend.length} ${pend.length === 1 ? 'gasto' : 'gastos'}. Si le das una parte, se abona a los gastos más antiguos primero.`;
+    $('abTotal').textContent = `Reponer el total (${F(total)})`;
+    $('abMonto').value = ''; $('abFecha').value = hoyISO(); $('abMetodo').value = 'Transferencia'; $('abRef').value = '';
+    abonoPreview();
+    openMdl('mdlAbonoSocio');
+    setTimeout(() => $('abMonto')?.focus(), 50);
+  }
+  function abonoTotal() {
+    const pend = pendientesDe($('abSocio').value);
+    $('abMonto').value = r2(pend.reduce((t, g) => t + saldo(g), 0)).toFixed(2);
+    abonoPreview();
+  }
+  function abonoPreview() {
+    const el = $('abPreview'); if (!el) return;
+    const pend = pendientesDe($('abSocio').value);
+    const total = r2(pend.reduce((t, g) => t + saldo(g), 0));
+    const monto = r2($('abMonto').value);
+    if (!(monto > 0)) { el.innerHTML = ''; return; }
+    if (monto > total + 0.005) { el.innerHTML = `<p class="text-danger">El monto supera lo pendiente (${F(total)}). Captura ${F(total)} o menos.</p>`; return; }
+    const partes = repartirAbono(pend, monto);
+    const completos = partes.filter(p => p.completo).length;
+    const parcial = partes.find(p => !p.completo);
+    const queda = r2(total - monto);
+    el.innerHTML = `<p class="font-medium mb-1">${completos ? `Salda ${completos} ${completos === 1 ? 'gasto' : 'gastos'}` : 'No salda ningún gasto completo'}${parcial ? ` y abona ${F(parcial.monto)} a «${S(parcial.g.descripcion || 'gasto')}»` : ''}.</p>
+<ul class="text-xs text-ink-muted max-h-40 overflow-y-auto divide-y divide-line">${partes.map(p => `<li class="flex gap-2 py-1"><span class="whitespace-nowrap">${S(String(p.g.fecha_solicitud || '').slice(0, 10))}</span><span class="flex-1 truncate">${S(p.g.descripcion || p.g.categoria || 'Gasto')}</span><span class="whitespace-nowrap">${F(p.monto)}${p.completo ? '' : ` de ${F(saldo(p.g))}`}</span></li>`).join('')}</ul>
+<p class="mt-2">Queda por reponer: <strong>${F(queda)}</strong></p>`;
+  }
+  async function guardarAbono(e) {
+    e.preventDefault();
+    const socioId = parseInt($('abSocio').value);
+    const pend = pendientesDe(socioId);
+    const total = r2(pend.reduce((t, g) => t + saldo(g), 0));
+    const monto = r2($('abMonto').value);
+    const fecha = $('abFecha').value;
+    if (!(monto > 0)) { Toast.warning('Captura el monto que se le entregó.'); $('abMonto').focus(); return; }
+    if (monto > total + 0.005) { Toast.warning(`El monto supera lo pendiente (${F(total)}).`); $('abMonto').focus(); return; }
+    if (!fecha) { Toast.warning('Falta la fecha.'); return; }
+    if (typeof Cierres !== 'undefined' && !(await Cierres.verificarEdicion(fecha))) return;
+    const partes = repartirAbono(pend, monto);
+    const btn = $('abGuardar'); btn.disabled = true;
+    try {
+      const now = new Date().toISOString();
+      // Los que nunca se aprobaron necesitan la firma de aprobación antes de pagarse; a los demás no se les toca la suya.
+      const sinAprobar = partes.filter(p => !p.g.aprobado_at).map(p => p.g.id);
+      if (sinAprobar.length) {
+        const { error } = await sb.from('gastos').update({ aprobado_at: now, aprobado_por: currentUser?.id || null, updated_at: now }).in('id', sinAprobar);
+        if (error) throw error;
+      }
+      const { data: numero } = await sb.rpc('get_next_pago_proveedor_numero');
+      const folio = numero || ('PP-' + Date.now());
+      const nombre = socioNombre(socioId);
+      const filas = partes.map(p => ({ empresa_id: currentUser.empresa_id, numero_pago: folio, fecha_pago: fecha, gasto_id: p.g.id, obra_id: p.g.obra_id || null, proveedor_id: null, monto: p.monto, metodo_pago: $('abMetodo').value, referencia: $('abRef').value.trim() || null, concepto: `Reposición a ${nombre} · ${p.g.descripcion || p.g.categoria || 'gasto'}`, created_by: currentUser.id }));
+      // Un solo insert: si algo falla no queda un abono a medias.
+      const { data: rows, error } = await sb.from('pagos_proveedores').insert(filas).select();
+      if (error) throw error;
+      D.ppv = (D.ppv || []).concat(rows || []);
+      const ids = partes.map(p => p.g.id);
+      const { data: frescos } = await sb.from('gastos').select('*').in('id', ids);
+      (frescos || []).forEach(f => { const g = D.g.find(x => x.id === f.id); if (g) Object.assign(g, f); });
+      try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e2) { }
+      closeMdl('mdlAbonoSocio');
+      const queda = r2(total - monto);
+      Toast.success(`Reposición ${folio} por ${F(monto)} a ${nombre}. ${queda > 0.005 ? `Le quedan ${F(queda)} por reponer.` : 'Quedó al corriente.'}`, 7000);
+      try { Telemetry.track('caja_chica_repuesta', { n: ids.length, parcial: queda > 0.005 }); } catch (e3) { }
+      refrescar();
+    } catch (err) { Toast.error(humanizeError(err, 'No se pudo registrar la reposición')); refrescar(); }
+    finally { btn.disabled = false; }
   }
 
   async function cambiarComprobacion(id, val) {
@@ -1006,5 +1094,5 @@ ${sug.map(({ gasto: g, sugerencia: s, cambiaDestino, cambiaCategoria }) => {
     XLSX.writeFile(wb, `Compras_${hoyISO()}.xlsx`);
   }
 
-  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, setSocioTipo, onSocio, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, cambiarEstado, reponer, verDe, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
+  return { render, filas, lista, setTab, buscar, filtro, limpiar, nuevo, rapido, editar, guardar, setDestino, setSocioTipo, onSocio, onObra, onEstatus, calcIVA, catManual, sugerir, aplicarSugerencia, foto, provInput, provPick, provCerrar, provNuevo, cambiarComprobacion, cambiarEstado, reponer, abonoTotal, abonoPreview, guardarAbono, verDe, aprobar, rechazar, _rechazar, pagar, marcarPagado, menu, cerrarMenu, generarOC, pedirFactura, marcarSolicitada, cambiarDestinoLote, _cambiarDestino, revisarClasificacion, aplicarReclasificacion, proveedor, importarXML, exportar, verComprobante, estado, destinoDe, saldo, refrescar, get tab() { return tab; } };
 })();
