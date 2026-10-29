@@ -287,9 +287,10 @@ const Finanzas = (() => {
       // Reparto por obra: sólo cuentan los movimientos ligados a esa obra (anticipos de utilidad y aportaciones por gastos de la obra).
       // Reparto por periodo: todo lo del rango.
       const gastoDeObra = (gid) => { const g = (d.g || []).find(x => x.id === gid); return !!g && g.obra_id == obraId; };
-      const movs = (d.msoc || []).filter(m => m.socio_id === s.id && (obraId ? (m.obra_id == obraId || (m.tipo === 'aportacion' && gastoDeObra(m.gasto_id))) : enRango(m.fecha, desde, hasta)));
+      const movs = (d.msoc || []).filter(m => m.socio_id === s.id && (obraId ? (m.obra_id == obraId || (['aportacion', 'reposicion'].includes(m.tipo) && gastoDeObra(m.gasto_id))) : enRango(m.fecha, desde, hasta)));
       const aCuenta = r2(movs.filter(m => ['retiro', 'gasto_personal', 'anticipo_utilidad', 'utilidad_pagada'].includes(m.tipo)).reduce((x, m) => x + num(m.monto), 0));
-      const aportado = r2(movs.filter(m => m.tipo === 'aportacion').reduce((x, m) => x + num(m.monto), 0));
+      // Lo que el socio puso de su bolsa y la empresa ya le repuso no se le vuelve a pagar en el reparto.
+      const aportado = r2(movs.filter(m => m.tipo === 'aportacion').reduce((x, m) => x + num(m.monto), 0) - movs.filter(m => m.tipo === 'reposicion').reduce((x, m) => x + num(m.monto), 0));
       const asignado = r2(distribuible * pct / 100);
       return { socio: s, porcentaje: r2(pct), asignado, aCuenta, aportado, aPagar: r2(asignado - aCuenta + aportado) };
     });

@@ -71,7 +71,8 @@ const Contabilidad = (() => {
     (d.ppv || []).filter(x => en(x.fecha_pago)).sort((a, b) => String(a.fecha_pago).localeCompare(String(b.fecha_pago))).forEach(x => {
       const pv = prov(x.proveedor_id); const g = (d.g || []).find(y => y.id === x.gasto_id) || {};
       const p = nueva(2, x.fecha_pago, `Pago ${x.numero_pago || ''} ${pv.nombre_proveedor || ''} ${x.concepto || g.descripcion || ''}`.trim());
-      mov(p, 'proveedores', num(x.monto), 0, x.referencia || x.numero_pago, g.folio_fiscal);
+      // Reposición a un socio de un gasto que pagó de su bolsa: se salda su cuenta, no la de proveedores
+      mov(p, g.pagado_por_socio_id ? 'socios_aportaciones' : 'proveedores', num(x.monto), 0, x.referencia || x.numero_pago, g.folio_fiscal);
       mov(p, /efectivo/i.test(x.metodo_pago || '') ? 'caja' : 'bancos', 0, num(x.monto), x.referencia || x.numero_pago, g.folio_fiscal);
     });
     // Egresos: nómina pagada (cargo sueldos / abono bancos)
@@ -82,9 +83,13 @@ const Contabilidad = (() => {
       mov(p, 'bancos', 0, num(x.total_pagar), '');
     });
     // Socios: aportaciones (ingreso) y retiros / gastos personales / utilidad pagada (egreso)
-    (d.msoc || []).filter(x => en(x.fecha)).forEach(x => {
+    // Las aportaciones ligadas a un gasto ya están en el diario (abono a socios_aportaciones) y sus reposiciones
+    // en los pagos; sólo las reposiciones sin pago capturado (anteriores a la migración 066) generan su egreso aquí.
+    const conPago = new Set((d.ppv || []).map(x => x.gasto_id).filter(Boolean));
+    (d.msoc || []).filter(x => en(x.fecha) && !(x.tipo === 'aportacion' && x.gasto_id) && !(x.tipo === 'reposicion' && conPago.has(x.gasto_id))).forEach(x => {
       const s = socio(x.socio_id); const m = num(x.monto);
-      if (x.tipo === 'aportacion') { const p = nueva(1, x.fecha, `Aportación ${s.nombre || ''} ${x.concepto || ''}`.trim()); mov(p, 'bancos', m, 0, x.referencia); mov(p, 'socios_aportaciones', 0, m, x.referencia); }
+      if (x.tipo === 'reposicion') { const p = nueva(2, x.fecha, `Reposición ${s.nombre || ''} ${x.concepto || ''}`.trim()); mov(p, 'socios_aportaciones', m, 0, x.referencia); mov(p, 'bancos', 0, m, x.referencia); }
+      else if (x.tipo === 'aportacion') { const p = nueva(1, x.fecha, `Aportación ${s.nombre || ''} ${x.concepto || ''}`.trim()); mov(p, 'bancos', m, 0, x.referencia); mov(p, 'socios_aportaciones', 0, m, x.referencia); }
       else { const p = nueva(2, x.fecha, `${x.tipo === 'utilidad_pagada' ? 'Utilidad pagada' : x.tipo === 'gasto_personal' ? 'Gasto personal' : 'Retiro'} ${s.nombre || ''} ${x.concepto || ''}`.trim()); mov(p, 'socios_retiros', m, 0, x.referencia); mov(p, 'bancos', 0, m, x.referencia); }
     });
     // numeración cronológica por tipo

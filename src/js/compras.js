@@ -769,7 +769,8 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     const { error } = await sb.from('gastos').update(upd).eq('id', id);
     if (error) { Toast.error(humanizeError(error, 'No se pudo cambiar el estado')); repintar(); return; }
     Object.assign(g, upd);
-    const quien = g.pagado_por_socio_id ? ' a ' + socioNombre(g.pagado_por_socio_id) : '';
+    if (g.pagado_por_socio_id) recargarMovimientosSocio(); // el trigger ajustó su reposición
+    const quien =g.pagado_por_socio_id ? ' a ' + socioNombre(g.pagado_por_socio_id) : '';
     Toast.success(val === 'pagado' ? `${S(g.descripcion || 'El gasto')} quedó como pagado${quien}.` : `${S(g.descripcion || 'El gasto')} regresó a ${ESTADO[val][0].toLowerCase()}.`);
     try { Telemetry.track('gasto_estado_manual', { de: antes, a: val }); } catch (e) { }
     refrescar();
@@ -873,6 +874,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
       const ids = partes.map(p => p.g.id);
       const { data: frescos } = await sb.from('gastos').select('*').in('id', ids);
       (frescos || []).forEach(f => { const g = D.g.find(x => x.id === f.id); if (g) Object.assign(g, f); });
+      await recargarMovimientosSocio();
       try { Cache.saveAppData(D, currentUser?.empresa_id || 'global'); } catch (e2) { }
       closeMdl('mdlAbonoSocio');
       const queda = r2(total - monto);
