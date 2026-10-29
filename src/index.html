@@ -10729,9 +10729,12 @@ const pctGasto=pp.total?Math.round(gastado/pp.total*1000)/10:0;
 _pgSem.pctGasto=pctGasto;
 const groups={};tareas.forEach(a=>{const k=partidaDeActividad(a);(groups[k]=groups[k]||[]).push(a);});
 const nowCls=w=>hoy>=w.ws&&hoy<=w.we?' now':'';
-// Columna Importe: el costo de cada concepto dentro del programa (el mismo que da su peso)
-const cols=(verDinero?4:3)+weeks.length;
+// Columnas Importe (costo del concepto, el mismo que da su peso) y Ejecutado (importe × % real)
+const cols=(verDinero?5:3)+weeks.length;
 const importeDe=a=>pp.costo[a.id]||0;
+const ejecDe=a=>pgEjecutado(importeDe(a),a);
+const grupos=Object.entries(groups);
+_pgSem.verDinero=verDinero;_pgSem.grupo={};grupos.forEach(([,list],gi)=>list.forEach(a=>{_pgSem.grupo[a.id]=gi;}));
 return`<div class="g rounded-xl p-3 mb-3 flex flex-wrap gap-4 items-center text-sm">
 <div><p class="text-xs text-ink-subtle">Programado a hoy</p><p class="text-lg font-bold">${Math.round(progHoy*10)/10} %</p></div>
 <div><p class="text-xs text-ink-subtle">Real ponderado</p><p id="pgKpiReal" class="text-lg font-bold text-accent" aria-live="polite">${Math.round(real*10)/10} %</p></div>
@@ -10741,18 +10744,19 @@ ${verDinero?`<div><p class="text-xs text-ink-subtle">Ejecutado</p><p class="text
 <div class="ml-auto text-xs text-ink-subtle">${weeks.length} semanas · inicia en ${DOW_ES[programaStartDow(prog)]} · captura el % real por concepto; se guarda solo.<br>${porCosto?`El peso de cada concepto es su costo dentro del programa${pp.sinCosto?` · ${pp.sinCosto} sin costo no ${pp.sinCosto===1?'cuenta':'cuentan'} en el avance`:''}.`:'Ningún concepto tiene costo: se usa el peso capturado a mano.'}</div>
 </div>
 <div class="wk-wrap g rounded-xl" style="max-height:62vh;overflow:auto">
-<table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th>${verDinero?'<th class="text-right">Importe</th>':''}<th>Peso</th><th>Real %</th>${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
+<table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th>${verDinero?'<th class="text-right">Importe</th>':''}<th>Peso</th><th>Real %</th>${verDinero?'<th class="text-right" title="Importe del concepto por su % real">Ejecutado</th>':''}${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
 <tbody>
-${Object.entries(groups).map(([g,list])=>`<tr><td class="part" colspan="${cols}">${S(g)}${verDinero?` <span class="font-normal">· ${fmt(list.reduce((t,a)=>t+importeDe(a),0))}</span>`:''}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
+${grupos.map(([g,list],gi)=>`<tr><td class="part" colspan="${cols}">${S(g)}${verDinero?` <span class="font-normal">· ${fmt(list.reduce((t,a)=>t+importeDe(a),0))} · ejecutado <span data-pg-part="${gi}">${fmt(list.reduce((t,a)=>t+ejecDe(a),0))}</span></span>`:''}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
 <td class="lbl" title="${S(a.nombre)}"><div class="lbl-in">${pgCamaraHtml(a)}<button type="button" class="lbl-nm hover:underline" onclick="openMdlActividad(${a.id})" aria-label="Editar detalle de ${S(a.nombre)}">${a.wbs?`<span class="font-mono text-ink-subtle">${S(a.wbs)}</span> `:''}${S(a.nombre)}</button></div></td>
 ${verDinero?`<td class="text-right whitespace-nowrap">${importeDe(a)?fmt(importeDe(a)):'<span class="text-ink-subtle">sin costo</span>'}</td>`:''}
 <td class="text-center text-ink-subtle"${verDinero?` title="${fmt(importeDe(a))} de ${fmt(pp.total)}"`:''}>${Math.round(pesoDe(a)*10)/10}%</td>
 <td><input type="number" min="0" max="100" step="1" class="inp real" value="${parseFloat(a.porcentaje_avance)||0}" aria-label="Avance real de ${S(a.nombre)}" oninput="pgSetReal(${a.id},this.value)"></td>
+${verDinero?`<td class="text-right whitespace-nowrap" data-pg-ejec>${importeDe(a)?fmt(ejecDe(a)):''}</td>`:''}
 ${weeks.map(w=>{const v=d[w.n];return`<td class="cell${v?' on':''}${v&&done?' done':''}${nowCls(w)}" role="gridcell" title="${v?`S${w.n}: ${v}% programado`:''}">${v?Math.round(v)+'%':''}</td>`;}).join('')}
 </tr>`;}).join('')).join('')}
 ${hitos.length?`<tr><td class="part" colspan="${cols}">Hitos</td></tr>`+hitos.sort((a,b)=>String(a.fecha_inicio).localeCompare(String(b.fecha_inicio))).map(h=>{const ext=esHitoExterno(h);const done=h.estatus==='Completado'||h.estatus==='Completada';const venc=!done&&h.fecha_inicio<hoy;return`<tr>
 <td class="lbl"><label class="flex items-center gap-2"><input type="checkbox" ${done?'checked':''} onchange="marcarHitoCumplido(${h.id},this.checked)" aria-label="Marcar ${S(h.nombre)} como cumplido"> <span class="${done?'line-through text-ink-subtle':''}">${S(h.nombre)}</span>${ext?`<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800" title="Depende de ${S(h.responsable)}">${S(h.responsable)}</span>`:''}${venc?'<span class="text-danger text-[10px] font-medium">vencido</span>':''}</label></td>
-${verDinero?'<td></td>':''}<td></td><td class="text-center text-xs text-ink-subtle">${new Date(h.fecha_inicio+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</td>
+${verDinero?'<td></td>':''}<td></td><td class="text-center text-xs text-ink-subtle">${new Date(h.fecha_inicio+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</td>${verDinero?'<td></td>':''}
 ${weeks.map(w=>`<td class="cell${h.fecha_inicio>=w.ws&&h.fecha_inicio<=w.we?' hito'+(ext?' on ext':'')+(done?' done':''):''}${nowCls(w)}">${h.fecha_inicio>=w.ws&&h.fecha_inicio<=w.we?'◆':''}</td>`).join('')}
 </tr>`;}).join(''):''}
 </tbody></table></div>`;
@@ -10799,6 +10803,8 @@ return real;
 // Gasto contra avance: gastar más de lo que se lleva ejecutado es la señal de alarma
 const pgGastoCls=(g,r)=>g-r>=10?'text-danger':g-r>=5?'text-amber-700':'text-ink-subtle';
 const pgGastoTxt=(g,r)=>`${g} % del programa${g-r>=5?` · ${Math.round((g-r)*10)/10} pts arriba del avance`:''}`;
+// Importe ejecutado de un concepto: su costo por el % real (tope 100 %)
+const pgEjecutado=(importe,a)=>importe*Math.min(100,Math.max(0,parseFloat(a&&a.porcentaje_avance)||0))/100;
 function pgRefrescarKpis(actId){
 if(!_pgSem||!$('pgKpiReal'))return;
 const real=Math.round(pgRealPonderado()*10)/10;
@@ -10817,6 +10823,13 @@ if(actId!=null){
 const a=(D.ap||[]).find(x=>x.id===actId);
 const tr=document.querySelector('.wk tr[data-act="'+actId+'"]');
 if(tr)tr.querySelectorAll('td.cell.on').forEach(td=>td.classList.toggle('done',(parseFloat(a&&a.porcentaje_avance)||0)>=100));
+// ejecutado del renglón y subtotal de su partida, sin repintar la tabla
+if(_pgSem.verDinero&&tr){
+const imp=id=>_pgSem.pp.costo[id]||0;
+const c=tr.querySelector('[data-pg-ejec]');if(c&&imp(actId))c.textContent=fmt(pgEjecutado(imp(actId),a));
+const gi=_pgSem.grupo[actId],sub=document.querySelector('.wk [data-pg-part="'+gi+'"]');
+if(sub)sub.textContent=fmt(_pgSem.ids.filter(id=>_pgSem.grupo[id]===gi).reduce((t,id)=>t+pgEjecutado(imp(id),(D.ap||[]).find(x=>x.id===id)),0));
+}
 }
 }
 
