@@ -2040,8 +2040,13 @@ Se crea CxC con monto = monto_periodo, estatus = "Pendiente", vencimiento = fech
 | Maquinaria | Textarea | No |
 | Incidentes | Textarea | No (borde rojo) |
 | Observaciones | Textarea | No |
+| Publicar este día en el portal del cliente | Interruptor | No (apagado por omisión) |
+| Resumen para el cliente | Textarea | No (si va vacío se usa Actividades) |
 
 **Opciones de clima:** Soleado, Nublado, Lluvia, Niebla
+
+**Portal del cliente:** sólo los días publicados llegan al Diario del portal, y sólo con fecha, clima, resumen,
+avance descrito y fotos del día (ver 3.17).
 
 **KPIs:** Total trabajadores, conteo de incidentes, promedios semanales
 
@@ -2915,6 +2920,29 @@ cotizaciones, precios de costo) se queda de tu lado.
 su fecha, cuantos documentos y fotos trae y si ya se entrego, y en el programa de obra cada hito con
 material publicado muestra un boton que lleva a su bloque. Asi el cliente no busca entre una lista larga:
 entra por la fecha de entrega que le interesa.
+
+**Qué ve el cliente de su obra.** Siete secciones: *Inicio* (avance real contra programado a hoy, una frase
+que dice si va al día o cuántos días lleva de atraso o adelanto, la fecha de entrega vigente, el siguiente
+pago, ejecutado contra pagado, cambios al contrato y el último día del diario), *Avance* (el programa por
+partidas, cada actividad con su estado: Terminada, En curso, Atrasada o Próxima, filtros «Esta semana» y
+«Atrasadas», hitos y estimaciones), *Diario*, *Pagos*, *Entregables*, *Fotos* y *Contacto*. El responsable de
+cada actividad sólo se muestra cuando no es tu empresa (por ejemplo «Cliente» o «Municipio»).
+
+**Cambios al contrato.** Las modificaciones que apruebes en la ficha de la obra (extras y deductivas) llegan
+al portal con su número, fecha, descripción y monto, y el contrato que ve el cliente es el **vigente**:
+original + extras − deductivas. Si una modificación trae días adicionales o nueva fecha de entrega, el portal
+muestra la entrega reprogramada. Si el plan de pagos aún no suma el contrato vigente, el cliente ve un aviso
+de que lo vas a actualizar: ajusta la cuenta por cobrar en Pagos para que cuadre.
+
+**Diario de obra.** El cliente sólo lee los días de bitácora que tú **publiques**. En el registro de bitácora
+(y en la bitácora rápida) prende *Publicar este día en el portal del cliente* y escribe el *Resumen para el
+cliente* en sus palabras; si lo dejas vacío se usa «Actividades realizadas». Al cliente le llegan la fecha, el
+clima, ese resumen, el avance descrito y las fotos de ese día. **Nunca** se comparten trabajadores, materiales,
+maquinaria, incidentes, observaciones ni visitantes. En la lista de Bitácora, el icono del ojo publica o retira
+un día sin abrir el registro.
+
+**Qué fotos ve.** Todas las de la obra, salvo las que ocultes con el icono del ojo (en el módulo Fotos o en la
+galería de Programa › Semanas). Una foto oculta no se borra: sólo deja de salir en el portal.
 
 **Si el cliente olvida su contrasena** no hay correo de recuperacion: te lo pide a ti y le generas una
 nueva desde la misma pantalla. Si lo que olvido es el usuario, lo ves en la lista de esa obra.

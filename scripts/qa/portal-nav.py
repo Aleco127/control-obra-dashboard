@@ -22,7 +22,7 @@ if not TS and not TT:
     print('Faltan PORTAL_QA_TOKEN / PORTAL_QA_OBRA_TOKEN en el entorno'); sys.exit(2)
 if args.out: os.makedirs(args.out, exist_ok=True)
 
-SECCIONES = ['inicio', 'avance', 'pagos', 'entregables', 'fotos', 'contacto']
+SECCIONES = ['inicio', 'avance', 'diario', 'pagos', 'entregables', 'fotos', 'contacto']
 errores, fallos = [], []
 def check(cond, msg):
     if not cond: fallos.append(msg)
@@ -57,7 +57,7 @@ with sync_playwright() as pw:
             for s in SECCIONES:
                 page.evaluate("s=>{location.hash='#'+s;}", s)
                 page.wait_for_timeout(450)
-                v = page.evaluate("""()=>({sec:seccion,hash:location.hash,titulo:document.title,
+                v = page.evaluate("""()=>({sec:PortalEstado.seccion,hash:location.hash,titulo:document.title,
                   hijos:document.querySelector('#vista').children.length,
                   texto:document.querySelector('#vista').innerText.trim().length,
                   cur:[...document.querySelectorAll('#navCliente [aria-current="page"]')].map(b=>b.dataset.k),
@@ -76,7 +76,7 @@ with sync_playwright() as pw:
             # Hash desconocido cae en inicio
             page.evaluate("()=>{location.hash='#loquesea';}")
             page.wait_for_timeout(450)
-            check(page.evaluate("()=>seccion") == 'inicio', tag + ': un hash desconocido deberia caer en inicio')
+            check(page.evaluate("()=>PortalEstado.seccion") == 'inicio', tag + ': un hash desconocido deberia caer en inicio')
 
             # Ninguna de esas navegaciones pidió portal_datos otra vez
             rpcs = page.evaluate("()=>window.__rpc")
@@ -91,7 +91,7 @@ with sync_playwright() as pw:
             if tiene:
                 page.evaluate("()=>document.querySelector('#vista .ver').click()")
                 page.wait_for_timeout(700)
-                check(page.evaluate("()=>seccion") == 'entregables', tag + ': el boton de entregables no cambio de seccion')
+                check(page.evaluate("()=>PortalEstado.seccion") == 'entregables', tag + ': el boton de entregables no cambio de seccion')
                 check(page.evaluate("()=>!!document.querySelector('#vista .grupo')"), tag + ': no se pinto ningun bloque de entrega')
             else:
                 print(tag, '| (esta obra no tiene entregables ligados a actividades)')
@@ -111,21 +111,21 @@ with sync_playwright() as pw:
 
             # US-620: avisos de la barra. Los datos de QA vienen en cero, así que se simulan sobre el payload
             # ya cargado (novedades es sólo lectura para la vista) y se comprueba lo que pinta la barra.
-            av = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(datos.novedades||{}));
-              datos.novedades={fotos:3,documentos:2,pagos_vencidos:1,proximo_pago_dias:2,ultimo_visto_at:'2000-01-01T00:00:00+00:00'};
-              novedadesVistas.clear();seccion='inicio';pintarSeccion();
+            av = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(PortalEstado.datos.novedades||{}));
+              PortalEstado.datos.novedades={fotos:3,documentos:2,pagos_vencidos:1,proximo_pago_dias:2,ultimo_visto_at:'2000-01-01T00:00:00+00:00'};
+              PortalEstado.novedadesVistas.clear();irASeccion('inicio',false);
               const b=k=>{const el=document.querySelector('#navCliente [data-k="'+k+'"]')||document.querySelector('#navClienteBottom [data-k="'+k+'"]');
                 return el?{badge:(el.querySelector('.nvs-badge')||{}).textContent||'',punto:!!el.querySelector('.nvs-badge.nvs-dot'),aria:el.getAttribute('aria-label')}:null;};
               const r={pagos:b('pagos'),entregables:b('entregables'),fotos:b('fotos'),
                        avisoInicio:document.body.innerText.includes('vence en 2 días'),
-                       hayProximo:!!ctx.proximo,
+                       hayProximo:!!PortalEstado.ctx.proximo,
                        nuevos:document.querySelectorAll('.chip.nuevo').length};
-              seccion='fotos';pintarSeccion();
+              irASeccion('fotos',false);
               r.fotosTrasVer=b('fotos');
               r.nuevosEnFotos=document.querySelectorAll('#vista .chip.nuevo').length;
-              seccion='entregables';pintarSeccion();
+              irASeccion('entregables',false);
               r.entregablesTrasVer=b('entregables');
-              datos.novedades=orig;novedadesVistas.clear();seccion='inicio';pintarSeccion();
+              PortalEstado.datos.novedades=orig;PortalEstado.novedadesVistas.clear();irASeccion('inicio',false);
               return r;}""")
             print(tag, '| avisos:', json.dumps(av, ensure_ascii=False))
             check(av['pagos'] and av['pagos']['punto'], tag + ': Pagos deberia llevar punto rojo: ' + str(av['pagos']))
@@ -194,7 +194,7 @@ with sync_playwright() as pw:
                 page.keyboard.press('Escape'); page.wait_for_timeout(300)
                 check(page.evaluate("()=>document.getElementById('menuPortal').hidden"), tag + ': Esc no cerro el menu')
                 # El chip de obra sólo aparece con sesión y más de una obra
-                nobras = page.evaluate("()=>obras.length")
+                nobras = page.evaluate("()=>PortalEstado.obras.length")
                 check(cab['chip'] == (modo == 'cuenta' and nobras > 1), tag + ': chip de obra=' + str(cab['chip']) + ' con ' + str(nobras) + ' obras en modo ' + modo)
                 # La barra inferior no tapa el contenido
                 hueco = page.evaluate("()=>{const w=document.querySelector('.wrap');const cs=getComputedStyle(w);return parseInt(cs.paddingBottom);}")
@@ -204,14 +204,14 @@ with sync_playwright() as pw:
 
             # US-622: con enlace de token las novedades vienen en cero, pero el pago vencido se calcula del plan
             if modo == 'token':
-                venc = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(datos.novedades||{}));
-                  datos.novedades={fotos:0,documentos:0,pagos_vencidos:0,proximo_pago_dias:null,ultimo_visto_at:null};
-                  novedadesVistas.clear();seccion='inicio';pintarSeccion();
-                  const delPlan=ctx.plan.filter(x=>x.vence&&x.vence<ctx.hoy&&Number(x.monto)-Number(x.cobrado||0)>0.5).length;
+                venc = page.evaluate("""()=>{const orig=JSON.parse(JSON.stringify(PortalEstado.datos.novedades||{}));
+                  PortalEstado.datos.novedades={fotos:0,documentos:0,pagos_vencidos:0,proximo_pago_dias:null,ultimo_visto_at:null};
+                  PortalEstado.novedadesVistas.clear();irASeccion('inicio',false);
+                  const delPlan=PortalEstado.ctx.plan.filter(x=>x.vence&&x.vence<PortalEstado.ctx.hoy&&Number(x.monto)-Number(x.cobrado||0)>0.5).length;
                   const el=document.querySelector('#navCliente [data-k="pagos"]')||document.querySelector('#navClienteBottom [data-k="pagos"]');
-                  const r={delPlan:delPlan,calculado:pagosVencidos(),punto:!!(el&&el.querySelector('.nvs-badge')),
+                  const r={delPlan:delPlan,calculado:PortalEstado.pagosVencidos(),punto:!!(el&&el.querySelector('.nvs-badge')),
                            nuevos:document.querySelectorAll('.chip.nuevo').length};
-                  datos.novedades=orig;novedadesVistas.clear();seccion='inicio';pintarSeccion();return r;}""")
+                  PortalEstado.datos.novedades=orig;PortalEstado.novedadesVistas.clear();irASeccion('inicio',false);return r;}""")
                 print(tag, '| token sin novedades:', venc)
                 check(venc['calculado'] == venc['delPlan'], tag + ': los vencidos deberian salir del plan: ' + str(venc))
                 check(venc['punto'] == (venc['delPlan'] > 0), tag + ': el punto de Pagos no coincide con el plan: ' + str(venc))

@@ -235,3 +235,16 @@ test('gastos personales privados: el socio que no los ve en gastos sigue viendo 
   assert.equal(f2.personales, 0);
   assert.equal(F.estadoResultados({ desde: '2026-08-01', hasta: '2026-08-31', data: sinMsoc }).personales, 5033);
 });
+
+// ---- 29-oct-2026: la reposición de un gasto que el socio pagó de su bolsa compensa su aportación (migración 066) ----
+test('baseReparto: lo ya repuesto al socio no se le vuelve a pagar (periodo y por obra)', () => {
+  const d = { ...data, msoc: [...data.msoc, { id: 9, socio_id: 1, tipo: 'reposicion', gasto_id: 14, fecha: '2026-08-25', monto: 300 }] };
+  const b = F.baseReparto({ desde: '2026-08-01', hasta: '2026-08-31', reservas: { impuestos: 30, capital: 10 }, data: d });
+  const ric = b.filas.find(f => f.socio.id === 1);
+  assert.equal(ric.aportado, 500);
+  assert.equal(ric.aPagar, F.r2(ric.asignado - 10000 + 500));
+  const bo = F.baseReparto({ obraId: 1, reservas: { impuestos: 30, capital: 10 }, data: d });
+  assert.equal(bo.filas.find(f => f.socio.id === 1).aportado, 500);
+  const f = F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data: d });
+  assert.equal(f.retiros, 10000); // la reposición no es un retiro: su salida ya va en los pagos
+});

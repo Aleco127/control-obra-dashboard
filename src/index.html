@@ -744,6 +744,15 @@ async function massDeleteNomina(){
 <input type="number" id="btTrabSubcontrato" class="inp" min="0" value="0">
 </div>
 </div>
+<!-- Portal del cliente (PRD portal v2, US-758) -->
+<div class="rounded-xl border border-slate-200 p-3 space-y-2">
+<label class="zk-switch"><input type="checkbox" id="btVisibleCliente"><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Publicar este día en el portal del cliente</span></label>
+<div>
+<label class="text-xs text-gray-400 mb-1 block" for="btResumenCliente">Resumen para el cliente</label>
+<textarea id="btResumenCliente" class="inp h-16" placeholder="Lo que el cliente va a leer. Si lo dejas vacío se usa «Actividades realizadas»."></textarea>
+</div>
+<p class="text-xs text-ink-subtle">Al cliente sólo le llegan la fecha, el clima, este resumen, el avance descrito y las fotos del día. Nunca se comparten personal, materiales, maquinaria, incidentes ni observaciones.</p>
+</div>
 <!-- Actividades Realizadas -->
 <div>
 <label class="text-xs text-gray-400 mb-1 block" for="btActividades">Actividades Realizadas</label>
@@ -8517,6 +8526,7 @@ return`
 <p class="text-xs text-gray-400">${obra?.nombre_obra||'Sin obra asignada'}</p>
 </div>
 ${hasIncidente?'<span class="px-2 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400 border border-red-500/30"><i class="ri-alarm-warning-line"></i> Incidente</span>':''}
+${b.visible_cliente?'<span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/15 text-emerald-700 border border-emerald-500/30"><i class="ri-eye-line" aria-hidden="true"></i> Publicada al cliente</span>':''}
 </div>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
@@ -8542,6 +8552,7 @@ ${b.actividades_realizadas?`<div class="mt-3 p-2 bg-slate-50 rounded-lg"><p clas
 </div>
 
 <div class="flex items-center gap-2">
+<button onclick="event.stopPropagation();toggleBitacoraCliente(${b.id})" class="p-2 rounded-lg hover:bg-slate-100 ${b.visible_cliente?'text-emerald-600':'text-gray-400'}" title="${b.visible_cliente?'Quitar del portal del cliente':'Publicar en el portal del cliente'}" aria-label="${b.visible_cliente?'Quitar del portal del cliente':'Publicar en el portal del cliente'}"><i class="${b.visible_cliente?'ri-eye-line':'ri-eye-off-line'}" aria-hidden="true"></i></button>
 <button onclick="event.stopPropagation();editBitacora(${b.id})" class="p-2 rounded-lg hover:bg-slate-100 text-gray-400 hover:text-cyan-400" title="Editar" aria-label="Editar"><i class="ri-edit-line" aria-hidden="true"></i></button>
 <button onclick="event.stopPropagation();deleteBitacora(${b.id})" class="p-2 rounded-lg hover:bg-slate-100 text-gray-400 hover:text-red-400" title="Eliminar" aria-label="Eliminar"><i class="ri-delete-bin-line" aria-hidden="true"></i></button>
 </div>
@@ -8607,7 +8618,8 @@ ${soloFoto?'':`<div class="grid grid-cols-3 gap-2">
 <div><label class="text-xs mb-1 block" for="brSub">Subcontrato</label><input type="number" id="brSub" class="inp" min="0" inputmode="numeric" placeholder="0"></div>
 </div>
 <div id="brAvance"></div>
-<div><label class="text-xs mb-1 block" for="brIncid">Incidentes (si hubo)</label><input id="brIncid" class="inp" placeholder="Ej. Corte de luz 2 h"></div>`}
+<div><label class="text-xs mb-1 block" for="brIncid">Incidentes (si hubo)</label><input id="brIncid" class="inp" placeholder="Ej. Corte de luz 2 h"></div>
+<label class="zk-switch"><input type="checkbox" id="brPublicar"><span class="zk-slider" aria-hidden="true"></span><span class="zk-label">Publicar este día en el portal del cliente (sólo «qué se hizo», clima y fotos)</span></label>`}
 <div class="flex gap-2 pt-2 border-t border-slate-200"><button type="button" class="btn btn-s flex-1" onclick="closeMdl('mdlBitacoraRapida')">Cancelar</button><button type="submit" id="brSubmit" class="btn btn-p flex-1"><i class="ri-save-line" aria-hidden="true"></i> ${soloFoto?'Subir foto':'Guardar bitácora'}</button></div>
 </form>`;
 window._brConceptosSemana=conceptosSemana;
@@ -8662,7 +8674,7 @@ try{
 let bitacoraOk=true,fotosOk=0,fotosCola=0;
 // 1) Bitácora (Outbox: si no hay red se encola)
 if(!soloFoto){
-const reg={obra_id:obraId,empresa_id:currentUser?.empresa_id||null,fecha,clima:$('brClima').value||null,trabajadores_propios:parseInt($('brProp').value)||0,trabajadores_subcontrato:parseInt($('brSub').value)||0,actividades_realizadas:texto,incidentes:$('brIncid').value.trim()||null,creado_por:currentUser?.nombre||'Sistema'};
+const reg={obra_id:obraId,empresa_id:currentUser?.empresa_id||null,fecha,clima:$('brClima').value||null,trabajadores_propios:parseInt($('brProp').value)||0,trabajadores_subcontrato:parseInt($('brSub').value)||0,actividades_realizadas:texto,incidentes:$('brIncid').value.trim()||null,visible_cliente:!!($('brPublicar')&&$('brPublicar').checked),creado_por:currentUser?.nombre||'Sistema'};
 const r=await Outbox.enqueue({tabla:'bitacora_obra',payload:reg,tipo:'insert'});
 bitacoraOk=r.sent;
 }
@@ -8732,6 +8744,8 @@ $('btMaquinaria').value=b.maquinaria_utilizada||'';
 $('btIncidentes').value=b.incidentes||'';
 $('btObservaciones').value=b.observaciones||'';
 $('btVisitantes').value=b.visitantes||'';
+$('btVisibleCliente').checked=!!b.visible_cliente;
+$('btResumenCliente').value=b.resumen_cliente||'';
 openMdl('mdlBitacora');
 }
 
@@ -8754,6 +8768,8 @@ maquinaria_utilizada:$('btMaquinaria').value||null,
 incidentes:$('btIncidentes').value||null,
 observaciones:$('btObservaciones').value||null,
 visitantes:$('btVisitantes').value||null,
+visible_cliente:$('btVisibleCliente').checked,
+resumen_cliente:$('btResumenCliente').value.trim()||null,
 creado_por:currentUser?.nombre||'Sistema'
 };
 
@@ -8770,6 +8786,28 @@ closeMdl('mdlBitacora');
 L();
 }
 
+// PRD portal v2 (US-758, US-759): publicar o retirar del portal del cliente sin abrir el modal
+async function toggleBitacoraCliente(id){
+const b=(D.bt||[]).find(x=>x.id===id);if(!b)return;
+if(typeof Cierres!=='undefined'&&Cierres.verificarEdicion){const ok=await Cierres.verificarEdicion(b.fecha);if(ok===false)return;}
+const nuevo=!b.visible_cliente;
+const{error}=await sb.from('bitacora_obra').update({visible_cliente:nuevo,updated_at:new Date().toISOString()}).eq('id',id);
+if(error){Toast.error(humanizeError(error,'No se pudo cambiar la visibilidad'));return;}
+b.visible_cliente=nuevo;try{Cache.saveAppData(D,currentUser?.empresa_id||'global');}catch(e){}
+Toast.success(nuevo?'Día publicado en el portal del cliente.':'Día retirado del portal del cliente.');
+if(typeof Telemetry!=='undefined')Telemetry.track('bitacora_publicar',{obra_id:b.obra_id,publicada:nuevo});
+R();
+}
+async function toggleFotoCliente(id){
+const f=(D.fot||[]).find(x=>x.id===id);if(!f)return;
+const nuevo=f.visible_cliente===false;
+const{error}=await sb.from('fotos_obra').update({visible_cliente:nuevo,updated_at:new Date().toISOString()}).eq('id',id);
+if(error){Toast.error(humanizeError(error,'No se pudo cambiar la visibilidad'));return;}
+f.visible_cliente=nuevo;try{Cache.saveAppData(D,currentUser?.empresa_id||'global');}catch(e){}
+Toast.success(nuevo?'La foto se muestra en el portal del cliente.':'La foto ya no se muestra al cliente.');
+if(typeof Telemetry!=='undefined')Telemetry.track('foto_visible_cliente',{obra_id:f.obra_id,visible:nuevo});
+if(M==='f')R();else if(typeof pgRenderFotos==='function'&&$('pgFotoGal')){pgRenderFotos();}
+}
 async function deleteBitacora(id){
 if(!await Dialog.confirm('¿Eliminar este registro de bitacora?'))return;
 const{error}=await sb.from('bitacora_obra').delete().eq('id',id);
@@ -10729,6 +10767,12 @@ const pctGasto=pp.total?Math.round(gastado/pp.total*1000)/10:0;
 _pgSem.pctGasto=pctGasto;
 const groups={};tareas.forEach(a=>{const k=partidaDeActividad(a);(groups[k]=groups[k]||[]).push(a);});
 const nowCls=w=>hoy>=w.ws&&hoy<=w.we?' now':'';
+// Columnas Importe (costo del concepto, el mismo que da su peso) y Ejecutado (importe × % real)
+const cols=(verDinero?5:3)+weeks.length;
+const importeDe=a=>pp.costo[a.id]||0;
+const ejecDe=a=>pgEjecutado(importeDe(a),a);
+const grupos=Object.entries(groups);
+_pgSem.verDinero=verDinero;_pgSem.grupo={};grupos.forEach(([,list],gi)=>list.forEach(a=>{_pgSem.grupo[a.id]=gi;}));
 return`<div class="g rounded-xl p-3 mb-3 flex flex-wrap gap-4 items-center text-sm">
 <div><p class="text-xs text-ink-subtle">Programado a hoy</p><p class="text-lg font-bold">${Math.round(progHoy*10)/10} %</p></div>
 <div><p class="text-xs text-ink-subtle">Real ponderado</p><p id="pgKpiReal" class="text-lg font-bold text-accent" aria-live="polite">${Math.round(real*10)/10} %</p></div>
@@ -10738,17 +10782,19 @@ ${verDinero?`<div><p class="text-xs text-ink-subtle">Ejecutado</p><p class="text
 <div class="ml-auto text-xs text-ink-subtle">${weeks.length} semanas · inicia en ${DOW_ES[programaStartDow(prog)]} · captura el % real por concepto; se guarda solo.<br>${porCosto?`El peso de cada concepto es su costo dentro del programa${pp.sinCosto?` · ${pp.sinCosto} sin costo no ${pp.sinCosto===1?'cuenta':'cuentan'} en el avance`:''}.`:'Ningún concepto tiene costo: se usa el peso capturado a mano.'}</div>
 </div>
 <div class="wk-wrap g rounded-xl" style="max-height:62vh;overflow:auto">
-<table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th><th>Peso</th><th>Real %</th>${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
+<table class="wk" role="grid" aria-label="Programa por semanas"><thead><tr><th class="lbl" style="left:0;z-index:2">Concepto</th>${verDinero?'<th class="text-right">Importe</th>':''}<th>Peso</th><th>Real %</th>${verDinero?'<th class="text-right" title="Importe del concepto por su % real">Ejecutado</th>':''}${weeks.map(w=>`<th class="${nowCls(w)}" title="${w.start} a ${w.end}">S${w.n}<br><span class="font-normal">${new Date(w.start+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</span></th>`).join('')}</tr></thead>
 <tbody>
-${Object.entries(groups).map(([g,list])=>`<tr><td class="part" colspan="${3+weeks.length}">${S(g)}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
+${grupos.map(([g,list],gi)=>`<tr><td class="part" colspan="${cols}">${S(g)}${verDinero?` <span class="font-normal">· ${fmt(list.reduce((t,a)=>t+importeDe(a),0))} · ejecutado <span data-pg-part="${gi}">${fmt(list.reduce((t,a)=>t+ejecDe(a),0))}</span></span>`:''}</td></tr>`+list.map(a=>{const d=dist[a.id];const done=(parseFloat(a.porcentaje_avance)||0)>=100;return`<tr data-act="${a.id}">
 <td class="lbl" title="${S(a.nombre)}"><div class="lbl-in">${pgCamaraHtml(a)}<button type="button" class="lbl-nm hover:underline" onclick="openMdlActividad(${a.id})" aria-label="Editar detalle de ${S(a.nombre)}">${a.wbs?`<span class="font-mono text-ink-subtle">${S(a.wbs)}</span> `:''}${S(a.nombre)}</button></div></td>
-<td class="text-center text-ink-subtle"${verDinero?` title="${fmt(pp.costo[a.id]||0)} de ${fmt(pp.total)}"`:''}>${Math.round(pesoDe(a)*10)/10}%</td>
+${verDinero?`<td class="text-right whitespace-nowrap">${importeDe(a)?fmt(importeDe(a)):'<span class="text-ink-subtle">sin costo</span>'}</td>`:''}
+<td class="text-center text-ink-subtle"${verDinero?` title="${fmt(importeDe(a))} de ${fmt(pp.total)}"`:''}>${Math.round(pesoDe(a)*10)/10}%</td>
 <td><input type="number" min="0" max="100" step="1" class="inp real" value="${parseFloat(a.porcentaje_avance)||0}" aria-label="Avance real de ${S(a.nombre)}" oninput="pgSetReal(${a.id},this.value)"></td>
+${verDinero?`<td class="text-right whitespace-nowrap" data-pg-ejec>${importeDe(a)?fmt(ejecDe(a)):''}</td>`:''}
 ${weeks.map(w=>{const v=d[w.n];return`<td class="cell${v?' on':''}${v&&done?' done':''}${nowCls(w)}" role="gridcell" title="${v?`S${w.n}: ${v}% programado`:''}">${v?Math.round(v)+'%':''}</td>`;}).join('')}
 </tr>`;}).join('')).join('')}
-${hitos.length?`<tr><td class="part" colspan="${3+weeks.length}">Hitos</td></tr>`+hitos.sort((a,b)=>String(a.fecha_inicio).localeCompare(String(b.fecha_inicio))).map(h=>{const ext=esHitoExterno(h);const done=h.estatus==='Completado'||h.estatus==='Completada';const venc=!done&&h.fecha_inicio<hoy;return`<tr>
+${hitos.length?`<tr><td class="part" colspan="${cols}">Hitos</td></tr>`+hitos.sort((a,b)=>String(a.fecha_inicio).localeCompare(String(b.fecha_inicio))).map(h=>{const ext=esHitoExterno(h);const done=h.estatus==='Completado'||h.estatus==='Completada';const venc=!done&&h.fecha_inicio<hoy;return`<tr>
 <td class="lbl"><label class="flex items-center gap-2"><input type="checkbox" ${done?'checked':''} onchange="marcarHitoCumplido(${h.id},this.checked)" aria-label="Marcar ${S(h.nombre)} como cumplido"> <span class="${done?'line-through text-ink-subtle':''}">${S(h.nombre)}</span>${ext?`<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800" title="Depende de ${S(h.responsable)}">${S(h.responsable)}</span>`:''}${venc?'<span class="text-danger text-[10px] font-medium">vencido</span>':''}</label></td>
-<td></td><td class="text-center text-xs text-ink-subtle">${new Date(h.fecha_inicio+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</td>
+${verDinero?'<td></td>':''}<td></td><td class="text-center text-xs text-ink-subtle">${new Date(h.fecha_inicio+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}</td>${verDinero?'<td></td>':''}
 ${weeks.map(w=>`<td class="cell${h.fecha_inicio>=w.ws&&h.fecha_inicio<=w.we?' hito'+(ext?' on ext':'')+(done?' done':''):''}${nowCls(w)}">${h.fecha_inicio>=w.ws&&h.fecha_inicio<=w.we?'◆':''}</td>`).join('')}
 </tr>`;}).join(''):''}
 </tbody></table></div>`;
@@ -10795,6 +10841,8 @@ return real;
 // Gasto contra avance: gastar más de lo que se lleva ejecutado es la señal de alarma
 const pgGastoCls=(g,r)=>g-r>=10?'text-danger':g-r>=5?'text-amber-700':'text-ink-subtle';
 const pgGastoTxt=(g,r)=>`${g} % del programa${g-r>=5?` · ${Math.round((g-r)*10)/10} pts arriba del avance`:''}`;
+// Importe ejecutado de un concepto: su costo por el % real (tope 100 %)
+const pgEjecutado=(importe,a)=>importe*Math.min(100,Math.max(0,parseFloat(a&&a.porcentaje_avance)||0))/100;
 function pgRefrescarKpis(actId){
 if(!_pgSem||!$('pgKpiReal'))return;
 const real=Math.round(pgRealPonderado()*10)/10;
@@ -10813,6 +10861,13 @@ if(actId!=null){
 const a=(D.ap||[]).find(x=>x.id===actId);
 const tr=document.querySelector('.wk tr[data-act="'+actId+'"]');
 if(tr)tr.querySelectorAll('td.cell.on').forEach(td=>td.classList.toggle('done',(parseFloat(a&&a.porcentaje_avance)||0)>=100));
+// ejecutado del renglón y subtotal de su partida, sin repintar la tabla
+if(_pgSem.verDinero&&tr){
+const imp=id=>_pgSem.pp.costo[id]||0;
+const c=tr.querySelector('[data-pg-ejec]');if(c&&imp(actId))c.textContent=fmt(pgEjecutado(imp(actId),a));
+const gi=_pgSem.grupo[actId],sub=document.querySelector('.wk [data-pg-part="'+gi+'"]');
+if(sub)sub.textContent=fmt(_pgSem.ids.filter(id=>_pgSem.grupo[id]===gi).reduce((t,id)=>t+pgEjecutado(imp(id),(D.ap||[]).find(x=>x.id===id)),0));
+}
 }
 }
 
@@ -10868,7 +10923,7 @@ const pend=$('pgFotoPend'),gal=$('pgFotoGal');if(!pend||!gal||!_pgFotoAct)return
 pend.innerHTML=_pgFotoNuevas.map((f,i)=>`<figure><img src="${f.dataUrl}" alt="Foto por subir ${i+1}"><button type="button" class="quitar" onclick="_pgFotoNuevas.splice(${i},1);pgRenderFotos()" aria-label="Quitar la foto ${i+1}"><i class="ri-close-line" aria-hidden="true"></i></button><figcaption>${Math.round(f.size/1024)} KB</figcaption></figure>`).join('');
 const ya=pgFotosDeActividad(_pgFotoAct.id);
 gal.innerHTML=ya.length
-?`<p class="text-xs text-ink-subtle mb-2">${ya.length} ${ya.length===1?'foto publicada':'fotos publicadas'}</p><div class="pg-gal">`+ya.map(f=>`<figure><a href="${S(f.url_foto)}" target="_blank" rel="noopener"><img src="${S(f.url_thumbnail||f.url_foto)}" alt="${S(f.titulo||'Foto del avance')}" loading="lazy"></a><button type="button" class="quitar" onclick="pgQuitarFoto(${f.id})" aria-label="Quitar esta foto del portal"><i class="ri-delete-bin-line" aria-hidden="true"></i></button><figcaption>${f.fecha_foto?S(fechaCortaDs(f.fecha_foto)):''}</figcaption></figure>`).join('')+'</div>'
+?`<p class="text-xs text-ink-subtle mb-2">${ya.length} ${ya.length===1?'foto publicada':'fotos publicadas'}</p><div class="pg-gal">`+ya.map(f=>`<figure><a href="${S(f.url_foto)}" target="_blank" rel="noopener"><img src="${S(f.url_thumbnail||f.url_foto)}" alt="${S(f.titulo||'Foto del avance')}" loading="lazy"></a><button type="button" class="quitar ojo${f.visible_cliente===false?' off':''}" onclick="toggleFotoCliente(${f.id})" aria-label="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}" title="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}"><i class="${f.visible_cliente===false?'ri-eye-off-line':'ri-eye-line'}" aria-hidden="true"></i></button><button type="button" class="quitar" onclick="pgQuitarFoto(${f.id})" aria-label="Quitar esta foto del portal"><i class="ri-delete-bin-line" aria-hidden="true"></i></button><figcaption>${f.fecha_foto?S(fechaCortaDs(f.fecha_foto)):''}</figcaption></figure>`).join('')+'</div>'
 :'<p class="text-xs text-ink-subtle">Todavía no hay fotos de este concepto.</p>';
 const btn=$('pgFotoSubir');
 if(btn){btn.disabled=!_pgFotoNuevas.length;btn.textContent=_pgFotoNuevas.length?`Subir ${_pgFotoNuevas.length} foto${_pgFotoNuevas.length>1?'s':''}`:'Subir fotos';}
@@ -17703,7 +17758,9 @@ return`
 <div class="relative aspect-square bg-slate-100">
 <img src="${f.url_foto}" alt="${f.titulo||'Foto'}" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect fill=%27%23f1f5f9%27 width=%27100%27 height=%27100%27/%3E%3Ctext x=%2750%27 y=%2755%27 text-anchor=%27middle%27 fill=%27%2394a3b8%27 font-size=%2712%27%3ESin imagen%3C/text%3E%3C/svg%3E'">
 ${f.es_destacada?`<div class="absolute top-2 left-2"><span class="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full"><i class="ri-star-fill"></i></span></div>`:''}
+${f.visible_cliente===false?`<div class="absolute top-2 right-2"><span class="bg-slate-700 text-white text-xs px-2 py-0.5 rounded-full" title="No se muestra al cliente"><i class="ri-eye-off-line" aria-hidden="true"></i> Oculta al cliente</span></div>`:''}
 <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+<button onclick="event.stopPropagation();toggleFotoCliente(${f.id})" class="p-2 bg-white/20 hover:bg-white/30 rounded-full" title="${f.visible_cliente===false?'Mostrar en el portal del cliente':'Quitar del portal del cliente'}" aria-label="${f.visible_cliente===false?'Mostrar en el portal del cliente':'Quitar del portal del cliente'}"><i class="${f.visible_cliente===false?'ri-eye-off-line':'ri-eye-line'} text-white" aria-hidden="true"></i></button>
 <button onclick="event.stopPropagation();openMdlFoto(${f.id})" class="p-2 bg-white/20 hover:bg-white/30 rounded-full" aria-label="Editar"><i class="ri-edit-line text-white" aria-hidden="true"></i></button>
 <button onclick="event.stopPropagation();deleteFoto(${f.id})" class="p-2 bg-white/20 hover:bg-white/30 rounded-full" aria-label="Eliminar"><i class="ri-delete-bin-line text-white" aria-hidden="true"></i></button>
 </div>

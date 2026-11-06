@@ -281,6 +281,9 @@ label{color:var(--ink-muted)}
 .pg-gal img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--line);display:block}
 .pg-gal .quitar{position:absolute;top:-6px;right:-6px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--line-strong);color:var(--ink-muted);box-shadow:var(--shadow-1)}
 .pg-gal .quitar:hover,.pg-gal .quitar:focus-visible{color:var(--danger);border-color:var(--danger)}
+/* PRD portal v2 (US-759): ojo de visibilidad al cliente, a la izquierda del botón de quitar */
+.pg-gal .ojo{right:auto;left:-6px}.pg-gal .ojo.off{color:var(--warn);border-color:var(--warn)}
+.pg-gal .ojo:hover,.pg-gal .ojo:focus-visible{color:var(--accent);border-color:var(--accent)}
 .pg-gal figcaption{font-size:var(--fs-xs);color:var(--ink-subtle);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ===== LÍNEA DE TIEMPO DE COBRANZA ===== */

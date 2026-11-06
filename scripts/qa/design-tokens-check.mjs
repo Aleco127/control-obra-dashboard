@@ -4,7 +4,7 @@
  * Compara los tokens declarados en :root de src/css/styles.css contra los usados (var(--x)),
  * detecta valores crudos repetidos (hex/rgba) fuera de :root y colores crudos nuevos en index.html.
  * US-604: src/css/nav-shell.css entra en el conteo de tokens usados, no admite NINGÚN color crudo (hex/rgb/hsl
- * o nombre de color) y todos los tokens que consume deben existir también en el :root de src/portal.html.
+ * o nombre de color) y todos los tokens que consume deben existir también en el :root de src/css/portal.css.
  * Sale con código 1 si hay tokens sin uso, tokens usados sin declarar, valores crudos repetidos ≥ 3 veces,
  * colores crudos en nav-shell.css o tokens de nav-shell.css que falten en el portal.
  *
@@ -18,7 +18,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const css = readFileSync(resolve(root, 'src/css/styles.css'), 'utf8');
 const navCss = readFileSync(resolve(root, 'src/css/nav-shell.css'), 'utf8');
 const html = readFileSync(resolve(root, 'src/index.html'), 'utf8');
-const portalHtml = readFileSync(resolve(root, 'src/portal.html'), 'utf8');
+// US-701A: los estilos del portal salieron de portal.html a src/css/portal.css
+const portalCss = readFileSync(resolve(root, 'src/css/portal.css'), 'utf8');
 const strict = process.argv.includes('--strict');
 
 // 1) Tokens declarados en :root
@@ -55,10 +56,10 @@ for (const m of navSinComentarios.matchAll(/#(?:[0-9a-fA-F]{3,4}){1,2}|rgba?\([
 for (const decl of navSinComentarios.matchAll(/(?:^|[;{])\s*(color|background(?:-color)?|border(?:-[a-z]+)?(?:-color)?|outline(?:-color)?|fill|stroke|box-shadow)\s*:\s*([^;}]+)/g)) {
   for (const n of decl[2].matchAll(NOMBRES_COLOR)) navCrudos.add(`${decl[1]}:${n[0]}`);
 }
-// Tokens que nav-shell.css consume y que el :root de portal.html debe declarar (el portal no carga styles.css)
+// Tokens que nav-shell.css consume y que el :root de portal.css debe declarar (el portal no carga styles.css)
 const navUsados = new Set([...navCss.matchAll(/var\(--([\w-]+)/g)].map((m) => m[1]));
 const portalDeclarados = new Set();
-for (const b of portalHtml.matchAll(/:root\s*\{([\s\S]*?)\}/g)) for (const m of b[1].matchAll(/--([\w-]+)\s*:/g)) portalDeclarados.add(m[1]);
+for (const b of portalCss.matchAll(/:root\s*\{([\s\S]*?)\}/g)) for (const m of b[1].matchAll(/--([\w-]+)\s*:/g)) portalDeclarados.add(m[1]);
 const faltanPortal = [...navUsados].filter((t) => !portalDeclarados.has(t));
 
 // 5) Escala tipográfica y de espaciado usada en el CSS (informativo)
@@ -72,7 +73,7 @@ console.log(`Tokens usados sin declarar (${undeclared.length}): ${undeclared.joi
 console.log(`Valores crudos repetidos ≥3 fuera de :root (${repeated.length}): ${repeated.map(([k, n]) => `${k}×${n}`).join(', ') || 'ninguno'}`);
 console.log(`Colores hex inline en index.html (${Object.keys(htmlHexCount).length} distintos): ${Object.entries(htmlHexCount).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${k}×${n}`).join(', ')}`);
 console.log('Escala tipográfica en styles.css: ' + Object.entries(fontSizes).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k}(${n})`).join(' '));
-console.log(`nav-shell.css: ${navUsados.size} tokens usados · colores crudos (${navCrudos.size}): ${[...navCrudos].join(', ') || 'ninguno'} · faltan en portal.html :root (${faltanPortal.length}): ${faltanPortal.join(', ') || 'ninguno'}`);
+console.log(`nav-shell.css: ${navUsados.size} tokens usados · colores crudos (${navCrudos.size}): ${[...navCrudos].join(', ') || 'ninguno'} · faltan en portal.css :root (${faltanPortal.length}): ${faltanPortal.join(', ') || 'ninguno'}`);
 
 let fail = unused.length > 0 || undeclared.length > 0 || repeated.length > 0 || navCrudos.size > 0 || faltanPortal.length > 0;
 if (strict && Object.keys(htmlHexCount).length > 0) fail = true;

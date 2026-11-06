@@ -136,6 +136,10 @@ writeFileSync(join(DIST, 'admin.html'), adminHtml);
   portalHtml = portalHtml.replace(/<script src="js\/([a-z0-9-]+\.js)\?v=[^"]*"><\/script>/g, (m, f) => { if (!jsMap[f]) return m; n++; return `<script src="js/${jsMap[f]}"></script>`; });
   if (!n) throw new Error('build: portal.html no enlaza ningún js/*.js con hash (se esperaba nav-shell.js)');
   writeFileSync(join(DIST, 'portal.html'), portalHtml);
+  // US-701A: el portal vive en css/portal.css y js/portal/*.js; por ahora se copian tal cual con su ?v= manual
+  // (US-701B les pone hash como al resto).
+  cpSync(join(SRC, 'css', 'portal.css'), join(DIST, 'css', 'portal.css'));
+  cpSync(join(SRC, 'js', 'portal'), join(DIST, 'js', 'portal'), { recursive: true });
 }
 
 // 5) Copias tal cual
