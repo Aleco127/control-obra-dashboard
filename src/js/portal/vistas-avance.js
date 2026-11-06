@@ -8,6 +8,62 @@
   const E = window.PortalEstado, V = (window.PortalVistas = window.PortalVistas || {}), C = window.PortalCalc;
   const { esc, fmt, fecha, estadoChip, chipHito, nombreAct, etiquetaVer, barrasAvance, chipEstado } = window.PortalUI;
   let filtro = 'todo';
+  let ganttTodas = false; // Gantt: sólo partidas (plegado) o con todas las actividades
+
+  /* ---------- Gantt (6-nov-2026): calendario de la obra por partida, con barras de avance real, hitos y línea de hoy ---------- */
+  function ganttBarra(g, inicio, fin, est, av, titulo) {
+    const p = g.pos(inicio, fin);
+    return `<span class="g-barra est-${est}" style="left:${p.left}%;width:${Math.max(p.width, 0.35)}%" title="${esc(titulo)}"><i style="width:${Math.min(100, Math.max(0, av))}%"></i></span>`;
+  }
+  function ganttFilaAct(g, a) {
+    const c = E.ctx, est = c.estado[a.id], av = Math.round(Number(a.avance || 0));
+    const fechas = `${fecha(a.inicio)}${a.fin && a.fin !== a.inicio ? ' a ' + fecha(a.fin) : ''}`;
+    return `<div class="g-fila g-act est-${est}"><div class="g-nombre" title="${esc(fechas)}">${nombreAct(a)}</div><div class="g-pista">${ganttBarra(g, a.inicio, a.fin || a.inicio, est, av, `${fechas} · ${av}%`)}</div></div>`;
+  }
+  function ganttFilaPartida(g, gr, i) {
+    const est = gr.atrasadas ? 'atrasada' : (gr.total && gr.terminadas === gr.total) ? 'terminada' : gr.enCurso ? 'en_curso' : 'proxima';
+    const pct = Math.round(gr.real);
+    return `<div class="g-fila g-partida est-${est}"><button type="button" class="g-nombre g-btn" onclick="ganttPartida(this)" aria-expanded="${ganttTodas}" aria-controls="gh-${i}">${esc(gr.partida)}</button>
+      <div class="g-pista">${ganttBarra(g, gr.inicio, gr.fin, est, pct, `${esc(gr.partida)} · ${fecha(gr.inicio)} a ${fecha(gr.fin)} · ${pct}%`)}</div></div>
+      <div class="g-hijas" id="gh-${i}"${ganttTodas ? '' : ' hidden'}>${gr.acts.map(a => ganttFilaAct(g, a)).join('')}</div>`;
+  }
+  function ganttHtml() {
+    const c = E.ctx, g = C.ganttModelo(c.acts, c.hoy);
+    if (!g || !c.grupos.length) return '';
+    const hitos = c.hitos.map(a => { const f = a.fin_real || a.fin || a.inicio, p = g.pos(f, f); return `<span class="g-hito est-${c.estado[a.id]}" style="left:${p.left}%" title="${nombreAct(a)} · ${fecha(f)}"></span>`; }).join('');
+    const meses = g.meses.map(m => `<span style="width:${m.pct}%">${m.et}</span>`).join('');
+    const hoyStyle = g.hoyPct != null ? `--hoy:${g.hoyPct}%` : '--hoy:-100%';
+    return `<div class="gantt">
+      <div class="gantt-cab"><span class="meta-linea">Calendario de la obra</span>
+        <button type="button" class="pill${ganttTodas ? ' activa' : ''}" onclick="ganttTodasLas()" aria-pressed="${ganttTodas}">${ganttTodas ? 'Sólo partidas' : 'Ver actividades'}</button></div>
+      <div class="gantt-scroll" id="ganttScroll"><div class="gantt-tabla" style="--dias:${g.dias};${hoyStyle}">
+        <div class="g-fila g-meses"><div class="g-nombre"></div><div class="g-pista">${meses}${g.hoyPct != null ? `<span class="g-hoy-et" style="left:${g.hoyPct}%">Hoy</span>` : ''}</div></div>
+        ${c.grupos.map((gr, i) => ganttFilaPartida(g, gr, i)).join('')}
+        ${c.hitos.length ? `<div class="g-fila g-hitos"><div class="g-nombre">Hitos</div><div class="g-pista">${hitos}</div></div>` : ''}
+      </div></div>
+      <div class="g-leyenda"><span><i class="est-proxima"></i>Próxima</span><span><i class="est-en_curso"></i>En curso</span><span><i class="est-terminada"></i>Terminada</span><span><i class="est-atrasada"></i>Atrasada</span><span><i class="g-hito-ej"></i>Hito</span></div>
+    </div>`;
+  }
+  function ganttScrollHoy() {
+    const s = document.getElementById('ganttScroll'); if (!s) return;
+    const t = s.querySelector('.gantt-tabla'), nombre = s.querySelector('.g-nombre');
+    const pct = parseFloat((t && t.style.getPropertyValue('--hoy')) || '');
+    if (!t || !(pct >= 0)) return;
+    const pista = t.scrollWidth - (nombre ? nombre.offsetWidth : 0);
+    s.scrollLeft = Math.max(0, pista * pct / 100 - (s.clientWidth - (nombre ? nombre.offsetWidth : 0)) * 0.35);
+  }
+  function ganttPartida(btn) {
+    const h = document.getElementById(btn.getAttribute('aria-controls')); if (!h) return;
+    h.hidden = !h.hidden; btn.setAttribute('aria-expanded', String(!h.hidden));
+  }
+  function ganttTodasLas() {
+    ganttTodas = !ganttTodas;
+    const caja = document.getElementById('avanceGantt'); if (!caja) return;
+    const s = document.getElementById('ganttScroll'), x = s ? s.scrollLeft : 0;
+    caja.innerHTML = ganttHtml();
+    const s2 = document.getElementById('ganttScroll'); if (s2) s2.scrollLeft = x;
+    window.portalEvento('avance_gantt', { todas: ganttTodas, obra_id: E.obraActual });
+  }
 
   function pasaFiltro(a) {
     const est = E.ctx.estado[a.id];
@@ -67,9 +123,11 @@
   function vistaAvance() {
     const c = E.ctx;
     filtro = 'todo';
+    requestAnimationFrame(ganttScrollHoy); // la vista se pinta con innerHTML; el scroll a «hoy» va después
     const programa = c.hayPrograma || c.acts.length
       ? `${barrasAvance(c)}<p class="frase ${c.desviacion > 0 ? 'txt-warn' : c.desviacion < 0 ? 'txt-ok' : ''}">${esc(c.frase)}</p>
          <p class="meta-linea">${c.entrega.fecha ? (c.entrega.vencida ? 'Fecha de entrega por confirmar' : (c.entrega.reprogramada ? 'Entrega reprogramada: ' : 'Entrega vigente: ') + fecha(c.entrega.fecha)) : ''}</p>
+         <div id="avanceGantt">${ganttHtml()}</div>
          <div id="avanceFiltros">${filtrosHtml()}</div><div id="avanceLista">${listaHtml()}</div>`
       : '<div class="vacio-caja"><strong>El programa todavía no está publicado</strong>En cuanto tu constructor lo comparta vas a ver aquí cada etapa con sus fechas.</div>';
     return `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(c.o.estatus || '')}</span></h2>${programa}</div>`
@@ -78,5 +136,5 @@
   }
 
   V.avance = vistaAvance;
-  Object.assign(window, { avanceFiltro });
+  Object.assign(window, { avanceFiltro, ganttPartida, ganttTodasLas });
 })();

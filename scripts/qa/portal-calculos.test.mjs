@@ -109,3 +109,25 @@ test('frase de avance', () => {
   assert.equal(C.fraseAvance({ real: 40, hayPrograma: true, dias: -1 }), 'Vas 1 día adelantado respecto al programa.');
   assert.equal(C.fraseAvance({ real: 40, hayPrograma: true, dias: 0 }), 'Vas al día con el programa.');
 });
+
+test('gantt: rango a meses completos, meses y posiciones en %', () => {
+  const acts = [act({ inicio: '2027-01-11', fin: '2027-01-31' }), act({ id: 2, inicio: '2027-02-10', fin: '2027-03-05' }), act({ id: 3, hito: true, inicio: '2027-03-20', fin: '2027-03-20' })];
+  const g = C.ganttModelo(acts, '2027-02-15');
+  assert.equal(g.ini, '2027-01-01'); assert.equal(g.fin, '2027-03-31'); assert.equal(g.dias, 90);
+  assert.deepEqual(g.meses.map(m => m.et), ['ene 2027', 'feb 2027', 'mar 2027']);
+  assert.equal(Math.round(g.meses.reduce((s, m) => s + m.pct, 0)), 100);
+  const p = g.pos('2027-01-11', '2027-01-31');
+  assert.equal(p.left, Math.round(10 / 90 * 10000) / 100); assert.equal(p.width, Math.round(21 / 90 * 10000) / 100);
+  assert.equal(g.pos('2027-03-20', '2027-03-20').width, Math.round(1 / 90 * 10000) / 100);
+  assert.equal(g.hoyPct, Math.round(45.5 / 90 * 10000) / 100);
+});
+test('gantt: «hoy» fuera del programa amplía el rango; sin fechas no hay modelo', () => {
+  const g = C.ganttModelo([act({ inicio: '2027-01-11', fin: '2027-01-31' })], '2026-11-06');
+  assert.equal(g.ini, '2026-11-01'); assert.equal(g.meses.length, 3); assert.ok(g.hoyPct > 0 && g.hoyPct < 100);
+  assert.equal(C.ganttModelo([], HOY), null);
+  assert.equal(C.ganttModelo([act({ inicio: null })], HOY), null);
+});
+test('grupos por partida traen inicio y fin', () => {
+  const g = C.agruparPorPartida([act({ inicio: '2027-02-01', fin: '2027-02-10' }), act({ id: 2, inicio: '2027-01-11', fin: '2027-01-20' })], HOY);
+  assert.equal(g[0].inicio, '2027-01-11'); assert.equal(g[0].fin, '2027-02-10');
+});

@@ -105,11 +105,40 @@
         total: t.length, terminadas: estados.filter((e) => e === 'terminada').length,
         atrasadas: estados.filter((e) => e === 'atrasada').length, enCurso: estados.filter((e) => e === 'en_curso').length,
         inicio: lista.reduce((m, a) => (esFecha(a.inicio) && (!m || a.inicio < m)) ? String(a.inicio).slice(0, 10) : m, ''),
+        fin: lista.reduce((m, a) => { const f = esFecha(a.fin) ? String(a.fin).slice(0, 10) : (esFecha(a.inicio) ? String(a.inicio).slice(0, 10) : ''); return (f && (!m || f > m)) ? f : m; }, ''),
       });
     });
     const total = pesoTotal(acts);
     grupos.forEach((g) => { g.pesoPct = total > 0 ? Math.round(g.peso / total * 1000) / 10 : 0; });
     return grupos.sort((x, y) => (x.sinPartida - y.sinPartida) || (x.inicio < y.inicio ? -1 : x.inicio > y.inicio ? 1 : 0));
+  }
+
+  // Gantt del portal (6-nov-2026): rango del programa redondeado a meses completos (incluye «hoy»), columnas de
+  // meses y posición de cada barra en % del ancho. Sin fechas → null (no se pinta).
+  const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const finDeMes = (f) => { const [y, m] = String(f).slice(0, 7).split('-').map(Number); return iso(Date.UTC(y, m, 0)); };
+  function ganttModelo(acts, hoy) {
+    const lista = (acts || []).filter((a) => a && esFecha(a.inicio));
+    if (!lista.length) return null;
+    let min = '', max = '';
+    lista.forEach((a) => {
+      const i = String(a.inicio).slice(0, 10), f = esFecha(a.fin) && String(a.fin).slice(0, 10) > i ? String(a.fin).slice(0, 10) : i;
+      if (!min || i < min) min = i;
+      if (!max || f > max) max = f;
+    });
+    if (esFecha(hoy)) { if (hoy < min) min = hoy; if (hoy > max) max = hoy; }
+    const ini = min.slice(0, 8) + '01', fin = finDeMes(max), dias = diasEntre(ini, fin) + 1;
+    const meses = [];
+    for (let c = ini; c <= fin; c = sumarDias(finDeMes(c), 1)) {
+      const d = diasEntre(c, finDeMes(c)) + 1;
+      meses.push({ et: MESES_CORTO[Number(c.slice(5, 7)) - 1] + ' ' + c.slice(0, 4), dias: d, pct: d / dias * 100 });
+    }
+    const pos = (i, f) => {
+      const a = esFecha(i) ? String(i).slice(0, 10) : ini, b = esFecha(f) && String(f).slice(0, 10) > a ? String(f).slice(0, 10) : a;
+      return { left: Math.round(diasEntre(ini, a) / dias * 10000) / 100, width: Math.round((diasEntre(a, b) + 1) / dias * 10000) / 100 };
+    };
+    const hoyPct = esFecha(hoy) && hoy >= ini && hoy <= fin ? Math.round((diasEntre(ini, hoy) + 0.5) / dias * 10000) / 100 : null;
+    return { ini, fin, dias, meses, hoyPct, pos };
   }
 
   // Cambios al contrato (obra_modificaciones vigentes). «monto» ya llega en valor absoluto desde el servidor,
@@ -158,7 +187,7 @@
     return 'Vas al día con el programa.';
   }
 
-  const PortalCalc = { hoyISO, sumarDias, diasEntre, fraccionPlaneada, planeadoALaFecha, realPonderado, desviacionDias, estadoActividad, ESTADOS, semanaDe, enSemana, agruparPorPartida, resumenCambios, contratoVigente, entregaVigente, conceptoCorto, fraseAvance, TIPO_CAMBIO };
+  const PortalCalc = { hoyISO, sumarDias, diasEntre, fraccionPlaneada, planeadoALaFecha, realPonderado, desviacionDias, estadoActividad, ESTADOS, semanaDe, enSemana, agruparPorPartida, ganttModelo, resumenCambios, contratoVigente, entregaVigente, conceptoCorto, fraseAvance, TIPO_CAMBIO };
   root.PortalCalc = PortalCalc;
   if (typeof module !== 'undefined') module.exports = PortalCalc;
 })(typeof window !== 'undefined' ? window : globalThis);
