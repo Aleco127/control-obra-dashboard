@@ -2188,6 +2188,7 @@ avance descrito y fotos del día (ver 3.17).
 | Liga externa | URL | No |
 | Obra | Selector | No |
 | Categoria | Selector | Si |
+| Carpeta | Texto con sugerencias | No |
 | Entrega del programa | Selector | No |
 | Visible para el cliente | Casilla | No |
 | Fecha del documento | Fecha | No |
@@ -2196,6 +2197,8 @@ avance descrito y fotos del día (ver 3.17).
 | Responsable | Auto | Usuario actual |
 
 **Tipos de documento:** Planos, Especificaciones, Permisos, Contratos, Reportes, Otro
+
+**Carpetas para el cliente:** escribe una carpeta en cada documento visible al cliente (por ejemplo «00 Trámites y gestión», «01 Anteproyecto», «02 Proyecto ejecutivo») y el portal se los muestra ordenados así, con la entrega del programa como dato de cada documento. Un número al inicio sólo sirve para ordenar y el cliente no lo ve. El campo sugiere las carpetas que ya usa esa obra. Si ningún documento tiene carpeta, el portal los agrupa por entrega del programa como antes.
 
 **Archivo o liga:** puedes subir el archivo (hasta 25 MB) o pegar una liga de Drive o Dropbox. Si subes
 el archivo, se guarda en un almacen privado y solo se abre con una liga firmada que caduca en 5 minutos.

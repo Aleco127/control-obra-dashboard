@@ -62,6 +62,13 @@
     // Las fotos de un concepto cualquiera se agrupan aparte, en la galería.
     const gruposEnt = gruposHito.filter(a => porHito[a.id].docs.length || a.hito);
     const gruposFoto = gruposHito.filter(a => porHito[a.id].fotos.length);
+    // Carpetas (6-nov-2026): los documentos se ordenan por carpeta; los que no tienen van al final en «Otros documentos».
+    const actPorId = {};
+    acts.forEach(a => { actPorId[a.id] = a; });
+    const porCarpeta = {};
+    docs.forEach(x => { const k = String(x.carpeta || '').trim(); (porCarpeta[k] = porCarpeta[k] || []).push(x); });
+    const carpetas = docs.some(x => x.carpeta) ? Object.keys(porCarpeta).filter(Boolean).sort((a, b) => a.localeCompare(b, 'es', { numeric: true })).map(k => ({ nombre: k, docs: porCarpeta[k] })) : [];
+    if (carpetas.length && porCarpeta['']) carpetas.push({ nombre: 'Otros documentos', docs: porCarpeta[''] });
     // Avance real ponderado (peso = costo, migración 065). Si el avance de la obra se fijó a mano, manda ese.
     const tareas = acts.filter(a => !a.hito), pesoTot = tareas.reduce((s, a) => s + Number(a.peso || 0), 0);
     let real = pesoTot > 0 ? C.realPonderado(acts) : Number(o.avance || 0);
@@ -94,7 +101,7 @@
     return {
       o, e, plan, pagos, acts, fotos, ests, cfdis, docs, cambios, bitacora, cobrado, contrato, contratoOriginal, resCambios,
       extras: resCambios.extras, deductivas: resCambios.deductivas, saldo, ejecutado, hoy, proximo, planTotal, planDesfasado,
-      porHito, gruposHito, gruposEnt, gruposFoto, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
+      porHito, gruposHito, gruposEnt, gruposFoto, carpetas, actPorId, sueltos: porHito[0], fotosSueltas: fotos.filter(f => !f.actividad_id),
       hayFotosEnGrupos: gruposFoto.length > 0, dp, wa,
       avance: Math.round(real), real, planeado, desviacion, hayPrograma, entrega, frase,
       hitos, grupos, estado, atrasadas, enCurso, estaSemana, sigHito, tareas, diario, actualizado,

@@ -188,3 +188,8 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .dia .avance-txt{color:var(--muted);font-size:13px}.dia .avance-txt .et{font-weight:700;margin-right:6px;text-transform:uppercase;font-size:11px;letter-spacing:.03em}
 .dia .fotos{margin-top:8px;grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
 @media(min-width:900px){.partida .mini-bar{width:160px}}
+
+/* Entregables por carpeta (6-nov-2026) */
+.carpeta .partida-lista .doc:last-child{border-bottom:0}
+.doc-entrega{margin-top:2px}
+.doc-entrega .chip{margin-right:4px}

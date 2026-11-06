@@ -17357,7 +17357,7 @@ return`
 </div>
 </td>
 <td><span class="text-sm text-slate-600">${obra?.nombre_obra||'Sin asignar'}</span></td>
-<td><span class="px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-600">${d.categoria||'General'}</span></td>
+<td><span class="px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-600">${d.categoria||'General'}</span>${d.carpeta?`<p class="text-xs text-slate-500 mt-1"><i class="ri-folder-3-line" aria-hidden="true"></i> ${S(d.carpeta)}</p>`:''}</td>
 <td class="text-sm text-slate-600">${d.fecha_documento?new Date(d.fecha_documento).toLocaleDateString('es-MX'):'—'}</td>
 <td>
 ${d.fecha_vencimiento?`
@@ -17398,7 +17398,7 @@ ${d.obra_id?`<button onclick="toggleDocCliente(${d.id})" class="p-2 hover:bg-sla
 <div class="grid grid-cols-2 gap-4">
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docObra">Obra</label>
-<select id="docObra" class="inp" onchange="pintaHitos('docHito',this.value)">
+<select id="docObra" class="inp" onchange="pintaHitos('docHito',this.value);pintaCarpetas(this.value)">
 <option value="">Sin asignar</option>
 ${D.o.map(o=>`<option value="${o.id}">${o.nombre_obra}</option>`).join('')}
 </select>
@@ -17410,10 +17410,18 @@ ${DOC_CATEGORIAS.map(cat=>`<option value="${cat}">${cat}</option>`).join('')}
 </select>
 </div>
 </div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="text-xs text-slate-500 mb-1 block" for="docCarpeta">Carpeta</label>
+<input type="text" id="docCarpeta" class="inp" list="docCarpetasLista" placeholder="Ej. 01 Anteproyecto" maxlength="60">
+<datalist id="docCarpetasLista"></datalist>
+<p class="text-xs text-slate-400 mt-1">El cliente ve sus entregables por carpeta. Un número al inicio sólo ordena y no se muestra.</p>
+</div>
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docHito">Entrega del programa</label>
 <select id="docHito" class="inp"><option value="">Sin entrega asignada</option></select>
-<p class="text-xs text-slate-400 mt-1">El cliente ve los documentos agrupados bajo la entrega a la que pertenecen.</p>
+<p class="text-xs text-slate-400 mt-1">Se muestra como dato de cada documento.</p>
+</div>
 </div>
 <div>
 <label class="text-xs text-slate-500 mb-1 block" for="docDescripcion">Descripción</label>
@@ -17523,6 +17531,8 @@ $('docEstatus').value=d.estatus||'Activo';
 $('docNotas').value=d.notas||'';
 $('docVisibleCliente').checked=!!d.visible_cliente;
 pintaHitos('docHito',d.obra_id,d.actividad_id);
+$('docCarpeta').value=d.carpeta||'';
+pintaCarpetas(d.obra_id);
 $('docArchivo').value='';
 $('docArchivoNota').textContent=d.archivo_path?'Ya hay un archivo guardado. Elige otro sólo si quieres reemplazarlo.':'Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 }
@@ -17534,6 +17544,7 @@ $('docTipo').value='PDF';
 $('docArchivoNota').textContent='Hasta 25 MB. Se guarda en tu expediente; nadie lo ve sin permiso.';
 if(selectedObra&&selectedObra!=='all')$('docObra').value=selectedObra;
 pintaHitos('docHito',$('docObra').value);
+pintaCarpetas($('docObra').value);
 }
 openMdl('mdlDoc');
 }
@@ -17545,6 +17556,15 @@ const progs=(D.pg||[]).filter(p=>String(p.obra_id)===String(obraId)).map(p=>p.id
 if(!progs.length)return[];
 return (D.ap||[]).filter(a=>progs.includes(a.programa_id)&&a.es_hito&&!a.es_resumen)
 .sort((a,b)=>String(a.fecha_inicio||'').localeCompare(String(b.fecha_inicio||''))||(a.orden||0)-(b.orden||0));
+}
+// Carpetas ya usadas en la obra, para sugerirlas al subir otro documento (6-nov-2026)
+function carpetasDeObra(obraId){
+const set=new Set((D.doc||[]).filter(d=>String(d.obra_id)===String(obraId||'')&&d.carpeta).map(d=>d.carpeta.trim()));
+return[...set].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+}
+function pintaCarpetas(obraId){
+const dl=$('docCarpetasLista');if(!dl)return;
+dl.innerHTML=carpetasDeObra(obraId).map(c=>`<option value="${S(c)}"></option>`).join('');
 }
 function pintaHitos(selId,obraId,valor){
 const sel=$(selId);if(!sel)return;
@@ -17579,6 +17599,7 @@ estatus:$('docEstatus').value,
 notas:$('docNotas').value||null,
 visible_cliente:$('docVisibleCliente').checked,
 actividad_id:$('docHito').value?Number($('docHito').value):null,
+carpeta:$('docCarpeta').value.trim()||null,
 subido_por:currentUser?.nombre||'Sistema',
 updated_at:new Date().toISOString()
 };
