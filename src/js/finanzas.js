@@ -96,6 +96,48 @@ const Finanzas = (() => {
     return out;
   }
 
+  /**
+   * Contrato vigente (7-nov-2026). Misma regla que control_obra.portal_payload (migración 068):
+   * presupuesto_total + adicionales − deductivas de obra_modificaciones con estatus Aprobada o Ejecutada
+   * (montos en valor absoluto: hay deductivas capturadas en negativo). Los montos van en la misma base que
+   * presupuesto_total (con IVA); con sinIva se lleva a la base de subtotal para el resultado por obra.
+   */
+  function modificacionesObra(obraId, { data } = {}) {
+    const d = data || dataDefault();
+    const vigentes = (d.omod || []).filter(m => m.obra_id == obraId && (m.estatus === 'Aprobada' || m.estatus === 'Ejecutada'));
+    const adicionales = r2(vigentes.filter(m => m.tipo === 'Adicional').reduce((s, m) => s + Math.abs(num(m.monto_modificacion)), 0));
+    const deductivas = r2(vigentes.filter(m => m.tipo === 'Deductiva').reduce((s, m) => s + Math.abs(num(m.monto_modificacion)), 0));
+    return { vigentes, adicionales, deductivas, tieneModificaciones: vigentes.length > 0 };
+  }
+  function contratoVigente(obra, { data, sinIva } = {}) {
+    if (!obra) return 0;
+    const m = modificacionesObra(obra.id, { data });
+    const total = num(obra.presupuesto_total);
+    const vigente = r2(total + m.adicionales - m.deductivas);
+    if (!sinIva) return vigente;
+    // Factor real de la obra (subtotal generado desde presupuesto_total y porcentaje_iva); si no hay subtotal, por el porcentaje
+    const factor = total > 0 && num(obra.subtotal) > 0 ? num(obra.subtotal) / total : 1 / (1 + num(obra.porcentaje_iva) / 100);
+    return r2(vigente * factor);
+  }
+  /**
+   * Saldo de cobranza de una obra: contrato original, extras, deductivas, contrato vigente, cobrado (pagos recibidos) y
+   * por cobrar = vigente − cobrado. Si hay plan de pagos (cuentas_por_cobrar no canceladas) se informa lo pendiente del
+   * plan y si el plan NO suma el contrato vigente (± $1): la cobranza del día a día sigue el plan, el saldo manda el contrato.
+   */
+  function saldoObra(obraId, { hasta, data } = {}) {
+    const d = data || dataDefault();
+    const obra = (d.o || []).find(o => o.id == obraId); if (!obra) return null;
+    const m = modificacionesObra(obraId, { data: d });
+    const contratoOriginal = r2(num(obra.presupuesto_total));
+    const vigente = contratoVigente(obra, { data: d });
+    const cobrado = r2((d.prc || []).filter(p => p.obra_id == obraId && (!hasta || f10(p.fecha_pago) <= hasta)).reduce((s, p) => s + num(p.monto), 0));
+    const plan = (d.cxc || []).filter(c => c.obra_id == obraId && c.estatus !== 'Cancelada');
+    const planTotal = r2(plan.reduce((s, c) => s + num(c.monto_total), 0));
+    const planPendiente = r2(plan.reduce((s, c) => s + num(c.monto_pendiente), 0));
+    const tienePlan = plan.length > 0;
+    return { obra, contratoOriginal, adicionales: m.adicionales, deductivas: m.deductivas, tieneModificaciones: m.tieneModificaciones, contratoVigente: vigente, cobrado, porCobrar: r2(vigente - cobrado), tienePlan, planTotal, planPendiente, planDesfasado: tienePlan && Math.abs(planTotal - vigente) > 1, pctCobrado: vigente > 0 ? r2(Math.min(100, cobrado / vigente * 100)) : 0 };
+  }
+
   /** Flujo de efectivo real en un rango. obraIds limita a obras (entonces se excluyen indirectos, nómina y socios). */
   function calcularFlujo({ desde, hasta, obraIds, data } = {}) {
     const d = data || dataDefault(); const h = hoy();
@@ -116,7 +158,13 @@ const Finanzas = (() => {
     const aportaciones = obraIds ? 0 : r2((d.msoc || []).filter(m => m.tipo === 'aportacion' && !m.gasto_id && enRango(m.fecha, desde, hasta)).reduce((s, m) => s + num(m.monto), 0));
     const pagado = r2(pagosProv + gastosPagados + nomina + retiros + personales);
     const cxc = (d.cxc || []).filter(c => obraOk(c.obra_id) && num(c.monto_pendiente) > 0.005);
-    const porCobrar = r2(cxc.reduce((s, c) => s + num(c.monto_pendiente), 0));
+    const porCobrarPlan = r2(cxc.reduce((s, c) => s + num(c.monto_pendiente), 0));
+    // Saldo de contratos (vigente − cobrado) de las obras no archivadas; las obras SIN plan de pagos aportan ese saldo al por cobrar
+    const saldos = (d.o || []).filter(o => obraOk(o.id) && o.estatus !== 'Archivada').map(o => saldoObra(o.id, { data: d })).filter(Boolean);
+    const saldoContratos = r2(saldos.reduce((s, x) => s + Math.max(0, x.porCobrar), 0));
+    const sinPlan = r2(saldos.filter(x => !x.tienePlan).reduce((s, x) => s + Math.max(0, x.porCobrar), 0));
+    const planesDesfasados = saldos.filter(x => x.planDesfasado).map(x => x.obra.id);
+    const porCobrar = r2(porCobrarPlan + sinPlan);
     const vencidoCobrar = r2(cxc.filter(c => c.fecha_vencimiento && f10(c.fecha_vencimiento) < h).reduce((s, c) => s + num(c.monto_pendiente), 0));
     const cxp = cuentasPorPagar({ obraIds, data: d });
     const porPagar = r2(cxp.reduce((s, x) => s + x.saldo, 0));
@@ -124,7 +172,7 @@ const Finanzas = (() => {
     const en30 = sumaDias(h, 30);
     const cxc30 = r2(cxc.filter(c => !c.fecha_vencimiento || f10(c.fecha_vencimiento) <= en30).reduce((s, c) => s + num(c.monto_pendiente), 0));
     const cxp30 = r2(cxp.filter(x => x.vence <= en30).reduce((s, x) => s + x.saldo, 0));
-    return { desde, hasta, cobrado, pagado, pagosProv, gastosPagados, personales, nomina, retiros, aportaciones, porSocios, neto: r2(cobrado + aportaciones - pagado), porCobrar, vencidoCobrar, porPagar, vencidoPagar, proximos30: { cobrar: cxc30, pagar: cxp30, neto: r2(cxc30 - cxp30) }, nCobros: cobros.length, nPagos: pagos.length + gastosPag.length };
+    return { desde, hasta, cobrado, pagado, pagosProv, gastosPagados, personales, nomina, retiros, aportaciones, porSocios, neto: r2(cobrado + aportaciones - pagado), porCobrar, porCobrarPlan, saldoContratos, sinPlan, planesDesfasados, vencidoCobrar, porPagar, vencidoPagar, proximos30: { cobrar: cxc30, pagar: cxp30, neto: r2(cxc30 - cxp30) }, nCobros: cobros.length, nPagos: pagos.length + gastosPag.length };
   }
 
   /** Serie por semana (lunes a domingo) de cobrado vs pagado para la gráfica de flujo. */
@@ -153,7 +201,8 @@ const Finanzas = (() => {
     const d = data || dataDefault();
     const obra = (d.o || []).find(o => o.id == obraId); if (!obra) return null;
     const h = hasta || hoy();
-    const contrato = num(obra.subtotal) || (num(obra.presupuesto_total) / (1 + (num(obra.porcentaje_iva) || 16) / 100));
+    // Contrato vigente sin IVA (original + extras − deductivas); sin subtotal ni porcentaje_iva se asume 16 % como antes
+    const contrato = contratoVigente(num(obra.subtotal) || num(obra.porcentaje_iva) ? obra : Object.assign({}, obra, { porcentaje_iva: 16 }), { data: d, sinIva: true });
     const cobros = (d.prc || []).filter(p => p.obra_id == obraId && f10(p.fecha_pago) <= h);
     const cobrado = r2(cobros.reduce((s, p) => s + num(p.monto), 0));
     const cxc = (d.cxc || []).filter(c => c.obra_id == obraId);
@@ -208,7 +257,7 @@ const Finanzas = (() => {
       const gastos = (d.g || []).filter(g => gastoValido(g) && destinoDe(g) === 'obra' && g.obra_id === o.id && enRango(g.fecha_solicitud, desde, hasta));
       const nomina = (d.nomd || []).filter(x => x.obra_id === o.id && enRango(x.fecha, desde, hasta));
       const ind = indirectosDeObra(o.id, { desde, hasta, data: d });
-      const contrato = num(o.subtotal) || num(o.presupuesto_total) / 1.16;
+      const contrato = contratoVigente(num(o.subtotal) || num(o.porcentaje_iva) ? o : Object.assign({}, o, { porcentaje_iva: 16 }), { data: d, sinIva: true });
       let ingreso = r2(cobros.reduce((s, p) => s + num(p.monto), 0));
       if (base === 'devengado') { const r = resultadoObra(o.id, { data: d, hasta }); ingreso = r ? r.ingresoDevengado : ingreso; }
       const directo = r2(gastos.reduce((s, g) => s + num(g.monto_neto), 0) + nomina.reduce((s, x) => s + num(x.monto), 0));
@@ -248,7 +297,7 @@ const Finanzas = (() => {
       if (!obras.length) return;
       let pesos;
       if (regla.tipo === 'fijo' && regla.fijos) { pesos = obras.map(o => num(regla.fijos[o.id])); if (!pesos.some(p => p > 0)) pesos = obras.map(() => 1); }
-      else if (regla.tipo === 'contrato') pesos = obras.map(o => num(o.subtotal) || num(o.presupuesto_total) || 1);
+      else if (regla.tipo === 'contrato') pesos = obras.map(o => contratoVigente(o, { data: d }) || 1);
       else if (regla.tipo === 'directo') { const m = f.slice(0, 7); pesos = obras.map(o => (d.g || []).filter(x => gastoValido(x) && destinoDe(x) === 'obra' && x.obra_id === o.id && f10(x.fecha_solicitud).slice(0, 7) === m).reduce((s, x) => s + num(x.monto_neto), 0) || 0); if (!pesos.some(p => p > 0)) pesos = obras.map(() => 1); }
       else pesos = obras.map(() => 1);
       const tot = pesos.reduce((s, p) => s + p, 0);
@@ -297,6 +346,6 @@ const Finanzas = (() => {
     return { utilidad: r2(utilidad), reservas: { impuestos: resImp, capital: resCap, pctImpuestos: num(reservas.impuestos), pctCapital: num(reservas.capital), cobrado, efectivo, pctGravable: r2(pctGravable * 100), efectivoExento: exento }, distribuible, filas, pctTotal: r2(pctTot), sinPorcentajes: pctTot <= 0 };
   }
 
-  return { rango, enRango, naturalezaDe, cuentasPorPagar, agingPagar, calcularFlujo, serieSemanal, resultadoObra, estadoResultados, prorratear, baseReparto, indirectosDeObra, personalesPeriodo, num, r2, sumaDias };
+  return { rango, enRango, naturalezaDe, cuentasPorPagar, agingPagar, calcularFlujo, serieSemanal, resultadoObra, estadoResultados, prorratear, baseReparto, indirectosDeObra, personalesPeriodo, modificacionesObra, contratoVigente, saldoObra, num, r2, sumaDias };
 })();
 if (typeof module !== 'undefined') module.exports = Finanzas;

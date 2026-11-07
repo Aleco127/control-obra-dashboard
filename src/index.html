@@ -3888,7 +3888,8 @@ const adicionales=vigentes.filter(m=>m.tipo==='Adicional').reduce((s,m)=>s+(pars
 const deductivas=vigentes.filter(m=>m.tipo==='Deductiva').reduce((s,m)=>s+Math.abs(parseFloat(m.monto_modificacion)||0),0);
 return {mods,vigentes,adicionales,deductivas};
 }
-function presupuestoObraActual(obra){const r=modsObraResumen(obra.id);return (obra.presupuesto_total||0)+r.adicionales-r.deductivas;}
+// Contrato vigente: una sola regla, la de Finanzas.contratoVigente (misma que portal_payload en el servidor)
+function presupuestoObraActual(obra){if(typeof Finanzas!=='undefined'&&Finanzas.contratoVigente)return Finanzas.contratoVigente(obra);const r=modsObraResumen(obra.id);return (obra.presupuesto_total||0)+r.adicionales-r.deductivas;}
 function Ob(c){
 if(fichaObraId){renderFichaObra(c,fichaObraId);return;}
 const fo=getFilteredObras();
@@ -5441,9 +5442,11 @@ ${kpi(F(f.cobrado),'Cobrado · '+rg.label,'text-ok')}
 ${kpi(F(f.pagado),'Pagado · '+rg.label)}
 ${kpi(F(f.neto),'Flujo neto',f.neto<0?'text-danger':'')}
 ${kpi(F(f.porCobrar),'Por cobrar'+(f.vencidoCobrar?' · <span class="text-danger">'+F(f.vencidoCobrar)+' vencido</span>':''))}
+${kpi(F(f.saldoContratos),'Saldo de contratos vigentes',f.planesDesfasados.length?'text-warn':'')}
 ${kpi(F(f.porPagar),'Por pagar'+(f.vencidoPagar?' · <span class="text-danger">'+F(f.vencidoPagar)+' vencido</span>':''))}
 ${kpi(F(f.proximos30.neto),'Próximos 30 días',f.proximos30.neto<0?'text-warn':'')}
 </div>
+${f.planesDesfasados.length?`<p class="text-xs text-warn mb-3" role="status"><i class="ri-error-warning-line" aria-hidden="true"></i> El plan de pagos todavía no refleja todos los cambios al contrato en ${f.planesDesfasados.length===1?'una obra':f.planesDesfasados.length+' obras'} (${f.planesDesfasados.map(id=>{const o=D.o.find(x=>x.id===id);return S(o?.codigo_obra||o?.nombre_obra||'#'+id);}).join(', ')}). Por cobrar sigue el plan; el saldo, el contrato vigente.</p>`:''}
 <div class="tabs mb-3" role="tablist" aria-label="Vistas de pagos">${tabs.map(([k,l,n])=>`<button type="button" role="tab" aria-selected="${pcTab===k}" class="tab ${pcTab===k?'active':''}" onclick="pcSetTab('${k}')">${l}${n!=null?` <span class="tab-n">${n}</span>`:''}</button>`).join('')}</div>
 <div id="pcContent"></div>`;
 if(pcTab==='porobra')renderTabPorObra();
@@ -5535,6 +5538,9 @@ const agingHtml=`
 </div>
 </div>`;
 
+// Planes de pago que no suman el contrato vigente (extras o deductivas aprobadas sin reflejar en las exhibiciones)
+const desfasados=getFilteredObras().filter(o=>o.estatus!=='Archivada').map(o=>Finanzas.saldoObra(o.id)).filter(s=>s&&s.planDesfasado);
+const avisoHtml=desfasados.length?`<div class="g rounded-xl p-4 mb-4 text-sm" role="status"><p class="font-medium text-warn mb-1"><i class="ri-error-warning-line" aria-hidden="true"></i> El plan de pagos todavía no refleja todos los cambios al contrato</p><ul class="text-ink-muted space-y-1">${desfasados.map(s=>`<li>${S(s.obra.codigo_obra||'')} ${S(s.obra.nombre_obra)}: el plan suma ${fmt(s.planTotal)} y el contrato vigente es ${fmt(s.contratoVigente)} (${s.planTotal<s.contratoVigente?'faltan':'sobran'} ${fmt(Math.abs(s.contratoVigente-s.planTotal))}). <button type="button" class="text-accent hover:underline font-medium" onclick="WizardObra.open({obraId:${s.obra.id},step:4})">Ajustar plan</button></li>`).join('')}</ul></div>`:'';
 const tableHtml=data.length===0?vacio('cuentas por cobrar',{icon:'ri-file-list-3-line',body:'El plan de pagos de cada obra genera sus exhibiciones automáticamente desde el asistente.',action:{label:'Definir plan de pagos',onClick:selectedObra?`WizardObra.open({obraId:${selectedObra},step:4})`:'WizardObra.open()'}}):`
 <div class="overflow-x-auto">
 <table class="w-full text-xs">
@@ -5580,7 +5586,7 @@ return`<tr class="hover:bg-gray-800/30">
 </table>
 </div>`;
 
-container.innerHTML=agingHtml+tableHtml;
+container.innerHTML=avisoHtml+agingHtml+tableHtml;
 }
 
 // ========== COBROS (US-011): registrar desde la obra sin conocer las CxC ==========
@@ -5677,7 +5683,7 @@ const pend=cxc.filter(c=>c.estatus!=='Cobrada'||c.id==$('prCxC').value);
 if(!cxc.length){
 box.innerHTML=`<div class="p-3 rounded-lg bg-amber-50 text-sm">
 <p class="font-medium text-amber-800 mb-1"><i class="ri-information-line" aria-hidden="true"></i> Esta obra no tiene plan de pagos</p>
-<p class="text-amber-800 mb-2">Para que el cobro descuente del saldo necesita una cuenta por cobrar. Puedes crearla ahora por el total del contrato (${fmt(obra?.presupuesto_total||0)}) o definir el plan por exhibiciones.</p>
+<p class="text-amber-800 mb-2">Para que el cobro descuente del saldo necesita una cuenta por cobrar. Puedes crearla ahora por el total del contrato vigente (${fmt(obra?presupuestoObraActual(obra):0)}) o definir el plan por exhibiciones.</p>
 <div class="flex flex-wrap gap-2"><button type="button" class="btn btn-p text-sm" onclick="prCrearCxCTotal(${obraId})"><i class="ri-add-line" aria-hidden="true"></i> Crear cuenta por el total</button><button type="button" class="btn btn-s text-sm" onclick="closeMdl('mdlPagoRecibido');WizardObra.open({obraId:${obraId},step:4})">Definir plan de pagos</button></div>
 </div>`;
 $('prCxC').value='';return;
@@ -5729,7 +5735,7 @@ try{
 const cliente=(D.cli||[]).find(c=>c.id==obra.cliente_id);
 const hoy=hoyISO();
 const venc=obra.fecha_fin_estimada||new Date(Date.now()+30*86400000).toISOString().slice(0,10);
-const{data,error}=await sb.from('cuentas_por_cobrar').insert({empresa_id:currentUser?.empresa_id||null,obra_id:obraId,cliente_nombre:cliente?.nombre||obra.cliente||null,concepto:'Contrato '+(obra.codigo_obra||obra.nombre_obra),monto_total:obra.presupuesto_total||0,fecha_emision:hoy,dias_credito:Math.max(0,Math.round((new Date(venc)-new Date(hoy))/86400000)),fecha_vencimiento:venc,estatus:'Pendiente'}).select().single();
+const{data,error}=await sb.from('cuentas_por_cobrar').insert({empresa_id:currentUser?.empresa_id||null,obra_id:obraId,cliente_nombre:cliente?.nombre||obra.cliente||null,concepto:'Contrato '+(obra.codigo_obra||obra.nombre_obra),monto_total:presupuestoObraActual(obra)||0,fecha_emision:hoy,dias_credito:Math.max(0,Math.round((new Date(venc)-new Date(hoy))/86400000)),fecha_vencimiento:venc,estatus:'Pendiente'}).select().single();
 if(error)throw error;
 D.cxc=(D.cxc||[]).concat([data]);
 $('prCxC').value=data.id;
@@ -5905,7 +5911,9 @@ const obras=getFilteredObras().filter(o=>o.estatus!=='Archivada');
 const estado=c=>{const pend=parseFloat(c.monto_pendiente)||0;if(pend<=0.009||c.estatus==='Cobrada')return'ok';if(c.fecha_vencimiento&&c.fecha_vencimiento<hoy)return'due';if((parseFloat(c.monto_cobrado)||0)>0)return'part';return'win';};
 let filas=obras.map(o=>{
 const cxc=(D.cxc||[]).filter(c=>c.obra_id===o.id).sort((a,b)=>String(a.fecha_vencimiento||'').localeCompare(String(b.fecha_vencimiento||'')));
-return{o,cxc,pend:cxc.reduce((s,c)=>s+(parseFloat(c.monto_pendiente)||0),0),cob:cxc.reduce((s,c)=>s+(parseFloat(c.monto_cobrado)||0),0),next:cxc.filter(c=>estado(c)!=='ok').map(c=>c.fecha_vencimiento||'9999').sort()[0]||'9999'};
+// Saldo por el contrato VIGENTE (original + extras − deductivas), no por el plan de pagos
+const saldo=Finanzas.saldoObra(o.id)||{contratoOriginal:0,adicionales:0,deductivas:0,contratoVigente:0,cobrado:0,porCobrar:0,tienePlan:false,planTotal:0,planPendiente:0,planDesfasado:false};
+return{o,cxc,saldo,pend:cxc.reduce((s,c)=>s+(parseFloat(c.monto_pendiente)||0),0),cob:saldo.cobrado,next:cxc.filter(c=>estado(c)!=='ok').map(c=>c.fecha_vencimiento||'9999').sort()[0]||'9999'};
 });
 if(pcPorObraFiltro==='vencidas')filas=filas.filter(f=>f.cxc.some(c=>estado(c)==='due'));
 if(pcPorObraFiltro==='7dias')filas=filas.filter(f=>f.cxc.some(c=>estado(c)!=='ok'&&c.fecha_vencimiento>=hoy&&c.fecha_vencimiento<=en7));
@@ -5922,7 +5930,15 @@ return`<div class="cob-row">
 <div class="min-w-0"><a href="#o" class="font-medium hover:underline text-ink" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><p class="text-xs text-ink-subtle">${new Date(ini+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})} a ${new Date(fin+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short'})}${o.cliente?' · '+S((D.cli||[]).find(c=>c.id==o.cliente_id)?.nombre||o.cliente):''}</p></div>
 ${f.cxc.length?`<div class="cob-track" role="list" aria-label="Exhibiciones de ${S(o.nombre_obra)}">${hoy>=ini&&hoy<=fin?`<span class="cob-today" style="left:${todayPos}%" title="Hoy"></span>`:''}${f.cxc.map(c=>{const e=estado(c);const lbl=`${c.concepto||'Exhibición'} · ${fmt(c.monto_total)} · vence ${c.fecha_vencimiento?new Date(c.fecha_vencimiento+'T12:00:00').toLocaleDateString('es-MX'):'sin fecha'} · pendiente ${fmt(c.monto_pendiente)}`;return`<button type="button" role="listitem" class="cob-mark ${e}" style="left:${pos(c.fecha_vencimiento)}%" title="${S(lbl)}" aria-label="${S(lbl)}" onclick="${e==='ok'?`Toast.info('Exhibición cobrada: ${S(c.concepto||'')}')`:`newPagoRecibido({obraId:${o.id},cxcId:${c.id}})`}"></button>`;}).join('')}</div>`:
 `<div class="text-sm text-ink-subtle">Esta obra no tiene plan de pagos. <button type="button" class="text-accent hover:underline font-medium" onclick="WizardObra.open({obraId:${o.id},step:4})">Definir plan</button></div>`}
-<div class="text-right text-sm"><span class="text-ok font-medium">${fmt(f.cob)}</span> cobrado<br><span class="${f.pend>0?'text-amber-700':'text-ok'} font-medium">${fmt(f.pend)}</span> pendiente</div>
+${(()=>{const s=f.saldo;const ln=(l,v,cls='')=>`<div class="flex justify-between gap-3"><dt class="text-ink-subtle">${l}</dt><dd class="font-medium ${cls}">${v}</dd></div>`;
+return`<dl class="text-xs text-right min-w-[190px]" aria-label="Saldo del contrato de ${S(o.nombre_obra)}">
+${s.tieneModificaciones?ln('Contrato original',fmt(s.contratoOriginal))+(s.adicionales>0?ln('+ Extras',fmt(s.adicionales),'text-ok'):'')+(s.deductivas>0?ln('− Deductivas',fmt(s.deductivas),'text-danger'):''):''}
+${ln(s.tieneModificaciones?'= Contrato vigente':'Contrato',fmt(s.contratoVigente),'text-ink')}
+${ln('Cobrado',fmt(s.cobrado),'text-ok')}
+${ln('Por cobrar',fmt(s.porCobrar),s.porCobrar>0.009?'text-warn':'text-ok')}
+${s.tienePlan&&Math.abs(f.pend-s.porCobrar)>1?ln('Pendiente del plan',fmt(f.pend),'text-ink-subtle'):''}
+${s.planDesfasado?`<p class="text-warn mt-1 text-left"><i class="ri-error-warning-line" aria-hidden="true"></i> El plan de pagos todavía no refleja todos los cambios al contrato (suma ${fmt(s.planTotal)}). <button type="button" class="underline font-medium" onclick="WizardObra.open({obraId:${o.id},step:4})">Ajustar plan</button></p>`:''}
+</dl>`;})()}
 </div>`;}).join('')}</div>`:
 EmptyState({icon:'ri-bank-card-line',title:pcPorObraFiltro==='todas'?'No hay obras activas':'Nada en este filtro',body:pcPorObraFiltro==='todas'?'Crea una obra con el asistente para definir su plan de pagos.':'No hay exhibiciones vencidas ni próximas con este filtro.',action:pcPorObraFiltro==='todas'?{label:'Crear obra',onClick:'WizardObra.open()'}:{label:'Ver todas',onClick:"pcPorObraFiltro='todas';renderTabPorObra()",icon:'ri-filter-off-line'}})}`;
 }

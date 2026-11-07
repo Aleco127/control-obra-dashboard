@@ -248,3 +248,58 @@ test('baseReparto: lo ya repuesto al socio no se le vuelve a pagar (periodo y po
   const f = F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data: d });
   assert.equal(f.retiros, 10000); // la reposición no es un retiro: su salida ya va en los pagos
 });
+
+test('contrato vigente (7-nov-2026): extras y deductivas aprobadas entran al saldo de Pagos; el plan de pagos avisa si no las refleja', () => {
+  const d = structuredClone(data);
+  // Luminae con modificaciones: adicional 67,634.14 y deductiva capturada en negativo (−17,843.70); una Pendiente y una Rechazada no cuentan
+  d.omod = [
+    { id: 1, obra_id: 2, tipo: 'Adicional', estatus: 'Aprobada', monto_modificacion: 67634.14 },
+    { id: 2, obra_id: 2, tipo: 'Deductiva', estatus: 'Ejecutada', monto_modificacion: -17843.70 },
+    { id: 3, obra_id: 2, tipo: 'Adicional', estatus: 'Pendiente', monto_modificacion: 99999 },
+    { id: 4, obra_id: 2, tipo: 'Deductiva', estatus: 'Rechazada', monto_modificacion: 500 }
+  ];
+  // Obra sin plan de pagos (honorarios, IVA 0) y una archivada sin plan que no debe sumar
+  d.o.push({ id: 3, codigo_obra: 'HON-01', nombre_obra: 'Honorarios sin plan', estatus: 'Activa', presupuesto_total: 100000, subtotal: 100000, porcentaje_iva: 0 });
+  d.o.push({ id: 4, codigo_obra: 'ARC', nombre_obra: 'Archivada', estatus: 'Archivada', presupuesto_total: 50000, subtotal: 50000, porcentaje_iva: 0 });
+  d.prc.push({ id: 9, obra_id: 3, fecha_pago: '2026-09-10', monto: 30000 });
+
+  const m = F.modificacionesObra(2, { data: d });
+  assert.equal(m.adicionales, 67634.14);
+  assert.equal(m.deductivas, 17843.70);
+  assert.equal(m.vigentes.length, 2);
+  const obra2 = d.o.find(o => o.id === 2);
+  const vigente = F.r2(329907.70 + 67634.14 - 17843.70);
+  assert.equal(F.contratoVigente(obra2, { data: d }), vigente);
+  // Sin IVA: misma proporción que subtotal / presupuesto_total
+  assert.equal(F.contratoVigente(obra2, { data: d, sinIva: true }), F.r2(vigente * 284403.19 / 329907.70));
+  assert.equal(F.contratoVigente(d.o.find(o => o.id === 1), { data: d }), 957296.96); // sin modificaciones no cambia
+
+  const s = F.saldoObra(2, { data: d });
+  assert.equal(s.contratoOriginal, 329907.70);
+  assert.equal(s.contratoVigente, vigente);
+  assert.equal(s.cobrado, 85320.95);
+  assert.equal(s.porCobrar, F.r2(vigente - 85320.95));
+  assert.equal(s.tienePlan, true);
+  assert.equal(s.planTotal, 284403.19);
+  assert.equal(s.planPendiente, 199082.24);
+  assert.equal(s.planDesfasado, true);
+  assert.equal(F.saldoObra(1, { data: d }).tieneModificaciones, false);
+
+  // resultadoObra usa el contrato vigente sin IVA (antes: subtotal fijo)
+  const r = F.resultadoObra(2, { data: d, hasta: '2026-09-30' });
+  assert.equal(r.contrato, F.r2(vigente * 284403.19 / 329907.70));
+  assert.equal(F.resultadoObra(1, { data: d, hasta: '2026-08-29' }).contrato, 825256);
+
+  // Flujo: por cobrar = pendiente del plan (obras con plan) + contrato vigente − cobrado (obras sin plan, no archivadas)
+  const f = F.calcularFlujo({ desde: '2026-08-01', hasta: '2026-08-31', data: d });
+  assert.equal(f.porCobrarPlan, F.r2(591210.76 + 199082.24));
+  assert.equal(f.sinPlan, 70000);
+  assert.equal(f.porCobrar, F.r2(591210.76 + 199082.24 + 70000));
+  assert.equal(f.saldoContratos, F.r2((957296.96 - 267189.24) + (vigente - 85320.95) + 70000));
+  assert.ok(f.planesDesfasados.includes(2));
+  assert.ok(!f.planesDesfasados.includes(3) && !f.planesDesfasados.includes(4));
+  // Filtrado por obra sin plan: por cobrar sale del contrato
+  const f3 = F.calcularFlujo({ obraIds: [3], data: d });
+  assert.equal(f3.porCobrar, 70000);
+  assert.equal(f3.vencidoCobrar, 0);
+});
