@@ -14,14 +14,15 @@
   function filaDocCarpeta(x) {
     const a = E.ctx.actPorId[x.actividad_id];
     const partes = [x.categoria ? esc(x.categoria) : '', x.fecha ? fecha(x.fecha) : '', (x.version && Number(x.version) > 1) ? 'versión ' + esc(x.version) : ''].filter(Boolean);
-    return `<div class="doc"><div><div>${esc(x.nombre)} ${etiquetaNuevo(x)}</div>
-      <div class="meta">${partes.join(' · ')}${x.descripcion ? ' · ' + esc(x.descripcion) : ''}</div>
-      ${a ? `<div class="meta doc-entrega">${chipHito(a)} ${nombreAct(a)}</div>` : ''}</div>
-      <div>${(x.tiene_archivo || x.url) ? `<button class="btn s xs" onclick="verDocumento(${x.id},this)">Abrir</button>` : '<span class="vacio">Sin archivo</span>'}</div></div>`;
+    return `<div class="doc"><div class="doc-nombre">${esc(x.nombre)} ${etiquetaNuevo(x)}</div>
+      <div class="doc-accion">${(x.tiene_archivo || x.url) ? `<button class="btn s xs" onclick="verDocumento(${x.id},this)">Abrir</button>` : '<span class="vacio">Sin archivo</span>'}</div>
+      <div class="doc-meta"><div class="meta">${partes.join(' · ')}${x.descripcion ? ' · ' + esc(x.descripcion) : ''}</div>
+      ${a ? `<div class="meta doc-entrega">${chipHito(a)} ${nombreAct(a)}</div>` : ''}</div></div>`;
   }
   function carpetaHtml(c, i) {
     const n = c.docs.length, nuevos = c.docs.filter(E.esNuevo).length;
-    return `<details class="partida carpeta" ${i < 3 || nuevos ? 'open' : ''}>
+    // En el celular sólo la primera carpeta (y las que traen algo nuevo) vienen abiertas; en escritorio las tres primeras
+    return `<details class="partida carpeta" ${i < (window.innerWidth >= 900 ? 3 : 1) || nuevos ? 'open' : ''}>
       <summary><span class="partida-nombre">${esc(nombreCarpeta(c.nombre))}</span>
         <span class="partida-meta">${n} ${n === 1 ? 'documento' : 'documentos'}${nuevos ? ' · ' + nuevos + (nuevos === 1 ? ' nuevo' : ' nuevos') : ''}</span></summary>
       <div class="partida-lista">${c.docs.map(filaDocCarpeta).join('')}</div></details>`;

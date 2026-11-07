@@ -92,7 +92,10 @@ footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
 .cuenta .clabe{font-variant-numeric:tabular-nums;letter-spacing:.04em}
 .avance-cab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:13px;color:var(--muted)}
 .avance-cab b{font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums}
-.doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.doc:last-child{border-bottom:0}
+/* Fila de documento: nombre y botón en el primer renglón; descripción y entrega a todo lo ancho debajo (7-nov-2026) */
+.doc{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n a" "m m";gap:2px 10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}.doc:last-child{border-bottom:0}
+.doc-nombre{grid-area:n}.doc-accion{grid-area:a}.doc-meta{grid-area:m;min-width:0}
+@media(max-width:559px){.doc-accion .btn.xs{padding:7px 12px;font-size:13px}}
 .doc .meta{font-size:12px;color:var(--muted)}
 .grupo{border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;margin-bottom:10px;background:#fbfcfe;scroll-margin-top:12px}
 .grupo:last-child{margin-bottom:0}
@@ -182,6 +185,15 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 /* Diario */
 .semana{margin-top:14px}.semana:first-of-type{margin-top:0}
 .semana h3{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
+/* Semanas plegables (7-nov-2026): en el celular sólo las recientes vienen abiertas */
+.semana summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;min-height:var(--tap);padding:4px 0}
+.semana summary::-webkit-details-marker{display:none}
+.semana summary h3{margin:0}
+.semana summary::before{content:"›";display:inline-block;color:var(--muted);font-size:16px;line-height:1;transition:transform var(--dur-1)}
+.semana[open] summary::before{transform:rotate(90deg)}
+.semana summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:6px}
+.semana:not([open]){margin-top:4px}
+.semana>.dias{margin-top:4px}
 .semana h3 .meta{text-transform:none;letter-spacing:0;font-weight:400}
 .dia{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface)}
 .dia.es-nueva{border-color:var(--ok)}
