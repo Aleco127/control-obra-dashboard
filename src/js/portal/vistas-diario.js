@@ -26,7 +26,7 @@
     const semanas = new Map();
     lista.forEach(b => { const s = C.semanaDe(String(b.fecha).slice(0, 10)); if (!semanas.has(s.inicio)) semanas.set(s.inicio, { s, items: [] }); semanas.get(s.inicio).items.push(b); });
     const bloques = [...semanas.values()].sort((a, b) => (a.s.inicio < b.s.inicio ? 1 : -1)).map(w =>
-      `<section class="semana"><h3>Semana del ${fecha(w.s.inicio)}<span class="meta"> · ${w.items.length} ${w.items.length === 1 ? 'día' : 'días'}</span></h3>${w.items.map(entradaHtml).join('')}</section>`).join('');
+      `<section class="semana"><h3>Semana del ${fecha(w.s.inicio)}<span class="meta"> · ${w.items.length} ${w.items.length === 1 ? 'día' : 'días'}</span></h3><div class="dias">${w.items.map(entradaHtml).join('')}</div></section>`).join('');
     return `<div class="card"><h2>Diario de obra <span class="meta">${lista.length} ${lista.length === 1 ? 'día publicado' : 'días publicados'}</span></h2>${bloques}</div>`;
   }
 

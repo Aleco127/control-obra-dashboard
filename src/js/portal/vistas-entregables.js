@@ -31,9 +31,9 @@
     const c = E.ctx;
     let cuerpo;
     if (c.carpetas.length) {
-      cuerpo = c.carpetas.map(carpetaHtml).join('');
+      cuerpo = `<div class="carpetas">${c.carpetas.map(carpetaHtml).join('')}</div>`;
     } else if (c.gruposEnt.length || c.sueltos) {
-      cuerpo = `${c.gruposEnt.map(a => bloqueEntrega('ent-' + a.id, chipHito(a) + nombreAct(a), fecha(a.inicio), c.porHito[a.id], a)).join('')}${c.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', c.sueltos, null) : ''}`;
+      cuerpo = `<div class="carpetas">${c.gruposEnt.map(a => bloqueEntrega('ent-' + a.id, chipHito(a) + nombreAct(a), fecha(a.inicio), c.porHito[a.id], a)).join('')}${c.sueltos ? bloqueEntrega('ent-otros', 'Otros documentos', '', c.sueltos, null) : ''}</div>`;
     } else {
       cuerpo = '<div class="vacio-caja"><strong>Todavía no hay entregables</strong>Aquí vas a encontrar tus planos, contratos y reportes en cuanto se publiquen.</div>';
     }

@@ -21,7 +21,8 @@
         ? `<section class="grupo" id="fot-otras"><div class="grupo-cab"><div><strong>Otras fotos de la obra</strong><div class="meta">${cuenta(E.ctx.fotosSueltas.length)}</div></div></div><div class="fotos">${E.ctx.fotosSueltas.map(miniatura).join('')}</div></section>`
         : `<div class="fotos">${E.ctx.fotosSueltas.map(miniatura).join('')}</div>`)
       : '';
-    return `<div class="card"><h2>Fotos de tu obra</h2>${porConcepto}${sueltas}</div>`;
+    const grupos = (porConcepto || E.ctx.hayFotosEnGrupos) ? `<div class="grupos-foto">${porConcepto}${sueltas}</div>` : sueltas;
+    return `<div class="card"><h2>Fotos de tu obra</h2>${grupos}</div>`;
   }
 
   V.fotos = vistaFotos;

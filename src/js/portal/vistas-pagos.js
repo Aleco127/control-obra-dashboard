@@ -9,7 +9,7 @@
   const { esc, fmt, fecha, estadoChip } = window.PortalUI;
 
   // Lo que vale la obra ya hecha contra lo que el cliente lleva pagado (nunca los costos de la constructora)
-  function tarjetaEjecutadoPagado() {
+  function tarjetaEjecutadoPagado(clase) {
     const c = E.ctx;
     if (!(c.contrato > 0)) return '';
     const pct = v => Math.max(0, Math.min(100, Math.round(v / c.contrato * 1000) / 10));
@@ -18,13 +18,13 @@
       : dif > 0 ? `Llevas pagados ${fmt(dif)} por delante de lo ejecutado; es normal con el anticipo.`
       : `La obra lleva ejecutados ${fmt(-dif)} más de lo que se ha pagado.`;
     const fila = (et, v, cls) => `<div class="avance-cab"><span>${et}</span><b>${fmt(v)} <span class="pct-de">${pct(v)}% del contrato</span></b></div><div class="bar${cls}" aria-hidden="true"><i style="width:${pct(v)}%"></i></div>`;
-    return `<div class="card"><h2>Ejecutado y pagado</h2><div class="barras">
+    return `<div class="card ${clase || ''}"><h2>Ejecutado y pagado</h2><div class="barras">
       ${fila('Ejecutado', c.ejecutado, '')}${fila('Pagado', c.cobrado, ' pag')}</div>
       <p class="nota">Ejecutado es el valor de lo ya construido según el avance de cada concepto${c.resCambios.n ? ', sobre el contrato vigente' : ''}. ${nota}</p></div>`;
   }
 
   // Cambios al contrato: resumen (Inicio) o resumen + lista (Pagos y Avance)
-  function tarjetaCambios(completa) {
+  function tarjetaCambios(completa, clase) {
     const c = E.ctx, r = c.resCambios;
     if (!r.n) return '';
     const signo = (tipo, monto) => tipo === 'Deductiva' ? '−' + fmt(monto) : tipo === 'Adicional' ? '+' + fmt(monto) : (monto ? fmt(monto) : '');
@@ -39,7 +39,7 @@
         ${(Number(x.dias) > 0 || x.nueva_fecha_fin) ? `<div class="meta">${Number(x.dias) > 0 ? '+' + x.dias + (Number(x.dias) === 1 ? ' día' : ' días') : ''}${x.nueva_fecha_fin ? (Number(x.dias) > 0 ? ' → ' : '') + 'entrega ' + fecha(x.nueva_fecha_fin) : ''}</div>` : ''}
       </div>`).join('')}</div>` : '';
     const pie = completa ? '' : `<p class="acciones"><button class="btn s" onclick="irASeccion('pagos')">Ver los cambios</button></p>`;
-    return `<div class="card"><h2>Cambios al contrato <span class="meta">${r.n} ${r.n === 1 ? 'cambio aprobado' : 'cambios aprobados'}</span></h2>${resumen}${lista}${pie}</div>`;
+    return `<div class="card ${clase || ''}"><h2>Cambios al contrato <span class="meta">${r.n} ${r.n === 1 ? 'cambio aprobado' : 'cambios aprobados'}</span></h2>${resumen}${lista}${pie}</div>`;
   }
   function avisoPlanHtml() {
     const c = E.ctx;
@@ -47,18 +47,18 @@
     return `<div class="nota-aviso">El plan de pagos todavía no refleja todos los cambios al contrato (suma ${fmt(c.planTotal)} y el contrato vigente es ${fmt(c.contrato)}). Tu constructor lo actualizará.</div>`;
   }
 
-  function tarjetaSiguientePago(resumida) {
+  function tarjetaSiguientePago(resumida, clase) {
     const p = E.ctx.proximo;
     if (!p) return '';
     const falta = Number(p.monto) - Number(p.cobrado || 0);
     const vencido = p.vence && p.vence < E.ctx.hoy;
     const cab = `<h2>Siguiente pago</h2><p class="linea-pago"><strong title="${esc(p.concepto)}">${esc(C.conceptoCorto(p.concepto))}</strong> · ${fmt(falta)}${p.vence ? ' · vence ' + fecha(p.vence) : ''} ${vencido ? '<span class="chip c-bad">vencido</span>' : ''}</p>`;
-    if (resumida) return `<div class="card aviso-pago">${cab}<p class="acciones"><button class="btn s" onclick="irASeccion('pagos')">Ver pagos</button></p></div>`;
+    if (resumida) return `<div class="card aviso-pago ${clase || ''}">${cab}<p class="acciones"><button class="btn s" onclick="irASeccion('pagos')">Ver pagos</button></p></div>`;
     const datosPago = cuentasHtml()
       + (E.ctx.dp.referencia ? `<p class="nota">Referencia: ${esc(E.ctx.dp.referencia)}</p>` : '')
       + (E.ctx.dp.instrucciones ? `<p class="nota">${esc(E.ctx.dp.instrucciones)}</p>` : '');
     const avisar = E.ctx.wa ? `<p class="acciones"><a class="btn s" href="${E.ctx.wa}" target="_blank" rel="noopener" onclick="avisoPagoClic()">Avisar que ya pagué por WhatsApp</a></p>` : '';
-    return `<div class="card aviso-pago">${cab}${datosPago}${avisar}</div>`;
+    return `<div class="card aviso-pago ${clase || ''}">${cab}${datosPago}${avisar}</div>`;
   }
   // Datos para transferir. `dp.cuentas` permite varias (p. ej. una con factura y otra sin); si no viene,
   // se usan los campos planos de siempre (banco/titular/clabe/cuenta).
@@ -94,12 +94,13 @@
       const titulo = p.numero ? esc(p.numero) : esc(C.conceptoCorto(concepto) || 'Pago');
       return `<tr><td class="titulo">${titulo}${(!mismo && concepto && p.numero) ? `<div class="meta">${esc(C.conceptoCorto(concepto))}</div>` : ''}</td><td data-et="Fecha">${fecha(p.fecha)}</td><td data-et="Forma">${esc(p.metodo || '')}</td><td class="n" data-et="Monto">${fmt(p.monto)}</td></tr>`;
     };
-    return tarjetaSiguientePago(false)
-      + tarjetaEjecutadoPagado()
-      + tarjetaCambios(true)
-      + `<div class="card"><h2>Plan de pagos</h2>${avisoPlanHtml()}${c.plan.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${c.plan.map(filaPlan).join('')}</tbody></table></div>` : '<div class="vacio-caja"><strong>Todavía no hay un plan de pagos</strong>Cuando tu constructor lo registre vas a ver aquí cada exhibición con su fecha.</div>'}</div>`
-      + `<div class="card"><h2>Pagos realizados <span class="meta">${c.pagos.length ? fmt(c.cobrado) + ' en total' : ''}</span></h2>${c.pagos.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Pago</th><th>Fecha</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${c.pagos.map(filaPago).join('')}</tbody></table></div>` : '<div class="vacio-caja">Aquí van a aparecer tus pagos conforme se registren.</div>'}</div>`
-      + (c.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl tbl-cards"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${c.cfdis.map(x => `<tr><td class="titulo"><span class="et-movil">Factura </span>${esc((x.serie || '') + (x.folio || ''))}<div class="meta">${esc(x.uuid || '')}</div></td><td data-et="Fecha">${fecha(x.fecha)}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td>${x.tiene_archivo ? `<button class="copy" onclick="archivo(${x.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${x.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '');
+    return '<div class="rejilla">' + tarjetaSiguientePago(false, 'md-6 lg-5 xl-4')
+      + tarjetaEjecutadoPagado('md-6 lg-7 xl-4')
+      + tarjetaCambios(true, 'md-12 lg-12 xl-4')
+      + `<div class="card md-12 lg-7"><h2>Plan de pagos</h2>${avisoPlanHtml()}${c.plan.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Concepto</th><th class="n">Monto</th><th class="n">Pagado</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${c.plan.map(filaPlan).join('')}</tbody></table></div>` : '<div class="vacio-caja"><strong>Todavía no hay un plan de pagos</strong>Cuando tu constructor lo registre vas a ver aquí cada exhibición con su fecha.</div>'}</div>`
+      + `<div class="card md-12 lg-5"><h2>Pagos realizados <span class="meta">${c.pagos.length ? fmt(c.cobrado) + ' en total' : ''}</span></h2>${c.pagos.length ? `<div class="tbl tbl-cards"><table><thead><tr><th>Pago</th><th>Fecha</th><th>Forma</th><th class="n">Monto</th></tr></thead><tbody>${c.pagos.map(filaPago).join('')}</tbody></table></div>` : '<div class="vacio-caja">Aquí van a aparecer tus pagos conforme se registren.</div>'}</div>`
+      + (c.cfdis.length ? `<div class="card"><h2>Facturas</h2><div class="tbl tbl-cards"><table><thead><tr><th>Folio</th><th>Fecha</th><th class="n">Total</th><th></th></tr></thead><tbody>${c.cfdis.map(x => `<tr><td class="titulo"><span class="et-movil">Factura </span>${esc((x.serie || '') + (x.folio || ''))}<div class="meta">${esc(x.uuid || '')}</div></td><td data-et="Fecha">${fecha(x.fecha)}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td>${x.tiene_archivo ? `<button class="copy" onclick="archivo(${x.id},'pdf')">PDF</button> <button class="copy" onclick="archivo(${x.id},'xml')">XML</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : '')
+      + '</div>';
   }
 
   function avisoPagoClic() { window.portalEvento('aviso_pago_clic', { obra_id: E.obraActual }); }

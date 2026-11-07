@@ -130,9 +130,10 @@
          <div id="avanceGantt">${ganttHtml()}</div>
          <div id="avanceFiltros">${filtrosHtml()}</div><div id="avanceLista">${listaHtml()}</div>`
       : '<div class="vacio-caja"><strong>El programa todavía no está publicado</strong>En cuanto tu constructor lo comparta vas a ver aquí cada etapa con sus fechas.</div>';
-    return `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(c.o.estatus || '')}</span></h2>${programa}</div>`
-      + (c.ests.length ? `<div class="card"><h2>Estimaciones</h2><div class="tbl tbl-cards"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${c.ests.map(x => `<tr><td class="titulo"><span class="et-movil">Estimación </span>${esc(x.numero)}</td><td data-et="Periodo">${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n" data-et="Avance">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '')
-      + V.tarjetaCambios(true);
+    return '<div class="rejilla">' + `<div class="card"><h2>Programa de obra <span class="chip c-info">${esc(c.o.estatus || '')}</span></h2>${programa}</div>`
+      + (c.ests.length ? `<div class="card md-6"><h2>Estimaciones</h2><div class="tbl tbl-cards"><table><thead><tr><th>Nº</th><th>Periodo</th><th class="n">Avance</th><th class="n">Total</th><th>Estado</th></tr></thead><tbody>${c.ests.map(x => `<tr><td class="titulo"><span class="et-movil">Estimación </span>${esc(x.numero)}</td><td data-et="Periodo">${fecha(x.periodo_inicio)}${x.periodo_fin ? ' a ' + fecha(x.periodo_fin) : ''}</td><td class="n" data-et="Avance">${x.avance != null ? Math.round(Number(x.avance)) + '%' : ''}</td><td class="n" data-et="Total">${fmt(x.total)}</td><td data-et="Estado">${estadoChip(x.estatus)}</td></tr>`).join('')}</tbody></table></div></div>` : '')
+      + V.tarjetaCambios(true, 'md-6')
+      + '</div>';
   }
 
   V.avance = vistaAvance;

@@ -29,7 +29,7 @@
     if (vencido) titulo = 'Tienes un pago vencido';
     else if (Number.isFinite(dias) && dias === 0) titulo = 'Tu siguiente pago vence hoy';
     else if (Number.isFinite(dias) && dias > 0 && dias <= 7) titulo = 'Siguiente pago: vence en ' + dias + (dias === 1 ? ' día' : ' días');
-    return `<div class="card aviso-pago"><h2>${titulo}</h2>
+    return `<div class="card aviso-pago md-5 lg-4 xl-3"><h2>${titulo}</h2>
       <p class="linea-pago"><strong>${esc(window.PortalCalc.conceptoCorto(p.concepto))}</strong> · ${fmt(falta)}${p.vence ? ' · vence ' + fecha(p.vence) : ''} ${vencido ? '<span class="chip c-bad">vencido</span>' : ''}</p>
       <p class="acciones"><button class="btn s" onclick="irASeccion('pagos')">Ver cómo pagar</button></p></div>`;
   }
@@ -46,7 +46,7 @@
     if (c.atrasadas.length) detalles.push(`<span class="txt-warn">${c.atrasadas.length} ${c.atrasadas.length === 1 ? 'atrasada' : 'atrasadas'}</span>`);
     if (c.enCurso.length) detalles.push(`${c.enCurso.length} en curso`);
     const sig = c.sigHito ? `<p class="meta-linea">Siguiente hito: <strong>${nombreAct(c.sigHito)}</strong>${c.sigHito.fin ? ', ' + fecha(c.sigHito.fin) : ''}</p>` : '';
-    return `<div class="card"><h2>Cómo va tu obra <span class="chip c-info">${esc(c.o.estatus || '')}</span></h2>
+    return `<div class="card md-7 lg-8 xl-6"><h2>Cómo va tu obra <span class="chip c-info">${esc(c.o.estatus || '')}</span></h2>
       ${barrasAvance(c)}
       <p class="frase ${c.desviacion > 0 ? 'txt-warn' : c.desviacion < 0 ? 'txt-ok' : ''}">${esc(c.frase)}</p>
       <p class="meta-linea">${entregaTxt}${detalles.length ? ' · ' + detalles.join(' · ') : ''}</p>
@@ -58,7 +58,7 @@
     const b = E.ctx.diario[0];
     if (!b) return '';
     const fotos = b.fotos.slice(0, 3);
-    return `<div class="card"><h2>Último día en obra <span class="meta">${fecha(b.fecha)}</span></h2>
+    return `<div class="card md-6 lg-8 xl-5"><h2>Último día en obra <span class="meta">${fecha(b.fecha)}</span></h2>
       ${b.clima ? `<p class="meta-linea">${esc(b.clima)}${b.temperatura ? ' · ' + esc(b.temperatura) : ''}</p>` : ''}
       <p class="texto">${esc(b.resumen || '')}</p>
       ${fotos.length ? `<div class="fotos">${fotos.map(miniatura).join('')}</div>` : ''}
@@ -69,12 +69,14 @@
     const c = E.ctx;
     const ultimas = c.fotos.slice(0, 3);
     const ultimoDoc = c.docs[0];
-    return kpisHtml() + avisoPagoHtml() + comoVaHtml()
-      + V.tarjetaEjecutadoPagado()
-      + V.tarjetaCambios(false)
+    // Rejilla de 12 columnas en escritorio (portal.css): cada tarjeta declara su ancho por tamaño de pantalla
+    return '<div class="rejilla">' + kpisHtml() + avisoPagoHtml() + comoVaHtml()
+      + V.tarjetaEjecutadoPagado('md-6 lg-4 xl-3')
+      + V.tarjetaCambios(false, 'md-6 lg-4 xl-3')
       + ultimoDiaHtml()
-      + (ultimas.length ? `<div class="card"><h2>Últimas fotos</h2><div class="fotos">${ultimas.map(miniatura).join('')}</div><p class="acciones"><button class="btn s" onclick="irASeccion('fotos')">Ver todas</button></p></div>` : '')
-      + (ultimoDoc ? `<div class="card"><h2>Último entregable</h2>${filaDoc(ultimoDoc)}<p class="acciones"><button class="btn s" onclick="irASeccion('entregables')">Ver entregables</button></p></div>` : '');
+      + (ultimas.length ? `<div class="card md-6 lg-4 xl-4"><h2>Últimas fotos</h2><div class="fotos">${ultimas.map(miniatura).join('')}</div><p class="acciones"><button class="btn s" onclick="irASeccion('fotos')">Ver todas</button></p></div>` : '')
+      + (ultimoDoc ? `<div class="card md-6 lg-4 xl-3"><h2>Último entregable</h2>${filaDoc(ultimoDoc)}<p class="acciones"><button class="btn s" onclick="irASeccion('entregables')">Ver entregables</button></p></div>` : '')
+      + '</div>';
   }
 
   V.inicio = vistaInicio;
