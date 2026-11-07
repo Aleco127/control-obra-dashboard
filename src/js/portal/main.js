@@ -64,8 +64,9 @@
     if (E.seccion !== dest) { E.seccion = dest; if (location.hash !== '#' + dest) history.replaceState(null, '', '#' + dest); pintarSeccion(); }
     setTimeout(() => {
       const el = document.getElementById(id); if (!el) return;
+      let det = el.closest('details'); while (det) { det.open = true; det = det.parentElement && det.parentElement.closest('details'); }  // partida plegada
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      el.classList.add('destacado'); setTimeout(() => el.classList.remove('destacado'), 1800);
+      el.classList.add('destacado'); setTimeout(() => el.classList.remove('destacado'), 2200);
     }, 40);
   }
   window.addEventListener('hashchange', () => {

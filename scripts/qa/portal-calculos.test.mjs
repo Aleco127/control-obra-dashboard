@@ -131,3 +131,21 @@ test('grupos por partida traen inicio y fin', () => {
   const g = C.agruparPorPartida([act({ inicio: '2027-02-01', fin: '2027-02-10' }), act({ id: 2, inicio: '2027-01-11', fin: '2027-01-20' })], HOY);
   assert.equal(g[0].inicio, '2027-01-11'); assert.equal(g[0].fin, '2027-02-10');
 });
+
+test('calendario: noviembre 2026 arranca en lunes 26 de octubre, 6 semanas, marca hoy, diario y programa por día', () => {
+  const acts = [act({ id: 1, inicio: '2026-11-03', fin: '2026-11-05' }), act({ id: 2, hito: true, inicio: '2026-11-27', fin: '2026-11-27', peso: 0 })];
+  const m = C.calendarioMes(2026, 11, { diario: [{ fecha: '2026-11-04' }, { fecha: '2026-11-04' }], acts, hoy: HOY });
+  assert.equal(m.titulo, 'noviembre 2026');
+  assert.equal(m.semanas.length, 6);
+  assert.equal(m.semanas[0][0].fecha, '2026-10-26'); assert.equal(m.semanas[0][0].enMes, false);
+  const d4 = m.semanas[1][2]; assert.equal(d4.fecha, '2026-11-04'); assert.equal(d4.entradas.length, 2); assert.equal(d4.tareas.length, 1);
+  const d6 = m.semanas[1][4]; assert.equal(d6.hoy, true); assert.equal(d6.tareas.length, 0); assert.equal(m.semanas[1][5].futuro, true);
+  const d27 = m.semanas[4][4]; assert.equal(d27.fecha, '2026-11-27'); assert.equal(d27.hitos.length, 1);
+});
+test('actividadesDelDia: tareas por rango (fin menor que inicio cuenta como un día) e hitos por fecha real', () => {
+  const acts = [act({ id: 1, inicio: '2026-11-01', fin: '2026-11-10' }), act({ id: 2, inicio: '2026-11-06', fin: '2026-11-01' }), act({ id: 3, hito: true, inicio: '2026-11-10', fin: '2026-11-10', fin_real: '2026-11-06', peso: 0 })];
+  const p = C.actividadesDelDia(acts, HOY);
+  assert.deepEqual(p.tareas.map(a => a.id), [1, 2]); assert.deepEqual(p.hitos.map(a => a.id), [3]);
+  assert.equal(C.actividadesDelDia(acts, '2026-11-10').hitos.length, 0);
+  assert.deepEqual(C.mesDe('2026-11-06'), { anio: 2026, mes: 11 });
+});

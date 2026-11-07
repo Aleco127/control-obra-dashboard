@@ -1,5 +1,5 @@
 /* Estilos del portal del cliente (src/portal.html). El portal no carga styles.css ni Tailwind: todo lo suyo vive aquí. */
-:root{--bg:#f4f6f8;--surface:#fff;--ink:#16202a;--muted:#55677a;--line:#d9e0e6;--primary:#1e3a5f;--accent:#0369a1;--ok:#047857;--ok-soft:#dcfce7;--warn:#b45309;--warn-soft:#fef3c7;--danger:#b91c1c;--danger-soft:#fee2e2}
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#16202a;--muted:#55677a;--line:#d9e0e6;--primary:#1e3a5f;--accent:#0369a1;--ok:#047857;--ok-soft:#dcfce7;--warn:#b45309;--warn-soft:#fef3c7;--danger:#b91c1c;--danger-soft:#fee2e2;--hito:#b8860b;--hito-borde:#8a6508}
 /* Tokens que consume nav-shell.css (mismos nombres que styles.css de la app; el portal no carga styles.css). US-604 */
 :root{--surface-2:#f1f5f9;--line-strong:#cbd5e1;--ink-muted:var(--muted);--ink-subtle:#64748b;--primary-ink:#fff;--accent-soft:#e0f2fe;--accent-fill:#0284c7;--ring:#0284c7;--backdrop:rgba(15,23,42,.5);
 --sp-2:8px;--sp-3:12px;--sp-4:16px;--radius-sm:8px;--radius-md:12px;--radius-lg:16px;--radius-pill:999px;
@@ -169,6 +169,7 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .act-pct{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .chip.est{font-size:11px;padding:1px 8px}
 .act.est-atrasada .act-nombre{color:var(--danger)}
+.act.destacado{background:var(--accent-soft);box-shadow:0 0 0 4px var(--accent-soft);border-radius:8px;transition:background var(--dur-2),box-shadow var(--dur-2)}
 /* Cambios al contrato */
 .contrato{display:grid;gap:4px;margin:0 0 10px}
 .contrato div{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:4px 0;border-bottom:1px dashed var(--line)}
@@ -234,12 +235,12 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
 .g-barra.est-proxima i{background:#94a3b8}.g-barra.est-en_curso i{background:var(--accent)}.g-barra.est-terminada i{background:var(--ok)}.g-barra.est-atrasada i{background:var(--danger)}
 .g-barra.est-terminada{border-color:var(--ok)}.g-barra.est-atrasada{border-color:var(--danger)}.g-barra.est-en_curso{border-color:var(--accent)}
 .g-partida .g-barra{top:7px;height:16px}
-.g-hito{position:absolute;top:9px;width:12px;height:12px;transform:translateX(-50%) rotate(45deg);background:#b8860b;border:1px solid #8a6508;border-radius:2px}
+.g-hito{position:absolute;top:9px;width:12px;height:12px;transform:translateX(-50%) rotate(45deg);background:var(--hito);border:1px solid var(--hito-borde);border-radius:2px}
 .g-hito.est-cumplido{background:var(--ok);border-color:var(--ok)}
 .g-leyenda{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 0;font-size:12px;color:var(--muted)}
 .g-leyenda span{display:inline-flex;align-items:center;gap:5px}.g-leyenda i{width:14px;height:9px;border-radius:3px;background:#94a3b8}
 .g-leyenda i.est-en_curso{background:var(--accent)}.g-leyenda i.est-terminada{background:var(--ok)}.g-leyenda i.est-atrasada{background:var(--danger)}
-.g-leyenda i.g-hito-ej{width:9px;height:9px;transform:rotate(45deg);background:#b8860b;border-radius:2px}
+.g-leyenda i.g-hito-ej{width:9px;height:9px;transform:rotate(45deg);background:var(--hito);border-radius:2px}
 @media(min-width:900px){.gantt-tabla{--ancho-nombre:220px;--dpx:3px}.g-act .g-nombre{padding-left:24px}}
 
 /* ---------- Rejilla de secciones (7-nov-2026) ----------
@@ -277,3 +278,38 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
   .dias{columns:4}
   .fotos{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
+
+/* ---------- Calendario del diario (7-nov-2026) ---------- */
+.cal-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.cal-cab strong{font-size:15px;text-transform:capitalize}
+.cal-nav{display:flex;gap:4px;align-items:center}
+.cal-btn{min-width:36px;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:16px;line-height:1;cursor:pointer}
+.cal-btn.cal-hoy{font-size:13px;font-weight:600}
+.cal-btn:hover{background:var(--surface-2)}.cal-btn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.cal-sem{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-sem span{text-align:center;font-size:11px;font-weight:700;color:var(--muted)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-d{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-height:46px;padding:5px 2px 4px;border:1px solid transparent;border-radius:8px;background:var(--surface-2);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+.cal-d:hover{border-color:var(--line-strong)}
+.cal-d:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.cal-d.fuera{opacity:.45}
+.cal-d.futuro .cal-n{color:var(--muted)}
+.cal-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:999px;font-variant-numeric:tabular-nums}
+.cal-d.hoy .cal-n{background:var(--danger);color:var(--primary-ink);font-weight:700}
+.cal-d.sel{background:var(--accent-soft);border-color:var(--accent)}
+.cal-d.sel .cal-n{font-weight:700;color:var(--accent)}.cal-d.sel.hoy .cal-n{color:var(--primary-ink)}
+.cal-marcas{display:flex;gap:3px;align-items:center;height:8px}
+.cal-marcas i,.cal-ley i{display:block}
+.m-diario{width:7px;height:7px;border-radius:999px;background:var(--ok)}
+.m-act{width:12px;height:4px;border-radius:2px;background:var(--accent)}
+.m-hito{width:7px;height:7px;transform:rotate(45deg);background:var(--hito);border-radius:1px}
+.cal-ley{margin-top:10px}.cal-ley i.m-diario{width:8px;height:8px;border-radius:999px;background:var(--ok)}.cal-ley i.m-act{width:14px;height:5px;background:var(--accent)}.cal-ley i.m-hito{width:8px;height:8px;border-radius:1px;background:var(--hito)}
+.dia-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.dia-titulo{font-size:15px;text-transform:capitalize;text-align:center}
+.dia-titulo .chip{text-transform:none;vertical-align:2px;margin-left:4px}
+#diarioDia .dia{margin-bottom:10px}
+#diarioDia .vacio-caja .btn{margin-top:6px}
+.dia-prog{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.dia-prog h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 4px}
+.dia-prog .act:last-child{border-bottom:0}
+@media(min-width:900px){.cal-d{min-height:54px;font-size:14px}.cal-grid,.cal-sem{gap:6px}}

@@ -187,7 +187,42 @@
     return 'Vas al día con el programa.';
   }
 
-  const PortalCalc = { hoyISO, sumarDias, diasEntre, fraccionPlaneada, planeadoALaFecha, realPonderado, desviacionDias, estadoActividad, ESTADOS, semanaDe, enSemana, agruparPorPartida, ganttModelo, resumenCambios, contratoVigente, entregaVigente, conceptoCorto, fraseAvance, TIPO_CAMBIO };
+  /* ---------- Calendario del diario (7-nov-2026) ---------- */
+  const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function mesDe(fecha) { const f = esFecha(fecha) ? String(fecha).slice(0, 10) : hoyISO(); return { anio: Number(f.slice(0, 4)), mes: Number(f.slice(5, 7)) }; }
+  // Lo que el programa tenía para un día: tareas cuyo rango cubre la fecha y hitos que caen ese día (fin real si ya se cumplió)
+  function actividadesDelDia(acts, fecha) {
+    const f = String(fecha).slice(0, 10), tareasDia = [], hitos = [];
+    (acts || []).forEach((a) => {
+      if (!a || !esFecha(a.inicio)) return;
+      if (a.hito) { const h = String(a.fin_real || a.fin || a.inicio).slice(0, 10); if (h === f) hitos.push(a); return; }
+      const ini = String(a.inicio).slice(0, 10), fin = esFecha(a.fin) && String(a.fin).slice(0, 10) > ini ? String(a.fin).slice(0, 10) : ini;
+      if (ini <= f && f <= fin) tareasDia.push(a);
+    });
+    return { tareas: tareasDia, hitos };
+  }
+  // Rejilla del mes (semanas de lunes a domingo, con los días de relleno de los meses vecinos) con lo que pasó y lo
+  // programado en cada día. mes va de 1 a 12. x = { diario, acts, hoy }.
+  function calendarioMes(anio, mes, x) {
+    const ini = anio + '-' + String(mes).padStart(2, '0') + '-01', fin = finDeMes(ini);
+    const desde = sumarDias(ini, -((new Date(utc(ini)).getUTCDay() + 6) % 7));
+    const nSemanas = Math.ceil((diasEntre(desde, fin) + 1) / 7);
+    const diarioPor = {};
+    ((x && x.diario) || []).forEach((b) => { const k = String(b.fecha || '').slice(0, 10); (diarioPor[k] = diarioPor[k] || []).push(b); });
+    const hoy = (x && x.hoy) || hoyISO();
+    const semanas = [];
+    for (let s = 0; s < nSemanas; s++) {
+      const fila = [];
+      for (let d = 0; d < 7; d++) {
+        const f = sumarDias(desde, s * 7 + d), p = actividadesDelDia(x && x.acts, f);
+        fila.push({ fecha: f, dia: Number(f.slice(8, 10)), enMes: f >= ini && f <= fin, hoy: f === hoy, futuro: f > hoy, entradas: diarioPor[f] || [], tareas: p.tareas, hitos: p.hitos });
+      }
+      semanas.push(fila);
+    }
+    return { anio, mes, ini, fin, nombreMes: MESES_LARGO[mes - 1], titulo: MESES_LARGO[mes - 1] + ' ' + anio, semanas };
+  }
+
+  const PortalCalc = { hoyISO, sumarDias, diasEntre, mesDe, actividadesDelDia, calendarioMes, fraccionPlaneada, planeadoALaFecha, realPonderado, desviacionDias, estadoActividad, ESTADOS, semanaDe, enSemana, agruparPorPartida, ganttModelo, resumenCambios, contratoVigente, entregaVigente, conceptoCorto, fraseAvance, TIPO_CAMBIO };
   root.PortalCalc = PortalCalc;
   if (typeof module !== 'undefined') module.exports = PortalCalc;
 })(typeof window !== 'undefined' ? window : globalThis);

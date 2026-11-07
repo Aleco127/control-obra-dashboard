@@ -80,7 +80,7 @@
       : `${fecha(a.inicio)}${a.fin && a.fin !== a.inicio ? ' a ' + fecha(a.fin) : ''}`;
     const g = c.porHito[a.id];
     const ver = g ? ((g.docs.length || a.hito) ? `<button class="btn s xs ver" onclick="irA('ent-${a.id}')">${etiquetaVer(g)}</button>` : `<button class="btn s xs ver" onclick="irA('fot-${a.id}','fotos')">${etiquetaVer(g)}</button>`) : '';
-    return `<div class="act est-${est}">
+    return `<div class="act est-${est}" id="act-${a.id}">
       <div><div class="act-nombre">${chipHito(a)}${nombreAct(a)}</div>
         <div class="act-meta">${fechas}${resp ? ' · ' + esc(resp) : ''}</div>${ver}</div>
       <div class="act-der">${chipEstado(est)}<div class="bar${est === 'atrasada' ? ' atr' : ''}" aria-hidden="true"><i style="width:${av}%"></i></div><div class="act-pct">${av}%</div></div>
@@ -101,7 +101,7 @@
     const lista = E.ctx.hitos.filter(pasaFiltro);
     if (!lista.length) return '';
     return `<details class="partida hitos" open><summary><span class="partida-nombre">Hitos y entregas</span><span class="partida-meta">${E.ctx.hitos.filter(a => E.ctx.estado[a.id] === 'cumplido').length} de ${E.ctx.hitos.length} cumplidos</span></summary>
-      <div class="partida-lista">${lista.map(a => `<div class="act est-${E.ctx.estado[a.id]}"><div><div class="act-nombre">${chipHito(a)}${nombreAct(a)}</div><div class="act-meta">${fecha(a.fin_real || a.fin || a.inicio)}</div></div><div class="act-der">${chipEstado(E.ctx.estado[a.id])}</div></div>`).join('')}</div></details>`;
+      <div class="partida-lista">${lista.map(a => `<div class="act est-${E.ctx.estado[a.id]}" id="act-${a.id}"><div><div class="act-nombre">${chipHito(a)}${nombreAct(a)}</div><div class="act-meta">${fecha(a.fin_real || a.fin || a.inicio)}</div></div><div class="act-der">${chipEstado(E.ctx.estado[a.id])}</div></div>`).join('')}</div></details>`;
   }
   function filtrosHtml() {
     const c = E.ctx;
