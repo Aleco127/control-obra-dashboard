@@ -511,6 +511,9 @@ button.text-white,[class*="bg-green-"].text-white,[class*="bg-red-"].text-white,
 .combo-item{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:8px 10px;font-size:var(--fs-sm);min-height:var(--tap)}
 .combo-item:hover,.combo-item:focus-visible{background:var(--surface-2)}
 .combo-new{color:var(--primary);font-weight:600}
+.combo-pie{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line)}
+.combo-cerrar{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:var(--tap);padding:8px 10px;font-size:var(--fs-sm);font-weight:600;color:var(--ink-muted,var(--ink))}
+.combo-cerrar:hover,.combo-cerrar:focus-visible{background:var(--surface-2)}
 .ctx-menu{position:absolute;z-index:var(--z-dropdown,30);min-width:240px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(15,23,42,.14);padding:4px}
 .ctx-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;font-size:var(--fs-sm);border-radius:6px;min-height:var(--tap)}
 .ctx-menu button:hover{background:var(--surface-2)}

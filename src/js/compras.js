@@ -380,7 +380,7 @@ ${modalHtml()}
   // ---------- formulario ----------
   function provComboHtml(selId, selName) {
     return `<div class="combo" id="gastoProvCombo">
-<input type="text" id="gastoProvInput" class="inp" placeholder="Escribe para buscar o crear" autocomplete="off" value="${S(selName || '')}" oninput="Compras.provInput(this.value)" onfocus="Compras.provInput(this.value)" onkeydown="if(event.key==='Escape'){Compras.provCerrar();}" aria-autocomplete="list" aria-controls="gastoProvList" aria-expanded="false">
+<input type="text" id="gastoProvInput" class="inp" placeholder="Escribe para buscar o crear" autocomplete="off" value="${S(selName || '')}" oninput="Compras.provInput(this.value)" onfocus="Compras.provInput(this.value)" onkeydown="if(event.key==='Escape'||event.key==='Tab'){Compras.provCerrar();}else if(event.key==='Enter'){event.preventDefault();Compras.provCerrar();}" aria-autocomplete="list" aria-controls="gastoProvList" aria-expanded="false">
 <input type="hidden" id="gastoProveedor" value="${selId || ''}">
 <div id="gastoProvList" class="combo-list" role="listbox" hidden></div></div>`;
   }
@@ -393,12 +393,22 @@ ${modalHtml()}
     let html = hits.map(p => `<button type="button" role="option" class="combo-item" onclick="Compras.provPick(${p.id})"><span>${S(p.nombre_proveedor)}</span>${p.rfc ? `<span class="text-xs text-ink-subtle">${S(p.rfc)}</span>` : ''}</button>`).join('');
     if (s && !exact) html += `<button type="button" role="option" class="combo-item combo-new" onclick="Compras.provNuevo()"><i class="ri-add-line" aria-hidden="true"></i> Crear proveedor «${S(v)}»</button>`;
     if (!html) html = '<div class="p-2 text-xs text-ink-subtle">Sin proveedores. Escribe un nombre para crearlo.</div>';
+    // Pie fijo para cerrar la lista: en celular tapa los botones de guardar y el proveedor es opcional (11-nov-2026)
+    html += `<div class="combo-pie"><button type="button" class="combo-cerrar" onclick="Compras.provCerrar()"><i class="ri-close-line" aria-hidden="true"></i> ${$('gastoProveedor').value ? 'Cerrar lista' : 'Seguir sin proveedor'}</button></div>`;
+    const estabaCerrada = list.hidden;
     list.innerHTML = html; list.hidden = false; $('gastoProvInput').setAttribute('aria-expanded', 'true');
+    if (estabaCerrada && window.innerWidth < 640) list.scrollIntoView({ block: 'nearest' });  // que el pie con «Seguir sin proveedor» quede a la vista
     if ($('gastoProveedor').value && GastosRules.norm(provNombre($('gastoProveedor').value)) !== s) $('gastoProveedor').value = '';
     sugerir();
   }
   function provPick(id) { $('gastoProveedor').value = id; $('gastoProvInput').value = provNombre(id); provCerrar(); sugerir(); }
   function provCerrar() { const l = $('gastoProvList'); if (l) l.hidden = true; $('gastoProvInput')?.setAttribute('aria-expanded', 'false'); }
+  // Tocar o hacer clic fuera del combo cierra la lista (pointerdown para no adelantarse al clic de una opción)
+  document.addEventListener('pointerdown', (ev) => {
+    const l = $('gastoProvList'); if (!l || l.hidden) return;
+    const combo = $('gastoProvCombo'); if (combo && combo.contains(ev.target)) return;
+    provCerrar();
+  }, true);
   async function provNuevo() {
     const nombre = ($('gastoProvInput').value || '').trim(); if (!nombre) return;
     const { data, error } = await sb.from('proveedores').insert({ nombre_proveedor: nombre, empresa_id: currentUser.empresa_id, estatus: 'Activo', tipo: 'Materiales' }).select().single();
