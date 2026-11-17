@@ -418,9 +418,9 @@ const Audit = {
       return `
         <tr class="border-b border-slate-100 hover:bg-slate-50">
           <td class="py-2 px-3 text-xs text-slate-500">${time}</td>
-          <td class="py-2 px-3"><span class="px-2 py-1 rounded text-xs ${color}">${log.type}</span></td>
-          <td class="py-2 px-3 text-xs text-slate-600">${log.user?.email || '-'}</td>
-          <td class="py-2 px-3 text-xs text-slate-500 max-w-xs truncate">${JSON.stringify(log.data).substring(0, 100)}</td>
+          <td class="py-2 px-3"><span class="px-2 py-1 rounded text-xs ${color}">${S(log.type)}</span></td>
+          <td class="py-2 px-3 text-xs text-slate-600">${S(log.user?.email || '-')}</td>
+          <td class="py-2 px-3 text-xs text-slate-500 max-w-xs truncate">${S(JSON.stringify(log.data).substring(0, 100))}</td>
         </tr>
       `;
     }).join('');

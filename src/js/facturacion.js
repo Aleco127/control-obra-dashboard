@@ -383,10 +383,10 @@ const Facturacion = (() => {
     const cfg = configuracion() || {};
     $('mdlCfdi').innerHTML = `
 <div class="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4">
-  <div class="mdl-h sticky top-0 bg-white z-10 border-b"><span class="text-cyan-600 font-bold"><i class="ri-bill-line mr-2"></i>Factura ${S(cf.serie || '')}-${cf.folio || ''}</span><button onclick="closeMdl('mdlCfdi')" class="mdl-x" aria-label="Cerrar">&times;</button></div>
+  <div class="mdl-h sticky top-0 bg-white z-10 border-b"><span class="text-cyan-600 font-bold"><i class="ri-bill-line mr-2"></i>Factura ${S(cf.serie || '')}-${S(cf.folio || '')}</span><button onclick="closeMdl('mdlCfdi')" class="mdl-x" aria-label="Cerrar">&times;</button></div>
   <div class="p-6 space-y-4">
     <div class="flex justify-between items-start">
-      <div><p class="text-2xl font-bold">${S(cf.serie || '')}-${cf.folio || ''}</p><p class="text-sm text-slate-500">${cf.fecha_emision ? new Date(cf.fecha_emision).toLocaleString('es-MX') : '-'}</p></div>
+      <div><p class="text-2xl font-bold">${S(cf.serie || '')}-${S(cf.folio || '')}</p><p class="text-sm text-slate-500">${cf.fecha_emision ? new Date(cf.fecha_emision).toLocaleString('es-MX') : '-'}</p></div>
       <span class="px-3 py-1 rounded-full text-sm font-medium ${cf.estatus === 'timbrado' ? 'bg-green-100 text-green-700' : cf.estatus === 'cancelado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${S((cf.estatus || '').toUpperCase())}</span>
     </div>
     ${cf.uuid ? `<div class="bg-green-50 border border-green-200 rounded-lg p-4"><p class="text-xs text-green-600 font-medium">Folio fiscal (UUID)</p><p class="font-mono text-green-800 break-all">${S(cf.uuid)}</p>${cf.fecha_timbrado ? `<p class="text-xs text-green-600 mt-1">Timbrada el ${new Date(cf.fecha_timbrado).toLocaleString('es-MX')}</p>` : ''}</div>` : ''}

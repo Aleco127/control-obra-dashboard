@@ -33,7 +33,7 @@
       ${r.extras ? `<div class="mas"><dt>Extras aprobados</dt><dd>+${fmt(r.extras)}</dd></div>` : ''}
       ${r.deductivas ? `<div class="menos"><dt>Deductivas</dt><dd>−${fmt(r.deductivas)}</dd></div>` : ''}
       <div class="total"><dt>Contrato vigente</dt><dd>${fmt(c.contrato)}</dd></div></dl>`;
-    const lista = completa ? `<div class="cambios">${c.cambios.map(x => `<div class="cambio t-${(x.tipo || '').replace(/\s+/g, '-').toLowerCase()}">
+    const lista = completa ? `<div class="cambios">${c.cambios.map(x => `<div class="cambio t-${esc((x.tipo || '').replace(/\s+/g, '-').toLowerCase())}">
         <div class="cambio-cab"><span class="chip ${x.tipo === 'Deductiva' ? 'c-warn' : x.tipo === 'Adicional' ? 'c-ok' : 'c-info'}">${esc(C.TIPO_CAMBIO[x.tipo] || x.tipo || 'Cambio')}</span><span class="meta">${esc(x.numero || '')}${x.fecha ? ' · ' + fecha(x.fecha) : ''}</span><b class="monto">${signo(x.tipo, x.monto)}</b></div>
         <div class="cambio-desc">${esc(x.descripcion || '')}</div>
         ${(Number(x.dias) > 0 || x.nueva_fecha_fin) ? `<div class="meta">${Number(x.dias) > 0 ? '+' + x.dias + (Number(x.dias) === 1 ? ' día' : ' días') : ''}${x.nueva_fecha_fin ? (Number(x.dias) > 0 ? ' → ' : '') + 'entrega ' + fecha(x.nueva_fecha_fin) : ''}</div>` : ''}
@@ -71,7 +71,7 @@
   function agrupaClabe(v) { return String(v || '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim(); }
   function filaCopiable(et, v) {
     const plano = String(v || '').replace(/\s+/g, '');
-    return `<dt>${et}</dt><dd><span class="clabe">${esc(agrupaClabe(v))}</span> <button class="copy" onclick="copiar('${esc(plano)}',this)">Copiar</button></dd>`;
+    return `<dt>${et}</dt><dd><span class="clabe">${esc(agrupaClabe(v))}</span> <button class="copy" data-v="${esc(plano)}" onclick="copiar(this.dataset.v,this)">Copiar</button></dd>`;
   }
   function cuentasHtml() {
     const lista = cuentasDePago();

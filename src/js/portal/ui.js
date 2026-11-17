@@ -48,8 +48,9 @@
     return f === 1 ? 'Ver la foto' : 'Ver las fotos';
   }
   function etiquetaNuevo(x) { return E.esNuevo(x) ? '<span class="chip c-ok nuevo">Nuevo</span>' : ''; }
+  function urlSegura(u) { u = String(u ?? '').trim(); return /^(https?:\/\/|blob:|\/|\.{0,2}\/|[\w.-]+\/)/i.test(u) ? u : '#'; }
   function miniatura(f) {
-    return `<a class="mini${E.esNuevo(f) ? ' es-nueva' : ''}" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.titulo || f.descripcion || '')} ${fecha(f.fecha)}"><img src="${esc(f.thumb || f.url)}" alt="${esc(f.titulo || 'Foto de obra')}" loading="lazy">${E.esNuevo(f) ? '<span class="chip c-ok nuevo">Nuevo</span>' : ''}</a>`;
+    return `<a class="mini${E.esNuevo(f) ? ' es-nueva' : ''}" href="${esc(urlSegura(f.url))}" target="_blank" rel="noopener" title="${esc(f.titulo || f.descripcion || '')} ${fecha(f.fecha)}"><img src="${esc(urlSegura(f.thumb || f.url))}" alt="${esc(f.titulo || 'Foto de obra')}" loading="lazy">${E.esNuevo(f) ? '<span class="chip c-ok nuevo">Nuevo</span>' : ''}</a>`;
   }
   function filaDoc(x) {
     return `<div class="doc"><div class="doc-nombre">${esc(x.nombre)} ${etiquetaNuevo(x)}</div><div class="doc-accion">${(x.tiene_archivo || x.url) ? `<button class="btn s xs" onclick="verDocumento(${x.id},this)">Abrir</button>` : '<span class="vacio">Sin archivo</span>'}</div><div class="doc-meta"><div class="meta">${esc(x.categoria || '')}${x.fecha ? ' · ' + fecha(x.fecha) : ''}${(x.version && Number(x.version) > 1) ? ' · versión ' + esc(x.version) : ''}${x.descripcion ? ' · ' + esc(x.descripcion) : ''}</div></div></div>`;

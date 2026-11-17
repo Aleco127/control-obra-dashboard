@@ -270,7 +270,7 @@ function showToast(msg, type = 'info') {
   };
   const toast = document.createElement('div');
   toast.className = `toast ${colors[type]}`;
-  toast.innerHTML = `<i class="ri-${type === 'success' ? 'check' : type === 'error' ? 'close' : type === 'warning' ? 'alert' : 'information'}-line mr-2"></i>${msg}`;
+  toast.innerHTML = `<i class="ri-${type === 'success' ? 'check' : type === 'error' ? 'close' : type === 'warning' ? 'alert' : 'information'}-line mr-2"></i>${esc(msg)}`;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);
 }
@@ -539,7 +539,7 @@ function renderOverview() {
           <tbody>
             ${platformData.empresas.slice(0, 5).map(e => `
               <tr>
-                <td class="font-medium">${e.nombre || 'Sin nombre'}</td>
+                <td class="font-medium">${esc(e.nombre || 'Sin nombre')}</td>
                 <td><span class="badge badge-info">Free</span></td>
                 <td class="text-slate-400">${fmtRelative(e.created_at)}</td>
               </tr>
@@ -556,10 +556,10 @@ function renderOverview() {
         <div class="space-y-2 max-h-[300px] overflow-y-auto">
           ${platformData.errors.slice(0, 5).map(e => `
             <div class="p-3 rounded-lg bg-black/20 border-l-2 ${e.status === 'new' ? 'border-red-500' : 'border-slate-600'}">
-              <p class="text-sm font-medium truncate">${e.message || 'Error desconocido'}</p>
+              <p class="text-sm font-medium truncate">${esc(e.message || 'Error desconocido')}</p>
               <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
                 <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
-                <span><i class="ri-code-line"></i> ${e.error_type || 'unknown'}</span>
+                <span><i class="ri-code-line"></i> ${esc(e.error_type || 'unknown')}</span>
               </div>
             </div>
           `).join('') || '<p class="text-center text-slate-400 py-4">Sin errores recientes</p>'}
@@ -674,8 +674,8 @@ function renderEmpresas() {
             return `
               <tr data-id="${e.id}">
                 <td>
-                  <div class="font-medium text-white">${e.nombre || 'Sin nombre'}</div>
-                  <div class="text-xs text-slate-400">${e.rfc || 'Sin RFC'}</div>
+                  <div class="font-medium text-white">${esc(e.nombre || 'Sin nombre')}</div>
+                  <div class="text-xs text-slate-400">${esc(e.rfc || 'Sin RFC')}</div>
                 </td>
                 <td>${usuarios}</td>
                 <td>-</td>
@@ -724,7 +724,7 @@ async function showEmpresaDetail(empresaId) {
     <div class="modal show" onclick="if(event.target===this)this.remove()">
       <div class="modal-content max-w-2xl">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-bold text-white">${empresa.nombre || 'Empresa'}</h3>
+          <h3 class="text-lg font-bold text-white">${esc(empresa.nombre || 'Empresa')}</h3>
           <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
             <i class="ri-close-line text-xl"></i>
           </button>
@@ -733,7 +733,7 @@ async function showEmpresaDetail(empresaId) {
         <div class="grid grid-cols-2 gap-4 mb-6">
           <div>
             <p class="text-xs text-slate-400">RFC</p>
-            <p class="text-white">${empresa.rfc || '-'}</p>
+            <p class="text-white">${esc(empresa.rfc || '-')}</p>
           </div>
           <div>
             <p class="text-xs text-slate-400">Registro</p>
@@ -755,8 +755,8 @@ async function showEmpresaDetail(empresaId) {
             ${usuarios.map(u => `
               <div class="flex items-center justify-between p-2 rounded bg-black/20">
                 <div>
-                  <p class="text-sm font-medium text-white">${u.nombre}</p>
-                  <p class="text-xs text-slate-400">${u.email}</p>
+                  <p class="text-sm font-medium text-white">${esc(u.nombre)}</p>
+                  <p class="text-xs text-slate-400">${esc(u.email)}</p>
                 </div>
                 <span class="badge badge-info">${u.obra_roles?.nombre || 'Sin rol'}</span>
               </div>
@@ -805,10 +805,10 @@ function renderUsuarios() {
             return `
               <tr>
                 <td>
-                  <div class="font-medium text-white">${u.nombre}</div>
-                  <div class="text-xs text-slate-400">${u.email}</div>
+                  <div class="font-medium text-white">${esc(u.nombre)}</div>
+                  <div class="text-xs text-slate-400">${esc(u.email)}</div>
                 </td>
-                <td>${empresa?.nombre || 'Sin empresa'}</td>
+                <td>${esc(empresa?.nombre || 'Sin empresa')}</td>
                 <td><span class="badge badge-info">${u.obra_roles?.nombre || '-'}</span></td>
                 <td><span class="badge ${u.activo ? 'badge-success' : 'badge-danger'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
                 <td class="text-slate-400">${u.ultimo_acceso ? fmtRelative(u.ultimo_acceso) : '<span class="text-slate-500">Nunca</span>'}</td>
@@ -820,7 +820,7 @@ function renderUsuarios() {
                   <button onclick="toggleUsuarioStatus('${u.id}', ${u.activo})" class="text-slate-400 hover:text-yellow-400 mr-2" title="${u.activo ? 'Desactivar' : 'Activar'}">
                     <i class="ri-${u.activo ? 'user-unfollow' : 'user-follow'}-line"></i>
                   </button>
-                  <button onclick="confirmDeleteUsuario('${u.id}', '${u.nombre.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-red-400" title="Eliminar">
+                  <button onclick="confirmDeleteUsuario('${esc(u.id)}', '${esc(String(u.nombre||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"))}')" class="text-slate-400 hover:text-red-400" title="Eliminar">
                     <i class="ri-delete-bin-line"></i>
                   </button>
                 </td>
@@ -981,23 +981,23 @@ function showEditEmpresaModal(empresaId) {
           <div class="space-y-4">
             <div>
               <label class="text-xs text-slate-400 mb-1 block">Nombre de la Empresa *</label>
-              <input type="text" id="editEmpresaNombre" class="inp" required value="${empresa.nombre || ''}">
+              <input type="text" id="editEmpresaNombre" class="inp" required value="${esc(empresa.nombre || '')}">
             </div>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">RFC</label>
-              <input type="text" id="editEmpresaRFC" class="inp" maxlength="13" style="text-transform:uppercase" value="${empresa.rfc || ''}">
+              <input type="text" id="editEmpresaRFC" class="inp" maxlength="13" style="text-transform:uppercase" value="${esc(empresa.rfc || '')}">
             </div>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">Direccion</label>
-              <input type="text" id="editEmpresaDireccion" class="inp" value="${empresa.direccion || ''}">
+              <input type="text" id="editEmpresaDireccion" class="inp" value="${esc(empresa.direccion || '')}">
             </div>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">Telefono</label>
-              <input type="tel" id="editEmpresaTelefono" class="inp" value="${empresa.telefono || ''}">
+              <input type="tel" id="editEmpresaTelefono" class="inp" value="${esc(empresa.telefono || '')}">
             </div>
             <div>
               <label class="text-xs text-slate-400 mb-1 block">Email</label>
-              <input type="email" id="editEmpresaEmail" class="inp" value="${empresa.email || ''}">
+              <input type="email" id="editEmpresaEmail" class="inp" value="${esc(empresa.email || '')}">
             </div>
             <div class="flex items-center gap-2">
               <input type="checkbox" id="editEmpresaActivo" class="w-4 h-4" ${empresa.activo !== false ? 'checked' : ''}>
@@ -1267,11 +1267,11 @@ function showEditUsuarioModal(userId) {
             </div>
             <div>
               <label class="block text-sm text-slate-400 mb-1">Nombre *</label>
-              <input type="text" id="editUsuarioNombre" class="inp w-full" value="${usuario.nombre}" required>
+              <input type="text" id="editUsuarioNombre" class="inp w-full" value="${esc(usuario.nombre)}" required>
             </div>
             <div>
               <label class="block text-sm text-slate-400 mb-1">Email *</label>
-              <input type="email" id="editUsuarioEmail" class="inp w-full" value="${usuario.email}" required>
+              <input type="email" id="editUsuarioEmail" class="inp w-full" value="${esc(usuario.email)}" required>
             </div>
             <div>
               <label class="block text-sm text-slate-400 mb-1">Nueva Contrasena (dejar vacio para no cambiar)</label>
@@ -1289,7 +1289,7 @@ function showEditUsuarioModal(userId) {
             </div>
             <div>
               <label class="block text-sm text-slate-400 mb-1">Telefono</label>
-              <input type="tel" id="editUsuarioTelefono" class="inp w-full" value="${usuario.telefono || ''}">
+              <input type="tel" id="editUsuarioTelefono" class="inp w-full" value="${esc(usuario.telefono || '')}">
             </div>
             <label class="flex items-center gap-2">
               <input type="checkbox" id="editUsuarioActivo" ${usuario.activo ? 'checked' : ''}>
@@ -1591,18 +1591,18 @@ function renderErrors() {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-1">
                   <span class="badge ${e.status === 'new' ? 'badge-danger' : 'badge-success'}">${e.status === 'new' ? 'Nuevo' : 'Resuelto'}</span>
-                  <span class="badge badge-info">${e.error_type || 'unknown'}</span>
+                  <span class="badge badge-info">${esc(e.error_type || 'unknown')}</span>
                   <span class="text-xs text-slate-400">${e.count}x</span>
                 </div>
-                <p class="text-white font-medium truncate">${e.message || 'Error sin mensaje'}</p>
+                <p class="text-white font-medium truncate">${esc(e.message || 'Error sin mensaje')}</p>
                 <div class="flex items-center gap-4 mt-2 text-xs text-slate-400">
                   <span><i class="ri-time-line"></i> ${fmtRelative(e.created_at)}</span>
-                  ${empresa ? `<span><i class="ri-building-line"></i> ${empresa.nombre}</span>` : ''}
-                  ${usuario ? `<span><i class="ri-user-line"></i> ${usuario.nombre}</span>` : '<span><i class="ri-user-line"></i> Anonimo</span>'}
-                  ${e.url ? `<span><i class="ri-link"></i> ${e.url.split('/').pop()}</span>` : ''}
+                  ${empresa ? `<span><i class="ri-building-line"></i> ${esc(empresa.nombre)}</span>` : ''}
+                  ${usuario ? `<span><i class="ri-user-line"></i> ${esc(usuario.nombre)}</span>` : '<span><i class="ri-user-line"></i> Anonimo</span>'}
+                  ${e.url ? `<span><i class="ri-link"></i> ${esc(e.url.split('/').pop())}</span>` : ''}
                 </div>
               </div>
-              <button onclick="event.stopPropagation();resolveError('${e.fingerprint}')" class="btn btn-s text-xs ${e.status === 'new' ? '' : 'hidden'}">
+              <button onclick="event.stopPropagation();resolveError('${esc(e.fingerprint)}')" class="btn btn-s text-xs ${e.status === 'new' ? '' : 'hidden'}">
                 Resolver
               </button>
             </div>
@@ -1664,7 +1664,7 @@ async function showErrorDetail(errorId) {
         <div class="flex items-center justify-between mb-4">
           <div>
             <span class="badge ${error.status === 'new' ? 'badge-danger' : 'badge-success'} mb-2">${error.status}</span>
-            <h3 class="text-lg font-bold text-white">${error.error_type || 'Error'}</h3>
+            <h3 class="text-lg font-bold text-white">${esc(error.error_type || 'Error')}</h3>
           </div>
           <button onclick="this.closest('.modal').remove()" class="text-slate-400 hover:text-white">
             <i class="ri-close-line text-xl"></i>
@@ -1672,21 +1672,21 @@ async function showErrorDetail(errorId) {
         </div>
 
         <div class="bg-black/30 rounded-lg p-4 mb-4">
-          <p class="text-red-400 font-mono text-sm">${error.message}</p>
+          <p class="text-red-400 font-mono text-sm">${esc(error.message)}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
             <p class="text-xs text-slate-400">Empresa</p>
-            <p class="text-white">${empresa?.nombre || 'Desconocida'}</p>
+            <p class="text-white">${esc(empresa?.nombre || 'Desconocida')}</p>
           </div>
           <div>
             <p class="text-xs text-slate-400">Usuario</p>
-            <p class="text-white">${usuario?.nombre || 'Anonimo'}</p>
+            <p class="text-white">${esc(usuario?.nombre || 'Anonimo')}</p>
           </div>
           <div>
             <p class="text-xs text-slate-400">URL</p>
-            <p class="text-white text-sm truncate">${error.url || '-'}</p>
+            <p class="text-white text-sm truncate">${esc(error.url || '-')}</p>
           </div>
           <div>
             <p class="text-xs text-slate-400">Fecha</p>
@@ -1697,13 +1697,13 @@ async function showErrorDetail(errorId) {
         ${error.stack_trace ? `
           <div class="mb-4">
             <p class="text-xs text-slate-400 mb-2">Stack Trace</p>
-            <pre class="bg-black/30 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto max-h-[200px]">${error.stack_trace}</pre>
+            <pre class="bg-black/30 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto max-h-[200px]">${esc(error.stack_trace)}</pre>
           </div>
         ` : ''}
 
         <div class="flex gap-2">
           <button onclick="this.closest('.modal').remove()" class="btn btn-s flex-1">Cerrar</button>
-          ${error.status === 'new' ? `<button onclick="resolveError('${error.fingerprint}');this.closest('.modal').remove()" class="btn btn-p flex-1">Marcar Resuelto</button>` : ''}
+          ${error.status === 'new' ? `<button onclick="resolveError('${esc(error.fingerprint)}');this.closest('.modal').remove()" class="btn btn-p flex-1">Marcar Resuelto</button>` : ''}
         </div>
       </div>
     </div>
@@ -1873,7 +1873,7 @@ async function renderAnalytics() {
               const ultimoUsuario = usuarios.sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
               return `
                 <tr>
-                  <td class="font-medium text-white">${e.nombre}</td>
+                  <td class="font-medium text-white">${esc(e.nombre)}</td>
                   <td>${usuarios.length}</td>
                   <td>${analytics.obras_por_empresa?.find(o => o.empresa_id === e.id)?.count || 0}</td>
                   <td><span class="badge ${e.activo ? 'badge-success' : 'badge-danger'}">${e.activo ? 'Activa' : 'Inactiva'}</span></td>
@@ -1898,7 +1898,7 @@ async function renderAnalytics() {
       <div class="card text-center py-12">
         <i class="ri-error-warning-line text-4xl text-red-400 mb-2"></i>
         <p class="text-white">Error al cargar analytics</p>
-        <p class="text-sm text-slate-400 mt-2">${err.message}</p>
+        <p class="text-sm text-slate-400 mt-2">${esc(err.message)}</p>
         <button onclick="renderAnalytics()" class="btn btn-p mt-4">Reintentar</button>
       </div>
     `;
@@ -2089,8 +2089,8 @@ function renderModulos() {
                      data-id="${e.id}" data-name="${(e.nombre || '').toLowerCase()}">
                   <div class="flex items-center justify-between">
                     <div>
-                      <p class="font-medium text-white">${e.nombre || 'Sin nombre'}</p>
-                      <p class="text-xs text-slate-400">${e.rfc || 'Sin RFC'}</p>
+                      <p class="font-medium text-white">${esc(e.nombre || 'Sin nombre')}</p>
+                      <p class="text-xs text-slate-400">${esc(e.rfc || 'Sin RFC')}</p>
                     </div>
                     ${hasConfig ? '<span class="badge badge-success text-xs">Configurado</span>' : '<span class="badge badge-warning text-xs">Default</span>'}
                   </div>
@@ -2168,7 +2168,7 @@ function renderModulosEditor() {
                     <input type="text"
                            class="inp text-xs py-1"
                            placeholder="Nombre personalizado (opcional)"
-                           value="${config.label_custom || ''}"
+                           value="${esc(config.label_custom || '')}"
                            onchange="setCustomLabel('${mod.key}', this.value)"
                            ${!config.habilitado ? 'disabled' : ''}>
                   </div>
@@ -2391,7 +2391,7 @@ function showTemplateDetail(templateId) {
         <div class="flex flex-wrap gap-2">
           ${platformData.empresaConfigs.filter(c => c.template_id === templateId).map(c => {
             const emp = platformData.empresas.find(e => e.id === c.empresa_id);
-            return `<span class="badge badge-info">${emp?.nombre || 'Empresa ' + c.empresa_id}</span>`;
+            return `<span class="badge badge-info">${esc(emp?.nombre || 'Empresa ' + c.empresa_id)}</span>`;
           }).join('') || '<span class="text-slate-400 text-sm">Ninguna empresa usa esta plantilla</span>'}
         </div>
       </div>

@@ -44,12 +44,13 @@ const Toast = {
     toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white transform translate-x-full transition-transform duration-300 ${colors[type]}`;
     toast.innerHTML = `
       <i class="${icons[type]} text-lg" aria-hidden="true"></i>
-      <span class="text-sm font-medium">${message}</span>
+      <span class="text-sm font-medium" data-toast-msg></span>
       <button onclick="this.parentElement.remove()" class="ml-2 hover:opacity-70 min-w-[32px] min-h-[32px]" aria-label="Cerrar aviso">
         <i class="ri-close-line" aria-hidden="true"></i>
       </button>
     `;
 
+    toast.querySelector('[data-toast-msg]').textContent = message == null ? '' : String(message);
     this.container.appendChild(toast);
 
     // Animate in

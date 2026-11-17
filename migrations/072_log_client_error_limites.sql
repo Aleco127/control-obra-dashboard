@@ -1,0 +1,2 @@
+-- 072 · log_client_error (anónimo por diseño): tamaños acotados, tipo validado, tope global de 600 errores / 10 min
+-- y empresa/usuario sólo si coinciden con la sesión. Aplicada por MCP el 17-nov-2026 (definición completa en la base).

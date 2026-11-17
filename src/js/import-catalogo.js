@@ -371,7 +371,7 @@ colsWithData.forEach(i => {
 const val = row[i] || '';
 const short = val.length > 20 ? val.substring(0,20) + '..' : val;
 const field = IMPORT_FIELDS.find(f => f.key === importColumnMapping[i]);
-html += `<td class="px-2 py-1.5 text-gray-300 ${field ? 'bg-opacity-10 ' + field.color.replace('bg-','bg-') + '/10' : ''}" title="${val.replace(/"/g,'&quot;')}">${short || '<span class="text-gray-600">-</span>'}</td>`;
+html += `<td class="px-2 py-1.5 text-gray-300 ${field ? 'bg-opacity-10 ' + field.color.replace('bg-','bg-') + '/10' : ''}" title="${S(val)}">${short ? S(short) : '<span class="text-gray-600">-</span>'}</td>`;
 });
 html += '</tr>';
 });

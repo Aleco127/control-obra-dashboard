@@ -781,7 +781,7 @@ ${esAdmin() && socs.length ? `<div class="col-span-2" id="gastoPagadoPorContaine
     Object.assign(g, upd);
     if (g.pagado_por_socio_id) recargarMovimientosSocio(); // el trigger ajustó su reposición
     const quien =g.pagado_por_socio_id ? ' a ' + socioNombre(g.pagado_por_socio_id) : '';
-    Toast.success(val === 'pagado' ? `${S(g.descripcion || 'El gasto')} quedó como pagado${quien}.` : `${S(g.descripcion || 'El gasto')} regresó a ${ESTADO[val][0].toLowerCase()}.`);
+    Toast.success(val === 'pagado' ? `${g.descripcion || 'El gasto'} quedó como pagado${quien}.` : `${g.descripcion || 'El gasto'} regresó a ${ESTADO[val][0].toLowerCase()}.`);
     try { Telemetry.track('gasto_estado_manual', { de: antes, a: val }); } catch (e) { }
     refrescar();
   }

@@ -256,7 +256,7 @@ const Reports = {
 
   generatePDFHTML(config, data) {
     const rows = data.map(item => {
-      const cells = config.mapRow(item).map(cell => `<td>${cell}</td>`).join('');
+      const cells = config.mapRow(item).map(cell => `<td>${typeof S === 'function' ? S(cell) : String(cell ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</td>`).join('');
       return `<tr>${cells}</tr>`;
     }).join('');
 
