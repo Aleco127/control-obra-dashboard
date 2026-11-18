@@ -1016,6 +1016,34 @@ const sanitize=s=>{if(s==null)return'';return String(s).replace(/&/g,'&amp;').re
 const SA=x=>sanitize(String(x??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' '));
 const safeUrl=u=>{u=String(u??'').trim();return /^(https?:\/\/|blob:|data:image\/|\/|#|\.{0,2}\/|[\w.-]+\/)/i.test(u)&&!/^\s*(javascript|vbscript|data:text)/i.test(u)?u:'#';};
 const S=sanitize; // Shorthand alias
+// Fotos de obra: el bucket es privado. La URL guardada en fotos_obra se cambia por un enlace firmado (6 h) al pintar;
+// lo que no es del bucket (una liga externa) pasa por safeUrl tal cual.
+const FotoUrl=(()=>{
+const RX=/\/storage\/v1\/object\/(?:public|sign)\/fotos\/([^?#]+)/,VIDA=5*3600*1000,VACIA='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+const cache=new Map(),fallidas=new Set();let enCurso=null,ultimoError=0;
+const ruta=u=>{const m=RX.exec(String(u||''));if(!m)return null;try{return decodeURIComponent(m[1]);}catch(e){return m[1];}};
+async function firmar(lista){
+const ahora=Date.now();
+const rutas=[...new Set((lista||[]).flatMap(f=>typeof f==='string'?[f]:[f&&f.url_foto,f&&f.url_thumbnail]).map(ruta).filter(p=>p&&!fallidas.has(p)&&!(cache.has(p)&&ahora-cache.get(p).t<VIDA)))];
+if(!rutas.length)return 0;
+let n=0;
+for(let i=0;i<rutas.length;i+=200){
+const{data,error}=await sb.storage.from('fotos').createSignedUrls(rutas.slice(i,i+200),6*3600);
+if(error){ultimoError=Date.now();break;}
+(data||[]).forEach(x=>{if(x&&x.path&&x.signedUrl){cache.set(x.path,{u:x.signedUrl,t:ahora});n++;}else if(x&&x.path)fallidas.add(x.path);});
+}
+return n;
+}
+function src(u){
+const p=ruta(u);if(!p)return safeUrl(u);
+const c=cache.get(p);if(c&&Date.now()-c.t<VIDA)return c.u;
+if(!enCurso&&!fallidas.has(p)&&Date.now()-ultimoError>60000){
+enCurso=firmar(((typeof D!=='undefined'&&D.fot)||[]).concat([u])).then(n=>{enCurso=null;if(n&&typeof R==='function')R();}).catch(()=>{enCurso=null;ultimoError=Date.now();});
+}
+return c?c.u:VACIA;
+}
+return{src,firmar,ruta};
+})();
 const F=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN',minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
 const fmt=v=>new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(v||0);
 
@@ -2562,6 +2590,7 @@ D.pac=secData.config_pac||[];
 D.rfi=secData.rfis||[];
 D.pl=secData.punch_list||[];
 D.seg=secData.seguridad||[];
+try{await FotoUrl.firmar(D.fot);}catch(e){}
 }
 
 // Cargar tablas globales (sin RLS restrictivo) - con fallback individual
@@ -10942,7 +10971,7 @@ const pend=$('pgFotoPend'),gal=$('pgFotoGal');if(!pend||!gal||!_pgFotoAct)return
 pend.innerHTML=_pgFotoNuevas.map((f,i)=>`<figure><img src="${f.dataUrl}" alt="Foto por subir ${i+1}"><button type="button" class="quitar" onclick="_pgFotoNuevas.splice(${i},1);pgRenderFotos()" aria-label="Quitar la foto ${i+1}"><i class="ri-close-line" aria-hidden="true"></i></button><figcaption>${Math.round(f.size/1024)} KB</figcaption></figure>`).join('');
 const ya=pgFotosDeActividad(_pgFotoAct.id);
 gal.innerHTML=ya.length
-?`<p class="text-xs text-ink-subtle mb-2">${ya.length} ${ya.length===1?'foto publicada':'fotos publicadas'}</p><div class="pg-gal">`+ya.map(f=>`<figure><a href="${S(f.url_foto)}" target="_blank" rel="noopener"><img src="${S(f.url_thumbnail||f.url_foto)}" alt="${S(f.titulo||'Foto del avance')}" loading="lazy"></a><button type="button" class="quitar ojo${f.visible_cliente===false?' off':''}" onclick="toggleFotoCliente(${f.id})" aria-label="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}" title="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}"><i class="${f.visible_cliente===false?'ri-eye-off-line':'ri-eye-line'}" aria-hidden="true"></i></button><button type="button" class="quitar" onclick="pgQuitarFoto(${f.id})" aria-label="Quitar esta foto del portal"><i class="ri-delete-bin-line" aria-hidden="true"></i></button><figcaption>${f.fecha_foto?S(fechaCortaDs(f.fecha_foto)):''}</figcaption></figure>`).join('')+'</div>'
+?`<p class="text-xs text-ink-subtle mb-2">${ya.length} ${ya.length===1?'foto publicada':'fotos publicadas'}</p><div class="pg-gal">`+ya.map(f=>`<figure><a href="${S(FotoUrl.src(f.url_foto))}" target="_blank" rel="noopener"><img src="${S(FotoUrl.src(f.url_thumbnail||f.url_foto))}" alt="${S(f.titulo||'Foto del avance')}" loading="lazy"></a><button type="button" class="quitar ojo${f.visible_cliente===false?' off':''}" onclick="toggleFotoCliente(${f.id})" aria-label="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}" title="${f.visible_cliente===false?'Mostrar esta foto al cliente':'Ocultar esta foto al cliente'}"><i class="${f.visible_cliente===false?'ri-eye-off-line':'ri-eye-line'}" aria-hidden="true"></i></button><button type="button" class="quitar" onclick="pgQuitarFoto(${f.id})" aria-label="Quitar esta foto del portal"><i class="ri-delete-bin-line" aria-hidden="true"></i></button><figcaption>${f.fecha_foto?S(fechaCortaDs(f.fecha_foto)):''}</figcaption></figure>`).join('')+'</div>'
 :'<p class="text-xs text-ink-subtle">Todavía no hay fotos de este concepto.</p>';
 const btn=$('pgFotoSubir');
 if(btn){btn.disabled=!_pgFotoNuevas.length;btn.textContent=_pgFotoNuevas.length?`Subir ${_pgFotoNuevas.length} foto${_pgFotoNuevas.length>1?'s':''}`:'Subir fotos';}
@@ -17796,7 +17825,7 @@ const obra=D.o.find(o=>o.id===f.obra_id);
 return`
 <div class="card overflow-hidden group cursor-pointer" onclick="openFotoViewer(${f.id})">
 <div class="relative aspect-square bg-slate-100">
-<img src="${S(safeUrl(f.url_foto))}" alt="${S(f.titulo||'Foto')}" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect fill=%27%23f1f5f9%27 width=%27100%27 height=%27100%27/%3E%3Ctext x=%2750%27 y=%2755%27 text-anchor=%27middle%27 fill=%27%2394a3b8%27 font-size=%2712%27%3ESin imagen%3C/text%3E%3C/svg%3E'">
+<img src="${S(FotoUrl.src(f.url_foto))}" alt="${S(f.titulo||'Foto')}" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect fill=%27%23f1f5f9%27 width=%27100%27 height=%27100%27/%3E%3Ctext x=%2750%27 y=%2755%27 text-anchor=%27middle%27 fill=%27%2394a3b8%27 font-size=%2712%27%3ESin imagen%3C/text%3E%3C/svg%3E'">
 ${f.es_destacada?`<div class="absolute top-2 left-2"><span class="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full"><i class="ri-star-fill"></i></span></div>`:''}
 ${f.visible_cliente===false?`<div class="absolute top-2 right-2"><span class="bg-slate-700 text-white text-xs px-2 py-0.5 rounded-full" title="No se muestra al cliente"><i class="ri-eye-off-line" aria-hidden="true"></i> Oculta al cliente</span></div>`:''}
 <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -17960,7 +17989,7 @@ $('fotoDescripcion').value=f.descripcion||'';
 $('fotoDestacada').checked=f.es_destacada||false;
 pintaHitos('fotoHito',f.obra_id,f.actividad_id);
 if(f.url_foto){
-previewImg.src=f.url_foto;
+previewImg.src=FotoUrl.src(f.url_foto);
 preview.classList.remove('hidden');
 }else{
 preview.classList.add('hidden');
@@ -18053,7 +18082,7 @@ function showFotoInViewer(){
 const f=filteredFotosForViewer[currentFotoIndex];
 if(!f)return;
 const obra=D.o.find(o=>o.id===f.obra_id);
-$('viewerImg').src=f.url_foto;
+$('viewerImg').src=FotoUrl.src(f.url_foto);
 $('viewerTitulo').textContent=f.titulo||'Sin título';
 $('viewerInfo').textContent=`${obra?.nombre_obra||'Sin obra'} • ${f.fecha_foto?new Date(f.fecha_foto).toLocaleDateString('es-MX'):'Sin fecha'} • ${f.categoria||'General'}`;
 }

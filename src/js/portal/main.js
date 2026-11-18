@@ -15,6 +15,7 @@
       if (!/^[a-f0-9]{48}$/.test(E.token)) return pantallaError('Enlace no válido', 'Pide a tu constructor un enlace nuevo.');
       const d = await API.rpc('portal_obra', { p_token: E.token });
       if (!d || d.error) return pantallaError('Este enlace ya no está activo', 'Pide a tu constructor un enlace nuevo.');
+      await firmarFotos(d);
       return pintarObra(d);
     }
     if (E.sesion) {
@@ -41,6 +42,7 @@
       if (d && d.error === 'sesion_invalida') { localStorage.removeItem('portal_sesion'); E.sesion = ''; return V.pantallaLogin('Tu sesión expiró. Entra otra vez.'); }
       return pantallaError('No pudimos abrir la obra', 'Inténtalo de nuevo en un momento.');
     }
+    await firmarFotos(d);
     pintarObra(d);
   }
   function cambiarObra(sel) { abrirObra(Number(sel.value)); }
@@ -76,6 +78,20 @@
     E.seccion = s;
     pintarSeccion();
   });
+
+  // Las fotos viven en un bucket privado: se cambian las URL guardadas por enlaces firmados (6 h) antes de pintar.
+  // Una foto sin enlace firmado se queda sin URL en vez de apuntar a una dirección que ya no responde.
+  async function firmarFotos(d) {
+    if (!d || !Array.isArray(d.fotos) || !d.fotos.length || !d.obra) return;
+    const j = await API.pedirArchivo({ token: E.token, sesion: E.sesion, fotos: true, obra_id: d.obra.id });
+    const mapa = (j && j.fotos) || {};
+    const privada = u => /\/storage\/v1\/object\/public\/fotos\//.test(String(u || ''));
+    d.fotos.forEach(f => {
+      const s = mapa[String(f.id)];
+      if (privada(f.url)) f.url = (s && s.url) || '';
+      if (privada(f.thumb)) f.thumb = (s && s.thumb) || '';
+    });
+  }
 
   /* ---------- Marco y despacho ---------- */
   function pintarObra(d) {

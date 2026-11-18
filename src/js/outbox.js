@@ -65,6 +65,7 @@ const Outbox = (() => {
       const reg = { ...item.payload.registro, url_foto: u.publicUrl };
       const { data, error } = await sb.from('fotos_obra').insert(reg).select().single();
       if (error) throw error;
+      if (typeof FotoUrl !== 'undefined') { try { await FotoUrl.firmar([data]); } catch (e) { } }   // bucket privado: enlace firmado listo antes de pintar
       if (Array.isArray(D.fot)) D.fot.unshift(data);
       return data;
     }

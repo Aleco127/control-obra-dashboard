@@ -27,3 +27,26 @@ Alcance: base de datos (funciones, RLS, permisos, buckets), Edge Functions, API 
 ## Cómo comprobarlo
 
 Con sólo la llave publicable: `Accept-Profile: control_obra` sobre `_bak_20260829_gastos` responde 42501; `rpc/plan_efectivo` responde 42501; listar el bucket `fotos` devuelve vacío. Con una sesión: `PATCH obra_sesiones`, `PATCH empresa_subscriptions` y `PATCH empresas {max_obras}` responden 42501.
+
+## Segunda ronda (18-nov-2026): permisos por rol, sesiones y fotos
+
+Migraciones 073 a 075, función de borde `portal-archivo` v4 y build `202611181520`.
+
+| Tema | Antes | Ahora |
+|---|---|---|
+| Permisos por rol | La RLS separaba por empresa pero no por rol: lo que la barra ocultaba seguía legible y editable por API | Políticas `RESTRICTIVE` `rol_lee`, `rol_inserta`, `rol_actualiza` y `rol_borra` en 49 tablas, con la misma tabla de visibilidad de `src/js/nav-rules.js` (`control_obra.sesion_ve` / `sesion_escribe`) |
+| Carga inicial | `load_all_data_seguro` y `load_secondary_data_seguro` entregaban todo a cualquier rol, incluido el hash de contraseña de los usuarios | Cada bloque se entrega sólo si el rol ve el módulo; el hash nunca viaja; el detalle de usuarios sólo a nivel 100 |
+| RPC de escritura | `crear_obra`, `crear_gasto` y `crear_orden_compra` no revisaban el rol | `control_obra.exigir_rol(nivel, módulos…)` |
+| Sesiones | 30 días renovables, decenas de sesiones vencidas acumuladas | 7 días, se renuevan cuando quedan menos de 3; una sesión viva por usuario tras la limpieza |
+| Fotos de obra | Bucket público: la URL bastaba | Bucket privado; la app firma con su sesión (`FotoUrl`) y el portal pide los enlaces a `portal-archivo` (`{fotos:true, obra_id}`) |
+
+### Al agregar cosas nuevas
+
+- **Tabla nueva con datos de un módulo:** además de la política por empresa, añadir su renglón al bloque `VALUES` de la migración 073 (o crear las cuatro políticas `rol_*` a mano). Sin ellas, cualquier rol de la empresa la lee.
+- **Módulo o rol nuevo en `nav-rules.js`:** repetir el cambio en `control_obra.usuario_ve` (misma tabla, en SQL).
+- **Dato nuevo en `load_*_data_seguro`:** envolverlo en `CASE WHEN control_obra.usuario_ve(u, …)`.
+- **Fotos:** nunca pintar `url_foto` directo; usar `FotoUrl.src(url)` en la app. `getPublicUrl` sólo sirve para guardar la forma canónica de la ruta.
+
+### Cómo comprobar
+
+Simular un rol dentro de una transacción que se revierte: crear un usuario temporal con ese `rol_id`, una sesión, fijar `request.headers` con su `x-obra-token`, `SET LOCAL ROLE anon` y contar filas en las vistas `public.*`. Resultado esperado para `trabajador`: 0 en gastos, nómina, cobros, clientes y empleados; no puede insertar ni actualizar.

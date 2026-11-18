@@ -1,4 +1,4 @@
-// Edge Function portal-archivo: entrega al cliente enlaces firmados de los archivos de su obra (facturas y documentos). US-238, US-248.
+// Edge Function portal-archivo: entrega al cliente enlaces firmados de los archivos de su obra (facturas, documentos y fotos). US-238, US-248.
 // Acepta las dos formas de entrar al portal: el enlace privado (token de 48 hex) o la sesión con correo y contraseña (64 hex).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -28,11 +28,33 @@ async function obrasPermitidas(b: { token?: string; sesion?: string }): Promise<
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
-  let b: { token?: string; sesion?: string; cfdi_id?: number; documento_id?: number; tipo?: string } = {};
+  let b: { token?: string; sesion?: string; cfdi_id?: number; documento_id?: number; tipo?: string; fotos?: boolean; obra_id?: number } = {};
   try { b = await req.json(); } catch { return json({ error: "JSON inválido" }, 400); }
 
   const obras = await obrasPermitidas(b);
   if (!obras || !obras.length) return json({ error: "Enlace inválido" }, 403);
+
+  // Fotos de la obra: el bucket es privado, así que el portal pide aquí los enlaces firmados (6 h) de las fotos publicadas.
+  if (b.fotos) {
+    const obraId = Number(b.obra_id);
+    if (!obras.includes(obraId)) return json({ error: "Obra no encontrada" }, 404);
+    const { data: fs } = await admin.schema("control_obra").from("fotos_obra")
+      .select("id,url_foto,url_thumbnail").eq("obra_id", obraId).eq("visible_cliente", true).order("id", { ascending: false }).limit(300);
+    const ruta = (u: unknown) => { const m = /\/storage\/v1\/object\/(?:public|sign)\/fotos\/([^?#]+)/.exec(String(u ?? "")); return m ? decodeURIComponent(m[1]) : null; };
+    const rutas = new Set<string>();
+    for (const f of fs ?? []) { for (const u of [f.url_foto, f.url_thumbnail]) { const p = ruta(u); if (p) rutas.add(p); } }
+    const firmadas: Record<string, string> = {};
+    if (rutas.size) {
+      const { data: su } = await admin.storage.from("fotos").createSignedUrls([...rutas], 6 * 3600);
+      for (const s of su ?? []) if (s.path && s.signedUrl) firmadas[s.path] = s.signedUrl;
+    }
+    const out: Record<string, { url: string | null; thumb: string | null }> = {};
+    for (const f of fs ?? []) {
+      const pu = ruta(f.url_foto), pt = ruta(f.url_thumbnail);
+      out[String(f.id)] = { url: pu ? (firmadas[pu] ?? null) : null, thumb: pt ? (firmadas[pt] ?? null) : null };
+    }
+    return json({ fotos: out });
+  }
 
   if (b.documento_id != null) {
     const { data: d } = await admin.schema("control_obra").from("documentos")
