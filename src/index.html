@@ -4558,10 +4558,22 @@ if(!obra)return;
 if(!await Dialog.confirm(`¿Eliminar la obra "${obra.nombre_obra}"?\n\nEsta accion no se puede deshacer.`))return;
 
 try{
-const{error}=await sb.from('obras').delete().eq('id',id);
-if(error)throw error;
-L();
-}catch(err){Toast.error(humanizeError(err));}
+const{data:borradas,error}=await sb.from('obras').delete().eq('id',id).select('id');
+if(error){
+if(error.code==='23503'){Toast.error('La obra tiene gastos, órdenes de compra, documentos, fotos o empleados ligados. Archívala o elimina primero esos registros.');return;}
+throw error;
+}
+// Sin error pero sin filas: el servidor no dejó borrar (permisos del rol) o la obra ya no existe.
+if(!borradas||!borradas.length){Toast.error('No se eliminó la obra: tu rol no tiene permiso para borrarla.');return;}
+// Quitarla de la vista de inmediato; L() sola pinta primero la copia en caché y la obra reaparecía.
+D.o=D.o.filter(x=>x.id!=id);
+if(selectedObra==id&&typeof clearObraFilter==='function'){selectedObra=null;localStorage.removeItem('selectedObra');const sel=$('obraFilter');if(sel)sel.value='';}
+invalidateFilterCache();
+Cache.clear();
+R();
+Toast.success('Obra eliminada');
+await L();R();
+}catch(err){Toast.error(humanizeError(err,'No se eliminó la obra'));}
 }
 
 // ========== FUNCIONES DE ARCHIVADO DE OBRAS ==========
