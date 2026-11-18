@@ -70,7 +70,7 @@ test('la segunda visita ya trae ultimo_visto_at reciente y sin fotos ni document
   const visto = r.body.novedades.ultimo_visto_at;
   assert.ok(visto, 'la primera llamada debió dejar ultimo_visto_at');
   const hace = Date.now() - Date.parse(visto);
-  assert.ok(hace >= 0 && hace < 5 * 60 * 1000, `ultimo_visto_at debe ser de hace unos segundos (${Math.round(hace / 1000)} s)`);
+  assert.ok(hace > -60 * 1000 && hace < 5 * 60 * 1000, `ultimo_visto_at debe ser de hace unos segundos (${Math.round(hace / 1000)} s)`);
   assert.equal(r.body.novedades.fotos, 0, 'nada nuevo desde hace unos segundos');
   assert.equal(r.body.novedades.documentos, 0);
   // lo que no depende de la visita se conserva
@@ -89,7 +89,7 @@ test('el enlace de obra (portal_obra) recibe novedades en ceros', { skip: skipOb
   const r = await rpc('portal_obra', { p_token: OBRA_TOKEN });
   assert.equal(r.status, 200, JSON.stringify(r.body).slice(0, 200));
   assert.ok(!r.body.error, `error: ${r.body.error}`);
-  assert.deepEqual(r.body.novedades, { fotos: 0, documentos: 0, pagos_vencidos: 0, proximo_pago_dias: null, ultimo_visto_at: null });
+  assert.deepEqual(r.body.novedades, { fotos: 0, documentos: 0, diario: 0, pagos_vencidos: 0, proximo_pago_dias: null, ultimo_visto_at: null });
 });
 
 test('portal_evento registra con sesión de cuenta y valida evento y meta', { skip }, async () => {

@@ -15,7 +15,7 @@ El contenedor `caddy` (compose `/docker/n8n-app/docker-compose.yml`) genera `/et
 - `encode zstd gzip`
 - `reverse_proxy control-obra-dashboard-web-1:80` (nginx con `/docker/control-obra-dashboard/html`)
 - Headers: `X-Frame-Options SAMEORIGIN`, `X-Content-Type-Options nosniff`, `Referrer-Policy strict-origin-when-cross-origin`, `Strict-Transport-Security max-age=31536000`, `Permissions-Policy` (geolocalización sólo propia; micrófono, pago y USB apagados), `-Server`.
-- `Content-Security-Policy` forzada desde el 29 de agosto de 2026:
+- `Content-Security-Policy` forzada desde el 29 de agosto de 2026 (endurecida el 18 de noviembre de 2026: sin `unsafe-eval`, sin `*.supabase.co` ni CDN de Tailwind en `script-src`, y `connect-src` sólo al proyecto propio; el valor vigente es el del archivo `.caddy`, respaldo previo en `/root/control-obra-app.caddy.bak-20261118`):
 
 ```
 default-src 'self';

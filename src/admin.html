@@ -373,16 +373,23 @@ function showApp() {
   showSection('overview');
 }
 
+// Empresas y usuarios se leen y escriben por funciones que validan la sesión de plataforma en el servidor
+// (platform_datos, platform_empresa_guardar, platform_usuario_guardar, platform_usuario_eliminar): la llave pública
+// ya no puede tocar esas tablas directamente.
+async function platRpc(fn, args) {
+  const { data, error } = await sb.rpc(fn, args || {});
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'No se pudo completar la operación');
+  return data;
+}
+
 // ========== CARGA DE DATOS ==========
 async function loadPlatformData() {
   try {
-    // Load empresas (schema: control_obra)
-    const { data: empresas } = await sbObra.from('empresas').select('*').order('created_at', { ascending: false });
-    platformData.empresas = empresas || [];
-
-    // Load usuarios (schema: control_obra)
-    const { data: usuarios } = await sbObra.from('obra_usuarios').select('*, obra_roles(nombre)').order('created_at', { ascending: false });
-    platformData.usuarios = usuarios || [];
+    // Empresas, usuarios (sin hash de contraseña) y configuración de módulos, en una sola llamada validada
+    const base = await platRpc('platform_datos');
+    platformData.empresas = base.empresas || [];
+    platformData.usuarios = base.usuarios || [];
 
     // Load errors (last 7 days for better visibility)
     const { data: errors } = await sb.from('platform_errors')
@@ -403,9 +410,7 @@ async function loadPlatformData() {
     const { data: templates } = await sb.from('config_templates').select('*').order('nombre');
     platformData.templates = templates || [];
 
-    // Load empresa configs (schema: control_obra)
-    const { data: empresaConfigs } = await sbObra.from('empresa_config').select('*, empresa_modulos(*)');
-    platformData.empresaConfigs = empresaConfigs || [];
+    platformData.empresaConfigs = base.empresa_configs || [];
 
     // Update error badge
     const newErrors = platformData.errors.filter(e => e.status === 'new').length;
@@ -925,13 +930,8 @@ async function createEmpresa(e) {
 
   try {
     // Crear empresa (schema: control_obra)
-    const { data: empresa, error } = await sbObra.from('empresas').insert({
-      nombre,
-      rfc: rfc || null,
-      direccion: direccion || null,
-      telefono: telefono || null,
-      activo
-    }).select().single();
+    const empresa = (await platRpc('platform_empresa_guardar', { p_id: null, p_datos: { nombre, rfc: rfc || null, direccion: direccion || null, telefono: telefono || null, activo } })).empresa;
+    const error = null;
 
     if (error) throw error;
 
@@ -1046,14 +1046,8 @@ async function updateEmpresa(e, empresaId) {
   errorDiv.classList.add('hidden');
 
   try {
-    const { error } = await sbObra.from('empresas').update({
-      nombre,
-      rfc: rfc || null,
-      direccion: direccion || null,
-      telefono: telefono || null,
-      email: email || null,
-      activo
-    }).eq('id', empresaId);
+    await platRpc('platform_empresa_guardar', { p_id: empresaId, p_datos: { nombre, rfc: rfc || null, direccion: direccion || null, telefono: telefono || null, email: email || null, activo } });
+    const error = null;
 
     if (error) throw error;
 
@@ -1082,7 +1076,8 @@ async function toggleEmpresaStatus(empresaId) {
   if (!confirm(`¿Deseas ${action} la empresa "${empresa.nombre}"?`)) return;
 
   try {
-    const { error } = await sbObra.from('empresas').update({ activo: newStatus }).eq('id', empresaId);
+    await platRpc('platform_empresa_guardar', { p_id: empresaId, p_datos: { activo: newStatus } });
+    const error = null;
     if (error) throw error;
 
     showToast(`Empresa ${newStatus ? 'activada' : 'suspendida'} correctamente`, 'success');
@@ -1201,11 +1196,7 @@ async function createUsuario(e) {
   errorDiv.classList.add('hidden');
 
   try {
-    // Verificar si el email ya existe (schema: control_obra)
-    const { data: existing } = await sbObra.from('obra_usuarios').select('id').eq('email', email).limit(1);
-    if (existing && existing.length > 0) {
-      throw new Error('Ya existe un usuario con este email');
-    }
+    // El correo duplicado lo rechaza admin_create_user en el servidor
 
     // Crear usuario usando RPC que maneja el hash de password.
     // Pasa el token de sesión de plataforma para que el servidor valide permisos.
@@ -1331,34 +1322,11 @@ async function updateUsuario(e, userId) {
   errorDiv.classList.add('hidden');
 
   try {
-    // Check if email changed and already exists
-    const usuario = platformData.usuarios.find(u => u.id === userId);
-    if (email !== usuario.email) {
-      const { data: existing } = await sbObra.from('obra_usuarios').select('id').eq('email', email).neq('id', userId).limit(1);
-      if (existing && existing.length > 0) {
-        throw new Error('Ya existe otro usuario con este email');
-      }
-    }
-
-    // Update user data
-    const updateData = { empresa_id, nombre, email, rol_id, telefono: telefono || null, activo };
-
-    // If password provided, hash it
-    if (password) {
-      if (password.length < 6) {
-        throw new Error('La contrasena debe tener al menos 6 caracteres');
-      }
-      // Use RPC to hash password
-      const { data: hashResult, error: hashErr } = await sb.rpc('hash_password', { p_password: password });
-      if (hashErr) {
-        // Fallback: store as plain (not recommended)
-        updateData.password_hash = password;
-      } else {
-        updateData.password_hash = hashResult;
-      }
-    }
-
-    const { error } = await sbObra.from('obra_usuarios').update(updateData).eq('id', userId);
+    // La contraseña viaja a la función, que la cifra y valida en el servidor; el hash nunca pasa por el navegador
+    const datos = { empresa_id, nombre, email, rol_id, telefono: telefono || null, activo };
+    if (password) datos.password = password;
+    await platRpc('platform_usuario_guardar', { p_id: userId, p_datos: datos });
+    const error = null;
     if (error) throw error;
 
     document.querySelector('.modal').remove();
@@ -1381,7 +1349,8 @@ async function toggleUsuarioStatus(userId, currentStatus) {
   if (!confirm(`¿Seguro que deseas ${action} este usuario?`)) return;
 
   try {
-    const { error } = await sbObra.from('obra_usuarios').update({ activo: !currentStatus }).eq('id', userId);
+    await platRpc('platform_usuario_guardar', { p_id: userId, p_datos: { activo: !currentStatus } });
+    const error = null;
     if (error) throw error;
 
     showToast(`Usuario ${currentStatus ? 'desactivado' : 'activado'} correctamente`, 'success');
@@ -1417,11 +1386,8 @@ function confirmDeleteUsuario(userId, userName) {
 
 async function deleteUsuario(userId) {
   try {
-    // First delete user sessions (schema: control_obra)
-    await sbObra.from('obra_sesiones').delete().eq('usuario_id', userId);
-
-    // Then delete user (schema: control_obra)
-    const { error } = await sbObra.from('obra_usuarios').delete().eq('id', userId);
+    await platRpc('platform_usuario_eliminar', { p_id: userId });
+    const error = null;
     if (error) throw error;
 
     document.querySelector('.modal').remove();

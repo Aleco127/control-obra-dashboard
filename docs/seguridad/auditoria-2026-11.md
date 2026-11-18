@@ -50,3 +50,23 @@ Migraciones 073 a 075, función de borde `portal-archivo` v4 y build `2026111815
 ### Cómo comprobar
 
 Simular un rol dentro de una transacción que se revierte: crear un usuario temporal con ese `rol_id`, una sesión, fijar `request.headers` con su `x-obra-token`, `SET LOCAL ROLE anon` y contar filas en las vistas `public.*`. Resultado esperado para `trabajador`: 0 en gastos, nómina, cobros, clientes y empleados; no puede insertar ni actualizar.
+
+## Tercera ronda (18-nov-2026): tokens, panel de plataforma y política de contenido
+
+Migraciones 076 y 077, `portal-archivo` v5, build `202611181745` y bloque de Caddy actualizado.
+
+| Tema | Antes | Ahora |
+|---|---|---|
+| Tokens de sesión | `obra_sesiones`, `portal_sesiones` y `platform_sessions` guardaban el token tal cual | Sólo el SHA-256 (`control_obra.tok`). El token real vive en el navegador; un hash leído de la base no sirve para entrar |
+| Panel de plataforma | `admin.html` leía y escribía `empresas` y `obra_usuarios` directo, y mandaba el hash de contraseña desde el navegador | `platform_datos`, `platform_empresa_guardar`, `platform_usuario_guardar` y `platform_usuario_eliminar` validan `x-platform-token`; la contraseña se cifra en el servidor |
+| Plantillas de configuración | Sin política de escritura | Alta y baja sólo con sesión de plataforma |
+| Tablas de plataforma en `public` | `anon` tenía `TRUNCATE`, `TRIGGER` y `REFERENCES` | Revocados |
+| CSP | `'unsafe-eval'`, scripts de cualquier `*.supabase.co` y del CDN de Tailwind, `connect-src` a cualquier proyecto de Supabase y a `127.0.0.1:8879` | Sin `'unsafe-eval'`; scripts sólo propios, jsDelivr, cdnjs y Openpay; `connect-src` sólo al proyecto propio |
+
+### Notas para quien toque esto
+
+- **Función nueva que busque una sesión por token:** comparar contra `control_obra.tok(p_token)`, nunca contra el token directo. Una función de borde que lea la tabla debe calcular el SHA-256 (ver `portal-archivo`).
+- **Los tokens de QA** ya no se pueden leer de la base: viven en `.env`. Para uno nuevo, insertar la fila con `control_obra.tok('<token>')`.
+- **Scripts de Playwright:** `wait_for_function` debe recibir una función (`"() => …"`), no una expresión suelta, porque sin `'unsafe-eval'` la expresión se rechaza.
+- **CSP:** sigue con `'unsafe-inline'` porque la app usa miles de manejadores en línea; quitarlo exige reescribirlos.
+- **Portal:** `src/portal.html` versiona sus scripts a mano (`?v=`); hay que subir ese valor cada vez que cambie `src/js/portal/*.js`.

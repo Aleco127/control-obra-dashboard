@@ -6,6 +6,12 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
+// La base sólo guarda el SHA-256 del token de sesión (migración 076).
+async function sha256(t: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(d)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
 // Devuelve las obras a las que el visitante tiene derecho, según cómo entró.
 async function obrasPermitidas(b: { token?: string; sesion?: string }): Promise<number[] | null> {
   const token = String(b.token ?? "");
@@ -15,7 +21,7 @@ async function obrasPermitidas(b: { token?: string; sesion?: string }): Promise<
   }
   const ses = String(b.sesion ?? "");
   if (/^[a-f0-9]{64}$/.test(ses)) {
-    const { data: s } = await admin.schema("control_obra").from("portal_sesiones").select("usuario_id,expires_at,activo").eq("token", ses).maybeSingle();
+    const { data: s } = await admin.schema("control_obra").from("portal_sesiones").select("usuario_id,expires_at,activo").eq("token", await sha256(ses)).maybeSingle();
     if (!s || !s.activo || new Date(s.expires_at as string) < new Date()) return null;
     const { data: u } = await admin.schema("control_obra").from("portal_usuarios").select("activo").eq("id", s.usuario_id).maybeSingle();
     if (!u || !u.activo) return null;
