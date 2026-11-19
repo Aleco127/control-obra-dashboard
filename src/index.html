@@ -7490,7 +7490,7 @@ c.innerHTML=`
 </div>
 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-6">${rolCounts.map(r=>`<div class="g rounded-xl p-3 hover:border-sky-400/50 cursor-pointer" onclick="filterByRole(${r.id})"><div class="w-10 h-10 rounded-xl bg-gradient-to-br ${roleColors[r.nombre]||'from-gray-500 to-slate-500'} flex items-center justify-center mb-2"><i class="${roleIcons[r.nombre]||'ri-user-line'} text-white text-lg"></i></div><p class="text-2xl font-bold">${r.count}</p><p class="text-[10px] text-gray-400 truncate">${r.nombre.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())}</p></div>`).join('')}</div>
 <div class="g rounded-xl p-4 mb-6"><h3 class="font-bold text-sm mb-4"><i class="ri-organization-chart n"></i> Jerarquia de Permisos</h3><div class="flex flex-wrap items-center justify-center gap-2 text-xs">${D.r.map((r,i)=>`<div class="flex items-center gap-2"><div class="px-3 py-2 rounded-lg bg-gradient-to-br ${roleColors[r.nombre]||'from-gray-500 to-slate-500'} text-white font-medium"><i class="${roleIcons[r.nombre]||'ri-user-line'}"></i> <span class="hidden sm:inline">${r.nombre.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())}</span> (${r.nivel_acceso})</div>${i<D.r.length-1?'<i class="ri-arrow-right-line text-gray-600"></i>':''}</div>`).join('')}</div></div>
-<div class="g rounded-xl overflow-hidden"><div class="p-4 border-b border-slate-200 flex items-center justify-between"><h3 class="font-bold text-sm"><i class="ri-team-line n"></i> Usuarios (${D.u.length})</h3><input type="text" placeholder="Buscar..." class="inp w-48 text-xs" onkeyup="searchUsers(this.value)"></div><div id="userList">${renderUserList(D.u)}</div></div>`;
+<div class="g rounded-xl overflow-hidden"><div class="p-4 border-b border-slate-200 flex items-center justify-between"><h3 class="font-bold text-sm"><i class="ri-team-line n"></i> Usuarios (${D.u.length})</h3><input type="text" placeholder="Buscar..." class="inp w-48 text-xs" onkeyup="searchUsers(this.value)"></div><div id="userList" class="table-wrap">${renderUserList(D.u)}</div></div>`;
 $('userRol').innerHTML=D.r.map(r=>`<option value="${r.id}">${r.nombre.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase())} (${r.nivel_acceso})</option>`).join('');
 $('obrasCheckboxes').innerHTML=D.o.map(o=>`<label class="flex items-center gap-2 py-1 cursor-pointer hover:bg-slate-50 px-2 rounded"><input type="checkbox" name="obrasUser" value="${o.id}" class="accent-cyan-500"><span class="text-sm">${S(o.nombre_obra)}</span></label>`).join('');
 }
@@ -18173,7 +18173,7 @@ c.innerHTML=`
   </div>
 
   <!-- Tabs -->
-  <div class="flex gap-2 mb-6 border-b border-slate-200">
+  <div class="flex gap-2 mb-6 border-b border-slate-200 tabs-scroll">
     <button id="tabPeriodos" onclick="switchNominaTab('periodos')" class="px-4 py-2 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">
       <i class="ri-calendar-2-line mr-1"></i>Períodos de Nómina
     </button>
