@@ -2668,21 +2668,14 @@ return;
 }
 let hasChanges=false;
 if(typeof NavPrefs!=='undefined'){const cambio=NavPrefs.setServidor(mainData.nav_prefs);navAplicarPrefs();if(cambio&&$('nv')){N.dirty=true;N();}}
-if(mainData.obras&&mainData.obras.length!==D.o.length){D.o=mainData.obras;hasChanges=true;}
-if(mainData.gastos&&mainData.gastos.length!==D.g.length){D.g=mainData.gastos;hasChanges=true;}
-if(mainData.ordenes_compra&&mainData.ordenes_compra.length!==D.oc.length){D.oc=mainData.ordenes_compra;hasChanges=true;}
-if(mainData.empleados&&mainData.empleados.length!==D.e.length){D.e=mainData.empleados;hasChanges=true;}
-if(mainData.proveedores&&mainData.proveedores.length!==D.pv.length){D.pv=mainData.proveedores;hasChanges=true;}
-if(mainData.estimaciones&&mainData.estimaciones.length!==D.est.length){D.est=mainData.estimaciones;hasChanges=true;}
-if(mainData.pagos_proveedores&&mainData.pagos_proveedores.length!==D.ppv.length){D.ppv=mainData.pagos_proveedores;hasChanges=true;}
-if(mainData.pagos_recibidos&&mainData.pagos_recibidos.length!==D.prc.length){D.prc=mainData.pagos_recibidos;hasChanges=true;}
-if(mainData.programas_obra&&mainData.programas_obra.length!==D.pg.length){D.pg=mainData.programas_obra;hasChanges=true;}
-if(mainData.catalogo_conceptos&&mainData.catalogo_conceptos.length!==D.cc.length){D.cc=mainData.catalogo_conceptos;hasChanges=true;}
-if(mainData.obra_modificaciones&&mainData.obra_modificaciones.length!==D.omod.length){D.omod=mainData.obra_modificaciones;hasChanges=true;}
-if(mainData.cuentas_por_cobrar&&mainData.cuentas_por_cobrar.length!==D.cxc.length){D.cxc=mainData.cuentas_por_cobrar;hasChanges=true;}
-if(mainData.materiales_movimientos&&mainData.materiales_movimientos.length!==D.mm.length){D.mm=mainData.materiales_movimientos;hasChanges=true;}
-if(mainData.subcontratos_pagos&&mainData.subcontratos_pagos.length!==D.sp.length){D.sp=mainData.subcontratos_pagos;hasChanges=true;}
+// Se compara el contenido, no sólo el número de filas: un cobro que salda una exhibición o una obra que cambia de estatus no agrega filas.
+const MAPA_REFRESCO=[['obras','o'],['gastos','g'],['ordenes_compra','oc'],['empleados','e'],['proveedores','pv'],['estimaciones','est'],['clientes','cli'],['cotizaciones','cot'],['materiales','mt'],['subcontratos','sc'],['bitacora','bt'],['nomina','nom'],['eventos','ev'],['pagos_proveedores','ppv'],['pagos_recibidos','prc'],['programas_obra','pg'],['catalogo_conceptos','cc'],['obra_modificaciones','omod'],['cuentas_por_cobrar','cxc'],['materiales_movimientos','mm'],['subcontratos_pagos','sp'],['asistencia','asi'],['categorias_gasto','catg'],['socios','soc'],['movimientos_socio','msoc']];
+const distinto=(a,b)=>{if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return true;try{return JSON.stringify(a)!==JSON.stringify(b);}catch(e){return true;}};
+MAPA_REFRESCO.forEach(([k,d])=>{if(Array.isArray(mainData[k])&&distinto(mainData[k],D[d])){D[d]=mainData[k];hasChanges=true;}});
+// Las actividades del programa alimentan los hitos y el avance de Inicio y no vienen en la carga principal.
+try{const{data:apNuevo}=await sb.from('actividades_programa').select('*').order('orden',{ascending:true});if(Array.isArray(apNuevo)&&distinto(apNuevo,D.ap)){D.ap=apNuevo;hasChanges=true;}}catch(e){}
 if(hasChanges){
+if(typeof invalidateFilterCache==='function')invalidateFilterCache();
 Cache.saveAppData(D,empId||'global');
 $('sync').textContent='✓ Actualizado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
 console.log('✅ Datos actualizados en segundo plano');
