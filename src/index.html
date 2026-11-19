@@ -3468,7 +3468,7 @@ ${dsBlock('dsHitos','Hitos en 7 días','ri-flag-line',hitos.length?`<ul class="d
 ${dsBlock('dsDesv','Obras con retraso','ri-line-chart-line',desviadas.length?`<ul class="divide-y divide-slate-100">${desviadas.map(({o,d})=>`<li class="flex items-center gap-2 py-1.5"><span class="${d.desv<=-10?'text-danger':'text-amber-700'} font-bold w-16 shrink-0">${d.desv} pts</span><a href="#o" class="flex-1 min-w-0 truncate hover:underline" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><span class="text-xs text-ink-subtle">${d.realHoy}% / ${d.progHoy}%</span></li>`).join('')}</ul>`:`<p class="text-ok"><i class="ri-checkbox-circle-line" aria-hidden="true"></i> Ninguna obra con desviación mayor a 5 puntos.</p><p class="text-xs text-ink-subtle mt-1">${obras.filter(o=>(D.pg||[]).some(p=>p.obra_id===o.id)).length} de ${obras.length} obras tienen programa.</p>`,{label:'Ver obras',onClick:"fichaObraId=null;M='o';R()"})}
 ${dsBlock('dsGas','Por aprobar','ri-wallet-3-line',`<div class="flex gap-6"><div><p class="text-2xl font-bold">${gPend.length}</p><p class="text-xs text-ink-subtle">compras por aprobar · ${fmt(gPend.reduce((s,g)=>s+(parseFloat(g.monto_neto)||0),0))}</p></div><div><p class="text-2xl font-bold">${ocPend.length}</p><p class="text-xs text-ink-subtle">órdenes de compra</p></div></div>${gPend.length?`<ul class="divide-y divide-slate-100 mt-2">${gPend.slice(0,3).map(g=>`<li class="flex justify-between gap-2 py-1"><span class="truncate">${S(g.descripcion||g.categoria||'Gasto')}</span><span class="shrink-0 font-medium">${fmt(g.monto_neto)}</span></li>`).join('')}</ul>`:''}`,{label:gPend.length?'Revisar gastos':'Ver órdenes',onClick:gPend.length?"M='g';R()":"M='x';R()"})}
 ${dsBlock('dsFlujo','Flujo de '+mesNombre,'ri-exchange-funds-line',`<div class="space-y-2"><div><div class="flex justify-between text-xs mb-0.5"><span>Cobrado</span><span class="font-medium text-ok">${fmt(cobMes)}</span></div><div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-emerald-600 rounded-full" style="width:${cobMes/maxFlujo*100}%"></div></div></div><div><div class="flex justify-between text-xs mb-0.5"><span>Gastado</span><span class="font-medium ${gasMes>cobMes?'text-danger':''}">${fmt(gasMes)}</span></div><div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full ${gasMes>cobMes?'bg-red-600':'bg-slate-500'} rounded-full" style="width:${gasMes/maxFlujo*100}%"></div></div></div><p class="text-xs text-ink-subtle">Neto del mes: <b class="${cobMes-gasMes>=0?'text-ok':'text-danger'}">${fmt(cobMes-gasMes)}</b></p></div>`,{label:'Registrar cobro',onClick:'newPagoRecibido()'})}
-${dsBlock('dsObras','Obras activas','ri-building-2-line',obras.length?`<ul class="divide-y divide-slate-100">${obras.filter(o=>o.estatus!=='Completada').slice(0,6).map(o=>{const cx=(D.cxc||[]).filter(x=>x.obra_id===o.id);const pd=cx.reduce((s,x)=>s+(parseFloat(x.monto_pendiente)||0),0);return`<li class="py-1.5"><div class="flex items-center gap-2"><a href="#o" class="flex-1 min-w-0 truncate hover:underline font-medium" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><span class="text-xs n">${o.avance_porcentaje||0}%</span></div><div class="flex items-center gap-2 mt-1"><div class="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden"><div class="bar h-full rounded-full" style="width:${o.avance_porcentaje||0}%"></div></div><span class="text-xs text-ink-subtle w-28 text-right">${cx.length?`${fmt(pd)} por cobrar`:'sin plan de pagos'}</span></div></li>`;}).join('')}</ul>`:EmptyState({icon:'ri-building-2-line',title:'Aún no hay obras',body:'Crea la primera con el asistente: datos, catálogo, programa y plan de pagos en cinco pasos.',action:{label:'Crear obra',onClick:'WizardObra.open()'}}),{label:'Nueva obra',onClick:'WizardObra.open()'})}
+${dsBlock('dsObras','Obras activas','ri-building-2-line',obras.length?`<ul class="divide-y divide-slate-100">${obras.filter(o=>!OBRA_CERRADA.includes(o.estatus)).slice(0,6).map(o=>{const cx=(D.cxc||[]).filter(x=>x.obra_id===o.id);const pd=cx.reduce((s,x)=>s+(parseFloat(x.monto_pendiente)||0),0);return`<li class="py-1.5"><div class="flex items-center gap-2"><a href="#o" class="flex-1 min-w-0 truncate hover:underline font-medium" onclick="event.preventDefault();abrirFichaObra(${o.id})">${S(o.codigo_obra||'')} ${S(o.nombre_obra)}</a><span class="text-xs n">${o.avance_porcentaje||0}%</span></div><div class="flex items-center gap-2 mt-1"><div class="h-1.5 flex-1 bg-slate-100 rounded-full overflow-hidden"><div class="bar h-full rounded-full" style="width:${o.avance_porcentaje||0}%"></div></div><span class="text-xs text-ink-subtle w-28 text-right">${cx.length?`${fmt(pd)} por cobrar`:'sin plan de pagos'}</span></div></li>`;}).join('')}</ul>`:EmptyState({icon:'ri-building-2-line',title:'Aún no hay obras',body:'Crea la primera con el asistente: datos, catálogo, programa y plan de pagos en cinco pasos.',action:{label:'Crear obra',onClick:'WizardObra.open()'}}),{label:'Nueva obra',onClick:'WizardObra.open()'})}
 </div>
 ${dsAlertasCumplimiento()}`;
 }
@@ -3510,7 +3510,7 @@ return`<section class="g rounded-xl p-4" aria-labelledby="dsCum"><h2 id="dsCum" 
 
 // ---- Residente ----
 function DsResidente(c){
-const obras=getFilteredObras().filter(o=>o.estatus!=='Archivada'&&o.estatus!=='Completada');
+const obras=getFilteredObras().filter(o=>!OBRA_CERRADA.includes(o.estatus));
 const ids=obras.map(o=>o.id);
 const hoy=hoyISO();
 const btHoy=(D.bt||[]).filter(b=>ids.includes(b.obra_id)&&b.fecha===hoy);
@@ -11042,13 +11042,15 @@ if(M==='d')Ds($('c'));else if(M==='w')R();else if(typeof fichaObraId!=='undefine
 }catch(err){Toast.error(humanizeError(err,'No se actualizó el hito'));}
 }
 // Hitos próximos y vencidos (para alertas del dashboard y ficha de obra)
+// Estatus en los que la obra deja de generar pendientes en Inicio y en el contador del Programa.
+const OBRA_CERRADA=['Cancelada','Completada','Finalizada','Archivada'];
 function hitosPendientes(dias=3,obraId=null){
 const hoy=hoyISO();
 const lim=new Date(Date.now()+dias*86400000).toISOString().slice(0,10);
 const progs=(D.pg||[]).filter(p=>!obraId||p.obra_id==obraId);
-const permitidas=getObrasPermitidas().map(o=>o.id);
+const permitidas=getObrasPermitidas().filter(o=>obraId||!OBRA_CERRADA.includes(o.estatus)).map(o=>o.id);
 const out=[];
-(D.ap||[]).filter(a=>a.es_hito&&a.estatus!=='Completado'&&a.estatus!=='Completada').forEach(a=>{
+(D.ap||[]).filter(a=>a.es_hito&&a.estatus!=='Completado'&&a.estatus!=='Completada'&&a.estatus!=='Cancelado').forEach(a=>{
 const p=progs.find(x=>x.id===a.programa_id);if(!p||!permitidas.includes(p.obra_id))return;
 const f=a.fecha_inicio;if(!f)return;
 if(f<hoy)out.push({...a,obra_id:p.obra_id,tipo:'vencido'});
